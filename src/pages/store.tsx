@@ -74,10 +74,9 @@ interface StoreValue {
 const emptyDraft: Draft = {
   routeCode: null,
   condition: null,
-                  vehicles: [],
-                  vehicleForm: { plate: '', type: '', category: '' },
-                  photo: false,
-                  photoUrl: undefined,
+  vehicles: [],
+  vehicleForm: { plate: '', type: '', category: '' },
+  photo: false,
   photoUrl: undefined,
   startedAt: null,
 }
