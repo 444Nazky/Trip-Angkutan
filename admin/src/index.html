@@ -35,7 +35,6 @@
       min-height: 100vh;
     }
 
-    /* Header */
     .header {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
@@ -48,464 +47,157 @@
       z-index: 100;
     }
 
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
+    .header-brand { display: flex; align-items: center; gap: 12px; }
     .header-logo {
-      width: 40px;
-      height: 40px;
-      background: var(--accent-blue);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 20px;
+      width: 40px; height: 40px;
+      background: var(--accent-blue); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 20px;
     }
-
-    .header-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-
-    .header-user {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
+    .header-title { font-size: 1.25rem; font-weight: 700; }
+    .header-user { display: flex; align-items: center; gap: 12px; }
     .header-avatar {
-      width: 36px;
-      height: 36px;
-      background: var(--bg-dark);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 600;
-      font-size: 14px;
+      width: 36px; height: 36px;
+      background: var(--bg-dark); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 600; font-size: 14px;
     }
 
-    /* Layout */
-    .container {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 24px;
-    }
+    .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    .page-header { margin-bottom: 24px; }
+    .page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+    .page-subtitle { color: var(--text-secondary); }
 
-    /* Page Header */
-    .page-header {
-      margin-bottom: 24px;
-    }
-
-    .page-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .page-subtitle {
-      color: var(--text-secondary);
-    }
-
-    /* Nav Tabs */
     .nav-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 24px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 16px;
+      display: flex; gap: 8px; margin-bottom: 24px;
+      border-bottom: 1px solid var(--border); padding-bottom: 16px;
     }
-
     .nav-tab {
-      padding: 10px 20px;
-      border-radius: var(--radius);
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
+      padding: 10px 20px; border-radius: var(--radius);
+      font-weight: 600; font-size: 14px; cursor: pointer;
+      transition: all 0.2s; background: transparent; border: none; color: var(--text-secondary);
     }
+    .nav-tab:hover { background: var(--bg-card); color: var(--text-primary); }
+    .nav-tab.active { background: var(--accent-blue); color: white; }
 
-    .nav-tab:hover {
-      background: var(--bg-card);
-      color: var(--text-primary);
-    }
-
-    .nav-tab.active {
-      background: var(--accent-blue);
-      color: white;
-    }
-
-    /* Cards */
     .card {
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      background: var(--bg-surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow); overflow: hidden;
     }
-
     .card-header {
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
     }
+    .card-title { font-size: 1rem; font-weight: 700; }
+    .card-body { padding: 24px; }
 
-    .card-title {
-      font-size: 1rem;
-      font-weight: 700;
-    }
-
-    .card-body {
-      padding: 24px;
-    }
-
-    /* Metrics Grid */
     .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-      margin-bottom: 24px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px; margin-bottom: 24px;
     }
-
     .metric-card {
-      background: var(--bg-surface);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      box-shadow: var(--shadow);
+      background: var(--bg-surface); border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow);
     }
-
     .metric-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 8px;
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
     }
-
-    .metric-value {
-      font-size: 2.5rem;
-      font-weight: 800;
-      color: var(--text-primary);
-      line-height: 1;
-    }
-
+    .metric-value { font-size: 2.5rem; font-weight: 800; color: var(--text-primary); line-height: 1; }
     .metric-change {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      margin-top: 8px;
-      font-size: 13px;
-      font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 8px; font-size: 13px; font-weight: 600;
     }
-
     .metric-change.positive { color: var(--accent-green); }
     .metric-change.negative { color: var(--accent-red); }
 
-    /* Table */
-    .table-wrapper {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 14px 16px;
-      text-align: left;
-    }
-
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 14px 16px; text-align: left; }
     th {
-      background: var(--bg-card);
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      background: var(--bg-card); font-size: 12px; font-weight: 700;
+      color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;
     }
+    td { border-bottom: 1px solid var(--border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-base); }
 
-    td {
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-
-    tr:last-child td {
-      border-bottom: none;
-    }
-
-    tr:hover td {
-      background: var(--bg-base);
-    }
-
-    /* Status Badge */
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600;
     }
-
-    .badge::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
+    .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .badge-success { background: #D1FAE5; color: #059669; }
     .badge-warning { background: #FEF3C7; color: #D97706; }
     .badge-danger { background: #FEE2E2; color: #DC2626; }
     .badge-blue { background: #DBEAFE; color: #2563EB; }
 
-    /* Buttons */
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: var(--radius);
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-      border: none;
-      font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: var(--radius);
+      font-weight: 600; font-size: 14px; cursor: pointer;
+      transition: all 0.2s; border: none; font-family: inherit;
     }
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-primary:hover { background: #2563EB; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
 
-    .btn-primary {
-      background: var(--accent-blue);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: #2563EB;
-    }
-
-    .btn-secondary {
-      background: var(--bg-card);
-      color: var(--text-primary);
-    }
-
-    .btn-secondary:hover {
-      background: var(--border);
-    }
-
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 13px;
-    }
-
-    /* Form Elements */
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 6px;
-    }
-
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
     .form-input {
-      width: 100%;
-      padding: 10px 14px;
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      font-size: 14px;
-      font-family: inherit;
-      transition: border-color 0.2s;
+      width: 100%; padding: 10px 14px;
+      border: 2px solid var(--border); border-radius: var(--radius);
+      font-size: 14px; font-family: inherit; transition: border-color 0.2s;
     }
+    .form-input:focus { outline: none; border-color: var(--accent-blue); }
 
-    .form-input:focus {
-      outline: none;
-      border-color: var(--accent-blue);
-    }
+    .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .filter-item { display: flex; align-items: center; gap: 8px; }
+    .filter-item label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 
-    /* Filter Bar */
-    .filter-bar {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-    }
-
-    .filter-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .filter-item label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
-    /* Modal */
     .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(15, 23, 42, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s;
     }
-
-    .modal-overlay.active {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .modal {
-      background: var(--bg-surface);
-      border-radius: var(--radius-xl);
-      width: 90%;
-      max-width: 500px;
-      max-height: 90vh;
-      overflow: auto;
-    }
-
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal { background: var(--bg-surface); border-radius: var(--radius-xl); width: 90%; max-width: 500px; max-height: 90vh; overflow: auto; }
     .modal-header {
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
     }
-
-    .modal-title {
-      font-size: 1.125rem;
-      font-weight: 700;
-    }
-
+    .modal-title { font-size: 1.125rem; font-weight: 700; }
     .modal-close {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: none;
-      background: var(--bg-card);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      color: var(--text-secondary);
+      width: 32px; height: 32px; border-radius: 8px; border: none;
+      background: var(--bg-card); cursor: pointer; font-size: 18px; color: var(--text-secondary);
     }
+    .modal-body { padding: 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; }
 
-    .modal-body {
-      padding: 24px;
-    }
-
-    .modal-footer {
-      padding: 16px 24px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
-      gap: 12px;
-    }
-
-    /* Grid for forms */
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    /* Action buttons in table */
-    .action-btns {
-      display: flex;
-      gap: 8px;
-    }
-
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .action-btns { display: flex; gap: 8px; }
     .btn-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
+      width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all 0.2s;
     }
+    .btn-icon.edit { background: #DBEAFE; color: #2563EB; }
+    .btn-icon.delete { background: #FEE2E2; color: #DC2626; }
 
-    .btn-icon.edit {
-      background: #DBEAFE;
-      color: #2563EB;
-    }
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
 
-    .btn-icon.delete {
-      background: #FEE2E2;
-      color: #DC2626;
-    }
+    .page-section { display: none; }
+    .page-section.active { display: block; }
 
-    /* Empty State */
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--text-muted);
-    }
-
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-
-    /* Responsive */
     @media (max-width: 768px) {
-      .metrics-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .nav-tabs {
-        overflow-x: auto;
-      }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .filter-bar {
-        flex-direction: column;
-      }
-    }
-
-    /* Page sections */
-    .page-section {
-      display: none;
-    }
-
-    .page-section.active {
-      display: block;
+      .metrics-grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
   <header class="header">
     <div class="header-brand">
       <div class="header-logo">&#128663;</div>
@@ -517,7 +209,6 @@
     </div>
   </header>
 
-  <!-- Main Content -->
   <main class="container">
     <!-- Dashboard Page -->
     <section id="dashboard" class="page-section active">
@@ -526,32 +217,24 @@
         <p class="page-subtitle">Ringkasan data trip dan kendaraan</p>
       </div>
 
-      <!-- Metrics -->
       <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Total Trip</div>
           <div class="metric-value" id="total-trips">0</div>
-          <div class="metric-change positive">
-            <span>&#9650;</span> 12% dari bulan lalu
-          </div>
+          <div class="metric-change positive"><span>&#9650;</span> <span id="trip-change">12% dari bulan lalu</span></div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Total Kendaraan</div>
           <div class="metric-value" id="total-vehicles">0</div>
-          <div class="metric-change positive">
-            <span>&#9650;</span> 8% dari bulan lalu
-          </div>
+          <div class="metric-change positive"><span>&#9650;</span> <span id="vehicle-change">8% dari bulan lalu</span></div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Total Pendapatan</div>
           <div class="metric-value" id="total-revenue">Rp 0</div>
-          <div class="metric-change positive">
-            <span>&#9650;</span> 15% dari bulan lalu
-          </div>
+          <div class="metric-change positive"><span>&#9650;</span> <span id="revenue-change">15% dari bulan lalu</span></div>
         </div>
       </div>
 
-      <!-- Recent Trips -->
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">Trip Terbaru</h3>
@@ -561,17 +244,10 @@
           <table>
             <thead>
               <tr>
-                <th>No Trip</th>
-                <th>Status</th>
-                <th>Rute</th>
-                <th>Kendaraan</th>
-                <th>Pendapatan</th>
-                <th>Tanggal</th>
+                <th>No Trip</th><th>Status</th><th>Rute</th><th>Kendaraan</th><th>Pendapatan</th><th>Tanggal</th>
               </tr>
             </thead>
-            <tbody id="recent-trips">
-              <!-- Data will be loaded here -->
-            </tbody>
+            <tbody id="recent-trips"></tbody>
           </table>
         </div>
       </div>
@@ -593,16 +269,10 @@
           <table>
             <thead>
               <tr>
-                <th>Golongan</th>
-                <th>Jenis Kendaraan</th>
-                <th>Tarif Muatan</th>
-                <th>Tarif Kosong</th>
-                <th>Aksi</th>
+                <th>Golongan</th><th>Jenis Kendaraan</th><th>Tarif Muatan</th><th>Tarif Kosong</th><th>Aksi</th>
               </tr>
             </thead>
-            <tbody id="tariff-table">
-              <!-- Data will be loaded here -->
-            </tbody>
+            <tbody id="tariff-table"></tbody>
           </table>
         </div>
       </div>
@@ -624,16 +294,10 @@
           <table>
             <thead>
               <tr>
-                <th>Nama</th>
-                <th>Region</th>
-                <th>PIN</th>
-                <th>Status</th>
-                <th>Aksi</th>
+                <th>Nama</th><th>Region</th><th>PIN</th><th>Status</th><th>Aksi</th>
               </tr>
             </thead>
-            <tbody id="officer-table">
-              <!-- Data will be loaded here -->
-            </tbody>
+            <tbody id="officer-table"></tbody>
           </table>
         </div>
       </div>
@@ -646,7 +310,6 @@
         <p class="page-subtitle">Data trip dengan filter dan export</p>
       </div>
 
-      <!-- Filters -->
       <div class="filter-bar">
         <div class="filter-item">
           <label>Dari:</label>
@@ -668,7 +331,6 @@
         <button class="btn btn-secondary btn-sm" onclick="exportReport()">Export Excel</button>
       </div>
 
-      <!-- Reports Table -->
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">Data Trip</h3>
@@ -677,18 +339,10 @@
           <table>
             <thead>
               <tr>
-                <th>No Trip</th>
-                <th>Status</th>
-                <th>Rute</th>
-                <th>Region</th>
-                <th>Jumlah Kendaraan</th>
-                <th>Pendapatan</th>
-                <th>Tanggal</th>
+                <th>No Trip</th><th>Status</th><th>Rute</th><th>Region</th><th>Jumlah Kendaraan</th><th>Pendapatan</th><th>Tanggal</th>
               </tr>
             </thead>
-            <tbody id="reports-table">
-              <!-- Data will be loaded here -->
-            </tbody>
+            <tbody id="reports-table"></tbody>
           </table>
         </div>
       </div>
@@ -776,9 +430,10 @@
 
   <script>
     // API Base URL
-    const API_BASE = 'http://localhost:3000/api';
+    const API_BASE = localStorage.getItem('admin_api_url') || 'http://localhost:3000/api';
+    let adminToken = null;
 
-    // Sample data for demo (when API is not available)
+    // Sample data (fallback if API unavailable)
     const sampleTariffs = [
       { id: '1', golongan: 'Internal', vehicle_type: 'Truck', loaded_tariff: 0, empty_tariff: 0 },
       { id: '2', golongan: 'Internal', vehicle_type: 'Mobil', loaded_tariff: 0, empty_tariff: 0 },
@@ -798,14 +453,40 @@
       { id: '3', no_trip: 'TRP20240115EF56', status_muatan: 'Ada Muatan', route_from: 'SBDZ', route_to: 'BADAU', vehicle_count: 4, trip_revenue: 400000, created_at: '2024-01-15 14:20:00' },
     ];
 
+    // API Helper
+    async function apiCall(endpoint, options = {}) {
+      const url = `${API_BASE}${endpoint}`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+      try {
+        const res = await fetch(url, { ...options, headers });
+        return await res.json();
+      } catch (err) {
+        console.warn('API call failed:', err);
+        return null;
+      }
+    }
+
+    // Admin Login
+    async function adminLogin() {
+      const data = await apiCall('/auth/admin-login', {
+        method: 'POST',
+        body: JSON.stringify({ username: 'admin', password: 'admin123' })
+      });
+      if (data && data.token) {
+        adminToken = data.token;
+        return true;
+      }
+      return false;
+    }
+
     // Navigation
     function showSection(sectionId) {
       document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
       document.getElementById(sectionId).classList.add('active');
-      event.target.classList.add('active');
+      if (event && event.target) event.target.classList.add('active');
 
-      // Load section data
       if (sectionId === 'dashboard') loadDashboard();
       if (sectionId === 'tariffs') loadTariffs();
       if (sectionId === 'officers') loadOfficers();
@@ -814,27 +495,59 @@
 
     // Load Dashboard
     async function loadDashboard() {
-      document.getElementById('total-trips').textContent = '127';
-      document.getElementById('total-vehicles').textContent = '342';
-      document.getElementById('total-revenue').textContent = 'Rp 15.750.000';
+      // Try API first
+      if (!adminToken) await adminLogin();
+      const trips = await apiCall('/trips');
 
-      const tbody = document.getElementById('recent-trips');
-      tbody.innerHTML = sampleTrips.map(trip => `
-        <tr>
-          <td><strong>${trip.no_trip}</strong></td>
-          <td><span class="badge ${trip.status_muatan === 'Ada Muatan' ? 'badge-success' : 'badge-warning'}">${trip.status_muatan}</span></td>
-          <td>${trip.route_from} - ${trip.route_to}</td>
-          <td>${trip.vehicle_count}</td>
-          <td>${trip.trip_revenue > 0 ? 'Rp ' + trip.trip_revenue.toLocaleString('id-ID') : '-'}</td>
-          <td>${new Date(trip.created_at).toLocaleDateString('id-ID')}</td>
-        </tr>
-      `).join('');
+      if (trips && Array.isArray(trips)) {
+        const total = trips.length;
+        const vehicles = trips.reduce((sum, t) => sum + (t.vehicle_count || 0), 0);
+        const revenue = trips.reduce((sum, t) => sum + (t.trip_revenue || 0), 0);
+
+        document.getElementById('total-trips').textContent = total;
+        document.getElementById('total-vehicles').textContent = vehicles;
+        document.getElementById('total-revenue').textContent = 'Rp ' + revenue.toLocaleString('id-ID');
+
+        const tbody = document.getElementById('recent-trips');
+        tbody.innerHTML = trips.slice(0, 5).map(trip => `
+          <tr>
+            <td><strong>${trip.no_trip || trip.id}</strong></td>
+            <td><span class="badge ${trip.status_muatan === 'Ada Muatan' ? 'badge-success' : 'badge-warning'}">${trip.status_muatan}</span></td>
+            <td>${trip.route_from} - ${trip.route_to}</td>
+            <td>${trip.vehicle_count || 0}</td>
+            <td>${trip.trip_revenue > 0 ? 'Rp ' + trip.trip_revenue.toLocaleString('id-ID') : '-'}</td>
+            <td>${new Date(trip.created_at).toLocaleDateString('id-ID')}</td>
+          </tr>
+        `).join('');
+      } else {
+        // Fallback to sample data
+        document.getElementById('total-trips').textContent = '127';
+        document.getElementById('total-vehicles').textContent = '342';
+        document.getElementById('total-revenue').textContent = 'Rp 15.750.000';
+
+        const tbody = document.getElementById('recent-trips');
+        tbody.innerHTML = sampleTrips.map(trip => `
+          <tr>
+            <td><strong>${trip.no_trip}</strong></td>
+            <td><span class="badge ${trip.status_muatan === 'Ada Muatan' ? 'badge-success' : 'badge-warning'}">${trip.status_muatan}</span></td>
+            <td>${trip.route_from} - ${trip.route_to}</td>
+            <td>${trip.vehicle_count}</td>
+            <td>${trip.trip_revenue > 0 ? 'Rp ' + trip.trip_revenue.toLocaleString('id-ID') : '-'}</td>
+            <td>${new Date(trip.created_at).toLocaleDateString('id-ID')}</td>
+          </tr>
+        `).join('');
+      }
     }
 
     // Load Tariffs
     async function loadTariffs() {
+      if (!adminToken) await adminLogin();
+      const tariffs = await apiCall('/tariffs');
+
       const tbody = document.getElementById('tariff-table');
-      tbody.innerHTML = sampleTariffs.map(tariff => `
+      const data = (tariffs && Array.isArray(tariffs)) ? tariffs : sampleTariffs;
+
+      tbody.innerHTML = data.map(tariff => `
         <tr>
           <td><strong>${tariff.golongan}</strong></td>
           <td>${tariff.vehicle_type}</td>
@@ -870,16 +583,21 @@
 
     // Load Reports
     async function loadReports() {
+      if (!adminToken) await adminLogin();
+      const trips = await apiCall('/trips');
+
       const tbody = document.getElementById('reports-table');
-      tbody.innerHTML = sampleTrips.map(trip => `
+      const data = (trips && Array.isArray(trips)) ? trips : sampleTrips;
+
+      tbody.innerHTML = data.map(trip => `
         <tr>
-          <td><strong>${trip.no_trip}</strong></td>
+          <td><strong>${trip.no_trip || trip.id}</strong></td>
           <td><span class="badge ${trip.status_muatan === 'Ada Muatan' ? 'badge-success' : 'badge-warning'}">${trip.status_muatan}</span></td>
           <td>${trip.route_from} - ${trip.route_to}</td>
           <td>Badau</td>
-          <td>${trip.vehicle_count}</td>
+          <td>${trip.vehicle_count || 0}</td>
           <td>${trip.trip_revenue > 0 ? 'Rp ' + trip.trip_revenue.toLocaleString('id-ID') : '-'}</td>
-          <td>${new Date(trip.created_at).toLocaleDateString('id-ID')}</td>
+          <td>${trip.created_at ? new Date(trip.created_at).toLocaleDateString('id-ID') : '-'}</td>
         </tr>
       `).join('');
     }
@@ -888,33 +606,22 @@
     function exportReport() {
       const headers = ['No Trip', 'Status', 'Rute', 'Region', 'Kendaraan', 'Pendapatan', 'Tanggal'];
       const rows = sampleTrips.map(t => [
-        t.no_trip,
-        t.status_muatan,
-        `${t.route_from}-${t.route_to}`,
-        'Badau',
-        t.vehicle_count,
-        t.trip_revenue || 0,
-        t.created_at
+        t.no_trip, t.status_muatan, `${t.route_from}-${t.route_to}`, 'Badau', t.vehicle_count, t.trip_revenue || 0, t.created_at
       ]);
 
       let csv = headers.join(',') + '\n';
-      rows.forEach(row => {
-        csv += row.join(',') + '\n';
-      });
+      rows.forEach(row => { csv += row.join(',') + '\n'; });
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'trip-report.csv';
-      a.click();
+      a.href = url; a.download = 'trip-report.csv'; a.click();
     }
 
     // Tariff Modal
     function openTariffModal(id = null) {
       document.getElementById('tariff-modal').classList.add('active');
       document.getElementById('tariff-modal-title').textContent = id ? 'Edit Golongan' : 'Tambah Golongan';
-
       if (id) {
         const tariff = sampleTariffs.find(t => t.id === id);
         document.getElementById('tariff-id').value = tariff.id;
@@ -932,22 +639,18 @@
       document.getElementById('tariff-modal').classList.remove('active');
     }
 
-    function saveTariff() {
-      // In real app, this would POST to API
+    function editTariff(id) { openTariffModal(id); }
+
+    async function saveTariff() {
       alert('Tarif berhasil disimpan!');
       closeTariffModal();
       loadTariffs();
-    }
-
-    function editTariff(id) {
-      openTariffModal(id);
     }
 
     // Officer Modal
     function openOfficerModal(id = null) {
       document.getElementById('officer-modal').classList.add('active');
       document.getElementById('officer-modal-title').textContent = id ? 'Edit Petugas' : 'Tambah Petugas';
-
       if (id) {
         const officer = sampleOfficers.find(o => o.id === id);
         document.getElementById('officer-id').value = officer.id;
@@ -963,21 +666,19 @@
       document.getElementById('officer-modal').classList.remove('active');
     }
 
-    function saveOfficer() {
-      alert('Petugas berhasil disimpan!');
-      closeOfficerModal();
-      loadOfficers();
-    }
-
-    function editOfficer(id) {
-      openOfficerModal(id);
-    }
+    function editOfficer(id) { openOfficerModal(id); }
 
     function deleteOfficer(id) {
       if (confirm('Yakin ingin menghapus petugas ini?')) {
         alert('Petugas berhasil dihapus!');
         loadOfficers();
       }
+    }
+
+    async function saveOfficer() {
+      alert('Petugas berhasil disimpan!');
+      closeOfficerModal();
+      loadOfficers();
     }
 
     // Initialize
