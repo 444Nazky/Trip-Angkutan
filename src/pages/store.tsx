@@ -175,8 +175,20 @@ const seedTrips: Trip[] = allTrips.map(t => ({
 }))
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  // Detect admin mode from the page title or known static signals
+  const isAdminPage = typeof document !== 'undefined'
+    && (document.title === 'Trip Angkutan' || document.querySelector('[data-admin]') !== null)
+  const isAdminBuild = () => {
+    try {
+      return document.querySelector('[data-admin]') !== null
+    } catch { return false }
+  }
+
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
-  const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
+  const [userType, setUserType] = useState<'admin' | 'member'>(() => {
+    if (isAdminBuild()) return 'admin'
+    return load('trip.userType', 'member')
+  })
   const [officerId, setOfficerIdState] = useState<number>(() => load(LS.officer, officerList[0].id))
   const [trips, setTrips] = useState<Trip[]>(() => load(LS.trips, seedTrips))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
