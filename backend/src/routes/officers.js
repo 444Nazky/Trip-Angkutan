@@ -111,4 +111,15 @@ router.put('/:id/status', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// Delete officer
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+  try {
+    db.prepare(`DELETE FROM officer_regions WHERE officer_id = ?`).run(req.params.id);
+    db.prepare(`DELETE FROM officers WHERE id = ?`).run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete officer' });
+  }
+});
+
 module.exports = router;

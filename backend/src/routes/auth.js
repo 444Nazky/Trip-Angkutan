@@ -55,12 +55,12 @@ router.post('/member-login', (req, res) => {
       return res.status(401).json({ error: 'Officer not found' });
     }
 
-    // Get officer from database
+    // Get officer from database (only if active)
     const officer = db.prepare(`
       SELECT o.*, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
-      WHERE o.id = ?
+      WHERE o.id = ? AND o.is_active = 1
     `).get(String(officerId));
 
     if (!officer) {
