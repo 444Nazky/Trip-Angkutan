@@ -21,7 +21,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [])
-
+//woiii
   const handleSync = async () => {
     if (syncing || !navigator.onLine) return
     setSyncing(true)
