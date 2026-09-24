@@ -175,7 +175,15 @@ export async function processSyncQueue(): Promise<SyncResult[]> {
 
     if (result.success) {
       results.push(result)
-      // Don't re-add to queue
+      try {
+        const rawTrips = localStorage.getItem('trip.trips.v1')
+        if (rawTrips) {
+          const list: Trip[] = JSON.parse(rawTrips)
+          const updated = list.map(t => (t.id === item.trip.id ? { ...t, synced: true } : t))
+          localStorage.setItem('trip.trips.v1', JSON.stringify(updated))
+          window.dispatchEvent(new Event('storage'))
+        }
+      } catch { /* quota */ }
     } else {
       item.attempts++
       item.lastError = result.error
