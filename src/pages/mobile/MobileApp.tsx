@@ -14,6 +14,7 @@ import HistoryDetailScreen from './HistoryDetailScreen'
 import OfficerSwitchScreen from './OfficerSwitchScreen'
 import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
+import SettingsScreen from './SettingsScreen'
 import type { MobileScreen } from '../types'
 
 // ─── Mobile App Container ─────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ export default function MobileApp() {
 
   const activeNav = ['history', 'history-detail'].includes(screen)
     ? 'history'
-    : ['profile'].includes(screen)
+    : ['profile', 'settings'].includes(screen)
     ? 'profile'
     : 'home'
 
@@ -48,6 +49,7 @@ export default function MobileApp() {
     'officer-switch': <OfficerSwitchScreen go={setScreen} />,
     'pin-verify': <PinVerifyScreen go={setScreen} />,
     profile: <ProfileScreen go={setScreen} />,
+    settings: <SettingsScreen go={setScreen} />,
   }
 
   // Screens without bottom nav
