@@ -60,6 +60,7 @@ interface StoreValue {
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
   startTrip: () => void
+  markTripSynced: (id: string) => void
   detailTripId: string | null
   setDetailTripId: (id: string | null) => void
   pendingOfficerId: number | null
@@ -249,6 +250,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
   const startTrip = useCallback(() => setDraft(d => ({ ...d, startedAt: d.startedAt ?? Date.now() })), [])
+  const markTripSynced = useCallback((id: string) => {
+    setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
+  }, [])
   const commitTrip = useCallback((t: Trip) => {
     const tripWithSync = { ...t, synced: false }
     setTrips(prev => [tripWithSync, ...prev])
