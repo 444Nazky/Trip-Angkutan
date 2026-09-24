@@ -72,9 +72,15 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       {t.photo && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
           <p className="text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wide">Foto Bukti</p>
-          <div className="bg-slate-100 rounded-xl h-32 flex items-center justify-center">
-            <div className="text-center"><Camera size={28} className="text-slate-300 mx-auto" /><p className="text-[10px] text-slate-400 mt-1">Foto tersimpan</p></div>
-          </div>
+          {t.photoUrl ? (
+            <div className="rounded-xl overflow-hidden border border-slate-200">
+              <img src={t.photoUrl} alt="Bukti Muatan" className="w-full h-48 object-cover" />
+            </div>
+          ) : (
+            <div className="bg-slate-100 rounded-xl h-32 flex items-center justify-center">
+              <div className="text-center"><Camera size={28} className="text-slate-300 mx-auto" /><p className="text-[10px] text-slate-400 mt-1">Foto tersimpan</p></div>
+            </div>
+          )}
         </div>
       )}
 

@@ -25,6 +25,7 @@ export interface Trip {
   officer: string
   duration: string
   photo: boolean
+  photoUrl?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
 }
@@ -35,6 +36,7 @@ export interface Draft {
   vehicles: VehicleEntry[]
   vehicleForm: { plate: string; type: string; category: string }
   photo: boolean
+  photoUrl?: string
   startedAt: number | null
 }
 
@@ -72,9 +74,11 @@ interface StoreValue {
 const emptyDraft: Draft = {
   routeCode: null,
   condition: null,
-  vehicles: [],
-  vehicleForm: { plate: '', type: '', category: '' },
-  photo: false,
+                  vehicles: [],
+                  vehicleForm: { plate: '', type: '', category: '' },
+                  photo: false,
+                  photoUrl: undefined,
+  photoUrl: undefined,
   startedAt: null,
 }
 

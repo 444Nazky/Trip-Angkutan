@@ -79,7 +79,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
   const pushVehicle = () => {
     addVehicle({ plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum })
-    patchDraft({ vehicleForm: { plate: '', type: '', category: '' }, photo: false })
+    patchDraft({ vehicleForm: { plate: '', type: '', category: '' }, photo: false, photoUrl: undefined })
   }
 
   return (
@@ -227,10 +227,18 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           <label className="text-[11px] font-bold text-slate-600 mb-2 block uppercase tracking-wide">Foto Bukti Muatan</label>
           <button
             onClick={() => go('camera')}
-            className={`w-full rounded-2xl border-2 border-dashed py-6 flex flex-col items-center gap-2 transition-all ${photoTaken ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-blue-300'}`}
+            className={`w-full rounded-2xl border-2 border-dashed py-4 px-4 flex flex-col items-center gap-2 transition-all ${photoTaken ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-blue-300'}`}
           >
             {photoTaken ? (
-              <><span className="text-3xl">✅</span><span className="text-[12px] font-bold text-emerald-600">Foto berhasil diambil</span><span className="text-[10px] text-emerald-500">Ketuk untuk ulang</span></>
+              <>
+                {draft.photoUrl ? (
+                  <img src={draft.photoUrl} alt="Bukti Muatan" className="w-24 h-24 object-cover rounded-xl border border-emerald-300 shadow-sm" />
+                ) : (
+                  <span className="text-3xl">✅</span>
+                )}
+                <span className="text-[12px] font-bold text-emerald-600">Foto berhasil diambil</span>
+                <span className="text-[10px] text-emerald-500">Ketuk untuk ambil ulang</span>
+              </>
             ) : (
               <><Camera size={28} className="text-slate-400" /><span className="text-[12px] font-semibold text-slate-500">Ambil Foto Selfie + Muatan</span><span className="text-[10px] text-slate-400">Pastikan kendaraan & muatan terlihat</span></>
             )}

@@ -48,6 +48,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
                   vehicles: [],
                   vehicleForm: { plate: '', type: '', category: '' },
                   photo: false,
+                  photoUrl: undefined,
                 })
               } else {
                 patchDraft({ condition: 'muatan' })

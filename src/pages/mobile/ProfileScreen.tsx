@@ -54,7 +54,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           { icon: Truck, label: 'Riwayat Trip', action: () => go('history') },
           { icon: Map, label: 'Rute Aktif', action: () => go('route-select') },
           { icon: ShieldCheck, label: 'Keamanan & PIN', action: () => { beginVerify({ pendingOfficerId: null, intent: 'security' }); go('pin-verify') } },
-          { icon: Settings, label: 'Pengaturan', action: () => { } },
+          { icon: Settings, label: 'Pengaturan', action: () => go('settings') },
         ].map((item, i) => (
           <button
             key={item.label}

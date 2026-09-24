@@ -78,6 +78,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
       officer: officer.name,
       duration: fmtElapsed(elapsed),
       photo: draft.photo,
+      photoUrl: draft.photoUrl,
       vehicles: isMuatan ? vehicles : [],
       synced: false,
     })
