@@ -7,27 +7,15 @@ import { initializeSync } from './services/sync'
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
-
-  // Start background sync (queue flush + online/offline listeners) once
-  useEffect(() => {
-    initializeSync()
-  }, [])
-
+  useEffect(() => { initializeSync() }, [])
   if (!loggedIn) return <LoginPage onLogin={login} />
-
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      {/* Logout Button */}
       <div className="fixed top-4 right-4 z-50">
-        <button
-          onClick={logout}
-          className="px-4 py-2 bg-white rounded-xl text-xs font-bold text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-md transition-all flex items-center gap-2"
-        >
+        <button onClick={logout} className="px-4 py-2 bg-white rounded-xl text-xs font-bold text-slate-500 shadow-md">
           Logout
         </button>
       </div>
-
-      {/* Route based on user type */}
       {userType === 'admin' ? (
         <AdminDashboard onLogout={logout} />
       ) : (
