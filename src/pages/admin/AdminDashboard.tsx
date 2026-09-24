@@ -260,10 +260,21 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   // Officer CRUD
-  const handleAddOff = () => {
+  const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
+    const region = regions.find(r => r.code === offForm.region)
+
+    // Create on backend
+    const res = await api.post<{ id: string }>('/officers', {
+      name: offForm.name,
+      pin: offForm.pin,
+      regionId: region?.id,
+    })
+
+    if (!res.ok || !res.data) return showToast('Gagal tambah petugas ke server', 'error')
+
     const initials = offForm.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    const row: Officer = { id: Date.now(), name: offForm.name, initials, region: offForm.region, pin: offForm.pin, status: 'Aktif', device: offForm.device || '-', trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID') }
+    const row: Officer = { id: Number(res.data.id), name: offForm.name, initials, region: offForm.region, pin: offForm.pin, status: 'Aktif', device: offForm.device || '-', trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID') }
     saveOfficers([...officers, row])
     setOffForm({ name: '', region: 'BADAU', pin: '', device: '' })
     setAddOff(false)
@@ -293,20 +304,38 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     showToast('Petugas diupdate')
   }
 
-  const handleDelOff = (i: number) => {
+  const handleDelOff = async (i: number) => {
     if (!confirm('Hapus?')) return
+    const officer = officers[i]
+
+    // Delete from backend
+    const be = backendOfficers.find(b => b.name === officer.name)
+    if (be) {
+      const res = await api.delete(`/officers/${be.id}`)
+      if (!res.ok) return showToast('Gagal hapus petugas dari server', 'error')
+    }
+
     saveOfficers(officers.filter((_, idx) => idx !== i))
-    // Keep the open edit form pointing at the right row after deletion
     if (editOffIdx === i) { setEditOffIdx(null); setEditOff(null) }
     else if (editOffIdx !== null && editOffIdx > i) setEditOffIdx(editOffIdx - 1)
     showToast('Petugas dihapus')
   }
 
-  const toggleOffStatus = (i: number) => {
+  const toggleOffStatus = async (i: number) => {
+    const officer = officers[i]
+    const newStatus = officer.status === 'Aktif' ? 'Nonaktif' : 'Aktif'
+
+    // Sync to backend
+    const be = backendOfficers.find(b => b.name === officer.name)
+    if (be) {
+      const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
+      if (!res.ok) return showToast('Gagal sync status ke server', 'error')
+    }
+
     const ns = [...officers]
-    ns[i] = { ...ns[i], status: ns[i].status === 'Aktif' ? 'Nonaktif' : 'Aktif' }
+    ns[i] = { ...ns[i], status: newStatus }
     saveOfficers(ns)
-    showToast('Status diubah')
+    showToast(`Status diubah ke ${newStatus}`)
   }
 
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
