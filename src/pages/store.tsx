@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
 import { ensureBackendSession, logout as endBackendSession } from '../services/auth'
+import { syncOfficersToLocal } from '../services/officers'
 
 export interface VehicleEntry {
   plate: string
