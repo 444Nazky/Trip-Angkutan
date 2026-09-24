@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  // Staging server: https://192.168.1.2
-  apiBaseUrl: 'https://192.168.1.2/api'
+  // API Backend: http://localhost:3000 (dev) / https://192.168.1.2 (staging)
+  apiBaseUrl: 'http://localhost:3000/api'
 };
