@@ -229,6 +229,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
   }, [userType])
 
+  // Sync officers from backend on app start (mobile only)
+  useEffect(() => {
+    if (isAdminBuild()) return
+    const sync = async () => {
+      const synced = await syncOfficersToLocal()
+      if (synced.length > 0) {
+        setOfficers(synced)
+      }
+    }
+    void sync()
+  }, [])
+
   const officer = useMemo(
     () => officers.find(o => o.id === officerId) ?? officers[0] ?? officerList[0],
     [officers, officerId],

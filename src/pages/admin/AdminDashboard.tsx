@@ -259,6 +259,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     showToast(`Tarif region ${rt.code} diupdate`)
   }
 
+  // Refresh officers from backend
+  const refreshOfficers = async () => {
+    const offs = await api.get<BackendOfficerRow[]>('/officers')
+    if (offs.ok && offs.data) setBackendOfficers(offs.data)
+  }
+
   // Officer CRUD
   const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
@@ -273,6 +279,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
     if (!res.ok || !res.data) return showToast('Gagal tambah petugas ke server', 'error')
 
+    // Refresh backend list and local list
+    await refreshOfficers()
     const initials = offForm.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     const row: Officer = { id: Number(res.data.id), name: offForm.name, initials, region: offForm.region, pin: offForm.pin, status: 'Aktif', device: offForm.device || '-', trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID') }
     saveOfficers([...officers, row])
@@ -313,6 +321,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (be) {
       const res = await api.delete(`/officers/${be.id}`)
       if (!res.ok) return showToast('Gagal hapus petugas dari server', 'error')
+      await refreshOfficers()
     }
 
     saveOfficers(officers.filter((_, idx) => idx !== i))
@@ -330,6 +339,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (be) {
       const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
       if (!res.ok) return showToast('Gagal sync status ke server', 'error')
+      await refreshOfficers()
     }
 
     const ns = [...officers]
