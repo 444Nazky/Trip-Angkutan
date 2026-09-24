@@ -11,11 +11,6 @@ function Shell() {
   if (!loggedIn) return <LoginPage onLogin={login} />
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      <div className="fixed top-4 right-4 z-50">
-        <button onClick={logout} className="px-4 py-2 bg-white rounded-xl text-xs font-bold text-slate-500 shadow-md">
-          Logout
-        </button>
-      </div>
       {userType === 'admin' ? (
         <AdminDashboard onLogout={logout} />
       ) : (
