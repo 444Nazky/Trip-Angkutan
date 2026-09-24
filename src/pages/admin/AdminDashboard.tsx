@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X } from 'lucide-react'
 import { useApp } from '../store'
+import { tariffData } from '../data'
 import { ensureAdminBackendSession } from '../../services/auth'
 import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../services/tariffs'
 import { fetchTrips, fetchTripReports, type BackendTrip, type ReportTrip } from '../../services/trips'
@@ -817,9 +818,64 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'settings' && (
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold">Pengaturan</h3>
-              <p className="text-slate-500 mt-2">Fitur dalam development</p>
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan & Konfigurasi Sistem</h3>
+                <p className="text-xs text-slate-500 mb-6">Kelola preferensi sesi, database backend, dan diagnostik aplikasi admin</p>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                    <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">Status Koneksi API</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${serverState === 'online' ? 'bg-emerald-500' : serverState === 'offline' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                      <span className="text-sm font-semibold text-slate-800">
+                        {serverState === 'online' ? 'Backend Online (JWT Terverifikasi)' : serverState === 'offline' ? 'Backend Offline (Mode Lokal)' : 'Menghubungkan...'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">Endpoint: http://localhost:3000/api</p>
+                    <button
+                      onClick={async () => {
+                        const ok = await ensureAdminBackendSession()
+                        setServerState(ok ? 'online' : 'offline')
+                        showToast(ok ? 'Koneksi backend aktif' : 'Gagal terhubung ke backend', ok ? 'success' : 'error')
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors"
+                    >
+                      Tes Ulang Koneksi
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                    <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">Penyimpanan & Cache Lokal</p>
+                    <p className="text-xs text-slate-600">
+                      {tariffs.length} tarif tersimpan · {officers.length} petugas · {localTrips.length} trip lokal
+                    </p>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={() => {
+                          if (confirm('Reset tarif lokal ke data bawaan?')) {
+                            saveTariffs(tariffData)
+                            showToast('Tarif lokal telah direset')
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-bold text-xs hover:bg-white transition-colors"
+                      >
+                        Reset Default Tarif
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Hapus seluruh sesi cache aplikasi? Anda akan logout.')) {
+                            onLogout()
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-bold text-xs hover:bg-red-100 transition-colors"
+                      >
+                        Hapus Sesi & Keluar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
