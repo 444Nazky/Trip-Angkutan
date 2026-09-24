@@ -203,6 +203,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(LS.trips, JSON.stringify(trips)) } catch { /* quota */ }
   }, [trips])
   useEffect(() => {
+    const onStorage = () => {
+      setTrips(load(LS.trips, seedTrips))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+  useEffect(() => {
     try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
   }, [tariffs])
   useEffect(() => {
@@ -275,11 +282,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     trips, commitTrip,
     tariffs, saveTariffs,
     officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, startTrip,
+    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, startTrip, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify])
+    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }
