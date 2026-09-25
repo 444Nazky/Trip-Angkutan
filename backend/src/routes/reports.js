@@ -117,9 +117,8 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
     // Attach full vehicle detail per trip (plat, jenis, golongan, kategori, tarif)
     const vehStmt = db.prepare(`
       SELECT v.no_polisi, v.vehicle_type, v.golongan, v.has_load, v.tariff_amount,
-        tf.golongan as master_golongan
+        (SELECT tf.golongan FROM tariffs tf WHERE tf.vehicle_type = v.vehicle_type LIMIT 1) as master_golongan
       FROM vehicles v
-      LEFT JOIN tariffs tf ON tf.vehicle_type = v.vehicle_type
       WHERE v.trip_id = ?
     `);
     for (const t of trips) {
