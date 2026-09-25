@@ -1,4 +1,4 @@
-import { ChevronLeft, Camera, Play, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Camera, Play, AlertTriangle, Truck } from 'lucide-react'
 import { ROUTES } from '../data'
 import { fmtDate, fmtTime, nextTripId, useApp } from '../store'
 import type { MobileScreen } from '../types'
