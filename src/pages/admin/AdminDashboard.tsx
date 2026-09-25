@@ -94,6 +94,15 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     backendOfficers.find(b => String(b.id) === String(o.id))
     ?? backendOfficers.find(b => b.name === o.name)
 
+  // Opsi filter laporan — prioritaskan endpoint /reports/trips/filters,
+  // fallback ke master tarif yang sudah dimuat.
+  const golonganOptions = filterOptions.golongan.length > 0
+    ? filterOptions.golongan
+    : Array.from(new Set(tariffs.map(t => t.golongan).filter(Boolean)))
+  const jenisOptions = filterOptions.vehicleTypes.length > 0
+    ? filterOptions.vehicleTypes
+    : tariffs.map(t => t.type)
+
   // On mount: get an admin JWT and load Master Tarif + Trips from server.
   // Server data wins; localStorage stays as the offline fallback/cache.
   useEffect(() => {
@@ -164,6 +173,83 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setReportFilters({})
     setOpenTripId(null)
     void loadReports({})
+  }
+
+  // Ekspor laporan ke Excel (.xlsx) — 2 sheet: ringkasan trip + detail kendaraan
+  const handleExportReport = () => {
+    if (reportState !== 'ready') return showToast('Laporan belum dimuat', 'error')
+    if (reportTrips.length === 0) return showToast('Tidak ada data untuk diekspor', 'error')
+
+    const now = new Date()
+    const stamped = formatReportDateTime(now.toISOString().slice(0, 19).replace('T', ' '), { withSeconds: true })
+    const dateSlug = now.toISOString().slice(0, 10)
+
+    const header = [
+      'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan',
+      'Rute', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)',
+    ]
+
+    const tripRows: (string | number | null)[][] = [
+      ['Laporan Trip Angkutan'],
+      ['Dicetak', stamped.full],
+      ['Filter Golongan', reportFilters.golongan || 'Semua'],
+      ['Filter Jenis Kendaraan', reportFilters.vehicleType || 'Semua'],
+      ['Jumlah Trip', reportTrips.length],
+      [],
+      header,
+      ...reportTrips.map(t => {
+        const d = formatReportDateTime(t.created_at)
+        const place = t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
+        const from = t.route_from
+          ? `${t.route_from_name ? `${t.route_from_name} (` : ''}${t.route_from}${t.route_from_name ? ')' : ''}`
+          : '-'
+        const to = t.route_to
+          ? `${t.route_to_name ? `${t.route_to_name} (` : ''}${t.route_to}${t.route_to_name ? ')' : ''}`
+          : '-'
+        return [
+          t.no_trip,
+          d.date,
+          d.time,
+          place,
+          from,
+          to,
+          `${t.route_from || '-'} → ${t.route_to || '-'}`,
+          t.officer_name || '-',
+          t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
+          t.keterangan && t.keterangan !== '-' ? t.keterangan : '-',
+          t.vehicle_count || 0,
+          t.trip_revenue || 0,
+        ]
+      }),
+    ]
+
+    const vehRows: (string | number | null)[][] = [
+      ['Detail Kendaraan per Trip'],
+      [],
+      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Kategori', 'Beban', 'Tarif (Rp)'],
+      ...reportTrips.flatMap(t => {
+        const d = formatReportDateTime(t.created_at)
+        const place = t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
+        return t.vehicles.map(v => [
+          t.no_trip,
+          d.date,
+          d.time,
+          place,
+          v.no_polisi,
+          v.vehicle_type,
+          v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'),
+          v.golongan,
+          v.has_load ? 'Ada Muatan' : 'Kosong',
+          v.tariff_amount || 0,
+        ])
+      }),
+    ]
+
+    downloadXlsx(`laporan-trip-${dateSlug}.xlsx`, [
+      { name: 'Laporan Trip', rows: tripRows },
+      { name: 'Detail Kendaraan', rows: vehRows },
+    ])
+    showToast('Laporan Excel (.xlsx) diunduh')
   }
 
   useEffect(() => {
@@ -817,7 +903,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
-                  <p className="text-slate-500 text-[12px]">Detail kendaraan, kategori, dan tarif per trip</p>
+                  <p className="text-slate-500 text-[12px]">Detail tempat, tanggal, kendaraan, kategori, dan tarif per trip</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
@@ -838,7 +924,47 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50">
                     {reportState === 'loading' ? 'Memuat...' : 'Refresh'}
                   </button>
+                  <button onClick={handleExportReport} disabled={reportState !== 'ready'}
+                    title="Ekspor laporan ke Excel (.xlsx)"
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
+                    <Download size={15} /> Ekspor Excel
+                  </button>
                 </div>
+              </div>
+
+              {/* Filter laporan: golongan & jenis kendaraan */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-wrap items-end gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Golongan</label>
+                  <select
+                    value={reportFilters.golongan || ''}
+                    onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
+                    className="border rounded-xl px-3 py-2 text-sm min-w-[140px] bg-white"
+                  >
+                    <option value="">Semua Golongan</option>
+                    {golonganOptions.map(g => <option key={g} value={g}>Golongan {g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Jenis Kendaraan</label>
+                  <select
+                    value={reportFilters.vehicleType || ''}
+                    onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
+                    className="border rounded-xl px-3 py-2 text-sm min-w-[170px] bg-white"
+                  >
+                    <option value="">Semua Jenis</option>
+                    {jenisOptions.map(j => <option key={j} value={j}>{j}</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={clearReportFilters}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50"
+                >
+                  Reset Filter
+                </button>
+                <span className="ml-auto text-[12px] text-slate-400 font-semibold">
+                  {reportTrips.length} trip ditampilkan
+                </span>
               </div>
 
               {reportState === 'ready' && (
