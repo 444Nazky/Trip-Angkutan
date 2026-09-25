@@ -26,6 +26,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [ocrBusy, setOcrBusy] = useState(false)
   const [plateMsg, setPlateMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  // Plat yang sudah diinput sebelumnya — diketuk untuk melihat detailnya
+  const [openPlate, setOpenPlate] = useState<string | null>(null)
 
   useEffect(() => {
     fetchRegions().then(r => { if (r) setRegions(r) })
@@ -82,7 +84,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   // sendiri. Saat lanjut ke ringkasan, foto terakhir dipertahankan agar
   // tombol submit trip tetap terbuka.
   const pushVehicle = (opts: { resetPhoto: boolean }) => {
-    addVehicle({ plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum })
+    addVehicle({ plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum, photoUrl: draft.photoUrl })
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
       ...(opts.resetPhoto ? { photo: false, photoUrl: undefined } : {}),
@@ -224,6 +226,69 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             </div>
           </div>
         </div>
+
+        {/* ── Daftar plat yang sudah diinput (ketuk untuk lihat detail + foto) ── */}
+        {draft.vehicles.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">No. Polisi Sudah Diinput</p>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                {draft.vehicles.length} plat
+              </span>
+            </div>
+            <div className="space-y-2">
+              {draft.vehicles.map((v, i) => {
+                const open = openPlate === v.plate
+                return (
+                  <div key={`${v.plate}-${i}`} className="rounded-xl border-2 border-slate-100 overflow-hidden">
+                    <button
+                      onClick={() => setOpenPlate(open ? null : v.plate)}
+                      className="w-full px-3.5 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-lg shrink-0">{emojiFor(v.type)}</span>
+                        <span className="min-w-0">
+                          <span className="block font-mono font-bold text-[13px] text-slate-800 tracking-wide truncate">{v.plate}</span>
+                          <span className="block text-[11px] text-slate-500 truncate">{v.type} · {v.category || '—'}</span>
+                        </span>
+                      </span>
+                      <ChevronDown size={15} className={`text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                    {open && (
+                      <div className="px-3.5 pb-3 pt-1 border-t border-slate-100 animate-fade-in">
+                        <div className="flex justify-between text-[12px] mb-1.5">
+                          <span className="text-slate-500">No. Polisi</span>
+                          <span className="font-bold font-mono text-slate-800">{v.plate}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px] mb-1.5">
+                          <span className="text-slate-500">Jenis Kendaraan</span>
+                          <span className="font-semibold text-slate-700">{v.type}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px] mb-2">
+                          <span className="text-slate-500">Kategori</span>
+                          <span className="font-semibold text-slate-700">{v.category || '—'}</span>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3 flex items-center gap-3">
+                          {v.photoUrl ? (
+                            <img src={v.photoUrl} alt={`Foto ${v.plate}`} className="w-20 h-20 object-cover rounded-lg border border-slate-200" />
+                          ) : (
+                            <span className="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300"><Camera size={20} /></span>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Foto Dokumentasi</p>
+                            <p className="text-[11px] text-slate-400 leading-snug">
+                              {v.photoUrl ? 'Diambil via kamera perangkat' : 'Belum ada foto untuk plat ini'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Langkah 2: Detail informasi tambahan (muncul setelah input kendaraan) ── */}
         {!vehicleInputDone ? (
