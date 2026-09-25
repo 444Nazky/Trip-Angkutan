@@ -19,6 +19,32 @@ interface Officer { id: string; name: string; initials: string; region: string; 
 interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[] }
 interface Toast { msg: string; type: 'success' | 'error' }
 
+/**
+ * Gabung baris petugas dari server dengan daftar lokal.
+ * Server menentukan nama/wilayah/status; data tampilan lama (perangkat,
+ * jumlah trip, terakhir aktif, PIN lokal) dipertahankan agar tidak hilang.
+ */
+function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
+  return rows.map(b => {
+    const old = prev.find(o => String(o.id) === String(b.id))
+      ?? prev.find(o => o.name === b.name)
+    const region = b.regions?.[0]?.code ?? b.region_code ?? b.region_id
+    return {
+      id: String(b.id),
+      name: b.name,
+      initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+      region,
+      regions: b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region],
+      pin: old?.pin ?? '',
+      status: b.is_active ? 'Aktif' : 'Nonaktif',
+      device: old?.device ?? '-',
+      trips: old?.trips ?? 0,
+      lastActive: old?.lastActive ?? '-',
+      joined: old?.joined ?? '-',
+    }
+  })
+}
+
 export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<AdminTab>('overview')
   const [toast, setToast] = useState<Toast | null>(null)
@@ -61,6 +87,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
   const regionCodes = regions.length > 0 ? regions.map(r => r.code) : ['BADAU', 'ENTIKONG']
+
+  // Cari pasangan petugas di backend: cocokkan id dulu, fallback nama
+  // (petugas lama sebelum id berubah menjadi UUID).
+  const findBackendOfficer = (o: { id?: string; name: string }) =>
+    backendOfficers.find(b => String(b.id) === String(o.id))
+    ?? backendOfficers.find(b => b.name === o.name)
 
   // On mount: get an admin JWT and load Master Tarif + Trips from server.
   // Server data wins; localStorage stays as the offline fallback/cache.
