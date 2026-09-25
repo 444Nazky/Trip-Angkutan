@@ -35,6 +35,53 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// Daftar petugas satu wilayah (dipakai mobile untuk fitur Ganti Petugas).
+// Dipakai petugas aktif biasa — tidak butuh token admin, sehingga mobile tidak
+// perlu menimpa token petugas dengan token admin hanya untuk membaca daftar ini.
+router.get('/my-region', authenticate, (req, res) => {
+  try {
+    const meId = String(req.user.officerId ?? '');
+    if (!meId) return res.status(401).json({ error: 'Not authenticated' });
+
+    // Wilayah yang dipegang petugas peminta (junction, fallback kolom lama)
+    let myRegions = db.prepare(`SELECT region_id FROM officer_regions WHERE officer_id = ?`).all(meId);
+    if (myRegions.length === 0) {
+      const me = db.prepare(`SELECT region_id FROM officers WHERE id = ?`).get(meId);
+      if (me) myRegions = [{ region_id: me.region_id }];
+    }
+    const myRegionIds = new Set(myRegions.map(r => String(r.region_id)));
+    if (myRegionIds.size === 0) return res.json([]);
+
+    const officers = db.prepare(`
+      SELECT o.id, o.name, o.region_id, o.is_active, r.name as region_name, r.code as region_code
+      FROM officers o
+      JOIN regions r ON o.region_id = r.id
+      ORDER BY o.name
+    `).all();
+
+    const regionsStmt = db.prepare(`
+      SELECT r.id, r.name, r.code
+      FROM regions r
+      JOIN officer_regions orr ON r.id = orr.region_id
+      WHERE orr.officer_id = ?
+      ORDER BY r.name
+    `);
+
+    const out = [];
+    for (const o of officers) {
+      let regions = regionsStmt.all(String(o.id));
+      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      o.regions = regions;
+      // Tampilkan petugas yang berbagi minimal satu wilayah dengan peminta
+      if (regions.some(r => myRegionIds.has(String(r.id)))) out.push(o);
+    }
+
+    res.json(out);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch officers' });
+  }
+});
+
 // Create officer
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
