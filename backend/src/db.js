@@ -363,12 +363,14 @@ function seedData() {
   stmt.free();
   if (result.count > 0) return;
 
-  // Seed regions (simple numbering)
+  // Seed wilayah — kode & nama harus konsisten dengan kode rute di aplikasi
+  // mobile (SJRE/SBDZ/BDAU). Regresi "revisi akses" pernah mengganti ini menjadi
+  // placeholder R1..R4 sehingga nama tempat di laporan kosong (null).
   const regions = [
-    { id: uuidv4(), name: 'Region 1', code: 'R1' },
-    { id: uuidv4(), name: 'Region 2', code: 'R2' },
-    { id: uuidv4(), name: 'Region 3', code: 'R3' },
-    { id: uuidv4(), name: 'Region 4', code: 'R4' },
+    { id: uuidv4(), name: 'Badau', code: 'BADAU' },
+    { id: uuidv4(), name: 'Sijangkung', code: 'SJRE' },
+    { id: uuidv4(), name: 'Sabadi', code: 'SBDZ' },
+    { id: uuidv4(), name: 'Entikong', code: 'ENTIKONG' },
   ];
 
   const insertRegion = db.prepare('INSERT INTO regions (id, name, code) VALUES (?, ?, ?)');
@@ -379,16 +381,16 @@ function seedData() {
   });
   insertRegion.free();
 
-  // Seed dermagas (2 per region)
+  // Seed dermagas (2 di Badau, 1 di wilayah lain)
   const dermagas = [
-    // Region 1
+    // Badau
     { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 1', code: 'D1' },
     { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 2', code: 'D2' },
-    // Region 2
+    // Sijangkung
     { id: uuidv4(), region_id: regions[1].id, name: 'Dermaga 1', code: 'D1' },
-    // Region 3
+    // Sabadi
     { id: uuidv4(), region_id: regions[2].id, name: 'Dermaga 1', code: 'D1' },
-    // Region 4
+    // Entikong
     { id: uuidv4(), region_id: regions[3].id, name: 'Dermaga 1', code: 'D1' },
   ];
 
@@ -400,20 +402,21 @@ function seedData() {
   });
   insertDermaga.free();
 
-  // Seed routes (2 per dermaga for Region 1 dermagas)
+  // Seed routes — kode asal/tujuan disamakan dengan kode rute di aplikasi
+  // mobile (SJRE/SBDZ/BDAU) supaya laporan bisa menampilkan nama tempat.
   const routes = [
-    // Region 1, Dermaga 1 routes
-    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '5 km', duration: '15m' },
-    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 2', route_from: 'C', route_to: 'D', distance: '8 km', duration: '20m' },
-    // Region 1, Dermaga 2 routes
-    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 3', route_from: 'E', route_to: 'F', distance: '6 km', duration: '18m' },
-    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 4', route_from: 'G', route_to: 'H', distance: '10 km', duration: '25m' },
-    // Region 2 Dermaga 1
-    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
-    // Region 3 Dermaga 1
-    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
-    // Region 4 Dermaga 1
-    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
+    // Badau, Dermaga 1
+    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
+    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
+    // Badau, Dermaga 2
+    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Sijangkung → Badau', route_from: 'SJRE', route_to: 'BDAU', distance: '18 km', duration: '35m' },
+    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Badau → Sijangkung', route_from: 'BDAU', route_to: 'SJRE', distance: '18 km', duration: '35m' },
+    // Sijangkung
+    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
+    // Sabadi
+    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
+    // Entikong
+    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Sijangkung → Badau', route_from: 'SJRE', route_to: 'BDAU', distance: '18 km', duration: '35m' },
   ];
 
   const insertRoute = db.prepare('INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)');
