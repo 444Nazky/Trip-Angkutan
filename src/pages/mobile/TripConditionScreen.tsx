@@ -51,6 +51,9 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
                   vehicleForm: { plate: '', type: '', category: '' },
                   photo: false,
                   photoUrl: undefined,
+                  cameraMode: 'photo',
+                  ocrResult: undefined,
+                  ocrError: undefined,
                   routeCode: EMPTY_ROUTE_CODE,
                 })
               } else {

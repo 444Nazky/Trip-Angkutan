@@ -35,6 +35,7 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
     patchDraft({
       routeCode: draft.routeCode || EMPTY_ROUTE_CODE,
       cameraFrom: 'trip-summary',
+      cameraMode: 'photo',
     })
     go('camera')
   }

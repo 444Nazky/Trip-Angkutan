@@ -94,7 +94,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         </div>
         {!photoTaken && (
           <button
-            onClick={() => { patchDraft({ cameraFrom: 'trip-summary' }); go('camera') }}
+            onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera') }}
             className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
           >
             Ambil Foto

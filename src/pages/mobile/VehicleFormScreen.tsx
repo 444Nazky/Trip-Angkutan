@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, Check, Camera, Loader2, ClipboardList, ChevronDown } from 'lucide-react'
 import { tariffFor, useApp } from '../store'
 import { tariffData } from '../data'
-import { readPlateFromImage } from '../../services/ocr'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import { fetchRegions, type Region } from '../../services/regions'
 import type { MobileScreen } from '../types'
@@ -23,9 +22,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [originRegionId, setOriginRegionId] = useState('')
   const [check, setCheck] = useState<PlateCheck | null>(null)
   const [checkLoading, setCheckLoading] = useState(false)
-  const [ocrBusy, setOcrBusy] = useState(false)
   const [plateMsg, setPlateMsg] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   // Plat yang sudah diinput sebelumnya — diketuk untuk melihat detailnya
   const [openPlate, setOpenPlate] = useState<string | null>(null)
 
@@ -43,27 +40,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setCheckLoading(false)
   }
 
-  const onScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setOcrBusy(true)
-    setPlateMsg('')
-    try {
-      const text = await readPlateFromImage(file)
-      if (!text) {
-        setPlateMsg('Plat tidak terbaca — silakan ketik manual')
-      } else {
-        setField({ plate: text })
-        await runCheck(text)
-      }
-    } catch {
-      setPlateMsg('OCR gagal (unduhan data OCR butuh internet) — ketik manual')
-    } finally {
-      setOcrBusy(false)
-      e.target.value = ''
-    }
-  }
-
   // Vehicle types come from the admin-managed master tariff so the selected
   // type always maps 1:1 to a tariff row (e.g. Truck Besar ≠ Truck Sedang).
   const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : tariffData.map(t => t.type)
@@ -76,6 +52,20 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setPlate = (v: string) => setField({ plate: v })
   const setVehicleType = (v: string) => setField({ type: v })
   const setCategory = (v: string) => setField({ category: v })
+
+  // Hasil OCR dari layar kamera (hanya kamera — tanpa impor galeri)
+  useEffect(() => {
+    if (draft.ocrResult) {
+      const text = draft.ocrResult
+      setField({ plate: text })
+      patchDraft({ ocrResult: undefined })
+      void runCheck(text)
+    } else if (draft.ocrError) {
+      setPlateMsg(draft.ocrError)
+      patchDraft({ ocrError: undefined })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.ocrResult, draft.ocrError])
 
   // Detail informasi tambahan hanya muncul setelah input kendaraan selesai
   const vehicleInputDone = !!plate.trim() && !!vehicleType
@@ -100,7 +90,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   }
 
   const openCamera = () => {
-    patchDraft({ cameraFrom: 'vehicle-form' })
+    patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo' })
     go('camera')
   }
 
@@ -149,11 +139,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={ocrBusy}
+                  onClick={() => { patchDraft({ cameraMode: 'ocr' }); go('camera') }}
+                  disabled={checkLoading}
+                  title="Scan plat langsung lewat kamera (tanpa galeri)"
                   className="flex-1 rounded-xl border-2 border-slate-200 py-2.5 text-[12px] font-bold text-slate-600 flex items-center justify-center gap-1.5 hover:border-blue-300 transition-colors disabled:opacity-60"
                 >
-                  {ocrBusy ? <><Loader2 size={14} className="animate-spin" /> Membaca plat...</> : <><Camera size={14} /> Scan Foto Plat (OCR)</>}
+                  <Camera size={14} /> Scan Plat (Kamera)
                 </button>
                 <button
                   type="button"
@@ -164,14 +155,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                   {checkLoading ? <><Loader2 size={14} className="animate-spin" /> Mengecek...</> : 'Cek Status Plat'}
                 </button>
               </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={e => void onScanFile(e)}
-                className="hidden"
-              />
 
               {/* Hasil cek plat */}
               {check && (
