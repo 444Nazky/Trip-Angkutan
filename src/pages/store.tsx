@@ -3,6 +3,7 @@ import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
 import { ensureBackendSession, logout as endBackendSession } from '../services/auth'
 import { syncOfficersToLocal } from '../services/officers'
+import type { MobileScreen } from './types'
 
 export interface VehicleEntry {
   plate: string
@@ -38,6 +39,8 @@ export interface Draft {
   vehicleForm: { plate: string; type: string; category: string }
   photo: boolean
   photoUrl?: string
+  /** Layar tujuan kembali setelah pengambilan foto kamera */
+  cameraFrom: MobileScreen
   startedAt: number | null
 }
 
@@ -51,7 +54,8 @@ interface StoreValue {
   logout: () => void
   userType: 'admin' | 'member'
   officer: Officer
-  setOfficerId: (id: number) => void
+  setOfficerId: (id: string) => void
+  refreshOfficers: (force?: boolean) => Promise<void>
   trips: Trip[]
   commitTrip: (t: Trip) => void
   tariffs: TariffRow[]
@@ -66,9 +70,9 @@ interface StoreValue {
   markTripSynced: (id: string) => void
   detailTripId: string | null
   setDetailTripId: (id: string | null) => void
-  pendingOfficerId: number | null
+  pendingOfficerId: string | null
   verifyIntent: VerifyIntent
-  beginVerify: (opts: { pendingOfficerId: number | null; intent: VerifyIntent }) => void
+  beginVerify: (opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => void
   clearVerify: () => void
 }
 
@@ -79,6 +83,7 @@ const emptyDraft: Draft = {
   vehicleForm: { plate: '', type: '', category: '' },
   photo: false,
   photoUrl: undefined,
+  cameraFrom: 'vehicle-form',
   startedAt: null,
 }
 
@@ -194,13 +199,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isAdminBuild()) return 'admin'
     return load('trip.userType', 'member')
   })
-  const [officerId, setOfficerIdState] = useState<number>(() => load(LS.officer, officerList[0].id))
+  const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => load(LS.trips, seedTrips))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, officerList))
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
-  const [pendingOfficerId, setPendingOfficerId] = useState<number | null>(null)
+  const [pendingOfficerId, setPendingOfficerId] = useState<string | null>(null)
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
 
   useEffect(() => {
@@ -229,20 +234,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
   }, [userType])
 
-  // Sync officers from backend on app start (mobile only)
-  useEffect(() => {
-    if (isAdminBuild()) return
-    const sync = async () => {
-      const synced = await syncOfficersToLocal()
-      if (synced.length > 0) {
-        setOfficers(synced)
-      }
-    }
-    void sync()
-  }, [])
-
   const officer = useMemo(
-    () => officers.find(o => o.id === officerId) ?? officers[0] ?? officerList[0],
+    () => officers.find(o => String(o.id) === String(officerId)) ?? officers[0] ?? officerList[0],
     [officers, officerId],
   )
 
@@ -261,10 +254,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDraft(emptyDraft)
     endBackendSession()
   }, [])
-  const setOfficerId = useCallback((id: number) => {
-    setOfficerIdState(id)
+  const setOfficerId = useCallback((id: string) => {
+    setOfficerIdState(String(id))
     // Token must match the newly switched officer
-    void ensureBackendSession(id)
+    void ensureBackendSession(String(id))
   }, [])
   const resetDraft = useCallback(() => setDraft(emptyDraft), [])
   const patchDraft = useCallback((p: Partial<Draft>) => setDraft(d => ({ ...d, ...p })), [])
@@ -284,7 +277,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Add to sync queue for background upload
     addToSyncQueue(tripWithSync)
   }, [])
-  const beginVerify = useCallback((opts: { pendingOfficerId: number | null; intent: VerifyIntent }) => {
+  const beginVerify = useCallback((opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => {
     setPendingOfficerId(opts.pendingOfficerId)
     setVerifyIntent(opts.intent)
   }, [])
@@ -292,16 +285,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveTariffs = useCallback((rows: TariffRow[]) => setTariffs(rows), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
+  // Ambil ulang daftar petugas dari server. `force = true` melewati cache
+  // (dipakai layar Ganti Petugas agar status/wilayah terbaru langsung terbaca).
+  const refreshOfficers = useCallback(async (force = false) => {
+    if (isAdminBuild()) return
+    const synced = await syncOfficersToLocal(force)
+    if (synced.length === 0) return
+    setOfficers(prev => {
+      const hasCurrent = synced.some(o => String(o.id) === String(officerId))
+      if (hasCurrent) return synced
+      // Petugas aktif tidak boleh hilang dari daftar (mis. sementara offline)
+      const current = prev.find(o => String(o.id) === String(officerId))
+      return current ? [...synced, current] : synced
+    })
+  }, [officerId])
+
+  // Sync officers from backend on app start (mobile only)
+  useEffect(() => {
+    if (isAdminBuild()) return
+    void refreshOfficers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshOfficers])
+
   const value = useMemo<StoreValue>(() => ({
     loggedIn, login, logout, userType,
-    officer, setOfficerId,
+    officer, setOfficerId, refreshOfficers,
     trips, commitTrip,
     tariffs, saveTariffs,
     officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
-  }), [loggedIn, login, logout, userType, officer, setOfficerId, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
+  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>

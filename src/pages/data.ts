@@ -25,9 +25,9 @@ export const tariffData = [
 ]
 
 export const officerList = [
-  { id: 1, name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 14', trips: 91, lastActive: 'Hari ini 08:42', joined: '12 Jan 2025' },
-  { id: 2, name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Samsung A54', trips: 78, lastActive: 'Hari ini 06:30', joined: '3 Mar 2025' },
-  { id: 3, name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Nonaktif', device: 'Redmi 12', trips: 43, lastActive: '15 Sep 2026', joined: '22 Jun 2025' },
-  { id: 4, name: 'Rizky Maulana', initials: 'RM', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'Oppo A78', trips: 112, lastActive: 'Hari ini 09:15', joined: '8 Feb 2025' },
-  { id: 5, name: 'Dewi Kusuma', initials: 'DK', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'iPhone 13', trips: 65, lastActive: 'Kemarin 14:00', joined: '17 Apr 2025' },
+  { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 14', trips: 91, lastActive: 'Hari ini 08:42', joined: '12 Jan 2025' },
+  { id: '2', name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Samsung A54', trips: 78, lastActive: 'Hari ini 06:30', joined: '3 Mar 2025' },
+  { id: '3', name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Nonaktif', device: 'Redmi 12', trips: 43, lastActive: '15 Sep 2026', joined: '22 Jun 2025' },
+  { id: '4', name: 'Rizky Maulana', initials: 'RM', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'Oppo A78', trips: 112, lastActive: 'Hari ini 09:15', joined: '8 Feb 2025' },
+  { id: '5', name: 'Dewi Kusuma', initials: 'DK', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'iPhone 13', trips: 65, lastActive: 'Kemarin 14:00', joined: '17 Apr 2025' },
 ]

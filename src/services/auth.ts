@@ -1,7 +1,7 @@
 // ─── Auth Service ─────────────────────────────────────────────────────────────
 // Handles authentication with backend API
 
-import { api, type LoginResponse } from './api'
+import { api, type ApiError, type LoginResponse } from './api'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 
@@ -9,12 +9,13 @@ const OFFICER_KEY = 'trip.auth.officer.v1'
 export const DEMO_PIN = '123456'
 
 // Officer the app *wants* to be authenticated as, even while offline
-let activeOfficerId: number | null = null
+let activeOfficerId: string | null = null
 
 export interface StoredOfficer {
-  id: number
+  /** Selalu string — id petugas bisa UUID, bukan hanya angka */
+  id: string
   name: string
-  regionId: number
+  regionId: string
   regionName: string
   regionCode: string
 }
@@ -55,12 +56,17 @@ export async function memberLogin(username: string, password: string): Promise<{
   return { success: true }
 }
 
-// Login with PIN (for officer switching)
-export async function loginWithPin(officerId: number, pin: string): Promise<{ success: boolean; error?: string }> {
+// Login with PIN (for officer switching).
+// `error.code` terisi hanya jika server merespons (HTTP error) — dipakai UI untuk
+// membedakan "PIN salah / akun nonaktif" (ditolak server) vs "offline" (fallback demo).
+export async function loginWithPin(
+  officerId: string,
+  pin: string,
+): Promise<{ success: boolean; error?: ApiError }> {
   const result = await api.post<LoginResponse>('/auth/login', { officerId, pin })
 
   if (!result.ok || !result.data) {
-    return { success: false, error: result.error?.message || 'Login failed' }
+    return { success: false, error: result.error }
   }
 
   api.setToken(result.data.token)
@@ -113,12 +119,12 @@ export async function ensureAdminBackendSession(): Promise<boolean> {
  * Safe to call repeatedly: no-op if the right token exists, fails soft if
  * the backend is unreachable (queue keeps the data for later retry).
  */
-export async function ensureBackendSession(officerId?: number): Promise<boolean> {
-  if (officerId != null) {
+export async function ensureBackendSession(officerId?: string): Promise<boolean> {
+  if (officerId != null && officerId !== '') {
     activeOfficerId = officerId
     // A token belonging to a different officer must not be reused
     const stored = getStoredOfficer()
-    if (stored && Number(stored.id) !== Number(officerId)) {
+    if (stored && String(stored.id) !== String(officerId)) {
       api.setToken(null)
     }
   }
@@ -133,8 +139,8 @@ export async function ensureBackendSession(officerId?: number): Promise<boolean>
 
   // Try PIN login with demo PIN (works even if memberLogin failed offline)
   const id = officerId ?? activeOfficerId ?? getStoredOfficer()?.id
-  if (id == null) return false
+  if (id == null || id === '') return false
 
-  const result = await loginWithPin(Number(id), DEMO_PIN)
+  const result = await loginWithPin(String(id), DEMO_PIN)
   return result.success
 }

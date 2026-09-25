@@ -49,7 +49,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
           <p className="text-blue-100 text-[11px] font-semibold mb-0.5">Siap bertugas?</p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">Mulai Trip<br />Baru Sekarang</h2>
           <button
-            onClick={() => { resetDraft(); go('route-select') }}
+            onClick={() => { resetDraft(); go('trip-condition') }}
             className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[13px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
           >
             Mulai Trip <ArrowRight size={15} />

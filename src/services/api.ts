@@ -16,9 +16,10 @@ export interface ApiResponse<T> {
 }
 
 export interface OfficerInfo {
-  id: number
+  /** Selalu string — id petugas di backend bisa UUID */
+  id: string
   name: string
-  regionId: number
+  regionId: string
   regionName: string
   regionCode: string
 }

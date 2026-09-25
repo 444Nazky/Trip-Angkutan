@@ -2,7 +2,7 @@
 // Syncs officers between mobile app and backend
 
 import { api } from './api'
-import { ensureAdminBackendSession } from './auth'
+import { ensureBackendSession } from './auth'
 
 export interface BackendOfficer {
   id: string
@@ -38,18 +38,27 @@ function saveCache(officers: BackendOfficer[]) {
   } catch { /* quota */ }
 }
 
-// Fetch all officers from backend (requires admin JWT)
-export async function fetchBackendOfficers(): Promise<BackendOfficer[] | null> {
-  // Check cache first
-  const cache = loadCache()
-  if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
-    return cache.officers
+/**
+ * Fetch officers that share a region with the logged-in officer.
+ * Uses the *officer* JWT (GET /officers/my-region) so the mobile session is
+ * never replaced by an admin token just to read this list.
+ *
+ * `force = true` skips the 5-minute cache (used when the switch-account screen
+ * opens, so status/region changes made in the admin dashboard show up
+ * immediately).
+ */
+export async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | null> {
+  if (!force) {
+    const cache = loadCache()
+    if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
+      return cache.officers
+    }
   }
 
-  const ok = await ensureAdminBackendSession()
+  const ok = await ensureBackendSession()
   if (!ok) return null
 
-  const result = await api.get<BackendOfficer[]>('/officers')
+  const result = await api.get<BackendOfficer[]>('/officers/my-region')
   if (result.ok && result.data) {
     saveCache(result.data)
     return result.data
@@ -61,7 +70,8 @@ export async function fetchBackendOfficers(): Promise<BackendOfficer[] | null> {
 export function toMobileOfficer(bo: BackendOfficer) {
   const primaryRegion = bo.regions?.[0]?.code ?? bo.region_id
   return {
-    id: Number(bo.id),
+    // id tetap string agar cocok dengan id UUID maupun id lama "1".."5"
+    id: String(bo.id),
     name: bo.name,
     initials: bo.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     region: primaryRegion,
@@ -76,8 +86,8 @@ export function toMobileOfficer(bo: BackendOfficer) {
 }
 
 // Sync officers to local storage and return mobile-format list
-export async function syncOfficersToLocal(): Promise<ReturnType<typeof toMobileOfficer>[]> {
-  const backendOfficers = await fetchBackendOfficers()
+export async function syncOfficersToLocal(force = false): Promise<ReturnType<typeof toMobileOfficer>[]> {
+  const backendOfficers = await fetchBackendOfficers(force)
   if (!backendOfficers) return []
 
   const mobileOfficers = backendOfficers.map(toMobileOfficer)

@@ -76,7 +76,8 @@ router.post('/member-login', (req, res) => {
     res.json({
       token,
       officer: {
-        id: parseInt(officer.id),
+        // Selalu string — id petugas di DB bisa UUID (bukan hanya angka)
+        id: String(officer.id),
         name: officer.name,
         regionId: officer.region_id,
         regionName: officer.region_name,
@@ -124,7 +125,7 @@ router.post('/login', (req, res) => {
     res.json({
       token,
       officer: {
-        id: officer.id,
+        id: String(officer.id),
         name: officer.name,
         regionId: officer.region_id,
         regionName: officer.region_name,
@@ -180,7 +181,7 @@ router.get('/verify', (req, res) => {
     res.json({
       valid: true,
       officer: {
-        id: officer.id,
+        id: String(officer.id),
         name: officer.name,
         regionId: officer.region_id,
         regionName: officer.region_name,
