@@ -288,9 +288,11 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <label className="text-[11px] font-bold text-slate-600 mb-2 block uppercase tracking-wide">Kategori Kendaraan</label>
                 <div className="space-y-1.5">
                   {[
+                    // Istilah lapangan: Internal · Eksternal · Eksternal Bebas
+                    // (istilah lama "Berganji"/"Tanpa Garansi" sudah dibuang dari sistem)
                     { key: 'Internal', badge: 'Internal', color: 'bg-slate-800 text-white', desc: 'Plat terdaftar, tanpa tarif' },
-                    { key: 'Eksternal (Berganji)', badge: 'Ekst. Berganji', color: 'bg-amber-500 text-white', desc: 'Plat luar region, ada garansi' },
-                    { key: 'Eksternal (Tanpa Garansi)', badge: 'Ekst. Bebas', color: 'bg-rose-500 text-white', desc: 'Plat luar region, tanpa garansi' },
+                    { key: 'Eksternal', badge: 'Eksternal', color: 'bg-amber-500 text-white', desc: 'Plat luar region, dikenakan tarif region' },
+                    { key: 'Eksternal Bebas', badge: 'Ekst. Bebas', color: 'bg-rose-500 text-white', desc: 'Plat luar region, tarif khusus' },
                   ].map(cat => (
                     <button
                       key={cat.key}
