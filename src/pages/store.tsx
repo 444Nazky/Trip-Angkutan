@@ -10,6 +10,8 @@ export interface VehicleEntry {
   type: string
   category: string
   tariff: number
+  /** Foto dokumentasi kendaraan ini (dari kamera) */
+  photoUrl?: string
 }
 
 export interface Trip {
