@@ -14,19 +14,25 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
       ORDER BY o.name
     `).all();
 
-    // Many-to-many: setiap petugas membawa daftar region yang ditanganinya
-    const regionsStmt = db.prepare(`
-      SELECT r.id, r.name, r.code
-      FROM regions r
-      JOIN officer_regions orr ON r.id = orr.region_id
-      WHERE orr.officer_id = ?
-      ORDER BY r.name
+    // Get dermaga access for each officer
+    const dermagaStmt = db.prepare(`
+      SELECT d.id, d.name, d.code, d.region_id
+      FROM officer_dermagas od
+      JOIN dermagas d ON od.dermaga_id = d.id
+      WHERE od.officer_id = ?
     `);
+
+    // Get region for each officer from their dermaga access
+    const officerRegionsStmt = db.prepare(`
+      SELECT DISTINCT reg.id, reg.name, reg.code
+      FROM officer_dermagas od
+      JOIN dermagas d ON od.dermaga_id = d.id
+      JOIN regions reg ON d.region_id = reg.id
+      WHERE od.officer_id = ?
+    `);
+
     for (const o of officers) {
-      let regions = regionsStmt.all(o.id);
-      // Fallback untuk baris lama yang belum termigrasi ke junction
-      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
-      o.regions = regions;
+      o.regions = officerRegionsStmt.all(o.id);
     }
 
     res.json(officers);
