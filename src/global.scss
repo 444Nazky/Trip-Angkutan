@@ -3,17 +3,6 @@
 // Design System v2.0
 // ═══════════════════════════════════════════════════════════
 
-@import '@ionic/angular/css/core.css';
-@import '@ionic/angular/css/normalize.css';
-@import '@ionic/angular/css/structure.css';
-@import '@ionic/angular/css/typography.css';
-@import '@ionic/angular/css/display.css';
-@import '@ionic/angular/css/padding.css';
-@import '@ionic/angular/css/float-elements.css';
-@import '@ionic/angular/css/text-alignment.css';
-@import '@ionic/angular/css/text-transformation.css';
-@import '@ionic/angular/css/flex-utils.css';
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 // ── Reset & Base ──
@@ -49,137 +38,7 @@ h5 { font-size: 1rem; }
 
 p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
 
-// ── Ionic Components Light Theming ──
-ion-content {
-  --background: var(--bg-base);
-  --color: var(--text-primary);
-  font-family: var(--font-sans);
-}
-
-ion-header {
-  box-shadow: none;
-  border-bottom: 1px solid var(--border-light);
-}
-
-ion-toolbar {
-  --background: var(--bg-surface);
-  --color: var(--text-primary);
-  --border-width: 0;
-  --padding-start: 16px;
-  --padding-end: 16px;
-  font-family: var(--font-sans);
-  --min-height: 56px;
-
-  ion-title {
-    font-weight: 700;
-    font-size: 1.125rem;
-    letter-spacing: -0.01em;
-  }
-}
-
-ion-tab-bar {
-  --background: var(--bg-surface);
-  --border: none;
-  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
-  border-radius: 24px 24px 0 0;
-  padding: 8px 16px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-  font-family: var(--font-sans);
-  height: auto;
-  min-height: 72px;
-}
-
-ion-tab-button {
-  --color: var(--text-muted);
-  --color-selected: var(--status-success);
-  font-size: 0.75rem;
-  font-weight: 600;
-  font-family: var(--font-sans);
-
-  ion-icon {
-    font-size: 1.5rem;
-  }
-
-  &.tab-selected {
-    color: var(--status-success);
-    ion-icon { color: var(--status-success); }
-  }
-}
-
-ion-card {
-  --background: var(--bg-surface);
-  --color: var(--text-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  margin: 16px;
-  font-family: var(--font-sans);
-}
-
-ion-card-header {
-  padding: 20px 20px 12px;
-}
-
-ion-card-title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-ion-card-subtitle {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-ion-card-content {
-  padding: 12px 20px 20px;
-}
-
-ion-item {
-  --background: transparent;
-  --color: var(--text-primary);
-  --border-color: var(--border-light);
-  --padding-start: 16px;
-  --padding-end: 16px;
-  font-family: var(--font-sans);
-}
-
-ion-label {
-  font-family: var(--font-sans);
-}
-
-ion-input, ion-select, ion-textarea {
-  --color: var(--text-primary);
-  --placeholder-color: var(--text-muted);
-  --background: var(--bg-card);
-  --border-radius: var(--radius-md);
-  --padding-start: 16px;
-  --padding-end: 16px;
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  border-radius: var(--radius-md);
-  border: 2px solid transparent;
-  transition: border-color var(--transition-fast);
-
-  &:focus-within {
-    border-color: var(--status-success);
-  }
-}
-
-ion-button {
-  --border-radius: var(--radius-full);
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 1rem;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  height: 52px;
-  --padding-start: 24px;
-  --padding-end: 24px;
-  --box-shadow: none;
-}
-
-// ── Custom Component Classes ──
+// ── Custom Component Classes ── (element Ionicons/Ionic dihapus — ikon dashboard memakai lucide-react)
 
 // Status Pills with Plantation Green theme
 .status-pill {
@@ -373,11 +232,6 @@ ion-button {
     display: flex;
     align-items: center;
     justify-content: center;
-
-    ion-icon {
-      font-size: 24px;
-      color: white;
-    }
   }
 
   .cta-title {
@@ -413,19 +267,16 @@ ion-button {
     &.emerald {
       background: var(--primary-100);
       color: var(--primary-600);
-      ion-icon { color: var(--primary-600); }
     }
 
     &.amber {
       background: var(--amber-100);
       color: var(--amber-600);
-      ion-icon { color: var(--amber-600); }
     }
 
     &.blue {
       background: var(--status-info-bg);
       color: var(--status-info);
-      ion-icon { color: var(--status-info); }
     }
   }
 
@@ -559,8 +410,6 @@ ion-button {
       margin: 0 auto 12px;
       color: var(--text-muted);
       transition: all var(--transition-fast);
-
-      ion-icon { font-size: 24px; }
     }
 
     .toggle-label {
@@ -724,8 +573,6 @@ ion-button {
     justify-content: center;
     margin: 0 auto 16px;
     color: var(--primary-500);
-
-    ion-icon { font-size: 32px; }
   }
 
   .capture-text {
@@ -787,10 +634,6 @@ ion-button {
     margin: 0 auto 16px;
     position: relative;
 
-    ion-icon {
-      font-size: 36px;
-      color: var(--primary-400);
-    }
   }
 
   .hero-title {
@@ -829,10 +672,6 @@ ion-button {
     align-items: center;
     justify-content: center;
 
-    ion-icon {
-      font-size: 22px;
-      color: var(--primary-600);
-    }
   }
 
   .lock-info {
@@ -958,13 +797,9 @@ ion-button {
     &.empty {
       background: transparent;
       cursor: default;
-    }
-
-    &.backspace {
+    }      &.backspace {
       background: transparent;
       color: var(--text-muted);
-
-      ion-icon { font-size: 1.25rem; }
     }
   }
 }
@@ -999,8 +834,6 @@ ion-button {
     justify-content: center;
     margin: 0 auto 16px;
     color: var(--text-muted);
-
-    ion-icon { font-size: 2rem; }
   }
 
   .empty-title {

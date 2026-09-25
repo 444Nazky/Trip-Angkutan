@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // Aplikasi Trip Angkutan - Plantation Modern Theme
 // Design System v2.0.1
+// (Token Ionic --ion-* dihapus: aplikasi memakai design token sendiri)
 // ═══════════════════════════════════════════════════════════
 
 :root {
@@ -140,7 +141,7 @@
 
   /* ── 3. Directional Intent Transitions ── */
   --transition-enter: 220ms var(--ease-enter);      /* Elements appearing or expanding */
-  --transition-exit: 180ms var(--ease-exit);        /* Elements disappearing or collapsing */
+  --transition-exit: 180ms var(--ease-exit);        /* Elements collapsing or disappearing */
 
 
   /* ── 4. Hardware-Accelerated Property Composites ── */
@@ -148,77 +149,6 @@
   --transition-fade: opacity var(--transition-fast);
   --transition-transform: transform var(--transition-fast);
   --transition-composite: transform var(--transition-fast), opacity var(--transition-fast);
-  --ion-background-color: #F8FAFC;
-  --ion-text-color: #0F172A;
-  --ion-toolbar-background: #FFFFFF;
-  --ion-tab-bar-background: #FFFFFF;
-  --ion-item-background: #FFFFFF;
-  --ion-card-background: #FFFFFF;
-
-  // ── Primary → Plantation Green (was blue #2563EB) ──
-  --ion-color-primary: #10B981;
-  --ion-color-primary-rgb: 16, 185, 129;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #059669;
-  --ion-color-primary-tint: #34D399;
-
-  // ── Secondary → Forest Green (for emphasis surfaces) ──
-  --ion-color-secondary: #0A3D26;
-  --ion-color-secondary-rgb: 10, 61, 38;
-  --ion-color-secondary-contrast: #ffffff;
-  --ion-color-secondary-contrast-rgb: 255, 255, 255;
-  --ion-color-secondary-shade: #082B1A;
-  --ion-color-secondary-tint: #0F5132;
-
-  // ── Tertiary → Warm Amber (accents, highlights) ──
-  --ion-color-tertiary: #F59E0B;
-  --ion-color-tertiary-rgb: 245, 158, 11;
-  --ion-color-tertiary-contrast: #ffffff;
-  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
-  --ion-color-tertiary-shade: #D97706;
-  --ion-color-tertiary-tint: #FBBF24;
-
-  // ── Success ──
-  --ion-color-success: #10B981;
-  --ion-color-success-rgb: 16, 185, 129;
-  --ion-color-success-contrast: #ffffff;
-  --ion-color-success-contrast-rgb: 255, 255, 255;
-  --ion-color-success-shade: #059669;
-  --ion-color-success-tint: #34D399;
-
-  // ── Warning ──
-  --ion-color-warning: #F59E0B;
-  --ion-color-warning-rgb: 245, 158, 11;
-  --ion-color-warning-contrast: #ffffff;
-  --ion-color-warning-contrast-rgb: 255, 255, 255;
-  --ion-color-warning-shade: #D97706;
-  --ion-color-warning-tint: #FBBF24;
-
-  // ── Danger ──
-  --ion-color-danger: #EF4444;
-  --ion-color-danger-rgb: 239, 68, 68;
-  --ion-color-danger-contrast: #ffffff;
-  --ion-color-danger-contrast-rgb: 255, 255, 255;
-  --ion-color-danger-shade: #DC2626;
-  --ion-color-danger-tint: #F87171;
-
-  // ── Medium ──
-  --ion-color-medium: #64748B;
-  --ion-color-medium-rgb: 100, 116, 139;
-  --ion-color-medium-contrast: #ffffff;
-  --ion-color-medium-contrast-rgb: 255, 255, 255;
-  --ion-color-medium-shade: #475569;
-  --ion-color-medium-tint: #94A3B8;
-
-  // ── Light ──
-  --ion-color-light: #F8FAFC;
-  --ion-color-light-rgb: 248, 250, 252;
-  --ion-color-light-contrast: #0F172A;
-  --ion-color-light-contrast-rgb: 15, 23, 42;
-  --ion-color-light-shade: #E2E8F0;
-  --ion-color-light-tint: #FFFFFF;
-  --ion-font-family: var(--font-sans);
 }
 
 * {
@@ -232,11 +162,6 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-// Ionic content background inherits the token
-ion-content {
-  --background: var(--bg-base);
 }
 
 // Focus ring — consistent across the app
