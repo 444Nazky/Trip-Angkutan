@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
-import { ensureBackendSession, logout as endBackendSession } from '../services/auth'
+import { ensureBackendSession, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { syncOfficersToLocal } from '../services/officers'
 import type { MobileScreen } from './types'
 
@@ -298,6 +298,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const current = prev.find(o => String(o.id) === String(officerId))
       return current ? [...synced, current] : synced
     })
+
+    // Sinkronisasi paksa: wilayah petugas mungkin saja dipindah admin,
+    // jadi terbitkan ulang JWT agar klaim region ikut terbaru.
+    if (force) void refreshBackendSession(String(officerId))
   }, [officerId])
 
   // Sync officers from backend on app start (mobile only)

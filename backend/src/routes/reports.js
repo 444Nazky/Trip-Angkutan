@@ -3,6 +3,16 @@ const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
+// Kode rute pada aplikasi mobile memakai 'BDAU', sedangkan kode region di
+// database adalah 'BADAU'. Dipetakan agar nama tempat tampil akurat.
+const ROUTE_CODE_ALIAS = { BDAU: 'BADAU' };
+
+function placeNameSubquery(col) {
+  return `(SELECT rg.name FROM regions rg
+           WHERE rg.code = CASE ${col} WHEN 'BDAU' THEN 'BADAU' ELSE ${col} END
+           LIMIT 1)`;
+}
+
 // Get summary stats — revenue reporting is admin-only
 router.get('/summary', authenticate, requireAdmin, (req, res) => {
   try {
@@ -60,8 +70,12 @@ function buildFilters(query) {
   }
 
   if (route) {
-    sql += ' AND (t.route_from = ? OR t.route_to = ?)';
-    params.push(route, route);
+    // Dukung kode rute mobile ('BDAU') maupun kode region ('BADAU')
+    const alias = ROUTE_CODE_ALIAS[route] || route;
+    const alt = Object.keys(ROUTE_CODE_ALIAS).find(k => ROUTE_CODE_ALIAS[k] === route) || route;
+    const variants = Array.from(new Set([route, alias, alt]));
+    sql += ` AND (${variants.map(() => '(t.route_from = ? OR t.route_to = ?)').join(' OR ')})`;
+    for (const v of variants) params.push(v, v);
   }
 
   if (golongan) {
@@ -100,14 +114,13 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
     let query = `
       SELECT t.*, r.name as region_name, r.code as region_code,
         o.name as officer_name,
-        rf.name as route_from_name, rf.code as route_from_code,
-        rt.name as route_to_name, rt.code as route_to_code,
+        ${placeNameSubquery('t.route_from')} as route_from_name,
+        ${placeNameSubquery('t.route_to')} as route_to_name,
+        t.route_from as route_from_code, t.route_to as route_to_code,
         (SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id) as vehicle_count,
         (SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id) as trip_revenue
       FROM trips t
       JOIN regions r ON t.region_id = r.id
-      LEFT JOIN regions rf ON rf.code = t.route_from
-      LEFT JOIN regions rt ON rt.code = t.route_to
       LEFT JOIN officers o ON t.officer_id = o.id
       WHERE 1=1
     ` + filterSql + ' ORDER BY t.created_at DESC LIMIT 200';
@@ -162,14 +175,13 @@ router.get('/trips/export', authenticate, requireAdmin, (req, res) => {
     const query = `
       SELECT t.no_trip, t.status_muatan, t.route_from, t.route_to, t.keterangan, t.created_at,
         r.name as region_name, r.code as region_code,
-        rf.name as route_from_name, rt.name as route_to_name,
+        ${placeNameSubquery('t.route_from')} as route_from_name,
+        ${placeNameSubquery('t.route_to')} as route_to_name,
         o.name as officer_name,
         (SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id) as vehicle_count,
         (SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id) as revenue
       FROM trips t
       JOIN regions r ON t.region_id = r.id
-      LEFT JOIN regions rf ON rf.code = t.route_from
-      LEFT JOIN regions rt ON rt.code = t.route_to
       LEFT JOIN officers o ON t.officer_id = o.id
       WHERE 1=1
     ` + filterSql + ' ORDER BY t.created_at DESC';

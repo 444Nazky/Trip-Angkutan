@@ -78,9 +78,15 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   // Detail informasi tambahan hanya muncul setelah input kendaraan selesai
   const vehicleInputDone = !!plate.trim() && !!vehicleType
 
-  const pushVehicle = () => {
+  // `resetPhoto: true` saat menambah kendaraan lain — tiap unit wajib foto
+  // sendiri. Saat lanjut ke ringkasan, foto terakhir dipertahankan agar
+  // tombol submit trip tetap terbuka.
+  const pushVehicle = (opts: { resetPhoto: boolean }) => {
     addVehicle({ plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum })
-    patchDraft({ vehicleForm: { plate: '', type: '', category: '' }, photo: false, photoUrl: undefined })
+    patchDraft({
+      vehicleForm: { plate: '', type: '', category: '' },
+      ...(opts.resetPhoto ? { photo: false, photoUrl: undefined } : {}),
+    })
   }
 
   const openCamera = () => {
@@ -227,6 +233,19 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             <p className="text-[11px] text-slate-400 mt-1">
               Lengkapi No. Polisi dan Jenis Kendaraan terlebih dahulu
             </p>
+            {draft.vehicles.length > 0 && (
+              <>
+                <p className="text-[11px] text-slate-500 mt-3">
+                  {draft.vehicles.length} kendaraan sudah tersimpan
+                </p>
+                <button
+                  onClick={() => go('trip-summary')}
+                  className="mt-3 w-full bg-[#0F172A] text-white font-bold py-3.5 rounded-2xl text-[13px] hover:bg-slate-800 active:scale-[0.98] transition-all"
+                >
+                  Lanjut ke Ringkasan Trip
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 animate-fade-in">
@@ -311,8 +330,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               <div className="flex justify-between text-[12px]"><span className="text-slate-500">Kategori</span><span className="font-semibold text-slate-700">{category}</span></div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { pushVehicle(); go('trip-summary') }} className="flex-1 py-3.5 rounded-2xl border-2 border-slate-200 text-slate-700 font-semibold text-[13px] hover:bg-slate-50">Tidak, Lanjutkan</button>
-              <button onClick={() => { pushVehicle(); setShowModal(false) }} className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-bold text-[13px] hover:bg-blue-700">Ya, Tambah</button>
+              <button onClick={() => { pushVehicle({ resetPhoto: false }); go('trip-summary') }} className="flex-1 py-3.5 rounded-2xl border-2 border-slate-200 text-slate-700 font-semibold text-[13px] hover:bg-slate-50">Tidak, Lanjutkan</button>
+              <button onClick={() => { pushVehicle({ resetPhoto: true }); setShowModal(false) }} className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-bold text-[13px] hover:bg-blue-700">Ya, Tambah</button>
             </div>
           </div>
         </div>

@@ -80,6 +80,22 @@ export function logout() {
   clearOfficer()
 }
 
+/**
+ * Terbitkan ulang JWT petugas dengan klaim terbaru dari database.
+ * Dipakai setelah daftar petugas disinkronkan — misalnya admin memindahkan
+ * wilayah pegawai, maka trip berikutnya harus tercatat di region yang benar.
+ */
+export async function refreshBackendSession(officerId?: string): Promise<boolean> {
+  const id = officerId ?? activeOfficerId ?? getStoredOfficer()?.id
+  if (id == null || id === '') return false
+
+  activeOfficerId = String(id)
+  api.setToken(null)
+
+  const result = await loginWithPin(String(id), DEMO_PIN)
+  return result.success
+}
+
 export function isLoggedIn(): boolean {
   return api.isAuthenticated && !!getStoredOfficer()
 }
