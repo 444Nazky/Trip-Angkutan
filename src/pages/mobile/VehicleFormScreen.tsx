@@ -377,8 +377,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <div className="space-y-2">
                   {[
                     { key: 'Internal', badge: 'Internal', color: 'bg-slate-800 text-white' },
-                    { key: 'Eksternal (Berganji)', badge: 'Ekst. Berganji', color: 'bg-amber-500 text-white' },
-                    { key: 'Eksternal (Tanpa Garansi)', badge: 'Ekst. Tanpa Garansi', color: 'bg-rose-500 text-white' },
+                    { key: 'Eksternal', badge: 'Eksternal', color: 'bg-amber-500 text-white' },
+                    { key: 'Eksternal Bebas', badge: 'Ekst. Bebas', color: 'bg-rose-500 text-white' },
                   ].map(cat => (
                     <button
                       key={cat.key}

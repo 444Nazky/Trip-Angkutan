@@ -34,7 +34,7 @@ export async function fetchTrips(): Promise<BackendTrip[] | null> {
 export interface ReportVehicle {
   no_polisi: string
   vehicle_type: string
-  /** Kategori: 'Internal' | 'Eksternal (Berganji)' | 'Eksternal (Tanpa Garansi)' (legacy rows may hold a golongan roman numeral) */
+  /** Kategori: 'Internal' | 'Eksternal' | 'Eksternal Bebas' (baris lama bisa berisi golongan romawi) */
   golongan: string
   /** Golongan master tarif (I..V) bila tersedia */
   master_golongan?: string | null

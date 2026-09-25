@@ -192,6 +192,25 @@ const seedTrips: Trip[] = allTrips.map(t => ({
   revenueNum: parseRp(t.revenue),
 }))
 
+// ── Normalisasi kategori ──────────────────────────────────────────────────────
+// Kategori lama dengan berbagai variasi istilah dibersihkan menjadi istilah
+// lapangan: Internal · Eksternal · Eksternal Bebas. Data lama di localStorage
+// ikut dinormalkan saat dibaca supaya tampilan seragam.
+export function normalizeCategory(c?: string): string | undefined {
+  if (!c) return c
+  // Baris lama non-eksternal (mis. angka romawi) dibiarkan apa adanya
+  if (!/^ekst/i.test(c)) return c
+  return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
+}
+
+function normalizeTrips(list: Trip[]): Trip[] {
+  return list.map(t => ({
+    ...t,
+    category: normalizeCategory(t.category) ?? t.category,
+    vehicles: t.vehicles?.map(v => ({ ...v, category: normalizeCategory(v.category) ?? v.category })),
+  }))
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   // Detect admin mode from the page title or known static signals
   const isAdminPage = typeof document !== 'undefined'
@@ -208,7 +227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return load('trip.userType', 'member')
   })
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
-  const [trips, setTrips] = useState<Trip[]>(() => load(LS.trips, seedTrips))
+  const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, officerList))
   const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -221,7 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [trips])
   useEffect(() => {
     const onStorage = () => {
-      setTrips(load(LS.trips, seedTrips))
+      setTrips(normalizeTrips(load(LS.trips, seedTrips)))
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)

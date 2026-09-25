@@ -1088,8 +1088,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                                   {t.vehicles.map((v, i) => {
                                     const cat = v.golongan
                                     const catColor = cat === 'Internal' ? 'bg-slate-800 text-white'
-                                      : cat === 'Eksternal (Berganji)' ? 'bg-amber-500 text-white'
-                                      : cat === 'Eksternal (Tanpa Garansi)' ? 'bg-rose-500 text-white'
+                                      : cat === 'Eksternal' ? 'bg-amber-500 text-white'
+                                      : cat === 'Eksternal Bebas' ? 'bg-rose-500 text-white'
                                       : 'bg-blue-100 text-blue-700'
                                     return (
                                       <tr key={`${v.no_polisi}-${i}`} className="hover:bg-slate-50">
