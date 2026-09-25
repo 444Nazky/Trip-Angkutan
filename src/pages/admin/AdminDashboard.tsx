@@ -11,6 +11,7 @@ import {
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../services/plates'
 import { fetchRegions, type Region } from '../../services/regions'
 import { downloadXlsx } from '../../services/xlsx'
+import { loadTheme, saveTheme, applyTheme, ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, type AdminTheme } from '../../services/theme'
 import { api } from '../../services/api'
 import type { AdminTab } from '../types'
 
@@ -79,6 +80,15 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
   const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '' })
   const [editOff, setEditOff] = useState<Officer | null>(null)
+
+  // Preferensi tampilan (tab Pengaturan) — dipulihkan dari localStorage
+  const [theme, setTheme] = useState<AdminTheme>(() => loadTheme())
+  useEffect(() => { applyTheme(theme) }, [theme])
+  const updateTheme = (patch: Partial<AdminTheme>) => {
+    const next = { ...theme, ...patch }
+    setTheme(next)
+    saveTheme(next)
+  }
 
   const showToast = (msg: string, type: Toast['type'] = 'success') => {
     setToast({ msg, type })
@@ -1114,6 +1124,86 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
           {tab === 'settings' && (
             <div className="space-y-6">
+              {/* ── Tema & Tampilan ── */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Tema & Tampilan</h3>
+                <p className="text-xs text-slate-500 mb-6">Sesuaikan tema situs, ukuran font, dan warna aksen — tersimpan otomatis di perangkat ini</p>
+
+                <div className="space-y-5">
+                  {/* Tema situs */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-700">Tema Situs</p>
+                      <p className="text-[11px] text-slate-400">Terang untuk siang hari, gelap lebih nyaman untuk mata</p>
+                    </div>
+                    <div className="flex rounded-xl border border-slate-200 p-1 gap-1 bg-slate-50">
+                      {([['light', 'Terang', '☀️'], ['dark', 'Gelap', '🌙']] as const).map(([m, label, icon]) => (
+                        <button
+                          key={m}
+                          onClick={() => updateTheme({ mode: m })}
+                          className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.mode === m ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+                        >
+                          {icon} {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Ukuran font */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-700">Ukuran Font</p>
+                      <p className="text-[11px] text-slate-400">Skala teks & tampilan seluruh halaman dashboard</p>
+                    </div>
+                    <div className="flex rounded-xl border border-slate-200 p-1 gap-1 bg-slate-50">
+                      {ZOOM_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateTheme({ zoom: opt.value })}
+                          className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Warna aksen */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-700">Warna Aksen</p>
+                      <p className="text-[11px] text-slate-400">Warna tombol utama, tab aktif, dan elemen terpilih</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {ACCENT_OPTIONS.map(a => (
+                        <button
+                          key={a.key}
+                          onClick={() => updateTheme({ accent: a.key })}
+                          title={a.label}
+                          aria-label={`Aksen ${a.label}`}
+                          className={`w-9 h-9 rounded-xl transition-all flex items-center justify-center ${theme.accent === a.key ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'}`}
+                          style={{ backgroundColor: a.swatch }}
+                        >
+                          {theme.accent === a.key && <Check size={15} className="text-white" strokeWidth={3} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-[11px] text-slate-400">
+                      Tema: {theme.mode === 'dark' ? 'Gelap' : 'Terang'} · Font: {ZOOM_OPTIONS.find(z => z.value === theme.zoom)?.label ?? 'Sedang'} · Aksen: {ACCENT_OPTIONS.find(a => a.key === theme.accent)?.label}
+                    </p>
+                    <button
+                      onClick={() => { setTheme({ ...DEFAULT_THEME }); saveTheme({ ...DEFAULT_THEME }); showToast('Pengaturan tampilan direset') }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
+                    >
+                      Reset Tampilan
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
                 <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan & Konfigurasi Sistem</h3>
                 <p className="text-xs text-slate-500 mb-6">Kelola preferensi sesi, database backend, dan diagnostik aplikasi admin</p>

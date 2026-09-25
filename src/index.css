@@ -23,3 +23,136 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in { animation: fade-in 0.3s ease-out both; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN DASHBOARD  (disajikan index.php dengan atribut data-admin di <html>)
+   Semua aturan di bawah hanya aktif untuk halaman admin — aplikasi mobile
+   Ionic tidak punya [data-admin] sehingga tidak terpengaruh sama sekali.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* 1) Scroll halaman — build Ionic memaksa body position:fixed +
+      overflow:hidden (wajar untuk app mobile, mematikan scroll di admin). */
+html[data-admin],
+html[data-admin] body {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  transform: none !important;
+  touch-action: auto !important;
+  overscroll-behavior-y: auto !important;
+}
+html[data-admin] {
+  overflow-y: auto !important;
+}
+
+/* 2) Skala ukuran font & tampilan (tab Pengaturan → --admin-zoom) */
+html[data-admin] body {
+  zoom: var(--admin-zoom, 1);
+}
+
+/* 3) Warna aksen (tab Pengaturan → data-accent) */
+html[data-admin] {
+  --admin-accent: #2563eb;
+  --admin-accent-hover: #1d4ed8;
+  --admin-accent-soft: #eff6ff;
+  --admin-accent-soft-strong: #dbeafe;
+  --admin-accent-text: #1d4ed8;
+}
+html[data-admin][data-accent="green"] {
+  --admin-accent: #059669;
+  --admin-accent-hover: #047857;
+  --admin-accent-soft: #ecfdf5;
+  --admin-accent-soft-strong: #d1fae5;
+  --admin-accent-text: #047857;
+}
+html[data-admin][data-accent="violet"] {
+  --admin-accent: #7c3aed;
+  --admin-accent-hover: #6d28d9;
+  --admin-accent-soft: #f5f3ff;
+  --admin-accent-soft-strong: #ede9fe;
+  --admin-accent-text: #6d28d9;
+}
+html[data-admin][data-accent="amber"] {
+  --admin-accent: #d97706;
+  --admin-accent-hover: #b45309;
+  --admin-accent-soft: #fffbeb;
+  --admin-accent-soft-strong: #fef3c7;
+  --admin-accent-text: #b45309;
+}
+
+/* Terapkan aksen pada utility biru (tombol utama, tab aktif, fokus, chip) */
+html[data-admin] .bg-blue-600 { background-color: var(--admin-accent); }
+html[data-admin] .hover\:bg-blue-700:hover { background-color: var(--admin-accent-hover); }
+html[data-admin] .focus\:border-blue-500:focus { border-color: var(--admin-accent); }
+html[data-admin] .border-blue-500 { border-color: var(--admin-accent); }
+html[data-admin] .border-blue-300 { border-color: var(--admin-accent); }
+html[data-admin] .text-blue-600 { color: var(--admin-accent-text); }
+html[data-admin] .text-blue-700 { color: var(--admin-accent-text); }
+html[data-admin] .text-blue-400 { color: var(--admin-accent); }
+html[data-admin] .bg-blue-50 { background-color: var(--admin-accent-soft); }
+html[data-admin] .bg-blue-100 { background-color: var(--admin-accent-soft-strong); }
+
+/* 4) Tema gelap (tab Pengaturan → data-theme="dark") */
+html[data-admin][data-theme="dark"] body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+/* Permukaan */
+html[data-admin][data-theme="dark"] .bg-white { background-color: #111827; }
+html[data-admin][data-theme="dark"] .hover\:bg-white:hover { background-color: #1f2937; }
+html[data-admin][data-theme="dark"] .bg-slate-50 { background-color: #0f172a; }
+html[data-admin][data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #0f172a; }
+html[data-admin][data-theme="dark"] .bg-slate-100 { background-color: #0b1220; }
+html[data-admin][data-theme="dark"] .bg-slate-200 { background-color: #1f2937; }
+/* Teks netral */
+html[data-admin][data-theme="dark"] .text-slate-200 { color: #e2e8f0; }
+html[data-admin][data-theme="dark"] .text-slate-300 { color: #cbd5e1; }
+html[data-admin][data-theme="dark"] .text-slate-400 { color: #94a3b8; }
+html[data-admin][data-theme="dark"] .text-slate-500 { color: #94a3b8; }
+html[data-admin][data-theme="dark"] .text-slate-600 { color: #cbd5e1; }
+html[data-admin][data-theme="dark"] .text-slate-700 { color: #e2e8f0; }
+html[data-admin][data-theme="dark"] .text-slate-800 { color: #f1f5f9; }
+html[data-admin][data-theme="dark"] .text-slate-900 { color: #f8fafc; }
+html[data-admin][data-theme="dark"] .text-gray-600,
+html[data-admin][data-theme="dark"] .text-gray-700,
+html[data-admin][data-theme="dark"] .text-gray-800,
+html[data-admin][data-theme="dark"] .text-gray-900 { color: #e2e8f0; }
+/* Garis netral (border bawaan preflight punya warna terang) */
+html[data-admin][data-theme="dark"] .border,
+html[data-admin][data-theme="dark"] .border-t,
+html[data-admin][data-theme="dark"] .border-b,
+html[data-admin][data-theme="dark"] .border-l,
+html[data-admin][data-theme="dark"] .border-r { border-color: #1f2937; }
+html[data-admin][data-theme="dark"] .border-slate-100,
+html[data-admin][data-theme="dark"] .border-slate-200 { border-color: #1f2937; }
+html[data-admin][data-theme="dark"] .border-slate-300 { border-color: #334155; }
+html[data-admin][data-theme="dark"] .hover\:border-slate-200:hover { border-color: #334155; }
+html[data-admin][data-theme="dark"] .hover\:border-slate-300:hover { border-color: #475569; }
+html[data-admin][data-theme="dark"] .divide-slate-100 > * + * { border-color: #1f2937; }
+/* Kartu & chip berwarna tetap terbaca di latar gelap */
+html[data-admin][data-theme="dark"] .bg-emerald-50 { background-color: #0b2b22; }
+html[data-admin][data-theme="dark"] .bg-emerald-100 { background-color: #0f3d30; }
+html[data-admin][data-theme="dark"] .text-emerald-600 { color: #34d399; }
+html[data-admin][data-theme="dark"] .text-emerald-700 { color: #6ee7b7; }
+html[data-admin][data-theme="dark"] .bg-amber-50 { background-color: #2e2410; }
+html[data-admin][data-theme="dark"] .bg-amber-100 { background-color: #3f320f; }
+html[data-admin][data-theme="dark"] .text-amber-600 { color: #fbbf24; }
+html[data-admin][data-theme="dark"] .text-amber-700 { color: #fcd34d; }
+html[data-admin][data-theme="dark"] .bg-red-50 { background-color: #35151a; }
+html[data-admin][data-theme="dark"] .bg-red-100 { background-color: #4c1d24; }
+html[data-admin][data-theme="dark"] .text-red-600 { color: #fca5a5; }
+html[data-admin][data-theme="dark"] .text-rose-500 { color: #fda4af; }
+html[data-admin][data-theme="dark"] .text-rose-600 { color: #fb7185; }
+html[data-admin][data-theme="dark"] .bg-rose-50 { background-color: #3b1722; }
+/* Aksen dalam mode gelap: latar lembut ikut gelap, teks diterangkan */
+html[data-admin][data-theme="dark"] {
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 16%, #0b1220);
+  --admin-accent-soft-strong: color-mix(in srgb, var(--admin-accent) 30%, #0b1220);
+  --admin-accent-text: color-mix(in srgb, var(--admin-accent) 78%, #ffffff);
+}
+/* Placeholder & scrollbar ikut gelap */
+html[data-admin][data-theme="dark"] ::placeholder { color: #64748b; }
+html[data-admin][data-theme="dark"] ::-webkit-scrollbar-thumb { background: #334155; }
+html[data-admin][data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
