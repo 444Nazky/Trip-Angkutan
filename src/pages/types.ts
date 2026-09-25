@@ -19,4 +19,27 @@ export type MobileScreen =
   | 'profile'
   | 'settings'
 
-export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'reports' | 'settings'
+export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'dermaga' | 'routes' | 'reports' | 'settings'
+
+export interface Region {
+  id: string
+  name: string
+  code: string
+}
+
+export interface Dermaga {
+  id: string
+  region_id: string
+  name: string
+  code: string
+}
+
+export interface Route {
+  id: string
+  dermaga_id: string
+  name: string
+  route_from: string
+  route_to: string
+  distance?: string
+  duration?: string
+}

@@ -117,8 +117,30 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Invalid PIN' });
     }
 
+    // Get officer's accessible dermagas
+    const dermagas = db.prepare(`
+      SELECT d.id, d.name, d.code, r.name as region_name, r.code as region_code
+      FROM officer_dermagas od
+      JOIN dermagas d ON od.dermaga_id = d.id
+      JOIN regions r ON d.region_id = r.id
+      WHERE od.officer_id = ?
+    `).all(String(officerId));
+
+    // Get routes for each dermaga
+    const routesMap = {};
+    for (const dm of dermagas) {
+      const routes = db.prepare(`
+        SELECT id, name, route_from, route_to, distance, duration
+        FROM routes
+        WHERE dermaga_id = ?
+      `).all(dm.id);
+      routesMap[dm.id] = routes;
+    }
+
+    const isDualAccess = dermagas.length > 1;
+
     const token = jwt.sign(
-      { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
+      { officerId: officer.id, regionId: officer.region_id, role: 'officer', isDualAccess },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -131,11 +153,57 @@ router.post('/login', (req, res) => {
         regionId: officer.region_id,
         regionName: officer.region_name,
         regionCode: officer.region_code
-      }
+      },
+      dermagas,
+      routes: routesMap,
+      isDualAccess
     });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Select dermaga for dual-access officers
+router.post('/select-dermaga', authenticate, (req, res) => {
+  try {
+    const { dermagaId } = req.body;
+
+    if (!dermagaId) {
+      return res.status(400).json({ error: 'Dermaga ID required' });
+    }
+
+    // Verify officer has access to this dermaga
+    const access = db.prepare(`
+      SELECT 1 FROM officer_dermagas WHERE officer_id = ? AND dermaga_id = ?
+    `).get(String(req.user.officerId), String(dermagaId));
+
+    if (!access) {
+      return res.status(403).json({ error: 'Access denied to this dermaga' });
+    }
+
+    // Get dermaga and routes
+    const dermaga = db.prepare(`
+      SELECT d.*, r.name as region_name, r.code as region_code
+      FROM dermagas d
+      JOIN regions r ON d.region_id = r.id
+      WHERE d.id = ?
+    `).get(String(dermagaId));
+
+    if (!dermaga) {
+      return res.status(404).json({ error: 'Dermaga not found' });
+    }
+
+    const routes = db.prepare(`
+      SELECT id, name, route_from, route_to, distance, duration
+      FROM routes
+      WHERE dermaga_id = ?
+    `).all(String(dermagaId));
+
+    res.json({ dermaga, routes });
+  } catch (error) {
+    console.error('Select dermaga error:', error);
+    res.status(500).json({ error: 'Failed to select dermaga' });
   }
 });
 

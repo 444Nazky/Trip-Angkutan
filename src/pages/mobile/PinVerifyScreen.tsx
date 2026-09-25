@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { ChevronLeft, Lock } from 'lucide-react'
 import { useApp } from '../store'
-import { loginWithPin } from '../../services/auth'
+import { loginWithPin, type Dermaga } from '../../services/auth'
 import type { MobileScreen } from '../types'
 
 // ─── PIN Verify Screen ─────────────────────────────────────────────────────────
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
+  onDermagaSelect?: (dermagas: Dermaga[]) => void
 }
 
-export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
+export default function PinVerifyScreen({ go, onDermagaSelect }: PinVerifyScreenProps) {
   const { officer, officers, pendingOfficerId, verifyIntent, setOfficerId, clearVerify } = useApp()
   const target = pendingOfficerId != null
-    ? officers.find(o => o.id === pendingOfficerId) ?? officer
+    ? officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer
     : officer
   const [digits, setDigits] = useState<string[]>([])
   const [error, setError] = useState(false)
@@ -32,29 +33,28 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      // Try real backend auth first
-      const result = await loginWithPin(target.id, pin)
+      const result = await loginWithPin(String(target.id), pin)
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Check for dual access - if so, show dermaga selection
+        if (result.data.isDualAccess && result.data.dermagas && result.data.dermagas.length > 1) {
+          onDermagaSelect?.(result.data.dermagas)
+        }
         finishAuth()
         return
       }
 
-      // `error.code` ada = server merespons (PIN salah / akun nonaktif) →
-      // jangan jatuh ke PIN demo, agar akun Nonaktif benar-benar terkunci.
       if (result.error?.code) {
         rejectPin()
         return
       }
 
-      // Backend tidak terjangkau (offline) → fallback ke PIN demo (123456)
       if (pin === '123456') {
         finishAuth()
       } else {
         rejectPin()
       }
     } catch {
-      // Network error - fallback to demo mode
       if (pin === '123456') {
         finishAuth()
       } else {

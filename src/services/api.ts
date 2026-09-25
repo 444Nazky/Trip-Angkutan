@@ -16,7 +16,6 @@ export interface ApiResponse<T> {
 }
 
 export interface OfficerInfo {
-  /** Selalu string — id petugas di backend bisa UUID */
   id: string
   name: string
   regionId: string
@@ -24,9 +23,29 @@ export interface OfficerInfo {
   regionCode: string
 }
 
+export interface Dermaga {
+  id: string
+  name: string
+  code: string
+  region_name: string
+  region_code: string
+}
+
+export interface Route {
+  id: string
+  name: string
+  route_from: string
+  route_to: string
+  distance?: string
+  duration?: string
+}
+
 export interface LoginResponse {
   token: string
   officer: OfficerInfo
+  dermagas?: Dermaga[]
+  routes?: Record<string, Route[]>
+  isDualAccess?: boolean
 }
 
 class ApiService {

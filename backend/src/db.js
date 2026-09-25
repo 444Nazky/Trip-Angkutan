@@ -181,6 +181,33 @@ function initialize() {
     )
   `);
 
+  // Dermagas table (pier/wharf within a region)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS dermagas (
+      id TEXT PRIMARY KEY,
+      region_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (region_id) REFERENCES regions(id)
+    )
+  `);
+
+  // Routes table (linked to dermaga)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS routes (
+      id TEXT PRIMARY KEY,
+      dermaga_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      route_from TEXT NOT NULL,
+      route_to TEXT NOT NULL,
+      distance TEXT,
+      duration TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (dermaga_id) REFERENCES dermagas(id)
+    )
+  `);
+
   // Officers table
   db.run(`
     CREATE TABLE IF NOT EXISTS officers (
@@ -191,6 +218,17 @@ function initialize() {
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (region_id) REFERENCES regions(id)
+    )
+  `);
+
+  // Officer-Dermaga access (many-to-many)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS officer_dermagas (
+      officer_id TEXT NOT NULL,
+      dermaga_id TEXT NOT NULL,
+      PRIMARY KEY (officer_id, dermaga_id),
+      FOREIGN KEY (officer_id) REFERENCES officers(id),
+      FOREIGN KEY (dermaga_id) REFERENCES dermagas(id)
     )
   `);
 
@@ -234,6 +272,8 @@ function initialize() {
       no_trip TEXT NOT NULL UNIQUE,
       officer_id TEXT NOT NULL,
       region_id TEXT NOT NULL,
+      dermaga_id TEXT NOT NULL,
+      route_id TEXT,
       status_muatan TEXT NOT NULL,
       route_from TEXT,
       route_to TEXT,
@@ -242,7 +282,9 @@ function initialize() {
       is_synced INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (officer_id) REFERENCES officers(id),
-      FOREIGN KEY (region_id) REFERENCES regions(id)
+      FOREIGN KEY (region_id) REFERENCES regions(id),
+      FOREIGN KEY (dermaga_id) REFERENCES dermagas(id),
+      FOREIGN KEY (route_id) REFERENCES routes(id)
     )
   `);
 
@@ -270,12 +312,12 @@ function seedData() {
   stmt.free();
   if (result.count > 0) return;
 
-  // Seed regions
+  // Seed regions (simple numbering)
   const regions = [
-    { id: uuidv4(), name: 'Badau', code: 'BADAU' },
-    { id: uuidv4(), name: 'Sanggau', code: 'SJRE' },
-    { id: uuidv4(), name: 'Sambas', code: 'SBDZ' },
-    { id: uuidv4(), name: 'Entikong', code: 'ENTIKONG' },
+    { id: uuidv4(), name: 'Region 1', code: 'R1' },
+    { id: uuidv4(), name: 'Region 2', code: 'R2' },
+    { id: uuidv4(), name: 'Region 3', code: 'R3' },
+    { id: uuidv4(), name: 'Region 4', code: 'R4' },
   ];
 
   const insertRegion = db.prepare('INSERT INTO regions (id, name, code) VALUES (?, ?, ?)');
@@ -286,23 +328,97 @@ function seedData() {
   });
   insertRegion.free();
 
+  // Seed dermagas (2 per region for BADAU - Dermaga 1 and Dermaga 2)
+  const dermagas = [
+    // BADAU dermagas
+    { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 1', code: 'D1' },
+    { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 2', code: 'D2' },
+    // Other regions get 1 dermaga each
+    { id: uuidv4(), region_id: regions[1].id, name: 'Dermaga Utama', code: 'D1' },
+    { id: uuidv4(), region_id: regions[2].id, name: 'Dermaga Utama', code: 'D1' },
+    { id: uuidv4(), region_id: regions[3].id, name: 'Dermaga Utama', code: 'D1' },
+  ];
+
+  const insertDermaga = db.prepare('INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)');
+  dermagas.forEach(d => {
+    insertDermaga.bind([d.id, d.region_id, d.name, d.code]);
+    insertDermaga.step();
+    insertDermaga.reset();
+  });
+  insertDermaga.free();
+
+  // Seed routes (2 per dermaga for BADAU dermagas)
+  const routes = [
+    // BADAU Dermaga 1 routes
+    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '5 km', duration: '15m' },
+    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 2', route_from: 'C', route_to: 'D', distance: '8 km', duration: '20m' },
+    // BADAU Dermaga 2 routes
+    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 3', route_from: 'E', route_to: 'F', distance: '6 km', duration: '18m' },
+    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 4', route_from: 'G', route_to: 'H', distance: '10 km', duration: '25m' },
+    // Other regions
+    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
+    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
+    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
+  ];
+
+  const insertRoute = db.prepare('INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  routes.forEach(r => {
+    insertRoute.bind([r.id, r.dermaga_id, r.name, r.route_from, r.route_to, r.distance, r.duration]);
+    insertRoute.step();
+    insertRoute.reset();
+  });
+  insertRoute.free();
+
   // Seed officers with hashed PIN
   const hashedPin = bcrypt.hashSync('123456', 10);
   const officers = [
-    { id: 1, name: 'Budi Santoso', pin: hashedPin, region_id: regions[0].id },
-    { id: 2, name: 'Andi Pratama', pin: hashedPin, region_id: regions[0].id },
-    { id: 3, name: 'Siti Rahayu', pin: hashedPin, region_id: regions[0].id },
-    { id: 4, name: 'Rizky Maulana', pin: hashedPin, region_id: regions[3].id },
-    { id: 5, name: 'Dewi Kusuma', pin: hashedPin, region_id: regions[3].id },
+    { id: uuidv4(), name: 'Budi Santoso', pin: hashedPin, region_id: regions[0].id },
+    { id: uuidv4(), name: 'Andi Pratama', pin: hashedPin, region_id: regions[0].id },
+    { id: uuidv4(), name: 'Siti Rahayu', pin: hashedPin, region_id: regions[0].id },
+    { id: uuidv4(), name: 'Rizky Maulana', pin: hashedPin, region_id: regions[3].id },
+    { id: uuidv4(), name: 'Dewi Kusuma', pin: hashedPin, region_id: regions[0].id }, // Dual access: BADAU dermaga 1 & 2
   ];
 
   const insertOfficer = db.prepare('INSERT INTO officers (id, name, pin, region_id) VALUES (?, ?, ?, ?)');
   officers.forEach(o => {
-    insertOfficer.bind([String(o.id), o.name, o.pin, o.region_id]);
+    insertOfficer.bind([o.id, o.name, o.pin, o.region_id]);
     insertOfficer.step();
     insertOfficer.reset();
   });
   insertOfficer.free();
+
+  // Seed officer-dermaga access
+  const insertOfficerDermaga = db.prepare('INSERT INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)');
+
+  // Budi: BADAU Dermaga 1 only
+  insertOfficerDermaga.bind([officers[0].id, dermagas[0].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+
+  // Andi: BADAU Dermaga 2 only
+  insertOfficerDermaga.bind([officers[1].id, dermagas[1].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+
+  // Siti: BADAU Dermaga 1 only (inactive in original)
+  insertOfficerDermaga.bind([officers[2].id, dermagas[0].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+
+  // Rizky: Entikong only
+  insertOfficerDermaga.bind([officers[3].id, dermagas[4].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+
+  // Dewi: BADAU Dermaga 1 AND Dermaga 2 (dual access!)
+  insertOfficerDermaga.bind([officers[4].id, dermagas[0].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+  insertOfficerDermaga.bind([officers[4].id, dermagas[1].id]);
+  insertOfficerDermaga.step();
+  insertOfficerDermaga.reset();
+
+  insertOfficerDermaga.free();
 
   // Seed tariffs
   const tariffs = [
@@ -321,7 +437,7 @@ function seedData() {
   });
   insertTariff.free();
 
-  console.log('Database seeded with initial data');
+  console.log('Database seeded with dermagas, routes, and access control');
 }
 
 // Export async initialization
