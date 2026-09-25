@@ -141,8 +141,59 @@ function migrate() {
     )
   `);
 
+  relaxTripsDermagaNotNull();
   seedSpecTables();
   saveDb();
+}
+
+// trips.dermaga_id dibuat NOT NULL oleh revisi akses, tetapi klien mobile tidak
+// pernah mengirim dermaga — akibatnya setiap POST /trips gagal 500
+// ("NOT NULL constraint failed: trips.dermaga_id") dan tidak ada trip yang
+// tersinkron. SQLite tidak mendukung ALTER COLUMN, jadi tabel dibangun ulang
+// dengan kolom nullable. FK tidak di-enforce (PRAGMA foreign_keys = 0) dan
+// dermaga_id tidak dipakai di query laporan mana pun, jadi aman.
+function relaxTripsDermagaNotNull() {
+  try {
+    const col = dbWrapper.prepare(`PRAGMA table_info(trips)`).all()
+      .find((c) => c.name === 'dermaga_id');
+    if (!col || col.notnull !== 1) return; // sudah nullable / belum ada
+
+    db.run(`
+      CREATE TABLE trips_relaxed (
+        id TEXT PRIMARY KEY,
+        no_trip TEXT NOT NULL UNIQUE,
+        officer_id TEXT NOT NULL,
+        region_id TEXT NOT NULL,
+        dermaga_id TEXT,
+        route_id TEXT,
+        status_muatan TEXT NOT NULL,
+        route_from TEXT,
+        route_to TEXT,
+        keterangan TEXT,
+        foto_kosong_path TEXT,
+        is_synced INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (officer_id) REFERENCES officers(id),
+        FOREIGN KEY (region_id) REFERENCES regions(id),
+        FOREIGN KEY (dermaga_id) REFERENCES dermagas(id),
+        FOREIGN KEY (route_id) REFERENCES routes(id)
+      )
+    `);
+    db.run(`
+      INSERT INTO trips_relaxed
+        (id, no_trip, officer_id, region_id, dermaga_id, route_id, status_muatan,
+         route_from, route_to, keterangan, foto_kosong_path, is_synced, created_at)
+      SELECT id, no_trip, officer_id, region_id, dermaga_id, route_id, status_muatan,
+             route_from, route_to, keterangan, foto_kosong_path, is_synced, created_at
+        FROM trips
+    `);
+    db.run(`DROP TABLE trips`);
+    db.run(`ALTER TABLE trips_relaxed RENAME TO trips`);
+    console.log('Migrated: trips.dermaga_id is now nullable');
+  } catch (e) {
+    // Migrasi gagal tidak boleh menggagalkan boot — INSERT trips punya fallback.
+    console.warn('Skip trips.dermaga_id migration:', e.message);
+  }
 }
 
 // Seed relasi petugas-region (backfill dari kolom lama) + tarif region default.

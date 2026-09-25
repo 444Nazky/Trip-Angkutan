@@ -25,10 +25,21 @@ router.post('/', authenticate, (req, res) => {
     const tripId = uuidv4();
     const noTrip = generateTripNo();
 
+    // trips.dermaga_id wajib terisi, tapi klien mobile tidak pernah mengirim
+    // dermaga (layar mobile tidak memilih dermaga). Ambil dari penugasan
+    // petugas, lalu fallback ke dermaga mana pun di region-nya, terakhir null
+    // (kolom kini nullable — lihat migrasi di db.js).
+    const dermagaId =
+      req.body.dermagaId ||
+      (db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ? LIMIT 1`).get(officerId)?.dermaga_id) ||
+      (db.prepare(`SELECT id FROM dermagas WHERE region_id = ? LIMIT 1`).get(regionId)?.id) ||
+      (db.prepare(`SELECT id FROM dermagas LIMIT 1`).get()?.id) ||
+      null;
+
     db.prepare(`
-      INSERT INTO trips (id, no_trip, officer_id, region_id, status_muatan, route_from, route_to, keterangan, foto_kosong_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(tripId, noTrip, officerId, regionId, statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath);
+      INSERT INTO trips (id, no_trip, officer_id, region_id, dermaga_id, status_muatan, route_from, route_to, keterangan, foto_kosong_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(tripId, noTrip, officerId, regionId, dermagaId, statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath);
 
     res.status(201).json({ id: tripId, noTrip });
   } catch (error) {
