@@ -293,19 +293,21 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (!editOff) return
     const initials = editOff.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
-    const ns = [...officers]
-    if (editOffIdx !== null) ns[editOffIdx] = { ...editOff, region: chosen[0], regions: chosen, initials }
-    saveOfficers(ns)
 
-    // Many-to-many: sinkron daftar wilayah ke server (petugas yang terdaftar di backend)
+    // Many-to-many: sync regions to backend (petugas yang terdaftar di backend)
     const be = backendOfficers.find(b => String(b.id) === String(editOff.id) || b.name === editOff.name)
     if (be) {
       const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
       if (ids.length > 0) {
         const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
-        if (!res.ok) showToast('Wilayah tersimpan lokal — gagal sinkron ke server', 'error')
+        if (!res.ok) showToast('Wilayah tersimpan lokal — gagal sync ke server', 'error')
       }
+      await refreshOfficers()
     }
+
+    const ns = [...officers]
+    if (editOffIdx !== null) ns[editOffIdx] = { ...editOff, region: chosen[0], regions: chosen, initials }
+    saveOfficers(ns)
 
     setEditOffIdx(null)
     setEditOff(null)
