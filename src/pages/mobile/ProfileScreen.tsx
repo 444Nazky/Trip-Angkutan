@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Truck, Map, ShieldCheck, Settings, ChevronRight, ArrowLeftRight, Lock } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -7,7 +8,13 @@ interface ProfileScreenProps {
 }
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
-  const { officer, trips, beginVerify } = useApp()
+  const { officer, trips, beginVerify, refreshOfficers } = useApp()
+
+  // Pastikan status/wilayah petugas selalu terbaru (sinkron dengan admin)
+  useEffect(() => {
+    void refreshOfficers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const myTrips = trips.filter(t => t.officer === officer.name)
   const units = new Set(
