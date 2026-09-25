@@ -283,31 +283,46 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     showToast(`Tarif region ${rt.code} diupdate`)
   }
 
-  // Refresh officers from backend
-  const refreshOfficers = async () => {
+  // Refresh officers from backend — server adalah sumber kebenaran, daftar
+  // lokal digabung ulang supaya status aktif/nonaktif & wilayah selalu
+  // konsisten dengan yang dibaca aplikasi mobile.
+  const syncOfficersFromServer = async (): Promise<boolean> => {
     const offs = await api.get<BackendOfficerRow[]>('/officers')
-    if (offs.ok && offs.data) setBackendOfficers(offs.data)
+    if (!offs.ok || !offs.data || offs.data.length === 0) return false
+    setBackendOfficers(offs.data)
+    saveOfficers(mergeBackendOfficers(offs.data, officers))
+    return true
   }
+
+  // Back-compat alias (dipakai di beberapa tempat)
+  const refreshOfficers = syncOfficersFromServer
 
   // Officer CRUD
   const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
     const region = regions.find(r => r.code === offForm.region)
 
-    // Create on backend
+    // Create on backend (regionIds agar ikut junction many-to-many)
     const res = await api.post<{ id: string }>('/officers', {
       name: offForm.name,
       pin: offForm.pin,
       regionId: region?.id,
+      regionIds: region ? [region.id] : undefined,
     })
 
     if (!res.ok || !res.data) return showToast('Gagal tambah petugas ke server', 'error')
 
-    // Refresh backend list and local list
-    await refreshOfficers()
-    const initials = offForm.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    const row: Officer = { id: Number(res.data.id), name: offForm.name, initials, region: offForm.region, pin: offForm.pin, status: 'Aktif', device: offForm.device || '-', trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID') }
-    saveOfficers([...officers, row])
+    // Refresh dari server — id UUID dari backend kini dipakai apa adanya
+    if (!(await syncOfficersFromServer())) {
+      const initials = offForm.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      const row: Officer = {
+        id: String(res.data.id), name: offForm.name, initials, region: offForm.region,
+        regions: [offForm.region], pin: offForm.pin, status: 'Aktif', device: offForm.device || '-',
+        trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID'),
+      }
+      saveOfficers([...officers, row])
+    }
+
     setOffForm({ name: '', region: 'BADAU', pin: '', device: '' })
     setAddOff(false)
     showToast('Petugas ditambahkan')
@@ -317,21 +332,32 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (!editOff) return
     const initials = editOff.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
+    const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
 
-    // Many-to-many: sync regions to backend (petugas yang terdaftar di backend)
-    const be = backendOfficers.find(b => String(b.id) === String(editOff.id) || b.name === editOff.name)
+    const be = findBackendOfficer(editOff)
+    let synced = false
+
     if (be) {
-      const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
+      // Many-to-many: pindahkan/atur akses wilayah petugas
       if (ids.length > 0) {
         const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
-        if (!res.ok) showToast('Wilayah tersimpan lokal — gagal sync ke server', 'error')
+        if (!res.ok) showToast('Wilayah gagal sync ke server', 'error')
       }
-      await refreshOfficers()
+      // PIN baru (hanya dikirim kalau diisi ulang 6 digit)
+      if (editOff.pin && editOff.pin.length === 6) {
+        const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
+        if (!pinRes.ok) showToast('PIN gagal sync ke server', 'error')
+      }
+      synced = await syncOfficersFromServer()
     }
 
-    const ns = [...officers]
-    if (editOffIdx !== null) ns[editOffIdx] = { ...editOff, region: chosen[0], regions: chosen, initials }
-    saveOfficers(ns)
+    if (!synced) {
+      // Offline / petugas lokal — perubahan tetap disimpan di perangkat
+      const ns = [...officers]
+      const idx = editOffIdx !== null ? editOffIdx : officers.findIndex(o => String(o.id) === String(editOff.id))
+      if (idx >= 0) ns[idx] = { ...editOff, region: chosen[0], regions: chosen, initials }
+      saveOfficers(ns)
+    }
 
     setEditOffIdx(null)
     setEditOff(null)
@@ -341,16 +367,17 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleDelOff = async (i: number) => {
     if (!confirm('Hapus?')) return
     const officer = officers[i]
+    const be = findBackendOfficer(officer)
 
-    // Delete from backend
-    const be = backendOfficers.find(b => b.name === officer.name)
     if (be) {
+      // Delete from backend
       const res = await api.delete(`/officers/${be.id}`)
       if (!res.ok) return showToast('Gagal hapus petugas dari server', 'error')
-      await refreshOfficers()
+      await syncOfficersFromServer()
+    } else {
+      saveOfficers(officers.filter((_, idx) => idx !== i))
     }
 
-    saveOfficers(officers.filter((_, idx) => idx !== i))
     if (editOffIdx === i) { setEditOffIdx(null); setEditOff(null) }
     else if (editOffIdx !== null && editOffIdx > i) setEditOffIdx(editOffIdx - 1)
     showToast('Petugas dihapus')
@@ -359,18 +386,18 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const toggleOffStatus = async (i: number) => {
     const officer = officers[i]
     const newStatus = officer.status === 'Aktif' ? 'Nonaktif' : 'Aktif'
+    const be = findBackendOfficer(officer)
 
-    // Sync to backend
-    const be = backendOfficers.find(b => b.name === officer.name)
     if (be) {
+      // Sync to backend — mobile menolak login petugas Nonaktif
       const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
       if (!res.ok) return showToast('Gagal sync status ke server', 'error')
-      await refreshOfficers()
+      await syncOfficersFromServer()
+    } else {
+      const ns = [...officers]
+      ns[i] = { ...ns[i], status: newStatus }
+      saveOfficers(ns)
     }
-
-    const ns = [...officers]
-    ns[i] = { ...ns[i], status: newStatus }
-    saveOfficers(ns)
     showToast(`Status diubah ke ${newStatus}`)
   }
 
