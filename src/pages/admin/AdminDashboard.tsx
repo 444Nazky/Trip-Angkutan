@@ -4,15 +4,19 @@ import { useApp } from '../store'
 import { tariffData } from '../data'
 import { ensureAdminBackendSession } from '../../services/auth'
 import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../services/tariffs'
-import { fetchTrips, fetchTripReports, type BackendTrip, type ReportTrip } from '../../services/trips'
+import {
+  fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime,
+  type BackendTrip, type ReportTrip, type ReportFilters,
+} from '../../services/trips'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../services/plates'
 import { fetchRegions, type Region } from '../../services/regions'
+import { downloadXlsx } from '../../services/xlsx'
 import { api } from '../../services/api'
 import type { AdminTab } from '../types'
 
 interface TariffRow { id?: string; golongan: string; type: string; loaded: string; loadedNum: number; empty: string; emptyNum: number; desc: string }
-interface Officer { id: number; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string }
-interface BackendOfficerRow { id: string; name: string; region_id: string; regions: Region[] }
+interface Officer { id: string; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string }
+interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[] }
 interface Toast { msg: string; type: 'success' | 'error' }
 
 export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
@@ -28,6 +32,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [openTripId, setOpenTripId] = useState<string | null>(null)
+  // Filter laporan (golongan & jenis kendaraan dari master tarif)
+  const [reportFilters, setReportFilters] = useState<ReportFilters>({})
+  const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[] }>({ golongan: [], vehicleTypes: [] })
   // Registrasi plat & konfigurasi tarif region
   const [regions, setRegions] = useState<Region[]>([])
   const [regionTariffs, setRegionTariffs] = useState<RegionTariffRow[]>([])
@@ -93,6 +100,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const offs = await api.get<BackendOfficerRow[]>('/officers')
       if (alive && offs.ok && offs.data) setBackendOfficers(offs.data)
 
+      // Opsi filter laporan (golongan + jenis kendaraan dari master tarif)
+      const opts = await fetchReportFilters()
+      if (alive && opts) setFilterOptions(opts)
+
       setServerState('online')
     })()
     return () => { alive = false }
@@ -100,14 +111,27 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }, [])
 
   // Laporan: load lazily on first open of the tab
-  const loadReports = async () => {
+  const loadReports = async (filters?: ReportFilters) => {
     setReportState('loading')
     const ok = await ensureAdminBackendSession()
     if (!ok) { setReportState('offline'); return }
-    const rows = await fetchTripReports()
+    const rows = await fetchTripReports(filters ?? reportFilters)
     if (rows === null) { setReportState('offline'); return }
     setReportTrips(rows)
     setReportState('ready')
+  }
+
+  const applyReportFilter = (patch: Partial<ReportFilters>) => {
+    const next = { ...reportFilters, ...patch }
+    setReportFilters(next)
+    setOpenTripId(null)
+    void loadReports(next)
+  }
+
+  const clearReportFilters = () => {
+    setReportFilters({})
+    setOpenTripId(null)
+    void loadReports({})
   }
 
   useEffect(() => {

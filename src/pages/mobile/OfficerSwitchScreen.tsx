@@ -1,4 +1,5 @@
-import { ChevronLeft, Lock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronLeft, Lock, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -8,8 +9,27 @@ interface OfficerSwitchScreenProps {
 }
 
 export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
-  const { officer, beginVerify, officers } = useApp()
-  const regionOfficers = officers.filter(o => o.region === officer.region)
+  const { officer, beginVerify, officers, refreshOfficers } = useApp()
+  const [syncing, setSyncing] = useState(false)
+
+  const pull = async () => {
+    setSyncing(true)
+    try { await refreshOfficers(true) } finally { setSyncing(false) }
+  }
+
+  // Tarik daftar petugas terbaru setiap layar dibuka (sinkron real-time dengan
+  // dashboard admin: status aktif/nonaktif & wilayah selalu yang terkini).
+  useEffect(() => {
+    void refreshOfficers(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Petugas yang berbagi minimal satu wilayah dengan petugas aktif saat ini
+  const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
+  const regionOfficers = officers.filter(o => {
+    const regs = o.regions && o.regions.length > 0 ? o.regions : [o.region]
+    return regs.some(r => myRegions.includes(r))
+  })
   return (
     <div className="px-4 pt-2 pb-4 animate-fade-in">
       <button onClick={() => go('profile')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
@@ -23,8 +43,16 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         </div>
         <h2 className="text-white font-black text-[18px] mb-0.5">Ganti Petugas</h2>
         <p className="text-slate-400 text-[12px]">
-          Hanya petugas wilayah <span className="text-emerald-400 font-black">{officer.region}</span> yang ditampilkan
+          Hanya petugas wilayah <span className="text-emerald-400 font-black">{myRegions.join(', ')}</span> yang ditampilkan
         </p>
+        <button
+          onClick={() => void pull()}
+          disabled={syncing}
+          className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-60"
+        >
+          <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Menyinkronkan...' : 'Sinkronkan daftar petugas'}
+        </button>
       </div>
 
       <div className="space-y-3">

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ChevronLeft, RefreshCw, Camera, Upload, AlertCircle } from 'lucide-react'
+import { ChevronLeft, RefreshCw, Camera, AlertCircle } from 'lucide-react'
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -9,10 +9,19 @@ interface CameraScreenProps {
 }
 
 export default function CameraScreen({ go }: CameraScreenProps) {
-  const { patchDraft } = useApp()
+  const { draft, patchDraft } = useApp()
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const fallbackInputRef = useRef<HTMLInputElement>(null)
+
+  // Kembali ke layar yang membuka kamera (form kendaraan atau ringkasan trip)
+  const returnTo: MobileScreen = draft.cameraFrom || 'vehicle-form'
+  const title = returnTo === 'trip-summary' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan'
+
+  const finishCapture = (dataUrl: string) => {
+    patchDraft({ photo: true, photoUrl: dataUrl })
+    go(returnTo)
+  }
 
   const handleCapture = async () => {
     setErrorMsg('')
@@ -26,13 +35,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       })
 
       if (image && image.dataUrl) {
-        patchDraft({ photo: true, photoUrl: image.dataUrl })
-        go('vehicle-form')
+        finishCapture(image.dataUrl)
         return
       }
     } catch (err: unknown) {
       console.warn('Capacitor camera failed or cancelled:', err)
-      // If native camera is unavailable or user denied permission on web/browser, trigger fallback input
+      // Native camera unavailable (web/desktop) → fallback bertindak sebagai
+      // kamera perangkat, tetap dengan capture="environment".
       fallbackInputRef.current?.click()
     } finally {
       setLoading(false)
@@ -45,14 +54,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
     const reader = new FileReader()
     reader.onload = () => {
-      const dataUrl = reader.result as string
-      patchDraft({ photo: true, photoUrl: dataUrl })
-      go('vehicle-form')
+      finishCapture(reader.result as string)
     }
     reader.onerror = () => {
       setErrorMsg('Gagal membaca file foto.')
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   return (
@@ -62,11 +70,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
         {/* Header */}
         <div className="absolute top-5 left-5 right-5 flex items-center justify-between z-10">
-          <button onClick={() => go('vehicle-form')} className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 text-white">
+          <button onClick={() => go(returnTo)} className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 text-white">
             <ChevronLeft size={20} />
           </button>
           <div className="bg-black/50 rounded-full px-4 py-2">
-            <span className="text-white text-[12px] font-semibold">Foto Bukti Muatan</span>
+            <span className="text-white text-[12px] font-semibold">{title}</span>
           </div>
           <div className="w-10" />
         </div>
@@ -88,7 +96,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           ))}
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <Camera size={40} className="text-white/30" />
-            <span className="text-white/40 text-[11px] text-center px-8">Arahkan ke selfie + muatan kendaraan</span>
+            <span className="text-white/40 text-[11px] text-center px-8">
+              {returnTo === 'trip-summary' ? 'Arahkan ke kendaraan (trip kosong)' : 'Arahkan ke selfie + muatan kendaraan'}
+            </span>
+            <span className="text-amber-300/80 text-[10px] font-bold text-center px-8">
+              Wajib ambil foto via kamera sebelum submit trip
+            </span>
             {errorMsg && (
               <div className="flex items-center gap-1.5 bg-red-500/80 text-white text-[10px] px-3 py-1 rounded-full">
                 <AlertCircle size={12} /> {errorMsg}
@@ -108,29 +121,19 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         />
       </div>
 
-      {/* Controls */}
-      <div className="bg-slate-950 flex items-center justify-center py-8 gap-10">
-        <button
-          onClick={() => fallbackInputRef.current?.click()}
-          title="Upload dari galeri / file"
-          className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:scale-95 transition-all"
-        >
-          <Upload size={18} />
-        </button>
+      {/* Controls — hanya kamera (tanpa unggah galeri) */}
+      <div className="bg-slate-950 flex flex-col items-center justify-center py-8 gap-3">
         <button
           onClick={handleCapture}
           disabled={loading}
+          title="Ambil foto via kamera"
           className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
         >
           <div className={`w-14 h-14 rounded-full bg-white flex items-center justify-center ${loading ? 'animate-pulse' : ''}`} />
         </button>
-        <button
-          onClick={handleCapture}
-          title="Buka ulang kamera"
-          className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:scale-95 transition-all"
-        >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <span className="text-slate-500 text-[11px] font-semibold flex items-center gap-1.5">
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> {loading ? 'Mengambil foto...' : 'Tap untuk memotret'}
+        </span>
       </div>
     </div>
   )

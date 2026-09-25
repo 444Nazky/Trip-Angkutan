@@ -37,31 +37,42 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
 
       if (result.success) {
         finishAuth()
+        return
+      }
+
+      // `error.code` ada = server merespons (PIN salah / akun nonaktif) →
+      // jangan jatuh ke PIN demo, agar akun Nonaktif benar-benar terkunci.
+      if (result.error?.code) {
+        rejectPin()
+        return
+      }
+
+      // Backend tidak terjangkau (offline) → fallback ke PIN demo (123456)
+      if (pin === '123456') {
+        finishAuth()
       } else {
-        // Fallback to demo PIN (123456) for offline/demo mode
-        if (pin === '123456') {
-          finishAuth()
-        } else {
-          setError(true)
-          setTimeout(() => setDigits([]), 600)
-        }
+        rejectPin()
       }
     } catch {
       // Network error - fallback to demo mode
       if (pin === '123456') {
         finishAuth()
       } else {
-        setError(true)
-        setTimeout(() => setDigits([]), 600)
+        rejectPin()
       }
     } finally {
       setLoading(false)
     }
   }
 
+  const rejectPin = () => {
+    setError(true)
+    setTimeout(() => setDigits([]), 600)
+  }
+
   const finishAuth = () => {
     if (verifyIntent === 'switch') {
-      setOfficerId(target.id)
+      setOfficerId(String(target.id))
       clearVerify()
       go('profile')
     } else {
