@@ -49,6 +49,12 @@ export interface Draft {
   photoUrl?: string
   /** Layar tujuan kembali setelah pengambilan foto kamera */
   cameraFrom: MobileScreen
+  /** Mode kamera: 'photo' = foto dokumentasi · 'ocr' = scan plat (keduanya HANYA kamera, tanpa galeri) */
+  cameraMode: 'photo' | 'ocr'
+  /** Hasil OCR sekali pakai dari layar kamera (dikonsumsi form kendaraan) */
+  ocrResult?: string
+  /** Pesan kegagalan OCR sekali pakai */
+  ocrError?: string
   startedAt: number | null
 }
 
@@ -92,6 +98,7 @@ const emptyDraft: Draft = {
   photo: false,
   photoUrl: undefined,
   cameraFrom: 'vehicle-form',
+  cameraMode: 'photo',
   startedAt: null,
 }
 
