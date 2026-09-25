@@ -84,7 +84,15 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   // sendiri. Saat lanjut ke ringkasan, foto terakhir dipertahankan agar
   // tombol submit trip tetap terbuka.
   const pushVehicle = (opts: { resetPhoto: boolean }) => {
-    addVehicle({ plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum, photoUrl: draft.photoUrl })
+    // Simpan hasil cek plat agar detail kendaraan ikut tercatat per nomor polisi
+    const checked = check && check.plate.toUpperCase() === plate.trim().toUpperCase() ? check : null
+    addVehicle({
+      plate, type: vehicleType, category, tariff: tariffFor(vehicleType).loadedNum,
+      photoUrl: draft.photoUrl,
+      plateStatus: checked?.status,
+      originRegion: checked?.originRegionCode || undefined,
+      checkpointRegion: checked?.checkpointRegionCode || undefined,
+    })
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
       ...(opts.resetPhoto ? { photo: false, photoUrl: undefined } : {}),
@@ -252,7 +260,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                           <span className="block text-[11px] text-slate-500 truncate">{v.type} · {v.category || '—'}</span>
                         </span>
                       </span>
-                      <ChevronDown size={15} className={`text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      <span className="flex items-center gap-2 shrink-0">
+                        {v.plateStatus && (
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            v.plateStatus === 'internal' ? 'bg-slate-800 text-white'
+                            : v.plateStatus === 'lokal' ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-700'
+                          }`}>{v.plateStatus}</span>
+                        )}
+                        <ChevronDown size={15} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      </span>
                     </button>
                     {open && (
                       <div className="px-3.5 pb-3 pt-1 border-t border-slate-100 animate-fade-in">
@@ -268,6 +285,28 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                           <span className="text-slate-500">Kategori</span>
                           <span className="font-semibold text-slate-700">{v.category || '—'}</span>
                         </div>
+                        {v.plateStatus && (
+                          <div className="flex justify-between text-[12px] mb-1.5">
+                            <span className="text-slate-500">Status Plat</span>
+                            <span className={`font-bold uppercase text-[11px] ${
+                              v.plateStatus === 'internal' ? 'text-slate-700'
+                              : v.plateStatus === 'lokal' ? 'text-blue-600'
+                              : 'text-amber-600'
+                            }`}>{v.plateStatus}</span>
+                          </div>
+                        )}
+                        {v.originRegion && (
+                          <div className="flex justify-between text-[12px] mb-1.5">
+                            <span className="text-slate-500">Wilayah asal</span>
+                            <span className="font-semibold text-slate-700">{v.originRegion}</span>
+                          </div>
+                        )}
+                        {v.checkpointRegion && (
+                          <div className="flex justify-between text-[12px] mb-2">
+                            <span className="text-slate-500">Pos pemeriksaan</span>
+                            <span className="font-semibold text-slate-700">{v.checkpointRegion}</span>
+                          </div>
+                        )}
                         <div className="rounded-xl bg-slate-50 p-3 flex items-center gap-3">
                           {v.photoUrl ? (
                             <img src={v.photoUrl} alt={`Foto ${v.plate}`} className="w-20 h-20 object-cover rounded-lg border border-slate-200" />
@@ -281,6 +320,18 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                             </p>
                           </div>
                         </div>
+                        <button
+                          onClick={() => {
+                            setField({ plate: v.plate, type: v.type, category: v.category })
+                            setCheck(null)
+                            setPlateMsg('')
+                            setOpenPlate(null)
+                            void runCheck(v.plate)
+                          }}
+                          className="mt-2 w-full rounded-xl border-2 border-slate-200 py-2.5 text-[12px] font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                        >
+                          Isi Ulang Form Dari Plat Ini
+                        </button>
                       </div>
                     )}
                   </div>

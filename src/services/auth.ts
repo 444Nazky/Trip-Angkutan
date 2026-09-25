@@ -90,10 +90,28 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
   if (id == null || id === '') return false
 
   activeOfficerId = String(id)
-  api.setToken(null)
 
-  const result = await loginWithPin(String(id), DEMO_PIN)
-  return result.success
+  // Belum ada sesi yang bisa diperbarui — login PIN seperti biasa
+  if (!api.isAuthenticated) {
+    const result = await loginWithPin(String(id), DEMO_PIN)
+    return result.success
+  }
+
+  // Minta token baru dengan klaim DB terbaru (wilayah & status terkini).
+  // Token lama hanya diganti SETELAH server menerbitkan yang baru, sehingga
+  // sesi yang masih berlaku tidak rusak saat refresh gagal (offline) atau
+  // petugas memakai PIN khusus yang bukan PIN demo.
+  const result = await api.post<LoginResponse>('/auth/refresh', {})
+  if (result.ok && result.data) {
+    api.setToken(result.data.token)
+    saveOfficer(result.data.officer)
+    return true
+  }
+
+  // 401 = akun nonaktif/dicabut → api sudah membuang token (sesi berakhir).
+  // Selain itu (offline / error server), token lama dipertahankan agar
+  // sinkronisasi petugas tetap bisa jalan.
+  return false
 }
 
 export function isLoggedIn(): boolean {

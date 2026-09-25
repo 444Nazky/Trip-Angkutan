@@ -139,7 +139,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (pls) { setPlates(pls); setPlateState('ready') } else setPlateState('offline')
 
       const offs = await api.get<BackendOfficerRow[]>('/officers')
-      if (alive && offs.ok && offs.data) setBackendOfficers(offs.data)
+      if (alive && offs.ok && offs.data) {
+        setBackendOfficers(offs.data)
+        // Tampilkan data server sejak awal (bukan cache localStorage yang bisa
+        // beda dengan database) — status & wilayah petugas langsung sinkron.
+        saveOfficers(mergeBackendOfficers(offs.data, officers))
+      }
 
       // Opsi filter laporan (golongan + jenis kendaraan dari master tarif)
       const opts = await fetchReportFilters()
@@ -899,7 +904,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
               {regionCodes.map(region => (
                 <div key={region} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region} ({officers.filter(o => o.region === region).length} petugas)</div>
+                  <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region} ({officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).length} petugas)</div>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
                       <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>

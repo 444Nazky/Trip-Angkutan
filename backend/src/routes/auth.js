@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { db } = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
 
@@ -153,6 +154,45 @@ router.get('/officers/:regionCode', (req, res) => {
     res.json(officers);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch officers' });
+  }
+});
+
+// Terbitkan ulang token petugas dari klaim terbaru di database, tanpa PIN.
+// Dipakai mobile setelah sinkronisasi petugas: jika admin memindahkan wilayah
+// atau menonaktifkan akun, trip berikutnya harus memakai klaim terbaru.
+// Akun nonaktif ditolak di sini (401) sehingga sesi lama langsung kedaluwarsa.
+router.post('/refresh', authenticate, (req, res) => {
+  try {
+    const officer = db.prepare(`
+      SELECT o.*, r.name as region_name, r.code as region_code
+      FROM officers o
+      JOIN regions r ON o.region_id = r.id
+      WHERE o.id = ? AND o.is_active = 1
+    `).get(String(req.user.officerId ?? ''));
+
+    if (!officer) {
+      return res.status(401).json({ error: 'Officer not found or inactive' });
+    }
+
+    const token = jwt.sign(
+      { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      officer: {
+        id: String(officer.id),
+        name: officer.name,
+        regionId: officer.region_id,
+        regionName: officer.region_name,
+        regionCode: officer.region_code
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
   }
 });
 

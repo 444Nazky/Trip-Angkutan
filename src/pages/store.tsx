@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
 import { ensureBackendSession, logout as endBackendSession, refreshBackendSession } from '../services/auth'
+import { api } from '../services/api'
 import { syncOfficersToLocal } from '../services/officers'
 import type { MobileScreen } from './types'
 
@@ -12,6 +13,11 @@ export interface VehicleEntry {
   tariff: number
   /** Foto dokumentasi kendaraan ini (dari kamera) */
   photoUrl?: string
+  /** Hasil cek status plat saat input: internal / lokal / eksternal */
+  plateStatus?: string
+  /** Region asal kendaraan & pos pemeriksaan saat cek plat */
+  originRegion?: string
+  checkpointRegion?: string
 }
 
 export interface Trip {
@@ -303,13 +309,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Sinkronisasi paksa: wilayah petugas mungkin saja dipindah admin,
     // jadi terbitkan ulang JWT agar klaim region ikut terbaru.
-    if (force) void refreshBackendSession(String(officerId))
+    if (force) {
+      const ok = await refreshBackendSession(String(officerId))
+
+      // Akun dinonaktifkan admin — server menolak penerbitan token baru,
+      // maka sesi petugas aktif harus dihentikan agar status admin dan
+      // mobile selalu sinkron. Draft trip dipertahankan (belum tentu selesai).
+      const me = synced.find(o => String(o.id) === String(officerId))
+      if (!ok && me && me.status !== 'Aktif' && !api.isAuthenticated) {
+        setLoggedIn(false)
+        setDetailTripId(null)
+        setPendingOfficerId(null)
+        endBackendSession()
+      }
+    }
   }, [officerId])
 
-  // Sync officers from backend on app start (mobile only)
+  // Sync officers from backend on app start (mobile only) — tarik paksa agar
+  // status/wilayah terbaru dari admin langsung terbaca saat aplikasi dibuka.
   useEffect(() => {
     if (isAdminBuild()) return
-    void refreshOfficers()
+    void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshOfficers])
 

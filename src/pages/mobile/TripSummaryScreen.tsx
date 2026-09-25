@@ -59,11 +59,22 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           <p className="text-[11px] text-slate-400">Trip tanpa kendaraan (kosong)</p>
         ) : vehicles.map((v, i) => (
           <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 border-t border-slate-100 mt-3' : ''}`}>
-            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-lg">🚛</div>
-            <div className="flex-1">
+            {v.photoUrl ? (
+              <img src={v.photoUrl} alt={`Foto ${v.plate}`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-lg shrink-0">🚛</div>
+            )}
+            <div className="flex-1 min-w-0">
               <p className="font-mono text-[11px] font-black text-slate-800">{v.plate}</p>
-              <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+              <p className="text-[10px] text-slate-400 truncate">{v.type} · {v.category}</p>
             </div>
+            {v.plateStatus && (
+              <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full shrink-0 ${
+                v.plateStatus === 'internal' ? 'bg-slate-800 text-white'
+                : v.plateStatus === 'lokal' ? 'bg-blue-100 text-blue-700'
+                : 'bg-amber-100 text-amber-700'
+              }`}>{v.plateStatus}</span>
+            )}
           </div>
         ))}
       </div>
