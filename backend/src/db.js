@@ -328,15 +328,17 @@ function seedData() {
   });
   insertRegion.free();
 
-  // Seed dermagas (2 per region for BADAU - Dermaga 1 and Dermaga 2)
+  // Seed dermagas (2 per region)
   const dermagas = [
-    // BADAU dermagas
+    // Region 1
     { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 1', code: 'D1' },
     { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 2', code: 'D2' },
-    // Other regions get 1 dermaga each
-    { id: uuidv4(), region_id: regions[1].id, name: 'Dermaga Utama', code: 'D1' },
-    { id: uuidv4(), region_id: regions[2].id, name: 'Dermaga Utama', code: 'D1' },
-    { id: uuidv4(), region_id: regions[3].id, name: 'Dermaga Utama', code: 'D1' },
+    // Region 2
+    { id: uuidv4(), region_id: regions[1].id, name: 'Dermaga 1', code: 'D1' },
+    // Region 3
+    { id: uuidv4(), region_id: regions[2].id, name: 'Dermaga 1', code: 'D1' },
+    // Region 4
+    { id: uuidv4(), region_id: regions[3].id, name: 'Dermaga 1', code: 'D1' },
   ];
 
   const insertDermaga = db.prepare('INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)');
@@ -347,18 +349,20 @@ function seedData() {
   });
   insertDermaga.free();
 
-  // Seed routes (2 per dermaga for BADAU dermagas)
+  // Seed routes (2 per dermaga for Region 1 dermagas)
   const routes = [
-    // BADAU Dermaga 1 routes
+    // Region 1, Dermaga 1 routes
     { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '5 km', duration: '15m' },
     { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Rute 2', route_from: 'C', route_to: 'D', distance: '8 km', duration: '20m' },
-    // BADAU Dermaga 2 routes
+    // Region 1, Dermaga 2 routes
     { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 3', route_from: 'E', route_to: 'F', distance: '6 km', duration: '18m' },
     { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Rute 4', route_from: 'G', route_to: 'H', distance: '10 km', duration: '25m' },
-    // Other regions
-    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
-    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
-    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Rute Utama', route_from: 'Pintu 1', route_to: 'Pintu 2', distance: '3 km', duration: '10m' },
+    // Region 2 Dermaga 1
+    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
+    // Region 3 Dermaga 1
+    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
+    // Region 4 Dermaga 1
+    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Rute 1', route_from: 'A', route_to: 'B', distance: '3 km', duration: '10m' },
   ];
 
   const insertRoute = db.prepare('INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)');
