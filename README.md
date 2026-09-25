@@ -24,6 +24,7 @@ Tambahkan screenshot di folder `screenshots/` dan referensi di sini.
 | **Native Features** | Kamera (photo + OCR plat), GPS, network status via Capacitor |
 
 ### Admin Panel (Web)
+
 | Modul | Deskripsi |
 |-------|-----------|
 | **Dashboard Overview** | Trip terbaru dari server, status koneksi |
@@ -55,61 +56,142 @@ Tambahkan screenshot di folder `screenshots/` dan referensi di sini.
 ## Struktur Proyek
 
 ```
-src/
-├── App.tsx                  # Root component
-├── main.tsx                 # Entry point
-├── index.html               # HTML template
-├── index.css                # Global styles
-├── global.scss              # Global SCSS
-├── global.d.ts              # Type declarations
-├── vite-env.d.ts            # Vite environment types
-├── environments/
-│   ├── environment.ts       # Development config
-│   └── environment.prod.ts  # Production config
-├── theme/
-│   └── variables.scss       # Ionic theme variables
-├── pages/                   # Page components
-│   ├── LoginPage.tsx        # Halaman login
-│   ├── data.ts              # Data statis/mock (ROUTES, tariffData, officerList)
-│   ├── types.ts             # Type definitions (MobileScreen, AdminTab)
-│   ├── store.tsx            # State management (Context + localStorage)
-│   ├── admin/
-│   │   └── AdminDashboard.tsx  # Admin panel (Overview, Tarif, Plat, Petugas, Laporan, Pengaturan)
-│   └── mobile/
-│       ├── MobileApp.tsx            # Wrapper mobile app
-│       ├── MobileShell.tsx          # Shell dengan navigation
-│       ├── HomeScreen.tsx           # Beranda (Mulai Trip, Riwayat, Ganti Petugas)
-│       ├── CameraScreen.tsx         # Kamera OCR plat + foto bukti (HANYA kamera, no gallery)
-│       ├── FloatingBottomNav.tsx    # Bottom navigation
-│       ├── HistoryScreen.tsx        # Riwayat perjalanan
-│       ├── HistoryDetailScreen.tsx  # Detail riwayat
-│       ├── OfficerSwitchScreen.tsx  # Ganti petugas (PIN 6-digit)
-│       ├── PinVerifyScreen.tsx      # Verifikasi PIN
-│       ├── ProfileScreen.tsx        # Profil user
-│       ├── RouteSelectScreen.tsx    # Pilih rute (terkunci SJRE→SBDZ untuk trip kosong)
-│       ├── StatusBar.tsx            # Status bar custom
-│       ├── TripActiveScreen.tsx     # Perjalanan aktif (timer, GPS)
-│       ├── TripCompleteScreen.tsx   # Selesai perjalanan
-│       ├── TripConditionScreen.tsx  # Status Muatan: Kosong vs Ada Muatan
-│       ├── TripSummaryScreen.tsx    # Ringkasan trip (wajib foto kamera sebelum submit)
-│       └── VehicleFormScreen.tsx    # Form kendaraan (plat, OCR scan, jenis, kategori, foto)
-├── services/
-│   ├── api.ts          # Base HTTP client dengan auth interceptor
-│   ├── auth.ts         # Autentikasi (login, token, refreshBackendSession)
-│   ├── ocr.ts          # OCR plat nomor (Tesseract.js)
-│   ├── plates.ts       # Manajemen plat nomor (CRUD + cek status)
-│   ├── regions.ts      # Data wilayah, terminal, rute
-│   ├── sync.ts         # Queue-based background sync (offline/online)
-│   ├── tariffs.ts      # Tarif/biaya perjalanan (master + region)
-│   ├── trips.ts        # CRUD perjalanan (server + local)
-│   ├── officers.ts     # Sync petugas dari server ke lokal
-│   └── xlsx.ts         # Export Excel (SheetJS)
+Aplikasi-Trip-Ionic/
+├── src/                    # Source code utama (React + Ionic)
+├── backend/                # Backend API (Node.js/Express)
+├── admin/                  # Admin Panel v1 (PHP)
+├── admin-ci/               # Admin Panel v2 (Ionic/Angular build output)
+├── android/                # Konfigurasi Android (Capacitor)
+├── www/                    # Build output web (Ionic)
+├── .angular/               # Angular cache
+├── .vscode/                # VS Code settings
+├── capacitor.config.ts     # Konfigurasi Capacitor
+├── ionic.starter.json      # Konfigurasi Ionic starter
+├── package.json            # Dependencies utama
+├── tailwind.config.js      # Konfigurasi Tailwind CSS
+├── tsconfig.json           # TypeScript config root
+├── tsconfig.app.json       # TypeScript config app
+├── tsconfig.spec.json      # TypeScript config test
+├── vite.config.ts          # Konfigurasi Vite
+├── eslint.config.js        # Konfigurasi ESLint
+├── .editorconfig           # Editor config
+├── .browserslistrc         # Browserslist config
+├── .gitignore              # Git ignore
+└── Structure.md            # Dokumentasi struktur detail
 ```
 
-**Native Android:**
+### src/ (Frontend Mobile App)
+
 ```
-android/                     # Project Android Studio
-www/                         # Capacitor web build output
+src/
+├── App.tsx                 # Root component
+├── main.tsx                # Entry point
+├── index.html              # HTML template
+├── index.css               # Global styles
+├── global.scss             # Global SCSS
+├── global.d.ts             # Global type declarations
+├── vite-env.d.ts           # Vite env types
+├── environments/
+│   ├── environment.ts      # Env development
+│   └── environment.prod.ts # Env production
+├── assets/
+│   ├── guest-profile.jpeg
+│   ├── icon/
+│   │   └── favicon.png
+│   └── shapes.svg
+├── theme/
+│   └── variables.scss      # Ionic CSS variables & theming
+├── pages/
+│   ├── LoginPage.tsx       # Halaman login
+│   ├── data.ts             # Data statis/mock
+│   ├── types.ts            # Type definitions
+│   ├── store.tsx           # State management (Zustand/Context)
+│   ├── admin/
+│   │   └── AdminDashboard.tsx
+│   └── mobile/
+│       ├── MobileApp.tsx           # Wrapper mobile app
+│       ├── MobileShell.tsx         # Shell dengan navigation
+│       ├── HomeScreen.tsx          # Beranda
+│       ├── CameraScreen.tsx        # Kamera OCR plat nomor
+│       ├── FloatingBottomNav.tsx   # Bottom navigation
+│       ├── HistoryScreen.tsx       # Riwayat perjalanan
+│       ├── HistoryDetailScreen.tsx # Detail riwayat
+│       ├── OfficerSwitchScreen.tsx # Ganti petugas
+│       ├── PinVerifyScreen.tsx     # Verifikasi PIN
+│       ├── ProfileScreen.tsx       # Profil user
+│       ├── RouteSelectScreen.tsx   # Pilih rute
+│       ├── StatusBar.tsx           # Status bar custom
+│       ├── TripActiveScreen.tsx    # Perjalanan aktif
+│       ├── TripCompleteScreen.tsx  # Selesai perjalanan
+│       ├── TripConditionScreen.tsx # Kondisi perjalanan
+│       ├── TripSummaryScreen.tsx   # Ringkasan perjalanan
+│       └── VehicleFormScreen.tsx   # Form kendaraan
+├── services/
+│   ├── api.ts          # Base API client (axios/fetch)
+│   ├── auth.ts         # Autentikasi (login, token, refresh)
+│   ├── ocr.ts          # OCR plat nomor (Tesseract.js)
+│   ├── plates.ts       # Manajemen plat nomor
+│   ├── regions.ts      # Data wilayah/rute
+│   ├── sync.ts         # Sinkronisasi offline/online
+│   ├── tariffs.ts      # Tarif/biaya perjalanan
+│   └── trips.ts        # CRUD perjalanan
+```
+
+### backend/ (Backend API)
+
+```
+backend/
+├── package.json
+├── package-lock.json
+├── node_modules/
+└── src/
+    └── db.js             # Database connection
+```
+
+### admin/ (Admin Panel v1 - PHP)
+
+```
+admin/
+├── index.php             # Entry point PHP
+├── package.json          # Build tools
+└── src/                  # Source PHP/JS
+```
+
+### admin-ci/ (Admin Panel v2 - Ionic/Angular Build)
+
+```
+admin-ci/
+├── index.html            # Entry HTML
+├── index.php             # PHP fallback
+├── 3rdpartylicenses.txt  # Licenses
+├── prerendered-routes.json
+├── main-*.js             # Bundled JS
+├── styles-*.css          # Bundled CSS
+├── assets/
+└── svg/                  # Ionicon SVG icons
+```
+
+### android/ (Capacitor Android)
+
+```
+android/
+├── .gitignore
+├── app/
+│   ├── build.gradle
+│   └── build/            # Build artifacts (generated)
+└── .gitignore
+```
+
+### www/ (Web Build Output)
+
+```
+www/
+├── index.html
+├── prerendered-routes.json
+├── main-*.js
+├── styles-*.css
+├── assets/
+└── svg/
 ```
 
 ---
