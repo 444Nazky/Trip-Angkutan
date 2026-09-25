@@ -398,6 +398,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       upsertRegionTariff({ regionId: rt.id, tariffType: 'eksternal', nominalTariff: rt.eksternal_tariff ?? 0, isActive: !!rt.eksternal_active }),
     ])
     if (!a || !b) return showToast('Server gagal — tarif region tidak tersimpan', 'error')
+
+    // Tarik ulang agar nilai tersimpan benar-benar terkonfirmasi server
+    const fresh = await fetchRegionTariffs()
+    if (fresh) setRegionTariffs(fresh)
     showToast(`Tarif region ${rt.code} diupdate`)
   }
 
@@ -768,27 +772,51 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </table>
               </div>
 
-              {/* Tarif Region — konfigurasi penarifan plat per region */}
+              {/* Konfigurasi tarif terpusat: Internal = 0, Lokal = cadangan, Eksternal = tarif region */}
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100">
-                  <p className="font-bold text-slate-800">Tarif Region (Penarifan Plat)</p>
-                  <p className="text-[11px] text-slate-400">Kendaraan <b>lokal</b> saat ini Rp 0 (cadangan kebijakan), <b>eksternal</b> menyesuaikan region pos pemeriksaan.</p>
+                  <p className="font-bold text-slate-800">Konfigurasi Tarif Terpusat (Penarifan Plat)</p>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    <p><b className="text-slate-700">Internal</b> = <b>selalu Rp 0</b> (dikunci, tidak dapat diubah).</p>
+                    <p><b className="text-slate-700">Lokal</b> = tarif cadangan kebijakan — <b>bisa diubah</b> per region dan dapat diaktifkan/nonaktifkan.</p>
+                    <p><b className="text-slate-700">Eksternal</b> = tarif region pos pemeriksaan (menyesuaikan region).</p>
+                  </div>
                 </div>
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr><th className="text-left p-4">Region</th><th className="text-left p-4">Tarif Lokal (Rp)</th><th className="text-left p-4">Tarif Eksternal (Rp)</th><th className="text-right p-4">Aksi</th></tr>
+                    <tr>
+                      <th className="text-left p-4">Region</th>
+                      <th className="text-left p-4">Internal</th>
+                      <th className="text-left p-4">Tarif Lokal (Rp)</th>
+                      <th className="text-left p-4">Tarif Eksternal (Rp)</th>
+                      <th className="text-right p-4">Aksi</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y">
+                    {/* Baris aturan Internal — selalu Rp 0, tidak bisa diubah */}
+                    <tr className="bg-slate-50/60">
+                      <td className="p-4 font-bold text-slate-600">Semua region</td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center gap-1.5 bg-slate-800 text-white text-[11px] font-black px-2.5 py-1 rounded-full">
+                          Rp 0 · Dikunci
+                        </span>
+                      </td>
+                      <td className="p-4 text-[11px] text-slate-400" colSpan={2}>Plat berstatus <b>internal</b> tidak dikenakan tarif di semua pos.</td>
+                      <td className="p-4 text-right text-[11px] text-slate-300">—</td>
+                    </tr>
                     {regionTariffs.length === 0 ? (
-                      <tr><td colSpan={4} className="p-6 text-center text-slate-400">Belum ada data region dari server</td></tr>
+                      <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada data region dari server</td></tr>
                     ) : regionTariffs.map((rt, i) => (
                       <tr key={rt.id} className="hover:bg-slate-50">
                         <td className="p-4 font-bold">{rt.name} <span className="text-slate-400 font-mono text-[11px] font-normal">{rt.code}</span></td>
                         <td className="p-4">
+                          <span className="bg-slate-100 text-slate-500 text-[11px] font-bold px-2.5 py-1 rounded-full">Rp 0 (dikunci)</span>
+                        </td>
+                        <td className="p-4">
                           <div className="flex items-center gap-2">
                             <input type="number" min={0} value={rt.lokal_tariff ?? 0}
                               onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, lokal_tariff: parseInt(e.target.value) || 0 }; setRegionTariffs(v) }}
-                              className="w-28 border rounded-lg px-2 py-1.5 text-[13px]" disabled={!rt.lokal_active && (rt.lokal_tariff ?? 0) === 0} />
+                              className="w-28 border rounded-lg px-2 py-1.5 text-[13px]" />
                             <label className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
                               <input type="checkbox" checked={!!rt.lokal_active}
                                 onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, lokal_active: e.target.checked ? 1 : 0 }; setRegionTariffs(v) }} />Aktif
@@ -992,17 +1020,27 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <div className="p-8 text-center text-slate-400 text-sm">Belum ada trip di server</div>
                 ) : reportTrips.map(t => {
                   const open = openTripId === t.id
+                  const d = formatReportDateTime(t.created_at)
+                  const place = t.region_name
+                    ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}`
+                    : '-'
                   return (
                     <div key={t.id}>
                       <button onClick={() => setOpenTripId(open ? null : t.id)}
                         className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 text-left">
-                        <span className="font-mono text-[12px] text-slate-500 w-36 shrink-0">{t.no_trip}</span>
-                        <span className="font-bold text-slate-800 w-32 shrink-0">{t.route_from} → {t.route_to}</span>
+                        <div className="w-40 shrink-0">
+                          <p className="font-mono text-[12px] text-slate-500">{t.no_trip}</p>
+                          <p className="font-bold text-slate-800 text-[13px]">{t.route_from} → {t.route_to}</p>
+                        </div>
+                        <div className="w-44 shrink-0">
+                          <p className="text-[13px] text-slate-700 font-semibold">{d.date}</p>
+                          <p className="text-[11px] text-slate-400">{d.time} WIB · {place}</p>
+                        </div>
                         <span className="text-slate-600 text-[13px] w-32 shrink-0">{t.officer_name || '-'}</span>
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                           {t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong'}
                         </span>
-                        <span className="text-slate-400 text-[12px] w-10 shrink-0">{t.vehicle_count} unit</span>
+                        <span className="text-slate-400 text-[12px] w-14 shrink-0">{t.vehicle_count} unit</span>
                         <span className="ml-auto font-black text-slate-900">{fmtRp(t.trip_revenue || 0)}</span>
                         <ChevronDown size={16} className={`text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
                       </button>
@@ -1010,9 +1048,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       {open && (
                         <div className="px-6 pb-5 pt-1 bg-slate-50/60 border-t border-slate-100">
                           <div className="flex flex-wrap gap-x-8 gap-y-1 py-3 text-[12px]">
+                            <span><span className="text-slate-400">Tempat:</span> <span className="font-semibold text-slate-700">{place}</span></span>
+                            <span><span className="text-slate-400">Rute:</span> <span className="font-semibold text-slate-700">{t.route_from_name || t.route_from || '-'} → {t.route_to_name || t.route_to || '-'}</span></span>
+                            <span><span className="text-slate-400">Tanggal:</span> <span className="font-semibold text-slate-700">{d.full}</span></span>
                             <span><span className="text-slate-400">Kategori:</span> <span className="font-semibold text-slate-700">{t.keterangan && t.keterangan !== '-' ? t.keterangan : '-'}</span></span>
-                            <span><span className="text-slate-400">Wilayah:</span> <span className="font-semibold text-slate-700">{t.region_name || '-'}</span></span>
-                            <span><span className="text-slate-400">Tanggal:</span> <span className="font-semibold text-slate-700">{t.created_at}</span></span>
+                            <span><span className="text-slate-400">Petugas:</span> <span className="font-semibold text-slate-700">{t.officer_name || '-'}</span></span>
                           </div>
 
                           {t.vehicles.length === 0 ? (
