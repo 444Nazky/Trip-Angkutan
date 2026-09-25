@@ -122,57 +122,89 @@ function correctChars(text: string): string {
 // ─── Plate Extraction ────────────────────────────────────────────────────────────
 
 // Plat Indonesia: 1-2 huruf daerah, 1-4 angka, 1-3 huruf akhir
-// Examples: "B 1234 XY", "DK 99 A", "B 1"
-const PLATE_RE = /^[A-Z]{1,2} ?[0-9]{1,4} ?[A-Z]{0,3}$/
+// Examples: "B 1234 XY", "DK 99 A", "B 1 ZZZ"
+const PLATE_RE = /^[A-Z]{1,2}\s*[0-9]{1,4}\s*[A-Z]{1,3}$/
 
 function cleanLine(line: string): string {
   let result = line.toUpperCase()
   // Remove non-alphanumeric except spaces
   result = result.replace(/[^A-Z0-9 ]/g, ' ')
-  // Remove multiple spaces
-  result = result.replace(/\s+/g, ' ')
-  result = result.trim()
+  // Remove leading/trailing spaces and collapse internal spaces
+  result = result.trim().replace(/\s+/g, ' ')
   // Apply character corrections
   result = correctChars(result)
   return result
 }
 
 function isValidPlate(text: string): boolean {
-  const cleaned = text.replace(/\s+/g, '')
-  return PLATE_RE.test(cleaned) && cleaned.length >= 3 && cleaned.length <= 10
+  // Test both with and without spaces for flexibility
+  const normalized = text.replace(/\s+/g, '').toUpperCase()
+  return PLATE_RE.test(normalized) && normalized.length >= 4 && normalized.length <= 10
+}
+
+function normalizePlate(text: string): string {
+  // Ensure proper format: letters, space(s), numbers, space(s), letters (optional)
+  const normalized = text.replace(/\s+/g, ' ').trim().toUpperCase()
+  // If already has valid format, return as-is
+  if (isValidPlate(normalized)) return normalized
+  // Otherwise try to reconstruct from stripped version
+  const stripped = normalized.replace(/\s/g, '')
+  if (/^[A-Z]{1,2}[0-9]{1,4}[A-Z]{1,3}$/.test(stripped)) {
+    // Insert space after letters, after numbers
+    const letters1 = stripped.match(/^[A-Z]{1,2}/)?.[0] || ''
+    const numbers = stripped.match(/[0-9]{1,4}/)?.[0] || ''
+    const letters2 = stripped.match(/[A-Z]{1,3}$/)?.[0] || ''
+    return [letters1, numbers, letters2].filter(Boolean).join(' ')
+  }
+  return normalized
 }
 
 /** Extract the best plate candidate from OCR text. */
 export function extractPlate(rawText: string): string {
-  const lines = rawText.split(/\n/).map(cleanLine).filter(Boolean)
+  const lines = rawText.split(/\n/).map(cleanLine).filter(l => l.length >= 4)
 
-  // Priority 1: lines that match pattern directly
+  // Priority 1: Full lines that match pattern
   for (const line of lines) {
-    if (isValidPlate(line.replace(/\s+/g, ''))) {
-      return line.replace(/\s+/g, '')
+    const normalized = line.replace(/\s+/g, '')
+    if (isValidPlate(normalized)) {
+      return normalizePlate(normalized)
     }
   }
 
-  // Priority 2: try combining words (OCR may split "B 1234 XY")
-  for (const line of lines) {
-    const words = line.split(/\s+/)
-    for (let i = 0; i < words.length; i++) {
-      for (let n = 2; n <= 3; n++) {
-        if (i + n > words.length) break
-        const combo = words.slice(i, i + n).join('')
-        if (isValidPlate(combo)) return combo
+  // Priority 2: Combine adjacent words to form valid plate
+  // This handles OCR splitting "B 1234 XY" or "B 1234" across multiple words
+  const allText = lines.join(' ')
+  const words = allText.split(/\s+/).filter(w => /^[A-Z0-9]+$/.test(w))
+
+  for (let i = 0; i < words.length; i++) {
+    // Try combinations of 2-4 words
+    for (let n = 2; n <= 4 && i + n <= words.length; n++) {
+      const combo = words.slice(i, i + n).join('')
+      if (isValidPlate(combo)) {
+        return normalizePlate(combo)
       }
     }
   }
 
-  // Priority 3: fallback to best effort with corrections
-  const withDigits = lines.find(l => /[0-9]/.test(l))
-  if (withDigits) {
-    const cleaned = withDigits.replace(/\s+/g, '')
-    // If it looks plate-ish, return corrected version
-    if (/^[A-Z]{1,2}[0-9]{1,4}[A-Z]{0,3}$/.test(cleaned)) {
-      return cleaned
+  // Priority 3: Find any text that looks like a plate pattern and normalize it
+  for (const line of lines) {
+    const stripped = line.replace(/\s+/g, '')
+    // Match: 1-2 letters, 1-4 numbers, 1-3 letters (optional)
+    const match = stripped.match(/([A-Z]{1,2})([0-9]{1,4})([A-Z]{1,3})/)
+    if (match) {
+      return normalizePlate(stripped)
     }
+    // Match: 1-2 letters, 1-4 numbers only (incomplete but valid start)
+    const match2 = stripped.match(/([A-Z]{1,2})([0-9]{1,4})/)
+    if (match2 && stripped.length >= 4) {
+      return normalizePlate(stripped)
+    }
+  }
+
+  // Priority 4: Last resort - extract any alphanumeric combo with letters and numbers
+  const alphanumeric = allText.replace(/[^A-Z0-9]/g, '')
+  if (/^[A-Z]{1,2}[0-9]{1,4}[A-Z]{1,3}$/.test(alphanumeric)) {
+    return normalizePlate(alphanumeric)
   }
 
   return ''
