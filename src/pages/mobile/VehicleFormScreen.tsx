@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Check, Camera, Loader2, ChevronDown } from 'lucide-react'
+import { ChevronLeft, Check, Camera, Loader2, ChevronDown, CheckCircle } from 'lucide-react'
 import { tariffFor, useApp } from '../store'
 import { tariffData } from '../data'
 import { checkPlate, type PlateCheck } from '../../services/plates'
@@ -148,7 +148,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 {draft.photoUrl ? (
                   <img src={draft.photoUrl} alt="Bukti Muatan" className="w-24 h-24 object-cover rounded-xl border border-emerald-300 shadow-sm" />
                 ) : (
-                  <span className="text-3xl">✅</span>
+                  <CheckCircle size={32} className="text-emerald-500" />
                 )}
                 <span className="text-[12px] font-bold text-emerald-600">Foto berhasil diambil</span>
                 <span className="text-[10px] text-emerald-500">Ketuk untuk ambil ulang</span>

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronLeft, Database, Trash2, Shield, Globe, Check, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Database, Trash2, Shield, Globe, Check, AlertTriangle, Wifi, Server } from 'lucide-react'
 import { useApp } from '../store'
 import { getPendingCount } from '../../services/sync'
+import { getApiBaseUrl, setApiBaseUrl } from '../../services/api'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -11,6 +12,9 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ go }: SettingsScreenProps) {
   const { officer, trips } = useApp()
   const [cleared, setCleared] = useState(false)
+  const [showApiConfig, setShowApiConfig] = useState(false)
+  const [apiUrl, setApiUrl] = useState(getApiBaseUrl())
+  const [apiSaved, setApiSaved] = useState(false)
   const pendingCount = getPendingCount()
 
   const handleClearCache = () => {
@@ -18,6 +22,21 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
     sessionStorage.clear()
     setCleared(true)
     setTimeout(() => setCleared(false), 3000)
+  }
+
+  const handleSaveApiUrl = () => {
+    const url = apiUrl.trim()
+    if (!url) return
+
+    // Basic URL validation
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      alert('URL harus dimulai dengan http:// atau https://')
+      return
+    }
+
+    setApiBaseUrl(url)
+    setApiSaved(true)
+    setTimeout(() => setApiSaved(false), 3000)
   }
 
   return (
@@ -65,6 +84,59 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
             <p className="text-[10px] text-slate-400">{officer.region} (Device: {officer.device || 'Mobile'})</p>
           </div>
         </div>
+      </div>
+
+      {/* Konfigurasi API Server */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-5">
+        <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Konfigurasi Server</p>
+
+        {showApiConfig ? (
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-600 mb-1.5 block">
+                URL API Server
+              </label>
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                placeholder="http://localhost:3000/api"
+                className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-200 text-[12px] text-slate-800 focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Untuk perangkat fisik, gunakan IP komputer host, contoh: http://192.168.1.100:3000/api
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveApiUrl}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-[12px]"
+              >
+                {apiSaved ? 'Tersimpan' : 'Simpan URL'}
+              </button>
+              <button
+                onClick={() => {
+                  setApiUrl(getApiBaseUrl())
+                  setShowApiConfig(false)
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-[12px]"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowApiConfig(true)}
+            className="w-full py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-[12px] flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Server size={16} className="text-slate-400" />
+              URL Server
+            </span>
+            <span className="text-[11px] text-slate-400 truncate max-w-[180px]">{getApiBaseUrl()}</span>
+          </button>
+        )}
       </div>
 
       {/* Tindakan Pemeliharaan */}

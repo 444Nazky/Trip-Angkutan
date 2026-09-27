@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Truck, Map, ShieldCheck, Settings, ChevronRight, ArrowLeftRight, Lock } from 'lucide-react'
+import { Truck, Map, ShieldCheck, Settings, ChevronRight, LogOut, Lock } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -8,7 +8,7 @@ interface ProfileScreenProps {
 }
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
-  const { officer, trips, beginVerify, refreshOfficers } = useApp()
+  const { officer, trips, beginVerify, refreshOfficers, logout } = useApp()
 
   // Pastikan status/wilayah petugas selalu terbaru (sinkron dengan admin)
   useEffect(() => {
@@ -76,10 +76,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       </div>
 
       <button
-        onClick={() => go('officer-switch')}
+        onClick={() => logout()}
         className="w-full flex items-center justify-center gap-2 py-3 text-red-500 font-bold text-[13px] rounded-2xl hover:bg-red-50 active:bg-red-100 transition-colors"
       >
-        <ArrowLeftRight size={15} /> Ganti Petugas
+        <LogOut size={15} /> Logout
       </button>
     </div>
   )

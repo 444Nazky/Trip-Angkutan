@@ -3,6 +3,7 @@
 import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v1'
+const API_BASE_URL_KEY = 'trip.api.baseUrl.v1'
 
 export interface ApiError {
   message: string
@@ -48,8 +49,44 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
+// Detect if running on mobile device (Capacitor/Cordova)
+function isMobileDevice(): boolean {
+  return (
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (window as any).Capacitor !== undefined ||
+    (window as any).cordova !== undefined
+  )
+}
+
+// Get current base URL (user-configurable for physical devices)
+function getBaseUrl(): string {
+  // Check if user set a custom URL
+  try {
+    const customUrl = localStorage.getItem(API_BASE_URL_KEY)
+    if (customUrl) return customUrl
+  } catch { /* ignore */ }
+
+  // Use device-specific URL on mobile
+  if (isMobileDevice() && environment.deviceApiBaseUrl) {
+    return environment.deviceApiBaseUrl
+  }
+
+  return environment.apiBaseUrl
+}
+
+// Allow users to set custom API URL (for physical device testing)
+export function setApiBaseUrl(url: string) {
+  try {
+    localStorage.setItem(API_BASE_URL_KEY, url)
+  } catch { /* quota */ }
+}
+
+export function getApiBaseUrl(): string {
+  return getBaseUrl()
+}
+
 class ApiService {
-  private baseUrl = environment.apiBaseUrl
+  private _baseUrl = getBaseUrl()
   private _token: string | null = null
 
   constructor() {
@@ -59,6 +96,7 @@ class ApiService {
     } catch { /* ignore */ }
   }
 
+  get baseUrl() { return this._baseUrl }
   get token() { return this._token }
   get isAuthenticated() { return !!this._token }
 
@@ -71,6 +109,11 @@ class ApiService {
         localStorage.removeItem(TOKEN_KEY)
       }
     } catch { /* quota */ }
+  }
+
+  // Refresh base URL (call after setting custom URL)
+  refreshBaseUrl() {
+    this._baseUrl = getBaseUrl()
   }
 
   private async request<T>(

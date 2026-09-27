@@ -7,7 +7,7 @@ interface LoginPageProps {
 }
 
 const USERS = {
-  member: { username: 'budi', password: 'budi123', name: 'Petugas' },
+  member: { username: '', password: '123456', name: 'Petugas' },
   admin: { username: 'admin', password: 'admin123', name: 'Admin' },
 }
 
@@ -25,18 +25,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const userType = adminMode ? 'admin' : 'member'
     const creds = USERS[userType]
 
-    if (username === creds.username && password === creds.password) {
-      setLoading(true)
-
-      // For member login, also get JWT from backend for sync
-      if (userType === 'member') {
-        await memberLogin(username, password)
+    if (adminMode) {
+      // Admin: check against fixed credentials
+      if (username === creds.username && password === creds.password) {
+        setLoading(true)
+        onLogin(userType)
+      } else {
+        setError(true)
+        setTimeout(() => setError(false), 2500)
       }
-
-      onLogin(userType)
     } else {
-      setError(true)
-      setTimeout(() => setError(false), 2500)
+      // Member: use backend API for validation
+      setLoading(true)
+      const result = await memberLogin(username, password)
+      if (result.success) {
+        onLogin(userType)
+      } else {
+        setError(true)
+        setTimeout(() => setError(false), 2500)
+      }
+      setLoading(false)
     }
   }
 

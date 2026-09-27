@@ -33,36 +33,39 @@ router.post('/admin-login', (req, res) => {
 });
 
 // Member/officer login with username/password
-// Maps to seeded officer data: budi=1, andi=2, siti=3, rizky=4, dewi=5
+// Maps username to officer name (officers table has name, not username field)
 const OFFICER_USERNAME_MAP = {
-  'budi': 1,
-  'andi': 2,
-  'siti': 3,
-  'rizky': 4,
-  'dewi': 5
+  'budi': 'Budi Santoso',
+  'andi': 'Andi Pratama',
+  'siti': 'Siti Rahayu',
+  'rizky': 'Rizky Maulana',
+  'dewi': 'Dewi Kusuma'
 };
 
 router.post('/member-login', (req, res) => {
   try {
     const { username, password } = req.body || {};
-    const memberPass = process.env.MEMBER_PASSWORD || 'budi123';
+    const normalizedUsername = username?.toLowerCase();
+    const memberPass = process.env.MEMBER_PASSWORD || '123456';
 
-    if (username !== 'budi' || password !== memberPass) {
+    // Check if username exists in map
+    const officerName = OFFICER_USERNAME_MAP[normalizedUsername];
+    if (!officerName) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const officerId = OFFICER_USERNAME_MAP[username.toLowerCase()];
-    if (!officerId) {
-      return res.status(401).json({ error: 'Officer not found' });
+    // Verify password (same for all seeded officers)
+    if (password !== memberPass) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Get officer from database (only if active)
+    // Get officer from database by name (only if active)
     const officer = db.prepare(`
       SELECT o.*, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
-      WHERE o.id = ? AND o.is_active = 1
-    `).get(String(officerId));
+      WHERE o.name = ? AND o.is_active = 1
+    `).get(officerName);
 
     if (!officer) {
       return res.status(401).json({ error: 'Officer not found in database' });
