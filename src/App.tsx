@@ -30,7 +30,7 @@ function Shell() {
       {userType === 'admin' ? (
         <AdminDashboard onLogout={logout} />
       ) : (
-        <div className="flex items-start justify-center min-h-screen sm:pt-16 sm:pb-8">
+        <div className="flex items-center justify-center min-h-screen p-0 sm:p-6">
           <MobileApp />
         </div>
       )}

@@ -56,8 +56,10 @@
 .app-frame {
   width: 390px;
   height: 844px;
-  max-height: 100vh;
-  max-height: 100dvh;
+  /* Di desktop: sisakan ruat padding pembungkus supaya halaman tak perlu
+     digulir pada layar pendek. Layar HP di-override media query di bawah. */
+  max-height: calc(100vh - 3rem);
+  max-height: calc(100dvh - 3rem);
   background: #f1f5f9;
   border-radius: 48px;
   border: 1px solid rgba(203, 213, 225, 0.6);
