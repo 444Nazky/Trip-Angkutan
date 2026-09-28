@@ -311,6 +311,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       ['Dicetak', stamped.full],
       ['Filter Golongan', reportFilters.golongan || 'Semua'],
       ['Filter Jenis Kendaraan', reportFilters.vehicleType || 'Semua'],
+      ['Rentang Tanggal', reportFilters.startDate || reportFilters.endDate
+        ? `${reportFilters.startDate || 'Awal'} s/d ${reportFilters.endDate || 'Akhir'}`
+        : 'Semua tanggal'],
       ['Jumlah Trip', reportTrips.length],
       [],
       header,
