@@ -32,6 +32,62 @@ router.post('/admin-login', (req, res) => {
   }
 });
 
+// ── Revisi #4: Login wilayah (langkah 1) ───────────────────────────────────────
+// Login memakai kode wilayah + password wilayah (contoh: BADAU / badau123).
+// Jika berhasil, kembalikan daftar petugas wilayah tersebut (TANPA PIN/hash)
+// — langkah berikutnya memilih petugas lalu verifikasi PIN masing-masing.
+router.post('/region-login', (req, res) => {
+  try {
+    const { regionCode, password } = req.body || {};
+    const code = String(regionCode || '').trim();
+    const pass = String(password || '');
+
+    if (!code || !pass) {
+      return res.status(400).json({ error: 'Kode wilayah dan password wajib diisi' });
+    }
+
+    const region = db.prepare(
+      `SELECT * FROM regions WHERE UPPER(code) = UPPER(?)`
+    ).get(code);
+
+    if (!region) {
+      return res.status(401).json({ error: 'Wilayah tidak ditemukan' });
+    }
+
+    // Password disimpan ter-hash (bcrypt); fallback plain-text untuk skrip lama.
+    const stored = region.password || `${String(region.code).toLowerCase()}123`;
+    let valid = false;
+    try {
+      valid = bcrypt.compareSync(pass, stored);
+    } catch { /* bukan hash → cek plain */ }
+    if (!valid) valid = pass === stored;
+
+    if (!valid) {
+      return res.status(401).json({ error: 'Password wilayah salah' });
+    }
+
+    // Daftar petugas aktif di wilayah ini — sengaja tanpa PIN/hashed pin.
+    const officers = db.prepare(`
+      SELECT o.id, o.name
+      FROM officers o
+      WHERE o.region_id = ? AND o.is_active = 1
+      ORDER BY o.name ASC
+    `).all(region.id);
+
+    res.json({
+      region: {
+        id: String(region.id),
+        name: region.name,
+        code: region.code
+      },
+      officers: officers.map(o => ({ id: String(o.id), name: o.name }))
+    });
+  } catch (error) {
+    console.error('Region login error:', error);
+    res.status(500).json({ error: 'Login wilayah gagal' });
+  }
+});
+
 // Member/officer login with username/password
 // Maps username to officer name (officers table has name, not username field)
 const OFFICER_USERNAME_MAP = {

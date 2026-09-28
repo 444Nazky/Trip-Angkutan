@@ -142,6 +142,9 @@ function migrate() {
   `);
 
   relaxTripsDermagaNotNull();
+  // Urutan penting: wilayah spec dibuat dulu, baru seedSpecTables memberi
+  // tarif region (lokal/eksternal) untuk region yang baru saja ditambahkan.
+  ensureSpecRegions();
   seedSpecTables();
   saveDb();
 }
@@ -193,6 +196,174 @@ function relaxTripsDermagaNotNull() {
   } catch (e) {
     // Migrasi gagal tidak boleh menggagalkan boot — INSERT trips punya fallback.
     console.warn('Skip trips.dermaga_id migration:', e.message);
+  }
+}
+
+// ── Revisi #3 & #4: Master Rute Wilayah Operasional + login region ───────────────
+// 3 wilayah × 2 dermaga × 2 rute (dua arah), petugas contoh per wilayah,
+// dan password wilayah default "<kode>123" (mis. BADAU → badau123).
+// Idempotent: jalan tiap boot dan melengkapi DB lama tanpa menimpa data sedia.
+const SPEC_WILAYAH = [
+  {
+    code: 'BADAU', name: 'Badau',
+    officers: ['Budi Santoso', 'Andi Pratama', 'Siti Rahayu'],
+    routes: [
+      // Dermaga 1 — rute utama (dipertahankan dari data lama)
+      { d: 'D1', from: 'SJRE', to: 'SBDZ', name: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
+      { d: 'D1', from: 'SBDZ', to: 'SJRE', name: 'Sabadi → Sijangkung', distance: '42 km', duration: '1j 10m' },
+      // Dermaga 2
+      { d: 'D2', from: 'AAAA', to: 'BBBB', name: 'AAAA → BBBB', distance: null, duration: null },
+      { d: 'D2', from: 'BBBB', to: 'AAAA', name: 'BBBB → AAAA', distance: null, duration: null },
+    ],
+  },
+  {
+    code: 'BELITUNG', name: 'Belitung',
+    officers: ['Agung Suntoso', 'Rahmat Hidayat'],
+    routes: [
+      { d: 'D1', from: 'CCCC', to: 'DDDD', name: 'CCCC → DDDD', distance: null, duration: null },
+      { d: 'D1', from: 'DDDD', to: 'CCCC', name: 'DDDD → CCCC', distance: null, duration: null },
+      { d: 'D2', from: 'EEEE', to: 'FFFF', name: 'EEEE → FFFF', distance: null, duration: null },
+      { d: 'D2', from: 'FFFF', to: 'EEEE', name: 'FFFF → EEEE', distance: null, duration: null },
+    ],
+  },
+  {
+    code: 'KELAPAKAMPIT', name: 'Kelapa Kampit',
+    officers: ['Hendra Gunawan', 'Maya Sari'],
+    routes: [
+      { d: 'D1', from: 'GGGG', to: 'HHHH', name: 'GGGG → HHHH', distance: null, duration: null },
+      { d: 'D1', from: 'HHHH', to: 'GGGG', name: 'HHHH → GGGG', distance: null, duration: null },
+      { d: 'D2', from: 'IIII', to: 'JJJJ', name: 'IIII → JJJJ', distance: null, duration: null },
+      { d: 'D2', from: 'JJJJ', to: 'IIII', name: 'JJJJ → IIII', distance: null, duration: null },
+    ],
+  },
+];
+
+const regionDefaultPassword = (code) => `${String(code).toLowerCase()}123`;
+
+// Helper query — modul ini memakai objek sql.js mentah (bukan dbWrapper),
+// jadi SELECT memakai API statement: bind/step/getAsObject/free.
+function q1(sql, params = []) {
+  const stmt = db.prepare(sql);
+  if (params.length) stmt.bind(params);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+function qAll(sql, params = []) {
+  const stmt = db.prepare(sql);
+  if (params.length) stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+// Penuhi spesifikasi wilayah operasional (idempotent, aman untuk DB lama).
+function ensureSpecRegions() {
+  // 1. Kolom password region (idempotent)
+  try {
+    db.run(`ALTER TABLE regions ADD COLUMN password TEXT`);
+  } catch (e) { /* kolom sudah ada */ }
+
+  const hashedPin = bcrypt.hashSync('123456', 10);
+
+  for (const w of SPEC_WILAYAH) {
+    // 2. Region
+    let region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
+    if (!region) {
+      db.run(
+        `INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)`,
+        [uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
+      );
+      region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
+    }
+    if (!region) continue;
+
+    // 3. Password default bila belum diatur admin
+    if (!region.password) {
+      db.run(`UPDATE regions SET password = ? WHERE id = ?`,
+        [bcrypt.hashSync(regionDefaultPassword(w.code), 10), region.id]);
+    }
+
+    // 4. Dua dermaga: D1 & D2
+    for (const [dc, dname] of [['D1', 'Dermaga 1'], ['D2', 'Dermaga 2']]) {
+      let dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
+      if (!dm) {
+        db.run(`INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)`,
+          [uuidv4(), region.id, dname, dc]);
+        dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
+      }
+      if (!dm) continue;
+
+      const specRoutes = w.routes.filter(r => r.d === dc);
+
+      // Khusus BADAU D2: spesifikasi menentukan AAAA ↔ BBBB — rute lama
+      // (SJRE → BDAU) diganti agar persis seperti di spesifikasi.
+      if (w.code === 'BADAU' && dc === 'D2') {
+        const olds = qAll(`SELECT id, route_from, route_to FROM routes WHERE dermaga_id = ?`, [dm.id]);
+        const wanted = specRoutes.map(r => `${r.from}|${r.to}`);
+        for (const old of olds) {
+          if (!wanted.includes(`${old.route_from}|${old.route_to}`)) {
+            db.run(`DELETE FROM routes WHERE id = ?`, [old.id]);
+          }
+        }
+      }
+
+      // 5. Rute dua arah sesuai spesifikasi
+      for (const r of specRoutes) {
+        const exists = q1(
+          `SELECT 1 as x FROM routes WHERE dermaga_id = ? AND route_from = ? AND route_to = ?`,
+          [dm.id, r.from, r.to]
+        );
+        if (!exists) {
+          db.run(
+            `INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [uuidv4(), dm.id, r.name, r.from, r.to, r.distance, r.duration]
+          );
+        }
+      }
+    }
+
+    // 6. Petugas contoh bila wilayah belum punya petugas aktif
+    const active = q1(`SELECT COUNT(*) as c FROM officers WHERE region_id = ? AND is_active = 1`, [region.id]);
+    if (!active || active.c === 0) {
+      const dm1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [region.id]);
+      const dm2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [region.id]) || dm1;
+      w.officers.forEach((name, i) => {
+        const oid = uuidv4();
+        db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
+          [oid, name, hashedPin, region.id]);
+        const dmId = (i % 2 === 1 ? dm2 : dm1) || dm1;
+        if (dmId) {
+          db.run(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`,
+            [oid, dmId.id]);
+        }
+      });
+      console.log(`Seeded petugas ${w.code}: ${w.officers.join(', ')}`);
+    }
+
+    // 7. Backfill: petugas wilayah spec tanpa akses dermaga → D1
+    const noAccess = qAll(`
+      SELECT o.id FROM officers o
+      WHERE o.region_id = ?
+        AND NOT EXISTS (SELECT 1 FROM officer_dermagas od WHERE od.officer_id = o.id)
+    `, [region.id]);
+    if (noAccess.length) {
+      const dm1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [region.id]);
+      if (dm1) {
+        for (const o of noAccess) {
+          db.run(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`,
+            [o.id, dm1.id]);
+        }
+      }
+    }
+  }
+
+  // 8. Region lain (DB lama: SJRE/SBDZ/ENTIKONG) juga mendapat password default
+  const noPw = qAll(`SELECT id, code FROM regions WHERE password IS NULL OR password = ''`);
+  for (const r of noPw) {
+    db.run(`UPDATE regions SET password = ? WHERE id = ?`,
+      [bcrypt.hashSync(regionDefaultPassword(r.code), 10), r.id]);
   }
 }
 
@@ -363,120 +534,18 @@ function seedData() {
   stmt.free();
   if (result.count > 0) return;
 
-  // Seed wilayah — kode & nama harus konsisten dengan kode rute di aplikasi
-  // mobile (SJRE/SBDZ/BDAU). Regresi "revisi akses" pernah mengganti ini menjadi
-  // placeholder R1..R4 sehingga nama tempat di laporan kosong (null).
-  const regions = [
-    { id: uuidv4(), name: 'Badau', code: 'BADAU' },
-    { id: uuidv4(), name: 'Sijangkung', code: 'SJRE' },
-    { id: uuidv4(), name: 'Sabadi', code: 'SBDZ' },
-    { id: uuidv4(), name: 'Entikong', code: 'ENTIKONG' },
-  ];
-
-  const insertRegion = db.prepare('INSERT INTO regions (id, name, code) VALUES (?, ?, ?)');
-  regions.forEach(r => {
-    insertRegion.bind([r.id, r.name, r.code]);
+  // Seed 3 wilayah operasional (Revisi #3). Dermaga, rute dua arah, petugas
+  // contoh, dan password wilayah dibuat oleh ensureSpecRegions() — satu sumber
+  // kebenaran yang juga melengkapi DB lama saat boot.
+  const insertRegion = db.prepare('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)');
+  for (const w of SPEC_WILAYAH) {
+    insertRegion.bind([uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
     insertRegion.step();
     insertRegion.reset();
-  });
+  }
   insertRegion.free();
 
-  // Seed dermagas (2 di Badau, 1 di wilayah lain)
-  const dermagas = [
-    // Badau
-    { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 1', code: 'D1' },
-    { id: uuidv4(), region_id: regions[0].id, name: 'Dermaga 2', code: 'D2' },
-    // Sijangkung
-    { id: uuidv4(), region_id: regions[1].id, name: 'Dermaga 1', code: 'D1' },
-    // Sabadi
-    { id: uuidv4(), region_id: regions[2].id, name: 'Dermaga 1', code: 'D1' },
-    // Entikong
-    { id: uuidv4(), region_id: regions[3].id, name: 'Dermaga 1', code: 'D1' },
-  ];
-
-  const insertDermaga = db.prepare('INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)');
-  dermagas.forEach(d => {
-    insertDermaga.bind([d.id, d.region_id, d.name, d.code]);
-    insertDermaga.step();
-    insertDermaga.reset();
-  });
-  insertDermaga.free();
-
-  // Seed routes — kode asal/tujuan disamakan dengan kode rute di aplikasi
-  // mobile (SJRE/SBDZ/BDAU) supaya laporan bisa menampilkan nama tempat.
-  const routes = [
-    // Badau, Dermaga 1
-    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
-    { id: uuidv4(), dermaga_id: dermagas[0].id, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
-    // Badau, Dermaga 2
-    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Sijangkung → Badau', route_from: 'SJRE', route_to: 'BDAU', distance: '18 km', duration: '35m' },
-    { id: uuidv4(), dermaga_id: dermagas[1].id, name: 'Badau → Sijangkung', route_from: 'BDAU', route_to: 'SJRE', distance: '18 km', duration: '35m' },
-    // Sijangkung
-    { id: uuidv4(), dermaga_id: dermagas[2].id, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
-    // Sabadi
-    { id: uuidv4(), dermaga_id: dermagas[3].id, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
-    // Entikong
-    { id: uuidv4(), dermaga_id: dermagas[4].id, name: 'Sijangkung → Badau', route_from: 'SJRE', route_to: 'BDAU', distance: '18 km', duration: '35m' },
-  ];
-
-  const insertRoute = db.prepare('INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  routes.forEach(r => {
-    insertRoute.bind([r.id, r.dermaga_id, r.name, r.route_from, r.route_to, r.distance, r.duration]);
-    insertRoute.step();
-    insertRoute.reset();
-  });
-  insertRoute.free();
-
-  // Seed officers with hashed PIN
-  const hashedPin = bcrypt.hashSync('123456', 10);
-  const officers = [
-    { id: uuidv4(), name: 'Budi Santoso', pin: hashedPin, region_id: regions[0].id },
-    { id: uuidv4(), name: 'Andi Pratama', pin: hashedPin, region_id: regions[0].id },
-    { id: uuidv4(), name: 'Siti Rahayu', pin: hashedPin, region_id: regions[0].id },
-    { id: uuidv4(), name: 'Rizky Maulana', pin: hashedPin, region_id: regions[3].id },
-    { id: uuidv4(), name: 'Dewi Kusuma', pin: hashedPin, region_id: regions[0].id }, // Dual access: BADAU dermaga 1 & 2
-  ];
-
-  const insertOfficer = db.prepare('INSERT INTO officers (id, name, pin, region_id) VALUES (?, ?, ?, ?)');
-  officers.forEach(o => {
-    insertOfficer.bind([o.id, o.name, o.pin, o.region_id]);
-    insertOfficer.step();
-    insertOfficer.reset();
-  });
-  insertOfficer.free();
-
-  // Seed officer-dermaga access
-  const insertOfficerDermaga = db.prepare('INSERT INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)');
-
-  // Budi: BADAU Dermaga 1 only
-  insertOfficerDermaga.bind([officers[0].id, dermagas[0].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-
-  // Andi: BADAU Dermaga 2 only
-  insertOfficerDermaga.bind([officers[1].id, dermagas[1].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-
-  // Siti: BADAU Dermaga 1 only (inactive in original)
-  insertOfficerDermaga.bind([officers[2].id, dermagas[0].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-
-  // Rizky: Entikong only
-  insertOfficerDermaga.bind([officers[3].id, dermagas[4].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-
-  // Dewi: BADAU Dermaga 1 AND Dermaga 2 (dual access!)
-  insertOfficerDermaga.bind([officers[4].id, dermagas[0].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-  insertOfficerDermaga.bind([officers[4].id, dermagas[1].id]);
-  insertOfficerDermaga.step();
-  insertOfficerDermaga.reset();
-
-  insertOfficerDermaga.free();
+  ensureSpecRegions();
 
   // Seed tariffs
   const tariffs = [
@@ -495,7 +564,7 @@ function seedData() {
   });
   insertTariff.free();
 
-  console.log('Database seeded with dermagas, routes, and access control');
+  console.log('Database seeded: 3 wilayah, dermaga, rute, petugas, dan tarif');
 }
 
 // Export async initialization
