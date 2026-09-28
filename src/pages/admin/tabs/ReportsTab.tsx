@@ -142,18 +142,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
     ([day, count]) => ({ day, count }),
   ).sort((a, b) => a.day.localeCompare(b.day)).slice(-14)
 
-  // Grafik 2 — sebaran trip per wilayah pos pemeriksaan
-  const reportByRegion = Array.from(
-    reportTrips.reduce((m, t) => {
-      const k = t.region_name || t.region_code || 'Wilayah lain'
-      m.set(k, (m.get(k) || 0) + 1)
-      return m
-    }, new Map<string, number>()),
-    ([name, count]) => ({ name, count }),
-  ).sort((a, b) => b.count - a.count).slice(0, 6)
-
   const maxDaily = Math.max(1, ...reportDaily.map(d => d.count))
-  const maxRegion = Math.max(1, ...reportByRegion.map(r => r.count))
 
   return (
     <div className="space-y-4">
@@ -290,28 +279,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             </div>
           </div>
 
-          {/* Trip per wilayah */}
-          <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <div>
-                <h4 className="font-bold text-slate-800 text-sm">Trip per Wilayah</h4>
-                <p className="text-[11px] text-slate-400">sebaran trip berdasarkan tempat pos pemeriksaan</p>
-              </div>
-              <span className="text-[11px] font-bold text-slate-400">{reportByRegion.length} wilayah</span>
-            </div>
-            <div className="space-y-2.5">
-              {reportByRegion.map(r => (
-                <div key={r.name} className="flex items-center gap-3">
-                  <span className="w-40 shrink-0 text-[12px] font-semibold text-slate-600 truncate">{r.name}</span>
-                  <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
-                    <div className="h-full rounded-md bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
-                      style={{ width: `${Math.max(3, (r.count / maxRegion) * 100)}%` }} />
-                  </div>
-                  <span className="w-12 text-right text-[12px] font-black text-slate-700 tabular-nums">{r.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 

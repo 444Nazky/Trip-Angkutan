@@ -12,6 +12,7 @@ import type { TariffRow, RegionTariffRow, BackendOfficerRow, Region } from './co
 import type { BackendTrip } from '../../services/trips'
 import type { PlateRecord } from '../../services/plates'
 import type { Officer } from './components/types'
+import { CurrencyProvider } from './components/CurrencyDisplay'
 
 // Tabs
 import { OverviewTab, TariffTab, PlatesTab, RoutesTab, OfficersTab, ReportsTab, SettingsTab } from './tabs'
