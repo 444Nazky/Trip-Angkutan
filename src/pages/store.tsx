@@ -273,12 +273,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [officers, officerId],
   )
 
-  const login = useCallback((type: 'admin' | 'member') => {
+  const login = useCallback((type: 'admin' | 'member', officerId?: string) => {
     setUserType(type)
     setLoggedIn(true)
+    // If officerId provided (member login), update it in store
+    if (type === 'member' && officerId) {
+      setOfficerIdState(officerId)
+    }
     // Login screen is local-only — fetch a backend JWT so trip sync can authenticate
-    if (type === 'member') void ensureBackendSession(officerId)
-  }, [officerId])
+    if (type === 'member') void ensureBackendSession(officerId || undefined)
+  }, [])
   const logout = useCallback(() => {
     setLoggedIn(false)
     setUserType('member')

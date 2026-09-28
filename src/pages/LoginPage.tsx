@@ -3,7 +3,7 @@ import { Truck, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, ChevronDown } 
 import { memberLogin } from '../services/auth'
 
 interface LoginPageProps {
-  onLogin: (userType: 'admin' | 'member') => void
+  onLogin: (userType: 'admin' | 'member', officerId?: string) => void
 }
 
 const USERS = {
@@ -39,7 +39,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       setLoading(true)
       const result = await memberLogin(username, password)
       if (result.success) {
-        onLogin(userType)
+        onLogin(userType, result.officer?.id)
       } else {
         setError(true)
         setTimeout(() => setError(false), 2500)

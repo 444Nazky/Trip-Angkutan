@@ -86,7 +86,7 @@ function clearOfficer() {
 export async function memberLogin(
   username: string,
   password: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; officer?: StoredOfficer }> {
   const result = await api.post<LoginResponse>('/auth/member-login', { username, password })
 
   if (!result.ok || !result.data) {
@@ -96,7 +96,7 @@ export async function memberLogin(
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
 
-  return { success: true }
+  return { success: true, officer: result.data.officer }
 }
 
 // Login with PIN (for officer switching).
