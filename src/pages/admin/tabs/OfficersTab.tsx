@@ -158,7 +158,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
 
       {/* Form Tambah */}
       {addOff && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Tambah Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
@@ -198,7 +198,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
 
       {/* Form Edit */}
       {editOffIdx !== null && editOff && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Edit Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
@@ -244,7 +244,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
 
       {/* Tabel per grup */}
       {officerGroups.map(region => (
-        <div key={region} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
             <Lock size={14} className="text-blue-400" />
             {region === 'LAINNYA' ? 'Lainnya' : region} ({officers.filter(o => inRegionGroup(o, region)).length} petugas)

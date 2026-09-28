@@ -29,7 +29,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
   return (
     <div className="space-y-6">
       {/* Tema & Tampilan */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Tema & Tampilan</h3>
         <p className="text-xs text-slate-500 mb-6">Sesuaikan tema situs, ukuran font, dan warna aksen</p>
 
@@ -108,7 +108,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
       </div>
 
       {/* Sistem */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Sistem</h3>
         <p className="text-xs text-slate-500 mb-6">Status koneksi dan data lokal</p>
 
