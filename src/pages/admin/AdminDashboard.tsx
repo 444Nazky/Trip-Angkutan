@@ -1365,7 +1365,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                                   <span className="flex flex-wrap gap-1">
                                     {rts.map(r => (
                                       <span key={r.id} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
-                                        {r.route_from} → {r.route_to}
+                                        {/* Nama rute (bukan kode pos SJRE/SBDZ — itu bukan wilayah/dermaga) */}
+                                        {r.name || `${r.route_from} → ${r.route_to}`}
                                       </span>
                                     ))}
                                   </span>
