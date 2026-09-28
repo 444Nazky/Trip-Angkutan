@@ -24,7 +24,6 @@ import type { Dermaga } from '../../services/auth'
 // tab   → pindah tab bawah
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
-const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
 
@@ -70,18 +69,27 @@ export default function MobileApp() {
   function go(next: MobileScreen) {
     if (next === screen) return
     const path = stack.current
+    const at = path.lastIndexOf(next)
     let kind: AnimKind
 
-    if (TAB_SCREENS.includes(next)) kind = 'tab'
-    else if (path.includes(next)) kind = 'pop' // tombol kembali / layar sebelumnya
+    if (at >= 0) kind = 'pop' // kembali ke layar sebelumnya
     else if (ZOOM_SCREENS.includes(next)) kind = 'zoom'
     else if (SHEET_SCREENS.includes(next)) kind = 'sheet'
     else kind = 'push'
 
-    const at = path.lastIndexOf(next)
     stack.current = at >= 0 ? path.slice(0, at + 1) : [...path, next]
 
     setAnim(kind)
+    setScreen(next)
+  }
+
+  /** Pindah lewat tab bawah — transisi khusus tab (bukan maju/kembali). */
+  function goTab(next: MobileScreen) {
+    if (next === screen) return
+    const path = stack.current
+    const at = path.lastIndexOf(next)
+    stack.current = at >= 0 ? path.slice(0, at + 1) : [...path, next]
+    setAnim('tab')
     setScreen(next)
   }
 
@@ -122,7 +130,7 @@ export default function MobileApp() {
   }
 
   return (
-    <MobileShell activeNav={activeNav} onNav={go}>
+    <MobileShell activeNav={activeNav} onNav={goTab}>
       <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
     </MobileShell>
   )
