@@ -165,25 +165,25 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           <p className="text-slate-500 text-[12px]">Data trip, kendaraan, dan tarif</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
-            reportState === 'ready' ? 'bg-emerald-50 text-emerald-600' : reportState === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 ${
+            reportState === 'ready' ? 'text-slate-600' : reportState === 'offline' ? 'text-amber-700 border-amber-200' : 'text-slate-500'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${reportState === 'ready' ? 'bg-emerald-500' : reportState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
             {reportState === 'ready' ? 'Tersambung' : reportState === 'offline' ? 'Offline' : 'Memuat...'}
           </span>
           <button onClick={() => void loadReports()} disabled={reportState === 'loading'}
-            className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50">
+            className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
             Refresh
           </button>
           <button onClick={handleExport} disabled={reportState !== 'ready'}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-50">
+            className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800 disabled:opacity-50">
             <Download size={15} /> Ekspor Excel
           </button>
         </div>
       </div>
 
       {/* Filter */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-wrap items-end gap-4">
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-wrap items-end gap-4">
         <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
             className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
@@ -217,21 +217,21 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       {/* Ringkasan */}
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-            <p className="text-slate-500 text-[11px] font-bold uppercase">Total Trip</p>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-            <p className="text-slate-500 text-[11px] font-bold uppercase">Muatan</p>
-            <p className="text-2xl font-black text-blue-600 mt-1">{muatanCount}</p>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Muatan</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-            <p className="text-slate-500 text-[11px] font-bold uppercase">Unit</p>
-            <p className="text-2xl font-black text-amber-600 mt-1">{totalUnit}</p>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Unit</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{totalUnit}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-            <p className="text-slate-500 text-[11px] font-bold uppercase">Pendapatan</p>
-            <CurrencyDisplay amount={totalRevenue} className="text-2xl font-black text-emerald-600 mt-1" />
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
+            <CurrencyDisplay amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
           </div>
         </div>
       )}
