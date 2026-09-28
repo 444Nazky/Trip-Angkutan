@@ -33,6 +33,8 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
 
     for (const o of officers) {
       o.regions = officerRegionsStmt.all(o.id);
+      // Akses dermaga petugas (D1/D2) — menentukan rute yang tampil di mobile
+      o.dermagas = dermagaStmt.all(o.id);
     }
 
     res.json(officers);
@@ -91,7 +93,7 @@ router.get('/my-region', authenticate, (req, res) => {
 // Create officer
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
-    const { name, pin, regionId, regionIds } = req.body;
+    const { name, pin, regionId, regionIds, dermagaIds } = req.body;
     const { v4: uuidv4 } = require('uuid');
 
     const hashedPin = bcrypt.hashSync(pin, 10);
@@ -110,9 +112,44 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
     for (const rid of ids) link.run(id, rid);
 
+    // Akses dermaga (banyak-ke-banyak) — menentukan Master Rute yang dipakai petugas
+    if (Array.isArray(dermagaIds) && dermagaIds.length > 0) {
+      const linkDm = db.prepare(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`);
+      for (const dm of dermagaIds) {
+        if (dm) linkDm.run(id, String(dm));
+      }
+    }
+
     res.status(201).json({ id, name, regionIds: ids });
   } catch (error) {
+    console.error('Create officer error:', error);
     res.status(500).json({ error: 'Failed to create officer' });
+  }
+});
+
+// Atur akses dermaga petugas (banyak-ke-banyak) — hasil akhir = daftar rute
+// yang dilihat petugas di layar Pilih Rute (GET /routes/mine).
+router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
+  try {
+    const { dermagaIds } = req.body || {};
+    if (!Array.isArray(dermagaIds)) {
+      return res.status(400).json({ error: 'dermagaIds harus berupa array' });
+    }
+
+    const officerId = String(req.params.id);
+    const officer = db.prepare(`SELECT id FROM officers WHERE id = ?`).get(officerId);
+    if (!officer) return res.status(404).json({ error: 'Officer not found' });
+
+    db.prepare(`DELETE FROM officer_dermagas WHERE officer_id = ?`).run(officerId);
+    const link = db.prepare(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`);
+    for (const dm of dermagaIds) {
+      if (dm) link.run(officerId, String(dm));
+    }
+
+    res.json({ success: true, dermagaIds: dermagaIds.filter(Boolean).map(String) });
+  } catch (error) {
+    console.error('Update officer dermagas error:', error);
+    res.status(500).json({ error: 'Failed to update officer dermagas' });
   }
 });
 
@@ -168,6 +205,7 @@ router.put('/:id/status', authenticate, requireAdmin, (req, res) => {
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     db.prepare(`DELETE FROM officer_regions WHERE officer_id = ?`).run(req.params.id);
+    db.prepare(`DELETE FROM officer_dermagas WHERE officer_id = ?`).run(req.params.id);
     db.prepare(`DELETE FROM officers WHERE id = ?`).run(req.params.id);
     res.json({ success: true });
   } catch (error) {

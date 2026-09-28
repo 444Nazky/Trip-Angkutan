@@ -58,7 +58,11 @@ export interface Draft {
   startedAt: number | null
 }
 
-type Officer = (typeof officerList)[number] & { regions?: string[] }
+type Officer = (typeof officerList)[number] & {
+  regions?: string[]
+  // Akses dermaga (D1/D2) dari backend — menentukan rute yang tampil di mobile
+  dermagaAccess?: { id: string; code: string; name: string; region_id?: string }[]
+}
 export type TariffRow = (typeof tariffData)[number] & { id?: string }
 export type VerifyIntent = 'switch' | 'security'
 

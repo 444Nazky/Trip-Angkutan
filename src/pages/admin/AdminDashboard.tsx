@@ -17,8 +17,9 @@ import { api } from '../../services/api'
 import type { AdminTab } from '../types'
 
 interface TariffRow { id?: string; golongan: string; type: string; loaded: string; loadedNum: number; empty: string; emptyNum: number; desc: string }
-interface Officer { id: string; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string }
-interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[] }
+interface DermagaAccess { id: string; code: string; name: string; region_id?: string }
+interface Officer { id: string; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string; dermagaAccess?: DermagaAccess[] }
+interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[]; dermagas?: DermagaAccess[] }
 interface Toast { msg: string; type: 'success' | 'error' }
 // Master Rute — baris rute + dermaga (data server menyertakan nama wilayah)
 interface RouteRow { id: string; dermaga_id: string; name: string; route_from: string; route_to: string; distance?: string; duration?: string; dermaga_name?: string; dermaga_code?: string; region_name?: string }
@@ -48,6 +49,8 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
       trips: old?.trips ?? 0,
       lastActive: old?.lastActive ?? '-',
       joined: old?.joined ?? '-',
+      // Akses dermaga (D1/D2) dari server — menentukan rute yang tampil di mobile
+      dermagaAccess: b.dermagas && b.dermagas.length > 0 ? b.dermagas : old?.dermagaAccess,
     }
   })
 }
@@ -90,8 +93,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const [addOff, setAddOff] = useState(false)
   const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
-  const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '' })
+  const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] as string[] })
   const [editOff, setEditOff] = useState<Officer | null>(null)
+  const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
 
   // Preferensi tampilan (tab Pengaturan) — dipulihkan dari localStorage
   const [theme, setTheme] = useState<AdminTheme>(() => loadTheme())
@@ -318,6 +322,29 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, routeState])
 
+  // Tab Petugas: pastikan wilayah, dermaga, dan Master Rute termuat — kolom
+  // "Dermaga" & "Rute" di tabel petugas diturunkan dari data ini.
+  const loadOfficerMasterData = async () => {
+    if (regions.length === 0) {
+      const regs = await fetchRegions()
+      if (regs) setRegions(regs)
+    }
+    if (routeDermagas.length > 0 && routeRows.length > 0) return
+    const ok = await ensureAdminBackendSession()
+    if (!ok) return
+    const [dms, rts] = await Promise.all([fetchDermagas(), fetchRoutes()])
+    if (dms) setRouteDermagas(dms as RouteDermaga[])
+    if (rts) setRouteRows(rts as RouteRow[])
+  }
+
+  useEffect(() => {
+    if (tab === 'officers') {
+      void loadOfficerMasterData()
+      if (backendOfficers.length === 0) void syncOfficersFromServer()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   const refreshRouteRows = async () => {
     const fresh = await fetchRoutes()
     if (fresh) setRouteRows(fresh as RouteRow[])
@@ -525,12 +552,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
     const region = regions.find(r => r.code === offForm.region)
 
-    // Create on backend (regionIds agar ikut junction many-to-many)
+    // Create on backend (regionIds agar ikut junction many-to-many + akses dermaga)
     const res = await api.post<{ id: string }>('/officers', {
       name: offForm.name,
       pin: offForm.pin,
       regionId: region?.id,
       regionIds: region ? [region.id] : undefined,
+      dermagaIds: offForm.dermagaIds.length > 0 ? offForm.dermagaIds : undefined,
     })
 
     if (!res.ok || !res.data) return showToast('Gagal tambah petugas ke server', 'error')
@@ -546,7 +574,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       saveOfficers([...officers, row])
     }
 
-    setOffForm({ name: '', region: 'BADAU', pin: '', device: '' })
+    setOffForm({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] })
     setAddOff(false)
     showToast('Petugas ditambahkan')
   }
@@ -566,6 +594,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
         if (!res.ok) showToast('Wilayah gagal sync ke server', 'error')
       }
+      // Akses dermaga → menentukan rute yang tampil di mobile.
+      // Disaring dulu agar dermaga dari wilayah yang baru dicentang-batal ikut terbuang.
+      const validDm = new Set(dermagaOptionsFor(chosen).map(d => d.id))
+      const dmIds = editDermagaIds.filter(id => validDm.has(id))
+      const dmRes = await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
+      if (!dmRes.ok) showToast('Dermaga gagal sync ke server', 'error')
       // PIN baru (hanya dikirim kalau diisi ulang 6 digit)
       if (editOff.pin && editOff.pin.length === 6) {
         const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
@@ -584,6 +618,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
     setEditOffIdx(null)
     setEditOff(null)
+    setEditDermagaIds([])
     showToast('Petugas diupdate')
   }
 
@@ -623,6 +658,21 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
     showToast(`Status diubah ke ${newStatus}`)
   }
+
+  // ── Tab Petugas: dermaga & rute yang tampil per petugas ──
+  const regionCodeOfDermaga = (d: RouteDermaga) =>
+    d.region_code || regions.find(r => r.id === d.region_id)?.code || ''
+
+  const dermagaOptionsFor = (codes: string[]) =>
+    routeDermagas.filter(d => codes.includes(regionCodeOfDermaga(d)))
+
+  const routesForOfficer = (o: Officer) => {
+    const ids = new Set((o.dermagaAccess ?? []).map(d => d.id))
+    return ids.size > 0 ? routeRows.filter(r => ids.has(r.dermaga_id)) : []
+  }
+
+  const toggleId = (list: string[], id: string) =>
+    list.includes(id) ? list.filter(x => x !== id) : [...list, id]
 
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
@@ -1070,10 +1120,26 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label><input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
                     <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
-                      <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
+                      <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value, dermagaIds: []})} className="w-full border rounded-xl px-3 py-2 text-sm">
                         {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+                  </div>
+                  <div className="mb-4">
+                    <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga (akses rute)</label>
+                    {dermagaOptionsFor([offForm.region]).length === 0 ? (
+                      <p className="text-[11px] text-slate-400">Belum ada dermaga untuk wilayah ini</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        {dermagaOptionsFor([offForm.region]).map(d => (
+                          <label key={d.id} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
+                            <input type="checkbox" checked={offForm.dermagaIds.includes(d.id)}
+                              onChange={() => setOffForm({ ...offForm, dermagaIds: toggleId(offForm.dermagaIds, d.id) })} />
+                            {d.name} ({d.code})
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label><input type="password" maxLength={6} value={offForm.pin} onChange={e => setOffForm({...offForm, pin: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
                   <div className="flex gap-3">
@@ -1100,9 +1166,25 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       </div>
                     </div>
                   </div>
+                  <div className="mb-4">
+                    <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga (akses rute)</label>
+                    {dermagaOptionsFor(editRegions).length === 0 ? (
+                      <p className="text-[11px] text-slate-400">Centang wilayah dulu — dermaga mengikuti wilayah yang dipilih</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        {dermagaOptionsFor(editRegions).map(d => (
+                          <label key={d.id} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
+                            <input type="checkbox" checked={editDermagaIds.includes(d.id)}
+                              onChange={() => setEditDermagaIds(prev => toggleId(prev, d.id))} />
+                            {regionCodeOfDermaga(d)} · {d.name} ({d.code})
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN Baru</label><input type="password" maxLength={6} value={editOff.pin} onChange={e => setEditOff({...editOff, pin: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
                   <div className="flex gap-3">
-                    <button onClick={() => { setEditOffIdx(null); setEditOff(null) }} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
+                    <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
                     <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Update</button>
                   </div>
                 </div>
@@ -1113,7 +1195,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region} ({officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).length} petugas)</div>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                      <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
+                      <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute yang Tampil</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
                     </thead>
                     <tbody className="divide-y">
                       {officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).map((o, _, arr) => {
@@ -1121,9 +1203,35 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         return (
                           <tr key={o.id} className="hover:bg-slate-50">
                             <td className="p-4 font-bold">{o.name}</td>
+                            <td className="p-4">
+                              {(o.dermagaAccess ?? []).length === 0 ? (
+                                <span className="text-slate-300 text-xs">—</span>
+                              ) : (
+                                <span className="flex flex-wrap gap-1">
+                                  {o.dermagaAccess!.map(d => (
+                                    <span key={d.id} className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-bold">{d.code}</span>
+                                  ))}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-[12px] text-slate-600">
+                              {(() => {
+                                const rts = routesForOfficer(o)
+                                if (rts.length === 0) return <span className="text-slate-300">—</span>
+                                return (
+                                  <span className="flex flex-wrap gap-1">
+                                    {rts.map(r => (
+                                      <span key={r.id} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                        {r.route_from} → {r.route_to}
+                                      </span>
+                                    ))}
+                                  </span>
+                                )
+                              })()}
+                            </td>
                             <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span></td>
                             <td className="p-4">
-                              <button onClick={() => { setEditOffIdx(i); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]) }} className="text-blue-600 font-bold text-sm mr-3">Edit</button>
+                              <button onClick={() => { setEditOffIdx(i); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).map(d => d.id)) }} className="text-blue-600 font-bold text-sm mr-3">Edit</button>
                               <button onClick={() => toggleOffStatus(i)} className="text-amber-500 font-bold text-sm mr-3">{o.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
                               <button onClick={() => handleDelOff(i)} className="text-red-500 font-bold text-sm">Hapus</button>
                             </td>
