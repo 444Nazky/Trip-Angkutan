@@ -1,6 +1,7 @@
 import { RouteIcon, Truck, Users, Wallet } from 'lucide-react'
 import type { ReportSummary, BackendTrip } from '../../../services/trips'
 import { formatReportDateTime } from '../../../services/trips'
+import { CurrencyDisplay } from '../components/CurrencyDisplay'
 
 interface OverviewTabProps {
   serverTrips: BackendTrip[]
@@ -74,7 +75,7 @@ export function OverviewTab({
         />
         <MetricCard
           label="Pendapatan Hari Ini"
-          val={dashSummary ? `Rp ${dashSummary.totalRevenue.toLocaleString('id-ID')}` : '—'}
+          amount={dashSummary?.totalRevenue ?? 0}
           sub="tarif eksternal tercatat"
           Icon={Wallet}
           bg="bg-emerald-50"
