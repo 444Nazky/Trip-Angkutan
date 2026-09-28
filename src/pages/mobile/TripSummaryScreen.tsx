@@ -1,5 +1,5 @@
 import { ChevronLeft, Camera, Play, AlertTriangle, Truck } from 'lucide-react'
-import { ROUTES } from '../data'
+import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -10,7 +10,8 @@ interface TripSummaryScreenProps {
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const { draft, officer, trips, resetDraft, startTrip, patchDraft } = useApp()
 
-  const route = ROUTES.find(r => r.code === draft.routeCode) ?? ROUTES[0]
+  const allRoutes = activeRoutes()
+  const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
   const now = new Date()
   const tripId = nextTripId(trips)
   const vehicles = draft.vehicles

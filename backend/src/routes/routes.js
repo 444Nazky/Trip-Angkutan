@@ -3,6 +3,29 @@ const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
+// Rute milik petugas yang sedang login — dipakai layar "Pilih Rute" mobile
+// agar daftar rute selalu sinkron dengan Master Rute terbaru tanpa re-login.
+router.get('/mine', authenticate, (req, res) => {
+  try {
+    const officerId = req.user && req.user.officerId;
+    if (!officerId) {
+      return res.status(403).json({ error: 'Officer access required' });
+    }
+    const rows = db.prepare(`
+      SELECT r.id, r.name, r.route_from, r.route_to, r.distance, r.duration,
+             d.id AS dermaga_id, d.name AS dermaga_name, d.code AS dermaga_code
+      FROM officer_dermagas od
+      JOIN dermagas d ON od.dermaga_id = d.id
+      JOIN routes r ON r.dermaga_id = d.id
+      WHERE od.officer_id = ?
+      ORDER BY d.code, r.name
+    `).all(String(officerId));
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch officer routes' });
+  }
+});
+
 // Get all routes with dermaga info
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {

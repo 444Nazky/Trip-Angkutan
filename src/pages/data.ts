@@ -1,11 +1,24 @@
 // ─── Shared Data ──────────────────────────────────────────────────────────────
 
+import { getStoredRoutes } from '../services/auth'
+
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
   { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Sabadi → Sijangkung', distance: '42 km', duration: '1j 10m' },
   { code: 'SJRE-BDAU', from: 'SJRE', to: 'BDAU', label: 'Sijangkung → Badau', distance: '18 km', duration: '35m' },
   { code: 'BDAU-SJRE', from: 'BDAU', to: 'SJRE', label: 'Badau → Sijangkung', distance: '18 km', duration: '35m' },
 ]
+
+/**
+ * Daftar rute yang dipakai layar mobile (Pilih Rute / Ringkasan / Trip Aktif).
+ * Sumber utama: Master Rute milik petugas yang login (ikut tersimpan saat
+ * login PIN / segar dari GET /routes/mine). Bila belum ada (mis. belum pernah
+ * login backend), fallback ke rute statis di atas.
+ */
+export function activeRoutes() {
+  const stored = getStoredRoutes()
+  return stored.length ? stored : ROUTES
+}
 
 export const allTrips = [
   { id: 'TRP-2026-0091', route: 'SJRE → SBDZ', status: 'Selesai', time: '08:42', date: '21 Sep 2026', load: 'Ada Muatan', vehicle: 'B 3821 KDA', type: 'Truck Sedang', category: 'Internal', revenue: 'Rp 280.000', officer: 'Budi Santoso', duration: '1j 08m', photo: true },

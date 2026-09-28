@@ -122,6 +122,26 @@ export function getStoredRoutes(): UiRoute[] {
   }
 }
 
+/**
+ * Muat ulang rute petugas dari backend (`GET /routes/mine`) — dipanggil saat
+ * layar Pilih Rute dibuka supaya hasil edit Master Rute admin langsung
+ * terlihat tanpa harus logout/login ulang.
+ * Kembalikan daftar rute terbaru, atau null bila gagal (pakai cache).
+ */
+export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
+  const result = await api.get<(Route & { dermaga_id: string })[]>('/routes/mine')
+  if (!result.ok || !result.data || result.data.length === 0) return null
+
+  const map: Record<string, Route[]> = {}
+  for (const r of result.data) {
+    if (!map[r.dermaga_id]) map[r.dermaga_id] = []
+    const { dermaga_id: _dm, ...route } = r
+    map[r.dermaga_id].push(route)
+  }
+  saveRoutesMap(map)
+  return getStoredRoutes()
+}
+
 export function getStoredOfficer(): StoredOfficer | null {
   try {
     const raw = localStorage.getItem(OFFICER_KEY)

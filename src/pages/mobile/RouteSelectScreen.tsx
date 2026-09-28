@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock } from 'lucide-react'
-import { ROUTES } from '../data'
+import { activeRoutes, ROUTES } from '../data'
+import { refreshStoredRoutes, type UiRoute } from '../../services/auth'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import { EMPTY_ROUTE_CODE } from './TripConditionScreen'
@@ -12,13 +14,29 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
   const { draft, patchDraft, officer } = useApp()
   const selected = draft.routeCode
 
+  // Rute dari Master Rute petugas (backend) — fallback rute statis.
+  const [routes, setRoutes] = useState<UiRoute[]>(() => activeRoutes())
+
+  // Segarkan tiap layar dibuka agar hasil edit Master Rute admin langsung
+  // terpakai tanpa logout/login ulang.
+  useEffect(() => {
+    let alive = true
+    refreshStoredRoutes().then(fresh => {
+      if (alive && fresh && fresh.length) setRoutes(fresh)
+    })
+    return () => { alive = false }
+  }, [])
+
   // Trip tanpa muatan: rute dibatasi & dikunci hanya SJRE → SBDZ.
   // Trip bermuatan: seluruh rute bebas dipilih.
   const isEmptyTrip = draft.condition === 'kosong'
-  const routes = isEmptyTrip ? ROUTES.filter(r => r.code === EMPTY_ROUTE_CODE) : ROUTES
+  const emptyRoutes = routes.some(r => r.code === EMPTY_ROUTE_CODE)
+    ? routes
+    : ROUTES // petugas tanpa SJRE → SBDZ di dermaganya: pakai rute statis
+  const list = isEmptyTrip ? emptyRoutes.filter(r => r.code === EMPTY_ROUTE_CODE) : routes
 
   // Guard: rute lama yang tidak valid saat kondisi berubah ke "kosong"
-  const validSelected = selected && routes.some(r => r.code === selected)
+  const validSelected = selected && list.some(r => r.code === selected)
     ? selected
     : isEmptyTrip ? EMPTY_ROUTE_CODE : selected
 
@@ -69,7 +87,7 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
       </div>
 
       <div className="space-y-2.5 mb-5">
-        {routes.map(r => {
+        {list.map(r => {
           const locked = isEmptyTrip
           const isSelected = validSelected === r.code
           return (

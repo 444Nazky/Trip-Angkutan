@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Square } from 'lucide-react'
-import { ROUTES } from '../data'
+import { activeRoutes } from '../data'
 import {
   durationToSeconds, fmtElapsed, fmtTime, formatRp, kmNumber, useApp,
 } from '../store'
@@ -13,7 +13,8 @@ interface TripActiveScreenProps {
 export default function TripActiveScreen({ go }: TripActiveScreenProps) {
   const { draft, officer, trips, commitTrip, patchDraft } = useApp()
 
-  const route = ROUTES.find(r => r.code === draft.routeCode) ?? ROUTES[0]
+  const allRoutes = activeRoutes()
+  const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
   const [startedAt, setStartedAt] = useState<number>(() => draft.startedAt ?? Date.now())
   const finishingRef = useRef(false)
   const [elapsed, setElapsed] = useState(() =>
@@ -32,9 +33,11 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
     return () => clearInterval(id)
   }, [startedAt])
 
-  const totalSec = durationToSeconds(route.duration)
+  // Rute tanpa durasi/jarak (belum diisi di Master Rute) → default aman
+  // agar progress & ETA tidak NaN.
+  const totalSec = Math.max(durationToSeconds(route.duration || ''), 60)
   const progress = Math.min(elapsed / totalSec, 0.95)
-  const distanceKm = kmNumber(route.distance)
+  const distanceKm = kmNumber(route.distance || '')
   const remainingKm = Math.max(0, Math.round(distanceKm * (1 - progress)))
   const etaDate = new Date(startedAt + totalSec * 1000)
   const departDate = new Date(startedAt)

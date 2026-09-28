@@ -297,15 +297,18 @@ function ensureSpecRegions() {
 
       const specRoutes = w.routes.filter(r => r.d === dc);
 
-      // Khusus BADAU D2: spesifikasi menentukan AAAA ↔ BBBB — rute lama
-      // (SJRE → BDAU) diganti agar persis seperti di spesifikasi.
-      if (w.code === 'BADAU' && dc === 'D2') {
+      // Samakan isi dermaga dengan Master Rute (spesifikasi #3): rute yang
+      // tidak ada di spesifikasi (mis. sisa placeholder A→B, C→D dari seed
+      // lama) dihapus — kecuali masih direferensikan trip, supaya laporan
+      // lama tidak kehilangan route_id.
+      {
         const olds = qAll(`SELECT id, route_from, route_to FROM routes WHERE dermaga_id = ?`, [dm.id]);
         const wanted = specRoutes.map(r => `${r.from}|${r.to}`);
         for (const old of olds) {
-          if (!wanted.includes(`${old.route_from}|${old.route_to}`)) {
-            db.run(`DELETE FROM routes WHERE id = ?`, [old.id]);
-          }
+          if (wanted.includes(`${old.route_from}|${old.route_to}`)) continue;
+          const used = q1(`SELECT 1 as x FROM trips WHERE route_id = ?`, [old.id]);
+          if (used) continue; // masih dipakai trip lama — biarkan
+          db.run(`DELETE FROM routes WHERE id = ?`, [old.id]);
         }
       }
 
