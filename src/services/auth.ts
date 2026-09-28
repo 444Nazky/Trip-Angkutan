@@ -5,6 +5,7 @@ import { api, type ApiError } from './api'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
+const ROUTES_KEY = 'trip.auth.routes.v1'
 
 // Demo PIN shared by all seeded officers
 export const DEMO_PIN = '123456'
@@ -43,6 +44,82 @@ export interface LoginResponse {
   dermagas?: Dermaga[]
   routes?: Record<string, Route[]>
   isDualAccess?: boolean
+}
+
+// ── Revisi #4: login wilayah (langkah 1) ───────────────────────────────────
+export interface RegionInfo { id: string; name: string; code: string }
+export interface RegionOfficer { id: string; name: string }
+
+/**
+ * Login wilayah: kode region + password region (contoh BADAU / badau123).
+ * Berhasil → daftar petugas wilayah tsb (tanpa PIN) untuk langkah berikutnya.
+ */
+export async function regionLogin(
+  regionCode: string,
+  password: string,
+): Promise<{
+  success: boolean
+  error?: string
+  region?: RegionInfo
+  officers?: RegionOfficer[]
+}> {
+  const result = await api.post<{ region: RegionInfo; officers: RegionOfficer[] }>(
+    '/auth/region-login',
+    { regionCode, password },
+  )
+
+  if (!result.ok || !result.data) {
+    return { success: false, error: result.error?.message || 'Backend tidak terjangkau' }
+  }
+
+  return { success: true, region: result.data.region, officers: result.data.officers }
+}
+
+// ── Rute petugas (dari login PIN / pilih dermaga) ─────────────────────────────
+export interface UiRoute {
+  code: string
+  from: string
+  to: string
+  label: string
+  distance?: string
+  duration?: string
+}
+
+function saveRoutesMap(map: Record<string, Route[]>) {
+  try {
+    localStorage.setItem(ROUTES_KEY, JSON.stringify(map))
+  } catch { /* quota */ }
+}
+
+/**
+ * Rute milik petugas yang sedang login (dari backend, per dermaga).
+ * Kembalikan bentuk UI — kosong bila belum pernah login (caller fallback data statis).
+ */
+export function getStoredRoutes(): UiRoute[] {
+  try {
+    const raw = localStorage.getItem(ROUTES_KEY)
+    if (!raw) return []
+    const map = JSON.parse(raw) as Record<string, Route[]>
+    const out: UiRoute[] = []
+    for (const list of Object.values(map)) {
+      for (const r of list || []) {
+        if (!r?.route_from || !r?.route_to) continue
+        const code = `${r.route_from}-${r.route_to}`
+        if (out.some(x => x.code === code)) continue
+        out.push({
+          code,
+          from: r.route_from,
+          to: r.route_to,
+          label: r.name || `${r.route_from} → ${r.route_to}`,
+          distance: r.distance,
+          duration: r.duration,
+        })
+      }
+    }
+    return out
+  } catch {
+    return []
+  }
 }
 
 export function getStoredOfficer(): StoredOfficer | null {
@@ -113,6 +190,9 @@ export async function loginWithPin(
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
 
+  // Simpan rute per dermaga agar layar Pilih Rute memakai data master terbaru
+  if (result.data.routes) saveRoutesMap(result.data.routes)
+
   // For single-dermaga officers, save the dermaga automatically
   if (result.data.dermagas && result.data.dermagas.length === 1) {
     saveDermaga(result.data.dermagas[0])
@@ -130,7 +210,14 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
   }
 
   saveDermaga(result.data.dermaga)
-  return { success: true }
+  // Gabungkan rute dermaga terpilih dengan rute dermaga lain yang sudah tersimpan
+  try {
+    const raw = localStorage.getItem(ROUTES_KEY)
+    const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
+    map[result.data.dermaga.id] = result.data.routes || []
+    saveRoutesMap(map)
+  } catch { /* quota */ }
+  return { success: true, error: undefined }
 }
 
 export function logout() {

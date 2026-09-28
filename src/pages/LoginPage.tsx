@@ -1,60 +1,109 @@
 import { useState } from 'react'
-import { Truck, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, ChevronDown } from 'lucide-react'
-import { memberLogin } from '../services/auth'
+import { Truck, Lock, Eye, EyeOff, ArrowRight, AlertCircle, ChevronDown, ChevronLeft, MapPin, Users, KeyRound } from 'lucide-react'
+import { regionLogin, loginWithPin, type RegionInfo, type RegionOfficer } from '../services/auth'
 
 interface LoginPageProps {
   onLogin: (userType: 'admin' | 'member', officerId?: string) => void
 }
 
-const USERS = {
-  member: { username: '', password: '123456', name: 'Petugas' },
-  admin: { username: 'admin', password: 'admin123', name: 'Admin' },
-}
-
+/**
+ * Revisi #4 — alur login baru (2 langkah):
+ *  1. Login wilayah  : kode wilayah + password wilayah (BADAU / badau123)
+ *  2. Pilih petugas  : daftar petugas milik wilayah tsb → verifikasi PIN masing-masing
+ * Mode Administrator tetap tersedia lewat tautan di bawah.
+ */
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
+  const [adminMode, setAdminMode] = useState(false)
+  const [step, setStep] = useState<'region' | 'officer'>('region')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [adminMode, setAdminMode] = useState(false)
+
+  // Langkah 1 — wilayah
+  const [regionCode, setRegionCode] = useState('')
+  const [regionPass, setRegionPass] = useState('')
+  const [region, setRegion] = useState<RegionInfo | null>(null)
+  const [officers, setOfficers] = useState<RegionOfficer[]>([])
+
+  // Langkah 2 — petugas + PIN
+  const [adminUser, setAdminUser] = useState('')
+  const [adminPass, setAdminPass] = useState('')
+  const [selected, setSelected] = useState<RegionOfficer | null>(null)
+  const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
 
   const showError = (msg: string) => {
     setError(msg)
     setTimeout(() => setError(null), 4000)
   }
 
-  const handleLogin = async () => {
+  const isConnError = (msg: string) => /timeout|network|failed|fetch|merespon|terjangkau/i.test(msg)
+
+  // ── Langkah 1: login wilayah ──────────────────────────────────────────────
+  const handleRegionLogin = async () => {
     setError(null)
     setLoading(true)
-
     try {
-      if (adminMode) {
-        // Admin: check against fixed credentials
-        if (username === 'admin' && password === 'admin123') {
-          onLogin('admin')
+      const result = await regionLogin(regionCode.trim(), regionPass)
+      if (result.success && result.region && result.officers) {
+        if (result.officers.length === 0) {
+          showError('Wilayah ini belum memiliki petugas aktif')
         } else {
-          showError('Username atau password salah')
+          setRegion(result.region)
+          setOfficers(result.officers)
+          setStep('officer')
         }
       } else {
-        // Member: use backend API for validation
-        const result = await memberLogin(username, password)
-        if (result.success) {
-          onLogin('member', result.officer?.id)
-        } else {
-          // Bedakan kesalahan kredensial vs masalah koneksi/server
-          const msg = result.error || ''
-          const isConn = /timeout|network|failed|fetch|merespon/i.test(msg)
-          showError(
-            isConn
-              ? 'Tidak bisa terhubung ke server. Pastikan backend berjalan.'
-              : 'Username atau password salah'
-          )
-        }
+        showError(
+          isConnError(result.error || '')
+            ? 'Tidak bisa terhubung ke server. Pastikan backend berjalan.'
+            : (result.error || 'Login wilayah gagal'),
+        )
       }
     } catch (err) {
-      console.error('[Login] Error:', err)
+      console.error('[Login] region error:', err)
       showError('Terjadi kesalahan. Coba lagi.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Langkah 2: verifikasi PIN petugas ─────────────────────────────────────
+  const handleOfficerLogin = async () => {
+    if (!selected) return
+    setError(null)
+    setLoading(true)
+    try {
+      const result = await loginWithPin(selected.id, pin)
+      if (result.success) {
+        onLogin('member', selected.id)
+        return // halaman diganti state global
+      }
+      const msg = result.error?.message || ''
+      showError(
+        isConnError(msg)
+          ? 'Tidak bisa terhubung ke server. Pastikan backend berjalan.'
+          : 'PIN salah. Coba lagi.',
+      )
+      setPin('')
+    } catch (err) {
+      console.error('[Login] pin error:', err)
+      showError('Terjadi kesalahan. Coba lagi.')
+      setPin('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Admin (mode lama, tetap dipertahankan) ────────────────────────────────
+  const handleAdminLogin = async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      if (adminUser === 'admin' && adminPass === 'admin123') {
+        onLogin('admin')
+        return
+      }
+      showError('Username atau password salah')
     } finally {
       setLoading(false)
     }
@@ -62,9 +111,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const toggleAdminMode = () => {
     setAdminMode(!adminMode)
-    setUsername('')
-    setPassword('')
+    setAdminUser('')
+    setAdminPass('')
+    setError(null)
   }
+
+  const backToRegion = () => {
+    setStep('region')
+    setSelected(null)
+    setPin('')
+    setError(null)
+  }
+
+  const initials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 flex items-center justify-center p-4">
@@ -75,94 +135,236 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <Truck size={28} />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">Trip Angkutan</h1>
-          <p className="text-sm text-slate-500 mt-1">Wilayah BADAU</p>
+          <p className="text-sm text-slate-500 mt-1">Kalimantan Barat · v2.5.0</p>
         </div>
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800 mb-1">Selamat Datang</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            {adminMode ? 'Masuk sebagai Administrator' : 'Masuk sebagai Petugas'}
-          </p>
+          {adminMode ? (
+            <>
+              <h2 className="text-lg font-bold text-slate-800 mb-1">Administrator</h2>
+              <p className="text-sm text-slate-500 mb-6">Masuk ke dashboard admin</p>
 
-          <div className="space-y-4">
-            {/* Username */}
-            <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
-                Username
-              </label>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  placeholder="Masukkan username"
-                  className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
-                    error
-                      ? 'border-red-300 bg-red-50'
-                      : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
-                  }`}
-                />
-              </div>
-            </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
+                    Username
+                  </label>
+                  <input
+                    value={adminUser}
+                    onChange={e => setAdminUser(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
+                    placeholder="Masukkan username"
+                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
+                      error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPin ? 'text' : 'password'}
+                      value={adminPass}
+                      onChange={e => setAdminPass(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
+                      placeholder="Masukkan password"
+                      className={`w-full pl-4 pr-10 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
+                        error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin(!showPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
 
-            {/* Password */}
-            <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
-                Password
-              </label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  placeholder="Masukkan password"
-                  className={`w-full pl-10 pr-10 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
-                    error
-                      ? 'border-red-300 bg-red-50'
-                      : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
-                  }`}
-                />
+                {error && <ErrorBox msg={error} />}
+
                 <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={handleAdminLogin}
+                  disabled={!adminUser || !adminPass || loading}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-2"
                 >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {loading ? <Spinner label="Memverifikasi..." /> : <>Masuk <ArrowRight size={16} /></>}
                 </button>
               </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fade-in">
-                <AlertCircle size={16} className="text-red-500 shrink-0" />
-                <p className="text-red-600 text-xs font-medium">{error}</p>
+            </>
+          ) : step === 'region' ? (
+            <>
+              {/* ── Langkah 1: Login Wilayah ── */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600">
+                  <MapPin size={15} />
+                </span>
+                <h2 className="text-lg font-bold text-slate-800">Login Wilayah</h2>
               </div>
-            )}
+              <p className="text-sm text-slate-500 mb-6">Masuk sesuai akun wilayah kerja</p>
 
-            {/* Login Button */}
-            <button
-              onClick={handleLogin}
-              disabled={!username || !password || loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
+                    Wilayah
+                  </label>
+                  <input
+                    value={regionCode}
+                    onChange={e => { setError(null); setRegionCode(e.target.value.toUpperCase()) }}
+                    onKeyDown={e => e.key === 'Enter' && regionPass && handleRegionLogin()}
+                    placeholder="BADAU"
+                    autoCapitalize="characters"
+                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-bold tracking-wider text-slate-800 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none transition-colors ${
+                      error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={showPin ? 'text' : 'password'}
+                      value={regionPass}
+                      onChange={e => { setError(null); setRegionPass(e.target.value) }}
+                      onKeyDown={e => e.key === 'Enter' && regionCode && handleRegionLogin()}
+                      placeholder="Password wilayah"
+                      className={`w-full pl-10 pr-10 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
+                        error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin(!showPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <ErrorBox msg={error} />}
+
+                <button
+                  onClick={handleRegionLogin}
+                  disabled={!regionCode.trim() || !regionPass || loading}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-2"
+                >
+                  {loading ? <Spinner label="Memverifikasi..." /> : <>Masuk <ArrowRight size={16} /></>}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* ── Langkah 2: Pilih Petugas + PIN ── */}
+              <button
+                onClick={backToRegion}
+                className="flex items-center gap-1.5 text-slate-500 text-sm mb-3 hover:text-slate-700"
+              >
+                <ChevronLeft size={16} /> Ganti wilayah
+              </button>
+
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600">
+                  <Users size={15} />
+                </span>
+                <h2 className="text-lg font-bold text-slate-800">Pilih Petugas</h2>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">
+                Wilayah <span className="font-bold text-slate-700">{region?.name}</span>{' '}
+                <span className="text-xs text-slate-400">({region?.code})</span>
+              </p>
+
+              {!selected ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Memverifikasi...
+                  <div className="grid grid-cols-1 gap-2 max-h-[46vh] overflow-y-auto pr-0.5">
+                    {officers.map(o => (
+                      <button
+                        key={o.id}
+                        onClick={() => { setSelected(o); setError(null) }}
+                        className="w-full flex items-center gap-3 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 px-3 py-2.5 text-left transition-colors"
+                      >
+                        <span className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-black text-slate-500 shrink-0">
+                          {initials(o.name)}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800">{o.name}</span>
+                        <KeyRound size={14} className="ml-auto text-slate-300" />
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-400 text-center mt-4">
+                    {officers.length} petugas aktif · PIN masing-masing
+                  </p>
                 </>
               ) : (
                 <>
-                  Masuk
-                  <ArrowRight size={16} />
+                  {/* Kartu petugas terpilih */}
+                  <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 mb-4">
+                    <span className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-xs font-black text-white shrink-0">
+                      {initials(selected.name)}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{selected.name}</p>
+                      <p className="text-[11px] text-slate-400">{region?.name} · Petugas</p>
+                    </div>
+                    <button
+                      onClick={() => { setSelected(null); setPin(''); setError(null) }}
+                      className="ml-auto text-[11px] font-semibold text-blue-600"
+                    >
+                      Ganti
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
+                        PIN Petugas
+                      </label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type={showPin ? 'text' : 'password'}
+                          value={pin}
+                          onChange={e => { setError(null); setPin(e.target.value.replace(/\D/g, '').slice(0, 12)) }}
+                          onKeyDown={e => e.key === 'Enter' && pin && handleOfficerLogin()}
+                          placeholder="••••••"
+                          inputMode="numeric"
+                          autoFocus
+                          className={`w-full pl-10 pr-10 py-3 rounded-xl border-2 text-sm tracking-[0.3em] text-slate-800 placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none transition-colors ${
+                            error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPin(!showPin)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {error && <ErrorBox msg={error} />}
+
+                    <button
+                      onClick={handleOfficerLogin}
+                      disabled={!pin || loading}
+                      className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-2"
+                    >
+                      {loading ? <Spinner label="Memverifikasi..." /> : <>Verifikasi & Masuk <ArrowRight size={16} /></>}
+                    </button>
+                  </div>
                 </>
               )}
-            </button>
-          </div>
+            </>
+          )}
         </div>
 
         {/* Admin Toggle (Hidden - Click to reveal) */}
@@ -172,16 +374,34 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             onClick={toggleAdminMode}
             className="text-slate-400 hover:text-slate-600 text-xs flex items-center gap-1 mx-auto transition-colors"
           >
-            {adminMode ? 'Kembali ke Login Petugas' : 'Login Administrator'}
+            {adminMode ? 'Kembali ke Login Wilayah' : 'Login Administrator'}
             <ChevronDown size={14} className={adminMode ? 'rotate-180' : ''} />
           </button>
         </div>
 
         {/* Footer */}
         <p className="text-center text-slate-400 text-xs mt-8">
-          Kalimantan Barat · v2.4.1
+          Kalimantan Barat · Trip Angkutan
         </p>
       </div>
     </div>
+  )
+}
+
+function ErrorBox({ msg }: { msg: string }) {
+  return (
+    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fade-in">
+      <AlertCircle size={16} className="text-red-500 shrink-0" />
+      <p className="text-red-600 text-xs font-medium">{msg}</p>
+    </div>
+  )
+}
+
+function Spinner({ label }: { label: string }) {
+  return (
+    <>
+      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      {label}
+    </>
   )
 }
