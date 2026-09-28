@@ -10,7 +10,7 @@ interface ReportsTabProps {
   serverState: 'connecting' | 'online' | 'offline'
   serverTrips: BackendTrip[]
   onServerTripsChange: (t: BackendTrip[]) => void
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast }: ReportsTabProps) {

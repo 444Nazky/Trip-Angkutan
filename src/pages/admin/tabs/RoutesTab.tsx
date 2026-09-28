@@ -6,7 +6,7 @@ import { emptyRouteForm } from '../components/types'
 
 interface RoutesTabProps {
   serverState: 'connecting' | 'online' | 'offline'
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 export function RoutesTab({ serverState, showToast }: RoutesTabProps) {

@@ -10,7 +10,7 @@ interface OfficersTabProps {
   officers: Officer[]
   serverState: 'connecting' | 'online' | 'offline'
   onSaveOfficers: (o: Officer[]) => void
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']

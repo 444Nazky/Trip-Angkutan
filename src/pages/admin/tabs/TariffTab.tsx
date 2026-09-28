@@ -8,7 +8,7 @@ interface TariffTabProps {
   tariffs: TariffRow[]
   serverState: 'connecting' | 'online' | 'offline'
   onSaveTariffs: (t: TariffRow[]) => void
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {

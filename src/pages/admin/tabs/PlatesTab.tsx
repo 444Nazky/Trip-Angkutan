@@ -8,7 +8,7 @@ interface PlatesTabProps {
   plates: PlateRecord[]
   serverState: 'connecting' | 'online' | 'offline'
   onPlatesChange: (p: PlateRecord[]) => void
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 export function PlatesTab({ plates, serverState, onPlatesChange, showToast }: PlatesTabProps) {

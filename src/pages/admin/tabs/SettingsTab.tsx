@@ -10,7 +10,7 @@ interface SettingsTabProps {
   tariffs: unknown[]
   officers: unknown[]
   localTrips: unknown[]
-  showToast: (msg: string, type: 'success' | 'error') => void
+  showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
 export function SettingsTab({ onLogout, serverState, tariffs, officers, localTrips, showToast }: SettingsTabProps) {
