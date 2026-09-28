@@ -13,6 +13,7 @@ import type { BackendTrip } from '../../services/trips'
 import type { PlateRecord } from '../../services/plates'
 import type { Officer } from './components/types'
 import { CurrencyProvider } from './components/CurrencyDisplay'
+import { getApiBaseUrl } from '../../services/api'
 import { loadTheme, applyTheme } from '../../services/theme'
 
 // Tabs

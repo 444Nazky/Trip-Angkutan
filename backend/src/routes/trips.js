@@ -100,6 +100,7 @@ router.get('/', authenticate, (req, res) => {
       SELECT t.*,
         o.name as officer_name,
         r.code as region_code,
+        t.foto_kosong_path as photo_url,
         (SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id) as vehicle_count
       FROM trips t
       LEFT JOIN officers o ON t.officer_id = o.id

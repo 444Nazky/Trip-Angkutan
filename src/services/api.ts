@@ -181,6 +181,21 @@ class ApiService {
   post<T>(path: string, body?: unknown) { return this.request<T>('POST', path, body) }
   put<T>(path: string, body?: unknown) { return this.request<T>('PUT', path, body) }
   delete<T>(path: string) { return this.request<T>('DELETE', path) }
+
+  async uploadPhoto(file: File): Promise<{ url: string } | null> {
+    const form = new FormData()
+    form.append('foto', file)
+    try {
+      const res = await fetch(`${this.baseUrl}/upload`, {
+        method: 'POST',
+        headers: { Authorization: this._token ? `Bearer ${this._token}` : '' },
+        body: form,
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.url ? { url: data.url } : null
+    } catch { return null }
+  }
 }
 
 export const api = new ApiService()

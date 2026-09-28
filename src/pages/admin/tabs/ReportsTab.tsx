@@ -11,9 +11,10 @@ interface ReportsTabProps {
   serverTrips: BackendTrip[]
   onServerTripsChange: (t: BackendTrip[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
+  baseUrl?: string
 }
 
-export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast }: ReportsTabProps) {
+export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast, baseUrl = '' }: ReportsTabProps) {
   const { revealed, toggle } = useCurrencyReveal()
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
@@ -286,7 +287,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       {viewingPhotos && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingPhotos(null)}>
           <div onClick={e => e.stopPropagation()} className="max-w-4xl w-full">
-            <PhotoViewer photos={viewingPhotos} onClose={() => setViewingPhotos(null)} />
+            <PhotoViewer photos={viewingPhotos} onClose={() => setViewingPhotos(null)} baseUrl={baseUrl} />
           </div>
         </div>
       )}
