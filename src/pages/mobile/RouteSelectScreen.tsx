@@ -113,8 +113,8 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
                 </div>
               </div>
               <div className="flex gap-4 pl-[52px]">
-                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance}</span>
-                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration}</span>
+                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance || '—'}</span>
+                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration || '—'}</span>
                 {locked && (
                   <span className="text-[10px] font-bold text-amber-600 ml-auto flex items-center gap-1">
                     <Lock size={10} /> Terkunci (Trip Kosong)

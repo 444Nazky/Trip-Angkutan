@@ -124,7 +124,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
             </div>
           </div>
           <div className="text-right">
-            <p className="font-bold text-blue-600 text-[13px]">{route.distance}</p>
+            <p className="font-bold text-blue-600 text-[13px]">{route.distance || '—'}</p>
             <p className="text-[10px] text-slate-400">Sisa ~{remainingKm} km</p>
           </div>
         </div>

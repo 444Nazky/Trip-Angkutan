@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X } from 'lucide-react'
+import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X, Route as RouteIcon } from 'lucide-react'
 import { useApp } from '../store'
 import { tariffData } from '../data'
 import { ensureAdminBackendSession } from '../../services/auth'
@@ -10,6 +10,7 @@ import {
 } from '../../services/trips'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../services/plates'
 import { fetchRegions, type Region } from '../../services/regions'
+import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../services/dermagas'
 import { downloadXlsx } from '../../services/xlsx'
 import { loadTheme, saveTheme, applyTheme, ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, type AdminTheme } from '../../services/theme'
 import { api } from '../../services/api'
@@ -19,6 +20,11 @@ interface TariffRow { id?: string; golongan: string; type: string; loaded: strin
 interface Officer { id: string; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string }
 interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[] }
 interface Toast { msg: string; type: 'success' | 'error' }
+// Master Rute — baris rute + dermaga (data server menyertakan nama wilayah)
+interface RouteRow { id: string; dermaga_id: string; name: string; route_from: string; route_to: string; distance?: string; duration?: string; dermaga_name?: string; dermaga_code?: string; region_name?: string }
+interface RouteDermaga { id: string; region_id: string; name: string; code: string; region_name?: string; region_code?: string }
+interface RouteFormState { dermaga_id: string; name: string; route_from: string; route_to: string; distance: string; duration: string }
+const emptyRouteForm: RouteFormState = { dermaga_id: '', name: '', route_from: '', route_to: '', distance: '', duration: '' }
 
 /**
  * Gabung baris petugas dari server dengan daftar lokal.
@@ -69,6 +75,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [plateState, setPlateState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [plateForm, setPlateForm] = useState({ plate: '', owner: '', originRegionId: '', status: 'internal' as PlateStatus })
   const [editPlateId, setEditPlateId] = useState<string | null>(null)
+  // Master Rute (revisi #3)
+  const [routeRows, setRouteRows] = useState<RouteRow[]>([])
+  const [routeDermagas, setRouteDermagas] = useState<RouteDermaga[]>([])
+  const [routeState, setRouteState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const [routeForm, setRouteForm] = useState<RouteFormState>(emptyRouteForm)
+  const [editRouteId, setEditRouteId] = useState<string | null>(null)
   const [backendOfficers, setBackendOfficers] = useState<BackendOfficerRow[]>([])
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editTarIdx, setEditTarIdx] = useState<number | null>(null)
@@ -288,6 +300,80 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     if (tab === 'plates' && plateState === 'idle') void loadPlates()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, plateState])
+
+  // Master Rute: lazy-load saat tab dibuka
+  const loadRoutes = async () => {
+    setRouteState('loading')
+    const ok = await ensureAdminBackendSession()
+    if (!ok) { setRouteState('offline'); return }
+    const [rts, dms] = await Promise.all([fetchRoutes(), fetchDermagas()])
+    if (rts === null) { setRouteState('offline'); return }
+    setRouteRows(rts as RouteRow[])
+    if (dms) setRouteDermagas(dms as RouteDermaga[])
+    setRouteState('ready')
+  }
+
+  useEffect(() => {
+    if (tab === 'routes' && routeState === 'idle') void loadRoutes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, routeState])
+
+  const refreshRouteRows = async () => {
+    const fresh = await fetchRoutes()
+    if (fresh) setRouteRows(fresh as RouteRow[])
+  }
+
+  const resetRouteForm = () => {
+    setEditRouteId(null)
+    setRouteForm(emptyRouteForm)
+  }
+
+  const startEditRoute = (r: RouteRow) => {
+    setEditRouteId(r.id)
+    setRouteForm({
+      dermaga_id: r.dermaga_id,
+      name: r.name,
+      route_from: r.route_from,
+      route_to: r.route_to,
+      distance: r.distance ?? '',
+      duration: r.duration ?? '',
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSaveRoute = async () => {
+    const f = routeForm
+    if (!f.name.trim() || !f.route_from.trim() || !f.route_to.trim()) {
+      return showToast('Nama, asal, dan tujuan rute wajib diisi!', 'error')
+    }
+    if (!editRouteId && !f.dermaga_id) return showToast('Pilih dermaga rute!', 'error')
+
+    const payload = {
+      dermaga_id: f.dermaga_id,
+      name: f.name.trim(),
+      route_from: f.route_from.trim().toUpperCase(),
+      route_to: f.route_to.trim().toUpperCase(),
+      distance: f.distance.trim() || undefined,
+      duration: f.duration.trim() || undefined,
+    }
+    const saved = editRouteId
+      ? await updateRoute(editRouteId, payload)
+      : (await createRoute(payload)) !== null
+    if (!saved) return showToast('Gagal menyimpan ke server', 'error')
+
+    showToast(editRouteId ? 'Rute diperbarui' : 'Rute ditambahkan')
+    resetRouteForm()
+    await refreshRouteRows()
+  }
+
+  const handleDeleteRoute = async (id: string) => {
+    if (!window.confirm('Hapus rute ini? Petugas tidak akan melihatnya lagi di layar Pilih Rute.')) return
+    const ok = await deleteRoute(id)
+    if (!ok) return showToast('Gagal menghapus rute', 'error')
+    if (editRouteId === id) resetRouteForm()
+    showToast('Rute dihapus')
+    await refreshRouteRows()
+  }
 
   // Tarif region: ambil konfigurasi saat tab Master Tarif dibuka (kalau belum ada)
   useEffect(() => {
@@ -542,6 +628,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
+    { key: 'routes', label: 'Master Rute', Icon: RouteIcon },
     { key: 'officers', label: 'Petugas', Icon: Users },
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
@@ -851,6 +938,115 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         </td>
                         <td className="p-4 text-right">
                           <button onClick={() => void handleSaveRegionTariff(rt)} className="text-blue-600 font-bold text-sm">Simpan</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'routes' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg">Master Rute</h3>
+                  <p className="text-slate-500 text-[12px]">Rute per wilayah & dermaga — nama rute bebas diubah dan langsung dipakai aplikasi petugas</p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
+                  routeState === 'ready' ? 'bg-emerald-50 text-emerald-600'
+                  : routeState === 'offline' ? 'bg-amber-50 text-amber-600'
+                  : 'bg-slate-100 text-slate-500'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    routeState === 'ready' ? 'bg-emerald-500'
+                    : routeState === 'offline' ? 'bg-amber-500'
+                    : 'bg-slate-400 animate-pulse'
+                  }`} />
+                  {routeState === 'ready' ? 'Server: Tersambung'
+                  : routeState === 'offline' ? 'Server: Offline'
+                  : 'Memuat...'}
+                </span>
+              </div>
+
+              {/* Form tambah / edit rute */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm max-w-4xl">
+                <h3 className="font-bold mb-4">{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
+                <div className="grid grid-cols-6 gap-4 mb-4">
+                  <div className="col-span-2"><label className="text-[11px] text-slate-500 block mb-1">Dermaga *</label>
+                    <select
+                      value={routeForm.dermaga_id}
+                      onChange={e => setRouteForm({ ...routeForm, dermaga_id: e.target.value })}
+                      disabled={!!editRouteId}
+                      className="w-full border rounded-xl px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <option value="">— Pilih dermaga —</option>
+                      {routeDermagas.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.region_name || d.region_id} · {d.name} ({d.code})
+                        </option>
+                      ))}
+                    </select></div>
+                  <div className="col-span-2"><label className="text-[11px] text-slate-500 block mb-1">Nama Rute *</label>
+                    <input value={routeForm.name} onChange={e => setRouteForm({ ...routeForm, name: e.target.value })} placeholder="Sijangkung → Sabadi"
+                      className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+                  <div><label className="text-[11px] text-slate-500 block mb-1">Asal *</label>
+                    <input value={routeForm.route_from} onChange={e => setRouteForm({ ...routeForm, route_from: e.target.value.toUpperCase() })} placeholder="SJRE"
+                      className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" /></div>
+                  <div><label className="text-[11px] text-slate-500 block mb-1">Tujuan *</label>
+                    <input value={routeForm.route_to} onChange={e => setRouteForm({ ...routeForm, route_to: e.target.value.toUpperCase() })} placeholder="SBDZ"
+                      className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" /></div>
+                </div>
+                <div className="grid grid-cols-6 gap-4 mb-4">
+                  <div><label className="text-[11px] text-slate-500 block mb-1">Jarak</label>
+                    <input value={routeForm.distance} onChange={e => setRouteForm({ ...routeForm, distance: e.target.value })} placeholder="42 km"
+                      className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+                  <div><label className="text-[11px] text-slate-500 block mb-1">Durasi</label>
+                    <input value={routeForm.duration} onChange={e => setRouteForm({ ...routeForm, duration: e.target.value })} placeholder="1j 10m"
+                      className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+                </div>
+                <div className="flex gap-3">
+                  {editRouteId && <button onClick={resetRouteForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
+                  <button onClick={() => void handleSaveRoute()} className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700`}>
+                    {editRouteId ? 'Update' : 'Tambah Rute'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabel rute */}
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="text-left p-4">Wilayah</th>
+                      <th className="text-left p-4">Dermaga</th>
+                      <th className="text-left p-4">Nama Rute</th>
+                      <th className="text-left p-4">Asal</th>
+                      <th className="text-left p-4">Tujuan</th>
+                      <th className="text-left p-4">Jarak</th>
+                      <th className="text-left p-4">Durasi</th>
+                      <th className="text-right p-4">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {routeRows.length === 0 && (
+                      <tr><td colSpan={8} className="p-8 text-center text-slate-400 text-sm">
+                        {routeState === 'offline' ? 'Server offline — rute tidak bisa dimuat' : 'Belum ada rute'}
+                      </td></tr>
+                    )}
+                    {routeRows.map(r => (
+                      <tr key={r.id} className={editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}>
+                        <td className="p-4 font-semibold text-slate-700">{r.region_name || '—'}</td>
+                        <td className="p-4 text-slate-500">{r.dermaga_name || '—'} <span className="text-[10px] text-slate-400">({r.dermaga_code || ''})</span></td>
+                        <td className="p-4 font-semibold text-slate-800">{r.name}</td>
+                        <td className="p-4 font-mono text-slate-600">{r.route_from}</td>
+                        <td className="p-4 font-mono text-slate-600">{r.route_to}</td>
+                        <td className="p-4 text-slate-500">{r.distance || '—'}</td>
+                        <td className="p-4 text-slate-500">{r.duration || '—'}</td>
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <button onClick={() => startEditRoute(r)} className="text-blue-600 font-bold text-sm mr-3 hover:underline">Edit</button>
+                          <button onClick={() => void handleDeleteRoute(r.id)} className="text-red-500 font-bold text-sm hover:underline">Hapus</button>
                         </td>
                       </tr>
                     ))}
