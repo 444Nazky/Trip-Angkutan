@@ -87,14 +87,14 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           Server: {serverState === 'online' ? 'Tersambung' : 'Offline'}
         </span>
         <button onClick={() => setAddTar(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
+          className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800">
           <Plus size={14} />Tambah Golongan
         </button>
       </div>
 
       {/* Form Tambah */}
       {addTar && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
           <h3 className="font-bold mb-4">Tambah Golongan</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Golongan</label>
@@ -117,14 +117,14 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           </div>
           <div className="flex gap-3">
             <button onClick={() => setAddTar(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleAddTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Simpan</button>
+            <button onClick={handleAddTar} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Simpan</button>
           </div>
         </div>
       )}
 
       {/* Form Edit */}
       {editTarIdx !== null && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
           <h3 className="font-bold mb-4">Edit Golongan</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Golongan</label>
@@ -147,13 +147,13 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           </div>
           <div className="flex gap-3">
             <button onClick={() => setEditTarIdx(null)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleUpdTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Update</button>
+            <button onClick={handleUpdTar} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Update</button>
           </div>
         </div>
       )}
 
       {/* Tabel Master Golongan */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
             <tr><th className="text-left p-4">Gol</th><th className="text-left p-4">Jenis</th><th className="text-left p-4">Muatan</th><th className="text-left p-4">Kosong</th><th className="text-left p-4">Aksi</th></tr>
@@ -176,7 +176,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       </div>
 
       {/* Konfigurasi Tarif Region */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
           <p className="font-bold text-slate-800">Konfigurasi Tarif Terpusat (Penarifan Plat)</p>
           <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">

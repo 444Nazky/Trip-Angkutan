@@ -151,14 +151,14 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     <div className="space-y-4">
       <div className="flex justify-end">
         <button onClick={() => setAddOff(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
+          className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800">
           <Plus size={14} />Tambah Petugas
         </button>
       </div>
 
       {/* Form Tambah */}
       {addOff && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
           <h3 className="font-bold mb-4">Tambah Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
@@ -191,14 +191,14 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
               className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
           <div className="flex gap-3">
             <button onClick={() => setAddOff(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleAddOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Simpan</button>
+            <button onClick={handleAddOff} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Simpan</button>
           </div>
         </div>
       )}
 
       {/* Form Edit */}
       {editOffIdx !== null && editOff && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-lg">
           <h3 className="font-bold mb-4">Edit Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
@@ -237,14 +237,14 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
           <div className="flex gap-3">
             <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }}
               className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Update</button>
+            <button onClick={handleUpdOff} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Update</button>
           </div>
         </div>
       )}
 
       {/* Tabel per grup */}
       {officerGroups.map(region => (
-        <div key={region} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div key={region} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
             <Lock size={14} className="text-blue-400" />
             {region === 'LAINNYA' ? 'Lainnya' : region} ({officers.filter(o => inRegionGroup(o, region)).length} petugas)
@@ -263,7 +263,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                       {(o.dermagaAccess ?? []).length === 0 ? <span className="text-slate-300 text-xs">—</span> : (
                         <span className="flex flex-wrap gap-1">
                           {o.dermagaAccess!.map(d => (
-                            <span key={d.id} className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-bold">{d.code}</span>
+                            <span key={d.id} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 text-[10px] font-semibold">{d.code}</span>
                           ))}
                         </span>
                       )}

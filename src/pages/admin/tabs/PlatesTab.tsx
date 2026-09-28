@@ -86,7 +86,7 @@ export function PlatesTab({ plates, serverState, onPlatesChange, showToast }: Pl
       </div>
 
       {/* Form */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm max-w-3xl">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-3xl">
         <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
         <div className="grid grid-cols-4 gap-4 mb-4">
           <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
@@ -112,14 +112,14 @@ export function PlatesTab({ plates, serverState, onPlatesChange, showToast }: Pl
         <div className="flex gap-3">
           {editPlateId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
           <button onClick={() => void handleSave()}
-            className={`${editPlateId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700`}>
+            className={`${editPlateId ? 'flex-1' : 'w-48'} py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800`}>
             {editPlateId ? 'Update' : 'Daftarkan'}
           </button>
         </div>
       </div>
 
       {/* Tabel */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
             <tr><th className="text-left p-4">No. Plat</th><th className="text-left p-4">Pemilik</th><th className="text-left p-4">Region Asal</th><th className="text-left p-4">Status</th><th className="text-right p-4">Aksi</th></tr>

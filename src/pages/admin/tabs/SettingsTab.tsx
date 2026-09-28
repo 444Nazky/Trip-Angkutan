@@ -29,7 +29,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
   return (
     <div className="space-y-6">
       {/* Tema & Tampilan */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Tema & Tampilan</h3>
         <p className="text-xs text-slate-500 mb-6">Sesuaikan tema situs, ukuran font, dan warna aksen</p>
 
@@ -45,7 +45,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 <button
                   key={m}
                   onClick={() => updateTheme({ mode: m })}
-                  className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.mode === m ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+                  className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.mode === m ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-white'}`}
                 >
                   {icon} {label}
                 </button>
@@ -64,7 +64,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 <button
                   key={opt.value}
                   onClick={() => updateTheme({ zoom: opt.value })}
-                  className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+                  className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-white'}`}
                 >
                   {opt.label}
                 </button>
@@ -108,7 +108,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
       </div>
 
       {/* Sistem */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Sistem</h3>
         <p className="text-xs text-slate-500 mb-6">Status koneksi dan data lokal</p>
 
@@ -127,7 +127,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 const ok = await ensureAdminBackendSession()
                 showToast(ok ? 'Backend aktif' : 'Gagal', ok ? 'success' : 'error')
               }}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700"
+              className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800"
             >
               Tes Koneksi
             </button>

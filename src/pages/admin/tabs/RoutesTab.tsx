@@ -97,7 +97,7 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
       </div>
 
       {/* Form */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm max-w-4xl">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 max-w-4xl">
         <h3 className="font-bold mb-4">{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
         <div className="grid grid-cols-6 gap-4 mb-4">
           <div className="col-span-2">
@@ -137,14 +137,14 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
         <div className="flex gap-3">
           {editRouteId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
           <button onClick={() => void handleSave()}
-            className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700`}>
+            className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800`}>
             {editRouteId ? 'Update' : 'Tambah Rute'}
           </button>
         </div>
       </div>
 
       {/* Tabel */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
             <tr>
