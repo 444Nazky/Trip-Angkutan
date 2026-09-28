@@ -67,6 +67,10 @@ export interface ReportFilters {
   vehicleType?: string
   route?: string
   status?: string
+  /** Rentang tanggal laporan (YYYY-MM-DD). Backend menerapkan filter hanya
+   *  bila startDate & endDate sama-sama ada, jadi keduanya dikirim berpasangan. */
+  startDate?: string
+  endDate?: string
 }
 
 function toQuery(f?: ReportFilters): string {
@@ -76,6 +80,8 @@ function toQuery(f?: ReportFilters): string {
   if (f.vehicleType) params.set('vehicleType', f.vehicleType)
   if (f.route) params.set('route', f.route)
   if (f.status) params.set('status', f.status)
+  if (f.startDate) params.set('startDate', f.startDate)
+  if (f.endDate) params.set('endDate', f.endDate)
   const qs = params.toString()
   return qs ? `?${qs}` : ''
 }
@@ -97,6 +103,35 @@ export async function fetchReportFilters(): Promise<ReportFilterOptions | null> 
   const result = await api.get<ReportFilterOptions>('/reports/trips/filters')
   if (!result.ok || !result.data) return null
   return result.data
+}
+
+/** Ringkasan angka (trip, unit, pendapatan) untuk kartu metrik dashboard. */
+export interface ReportSummary {
+  totalTrips: number
+  totalVehicles: number
+  totalRevenue: number
+}
+
+export async function fetchReportSummary(
+  startDate?: string,
+  endDate?: string,
+): Promise<ReportSummary | null> {
+  const params = new URLSearchParams()
+  if (startDate) params.set('startDate', startDate)
+  if (endDate) params.set('endDate', endDate)
+  const qs = params.toString()
+  const result = await api.get<ReportSummary>(`/reports/summary${qs ? `?${qs}` : ''}`)
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/** Kunci hari (YYYY-MM-DD) dalam zona waktu WIB — dipakai grafik & metrik harian. */
+export function dayKeyWib(raw: string | null | undefined): string {
+  if (!raw) return '-'
+  const iso = /Z|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d)
 }
 
 /**

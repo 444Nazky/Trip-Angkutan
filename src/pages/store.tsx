@@ -232,9 +232,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { return false }
   }
 
-  const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
+  // Sesi admin hanya valid di build admin (:8000). Di aplikasi mobile
+  // (:5173 / Capacitor) opsi login administrator sudah dihapus, jadi sesi
+  // admin lama yang tertinggal langsung dibersihkan agar tidak nyangkut.
+  const staleAdminSession = !isAdminBuild() && (load('trip.userType', 'member') as string) === 'admin'
+  const [loggedIn, setLoggedIn] = useState<boolean>(() =>
+    staleAdminSession ? false : load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => {
     if (isAdminBuild()) return 'admin'
+    if (staleAdminSession) return 'member'
     return load('trip.userType', 'member')
   })
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))

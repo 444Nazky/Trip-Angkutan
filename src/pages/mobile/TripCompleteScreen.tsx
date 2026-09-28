@@ -26,7 +26,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
     : (t.vehicle !== '-' ? 1 : 0)
 
   return (
-    <div className="px-4 pt-6 pb-4 flex flex-col items-center animate-fade-in">
+    <div className="px-4 pt-6 pb-4 flex flex-col items-center">
       <div className="w-20 h-20 rounded-3xl bg-emerald-100 flex items-center justify-center mb-4">
         <Check size={38} className="text-emerald-500" strokeWidth={3} />
       </div>

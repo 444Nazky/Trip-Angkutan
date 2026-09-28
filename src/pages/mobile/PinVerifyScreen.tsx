@@ -82,7 +82,7 @@ export default function PinVerifyScreen({ go, onDermagaSelect }: PinVerifyScreen
   }
 
   return (
-    <div className="px-4 pt-2 pb-4 flex flex-col items-center animate-fade-in">
+    <div className="px-4 pt-2 pb-4 flex flex-col items-center">
       <button onClick={() => go(verifyIntent === 'switch' ? 'officer-switch' : 'profile')} className="self-start flex items-center gap-1.5 text-slate-500 text-[13px] mb-8 hover:text-slate-700 font-medium">
         <ChevronLeft size={16} /> Kembali
       </button>

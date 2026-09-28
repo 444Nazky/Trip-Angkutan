@@ -89,7 +89,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
   }
 
   return (
-    <div className="px-4 pt-2 pb-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-black text-slate-900 text-[20px]">Trip Berlangsung</h2>
         <span className="text-[11px] font-bold bg-blue-100 text-blue-600 px-3 py-1 rounded-full flex items-center gap-1.5">

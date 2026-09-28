@@ -32,7 +32,7 @@ export default function DermagaSelectScreen({ go, dermagas, onSelected, onCancel
   }
 
   return (
-    <div className="px-4 pt-2 pb-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4">
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-2">
           <Anchor size={14} className="text-amber-400" />

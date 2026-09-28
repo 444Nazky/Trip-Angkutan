@@ -25,6 +25,81 @@
 .animate-fade-in { animation: fade-in 0.3s ease-out both; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   TRANSISI HALAMAN MOBILE — variasi per konteks navigasi (bukan fade terus)
+   push  : maju (dari kanan)     pop   : kembali (dari kiri)
+   zoom  : halaman detail        sheet : form/modal (dari bawah)
+   tab   : ganti tab bawah
+   Semua memakai transform+opacity (compositor) → tetap 60 FPS.
+   ═════════════════════════════════════════════════════════════════════════ */
+@keyframes scr-push  { from { transform: translateX(34px);  opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-pop   { from { transform: translateX(-34px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-zoom  { from { transform: scale(0.93);       opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-sheet { from { transform: translateY(52px);  opacity: 0.35 } to { transform: none; opacity: 1 } }
+@keyframes scr-tab   { from { transform: translateY(10px) scale(0.985); opacity: 0.3 } to { transform: none; opacity: 1 } }
+
+.scr-anim {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+.scr-anim-push  { animation: scr-push  0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.scr-anim-pop   { animation: scr-pop   0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.scr-anim-zoom  { animation: scr-zoom  0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.scr-anim-sheet { animation: scr-sheet 0.30s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.scr-anim-tab   { animation: scr-tab   0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIF — target utama perangkat mobile
+   Bingkai "ponsel" hanya untuk pratinjau desktop; di layar sempit (HP/
+   Capacitor WebView) aplikasi memenuhi seluruh layar tanpa border & radius.
+   ═════════════════════════════════════════════════════════════════════════ */
+.app-frame {
+  width: 390px;
+  height: 844px;
+  max-height: 100vh;
+  max-height: 100dvh;
+  background: #f1f5f9;
+  border-radius: 48px;
+  border: 1px solid rgba(203, 213, 225, 0.6);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+@media (max-width: 640px) {
+  .app-frame {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEEDBACK SENTUHAN TOMBOL — skalakan halus saat ditekan (semua platform).
+   :where() dipakai supaya spesifikasinya nol → kelas active:scale bawaan
+   Tailwind tetap menang bila ada, dan tombol yang tak diberi kelas pun
+   tetap memberi umpan balik.
+   ═════════════════════════════════════════════════════════════════════════ */
+:where(button) {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+:where(button:not(:disabled):active) { transform: scale(0.96); }
+:where(button:disabled) { cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scr-anim-push, .scr-anim-pop, .scr-anim-zoom, .scr-anim-sheet, .scr-anim-tab {
+    animation: none !important;
+  }
+  :where(button:not(:disabled):active) { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    ADMIN DASHBOARD  (disajikan index.php dengan atribut data-admin di <html>)
    Semua aturan di bawah hanya aktif untuk halaman admin — aplikasi mobile
    Ionic tidak punya [data-admin] sehingga tidak terpengaruh sama sekali.

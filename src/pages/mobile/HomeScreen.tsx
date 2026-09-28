@@ -40,7 +40,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
       .filter(p => p && p !== '-'),
   )
   return (
-    <div className="px-4 pt-1 pb-4 space-y-3.5 animate-fade-in">
+    <div className="px-4 pt-1 pb-4 space-y-3.5">
       {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />

@@ -205,6 +205,19 @@ function relaxTripsDermagaNotNull() {
 // Idempotent: jalan tiap boot dan melengkapi DB lama tanpa menimpa data sedia.
 const SPEC_WILAYAH = [
   {
+    code: 'ENTIKONG', name: 'Entikong',
+    // Wilayah Entikong sudah punya petugas (Rizky Maulana) — tanpa seed petugas.
+    officers: [],
+    routes: [
+      // Dermaga 1
+      { d: 'D1', from: 'A4A4', to: 'B8B8', name: 'A4A4 → B8B8', distance: null, duration: null },
+      { d: 'D1', from: 'B8B8', to: 'A4A4', name: 'B8B8 → A4A4', distance: null, duration: null },
+      // Dermaga 2
+      { d: 'D2', from: 'C3C3', to: 'D6D6', name: 'C3C3 → D6D6', distance: null, duration: null },
+      { d: 'D2', from: 'D6D6', to: 'C3C3', name: 'D6D6 → C3C3', distance: null, duration: null },
+    ],
+  },
+  {
     code: 'BADAU', name: 'Badau',
     officers: ['Budi Santoso', 'Andi Pratama', 'Siti Rahayu'],
     routes: [

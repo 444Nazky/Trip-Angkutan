@@ -15,7 +15,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
 
   return (
-    <div className="px-4 pt-2 pb-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4">
       <button onClick={() => go('home')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
         <ChevronLeft size={16} /> Kembali
       </button>

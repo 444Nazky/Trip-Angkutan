@@ -40,7 +40,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   }
 
   return (
-    <div className="px-4 pt-2 pb-6 animate-fade-in">
+    <div className="px-4 pt-2 pb-6">
       <button onClick={() => go('profile')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
         <ChevronLeft size={16} /> Profil
       </button>

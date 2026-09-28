@@ -31,7 +31,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
     return regs.some(r => myRegions.includes(r))
   })
   return (
-    <div className="px-4 pt-2 pb-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4">
       <button onClick={() => go('profile')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
         <ChevronLeft size={16} /> Kembali
       </button>

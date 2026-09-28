@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Truck, Lock, Eye, EyeOff, ArrowRight, AlertCircle, ChevronDown, ChevronLeft, MapPin } from 'lucide-react'
+import { Truck, Lock, Eye, EyeOff, ArrowRight, AlertCircle, ChevronLeft, MapPin } from 'lucide-react'
 import { regionLogin, loginWithPin, type RegionInfo, type RegionOfficer } from '../services/auth'
 import { officerList } from './data'
 
@@ -11,10 +11,10 @@ interface LoginPageProps {
  * Revisi #4 — alur login baru (2 langkah):
  *  1. Login wilayah  : kode wilayah + password wilayah (BADAU / badau123)
  *  2. Pilih petugas  : daftar petugas milik wilayah tsb → verifikasi PIN masing-masing
- * Mode Administrator tetap tersedia lewat tautan di bawah.
+ * Catatan: opsi "Login Administrator" sudah dihapus dari aplikasi mobile —
+ * dashboard admin hanya dibuka lewat build admin (CodeIgniter di :8000).
  */
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [adminMode, setAdminMode] = useState(false)
   const [step, setStep] = useState<'region' | 'officer'>('region')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -26,8 +26,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [officers, setOfficers] = useState<RegionOfficer[]>([])
 
   // Langkah 2 — petugas + PIN
-  const [adminUser, setAdminUser] = useState('')
-  const [adminPass, setAdminPass] = useState('')
   const [selected, setSelected] = useState<RegionOfficer | null>(null)
   const [pin, setPin] = useState('')
   const [showPin, setShowPin] = useState(false)
@@ -102,28 +100,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     if (pin.length < 6) setPin(p => p + d)
   }
 
-  // ── Admin (mode lama, tetap dipertahankan) ────────────────────────────────
-  const handleAdminLogin = async () => {
-    setError(null)
-    setLoading(true)
-    try {
-      if (adminUser === 'admin' && adminPass === 'admin123') {
-        onLogin('admin')
-        return
-      }
-      showError('Username atau password salah')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const toggleAdminMode = () => {
-    setAdminMode(!adminMode)
-    setAdminUser('')
-    setAdminPass('')
-    setError(null)
-  }
-
   const backToRegion = () => {
     setStep('region')
     setSelected(null)
@@ -148,63 +124,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 border border-slate-100">
-          {adminMode ? (
-            <>
-              <h2 className="text-lg font-bold text-slate-800 mb-1">Administrator</h2>
-              <p className="text-sm text-slate-500 mb-6">Masuk ke dashboard admin</p>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
-                    Username
-                  </label>
-                  <input
-                    value={adminUser}
-                    onChange={e => setAdminUser(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
-                    placeholder="Masukkan username"
-                    className={`w-full px-4 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
-                      error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPin ? 'text' : 'password'}
-                      value={adminPass}
-                      onChange={e => setAdminPass(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
-                      placeholder="Masukkan password"
-                      className={`w-full pl-4 pr-10 py-3 rounded-xl border-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
-                        error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPin(!showPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                      {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {error && <ErrorBox msg={error} />}
-
-                <button
-                  onClick={handleAdminLogin}
-                  disabled={!adminUser || !adminPass || loading}
-                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-2"
-                >
-                  {loading ? <Spinner label="Memverifikasi..." /> : <>Masuk <ArrowRight size={16} /></>}
-                </button>
-              </div>
-            </>
-          ) : step === 'region' ? (
+          {step === 'region' ? (
             <>
               {/* ── Langkah 1: Login Wilayah ── */}
               <div className="flex items-center gap-2 mb-1">
@@ -413,18 +333,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </>
           )}
-        </div>
-
-        {/* Admin Toggle (Hidden - Click to reveal) */}
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={toggleAdminMode}
-            className="text-slate-400 hover:text-slate-600 text-xs flex items-center gap-1 mx-auto transition-colors"
-          >
-            {adminMode ? 'Kembali ke Login Wilayah' : 'Login Administrator'}
-            <ChevronDown size={14} className={adminMode ? 'rotate-180' : ''} />
-          </button>
         </div>
 
         {/* Footer */}

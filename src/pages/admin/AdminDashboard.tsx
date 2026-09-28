@@ -1,12 +1,12 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X, Route as RouteIcon } from 'lucide-react'
+import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X, Wallet, Route as RouteIcon } from 'lucide-react'
 import { useApp } from '../store'
 import { tariffData } from '../data'
 import { ensureAdminBackendSession } from '../../services/auth'
 import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../services/tariffs'
 import {
-  fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime,
-  type BackendTrip, type ReportTrip, type ReportFilters,
+  fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, formatReportDateTime, dayKeyWib,
+  type BackendTrip, type ReportTrip, type ReportFilters, type ReportSummary,
 } from '../../services/trips'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../services/plates'
 import { fetchRegions, type Region } from '../../services/regions'
@@ -112,7 +112,22 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
-  const regionCodes = regions.length > 0 ? regions.map(r => r.code) : ['BADAU', 'ENTIKONG']
+
+  // SBDZ & SJRE adalah nama pos/dermaga lama — bukan wilayah maupun dermaga
+  // petugas, jadi tidak ditampilkan di halaman Petugas (termasuk form tambah/edit).
+  const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']
+  const regionCodes = (regions.length > 0 ? regions.map(r => r.code) : ['BADAU', 'ENTIKONG'])
+    .filter(c => !HIDDEN_REGION_CODES.includes(c))
+  const officerRegionCodes = (o: Officer) => (o.regions && o.regions.length > 0 ? o.regions : [o.region])
+  const inRegionGroup = (o: Officer, group: string) =>
+    group === 'LAINNYA'
+      ? !officerRegionCodes(o).some(c => regionCodes.includes(c))
+      : officerRegionCodes(o).includes(group)
+  // Grup wilayah yang tampil + grup cadangan bila ada petugas tanpa wilayah terlihat
+  const officerGroups: string[] = [
+    ...regionCodes,
+    ...(officers.some(o => !officerRegionCodes(o).some(c => regionCodes.includes(c))) ? ['LAINNYA'] : []),
+  ]
 
   // Cari pasangan petugas di backend: cocokkan id dulu, fallback nama
   // (petugas lama sebelum id berubah menjadi UUID).
@@ -194,7 +209,23 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const applyReportFilter = (patch: Partial<ReportFilters>) => {
-    const next = { ...reportFilters, ...patch }
+    let next = { ...reportFilters, ...patch }
+    // Backend menerapkan filter tanggal hanya bila startDate & endDate sama-sama
+    // ada — lengkapi otomatis agar pilihan satu sisi tetap berlaku.
+    const today = dayKeyWib(new Date().toISOString())
+    if (next.startDate && !next.endDate) next = { ...next, endDate: today }
+    if (next.endDate && !next.startDate) next = { ...next, startDate: '1970-01-01' }
+    setReportFilters(next)
+    setOpenTripId(null)
+    void loadReports(next)
+  }
+
+  // Rentang cepat: Hari ini · 7 hari · 30 hari · Semua
+  const applyDatePreset = (days: number | null) => {
+    if (!days) { clearReportFilters(); return }
+    const today = dayKeyWib(new Date().toISOString())
+    const start = dayKeyWib(new Date(Date.now() - (days - 1) * 86400000).toISOString())
+    const next: ReportFilters = { ...reportFilters, startDate: start, endDate: today }
     setReportFilters(next)
     setOpenTripId(null)
     void loadReports(next)
@@ -205,6 +236,61 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setOpenTripId(null)
     void loadReports({})
   }
+
+  // ── Dashboard (Ringkasan): kartu metrik hari ini + 5 trip terbaru ──────────
+  // Tab ini hanya pusat informasi cepat (at-a-glance); data mentah & analitik
+  // mendalam ada di tab Laporan. Data di-refresh otomatis tiap 15 detik.
+  const [dashSummary, setDashSummary] = useState<ReportSummary | null>(null)
+  const [dashAt, setDashAt] = useState<string>('')
+
+  const loadOverview = async () => {
+    const ok = await ensureAdminBackendSession()
+    if (!ok) { setServerState('offline'); return }
+    const today = dayKeyWib(new Date().toISOString())
+    const [trips, summary] = await Promise.all([fetchTrips(), fetchReportSummary(today, today)])
+    if (trips) setServerTrips(trips)
+    setDashSummary(summary)
+    setServerState('online')
+    setDashAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))
+  }
+
+  useEffect(() => {
+    if (tab !== 'overview') return
+    void loadOverview()
+    const id = setInterval(() => void loadOverview(), 15000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  const activeOfficerCount = officers.filter(o => o.status === 'Aktif').length
+  const latestTrips = [...serverTrips]
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 5)
+
+  // ── Analitik laporan (grafik di atas tabel) ──
+  const reportDaily = Array.from(
+    reportTrips.reduce((m, t) => {
+      const k = dayKeyWib(t.created_at)
+      m.set(k, (m.get(k) || 0) + 1)
+      return m
+    }, new Map<string, number>()),
+    ([day, count]) => ({ day, count }),
+  ).sort((a, b) => a.day.localeCompare(b.day)).slice(-14)
+
+  const reportByRegion = Array.from(
+    reportTrips.reduce((m, t) => {
+      const k = t.region_name || t.region_code || 'Wilayah lain'
+      m.set(k, (m.get(k) || 0) + 1)
+      return m
+    }, new Map<string, number>()),
+    ([name, count]) => ({ name, count }),
+  ).sort((a, b) => b.count - a.count).slice(0, 6)
+
+  const reportMuatan = reportTrips.filter(t => t.status_muatan === 'muatan').length
+  const reportKosong = reportTrips.length - reportMuatan
+  const maxDaily = Math.max(1, ...reportDaily.map(d => d.count))
+  const maxRegion = Math.max(1, ...reportByRegion.map(r => r.count))
+  const muatanPct = reportTrips.length ? (reportMuatan / reportTrips.length) * 100 : 0
 
   // Ekspor laporan ke Excel (.xlsx) — 2 sheet: ringkasan trip + detail kendaraan
   const handleExportReport = () => {
@@ -719,34 +805,88 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <div className="p-8">
           {tab === 'overview' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 font-bold text-slate-800 flex justify-between items-center">
-                  <span>Trip Terbaru dari Server</span>
-                  <button
-                    onClick={() => {
-                      ensureAdminBackendSession().then(() => fetchTrips().then(t => t && setServerTrips(t)))
-                    }}
-                    className="text-blue-600 text-sm font-bold hover:underline"
-                  >
+              {/* Header ringkas + status server */}
+              <div className="flex items-end justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg">Ringkasan Cepat</h3>
+                  <p className="text-slate-500 text-[12px]">
+                    Info at-a-glance — data mentah & analitik ada di tab Laporan
+                    {dashAt && <> · diperbarui {dashAt} WIB</>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
+                    serverState === 'online' ? 'bg-emerald-50 text-emerald-600'
+                    : serverState === 'offline' ? 'bg-amber-50 text-amber-600'
+                    : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      serverState === 'online' ? 'bg-emerald-500'
+                      : serverState === 'offline' ? 'bg-amber-500'
+                      : 'bg-slate-400 animate-pulse'
+                    }`} />
+                    {serverState === 'online' ? 'Server: Tersambung'
+                    : serverState === 'offline' ? 'Server: Offline (lokal)'
+                    : 'Memeriksa server...'}
+                  </span>
+                  <button onClick={() => void loadOverview()} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
                     Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Kartu metrik penting */}
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                {[
+                  { label: 'Trip Hari Ini', val: dashSummary ? String(dashSummary.totalTrips) : '—', sub: `${serverTrips.length} trip tersimpan`, Icon: RouteIcon, bg: 'bg-blue-50', fg: 'text-blue-600' },
+                  { label: 'Pendapatan Hari Ini', val: dashSummary ? fmtRp(dashSummary.totalRevenue) : '—', sub: 'tarif eksternal tercatat', Icon: Wallet, bg: 'bg-emerald-50', fg: 'text-emerald-600' },
+                  { label: 'Unit Hari Ini', val: dashSummary ? String(dashSummary.totalVehicles) : '—', sub: 'kendaraan tercatat', Icon: Truck, bg: 'bg-amber-50', fg: 'text-amber-600' },
+                  { label: 'Petugas Aktif', val: `${activeOfficerCount}/${officers.length}`, sub: 'siap bertugas', Icon: Users, bg: 'bg-violet-50', fg: 'text-violet-600' },
+                ].map(({ label, val, sub, Icon, bg, fg }) => (
+                  <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wide">{label}</p>
+                      <span className={`w-8 h-8 shrink-0 rounded-xl flex items-center justify-center ${bg} ${fg}`}><Icon size={15} /></span>
+                    </div>
+                    <p className="text-2xl font-black text-slate-900 tabular-nums truncate">{val}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 5 trip terbaru — real-time */}
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 font-bold text-slate-800 flex justify-between items-center gap-3 flex-wrap">
+                  <span className="flex items-center gap-2">
+                    5 Trip Terbaru
+                    <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />REAL-TIME
+                    </span>
+                  </span>
+                  <button onClick={() => setTab('reports')} className="text-blue-600 text-sm font-bold hover:underline">
+                    Buka Laporan →
                   </button>
                 </div>
                 <table className="w-full text-[13px]">
                   <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr><th className="text-left p-4">No Trip</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Petugas</th><th className="text-left p-4">Status</th><th className="text-left p-4">Tanggal</th></tr>
+                    <tr><th className="text-left p-4">No Trip</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Petugas</th><th className="text-left p-4">Muatan</th><th className="text-left p-4">Tanggal</th><th className="text-left p-4">Jam</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {serverTrips.length === 0 ? (
-                      <tr><td colSpan={5} className="p-8 text-center text-slate-400">Belum ada trip dari server</td></tr>
-                    ) : serverTrips.slice(0, 10).map(t => (
-                      <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-mono text-slate-600">{t.no_trip}</td>
-                        <td className="p-4 font-bold">{t.route_from} → {t.route_to}</td>
-                        <td className="p-4">{t.officer_name || t.officer_id}</td>
-                        <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.status_muatan}</span></td>
-                        <td className="p-4 text-slate-500">{t.created_at}</td>
-                      </tr>
-                    ))}
+                    {latestTrips.length === 0 ? (
+                      <tr><td colSpan={6} className="p-8 text-center text-slate-400">Belum ada trip dari server</td></tr>
+                    ) : latestTrips.map(t => {
+                      const d = formatReportDateTime(t.created_at)
+                      return (
+                        <tr key={t.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-mono text-slate-600">{t.no_trip}</td>
+                          <td className="p-4 font-bold">{t.route_from} → {t.route_to}</td>
+                          <td className="p-4">{t.officer_name || t.officer_id}</td>
+                          <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong'}</span></td>
+                          <td className="p-4 text-slate-500 whitespace-nowrap">{d.date}</td>
+                          <td className="p-4 text-slate-500 tabular-nums">{d.time}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1190,15 +1330,15 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
-              {regionCodes.map(region => (
+              {officerGroups.map(region => (
                 <div key={region} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region} ({officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).length} petugas)</div>
+                  <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region === 'LAINNYA' ? 'Lainnya' : region} ({officers.filter(o => inRegionGroup(o, region)).length} petugas)</div>
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
                       <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute yang Tampil</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
                     </thead>
                     <tbody className="divide-y">
-                      {officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).map((o, _, arr) => {
+                      {officers.filter(o => inRegionGroup(o, region)).map((o, _, arr) => {
                         const i = officers.indexOf(o)
                         return (
                           <tr key={o.id} className="hover:bg-slate-50">
@@ -1279,8 +1419,41 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
               </div>
 
-              {/* Filter laporan: golongan & jenis kendaraan */}
+              {/* Filter laporan: tanggal, golongan & jenis kendaraan */}
               <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-wrap items-end gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Dari Tanggal</label>
+                  <input
+                    type="date"
+                    value={reportFilters.startDate || ''}
+                    onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
+                    className="border rounded-xl px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Sampai Tanggal</label>
+                  <input
+                    type="date"
+                    value={reportFilters.endDate || ''}
+                    onChange={e => applyReportFilter({ endDate: e.target.value || undefined })}
+                    className="border rounded-xl px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5 pb-0.5">
+                  {[
+                    { label: 'Hari Ini', days: 1 },
+                    { label: '7 Hari', days: 7 },
+                    { label: '30 Hari', days: 30 },
+                  ].map(p => (
+                    <button
+                      key={p.label}
+                      onClick={() => applyDatePreset(p.days)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-500 hover:bg-slate-50"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Golongan</label>
                   <select
@@ -1314,8 +1487,99 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </span>
               </div>
 
+              {/* Grafik analitik — di atas tabel agar terasa sebagai laporan utuh */}
+              {reportState === 'ready' && reportTrips.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Trip per hari */}
+                  <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Trip per Hari</h4>
+                        <p className="text-[11px] text-slate-400">maksimal 14 hari terakhir dalam rentang terpilih</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-400">puncak {maxDaily} trip/hari</span>
+                    </div>
+                    <div className="flex items-end gap-1.5 h-40">
+                      {reportDaily.map((d, i) => (
+                        <div
+                          key={d.day}
+                          title={`${d.day} · ${d.count} trip`}
+                          className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-1"
+                        >
+                          <span className="text-[9px] font-bold text-slate-500 tabular-nums">{d.count}</span>
+                          <div
+                            className="w-full rounded-t-md bg-gradient-to-t from-blue-600 to-blue-400 transition-all"
+                            style={{ height: `${Math.max(6, (d.count / maxDaily) * 70)}%` }}
+                          />
+                          <span className={`text-[9px] text-slate-400 whitespace-nowrap ${reportDaily.length > 8 && i % 2 === 1 ? 'opacity-0' : ''}`}>
+                            {Number(d.day.slice(8))}/{d.day.slice(5, 7)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Komposisi muatan (donut) */}
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
+                    <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
+                    <div className="flex items-center gap-5">
+                      <div
+                        className="relative w-28 h-28 shrink-0 rounded-full"
+                        style={{ background: `conic-gradient(#2563eb 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}
+                      >
+                        <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
+                          <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{reportTrips.length}</span>
+                          <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2.5 text-[12px]">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                          <span className="text-slate-600 font-semibold">Ada Muatan</span>
+                          <span className="font-black text-slate-800 tabular-nums">{reportMuatan}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                          <span className="text-slate-600 font-semibold">Kosong</span>
+                          <span className="font-black text-slate-800 tabular-nums">{reportKosong}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 pt-1">
+                          {reportTrips.length ? Math.round((reportMuatan / reportTrips.length) * 100) : 0}% trip bermuatan
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trip per wilayah */}
+                  <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Trip per Wilayah</h4>
+                        <p className="text-[11px] text-slate-400">sebaran trip berdasarkan tempat pos pemeriksaan</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-400">{reportByRegion.length} wilayah</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {reportByRegion.map(r => (
+                        <div key={r.name} className="flex items-center gap-3">
+                          <span className="w-40 shrink-0 text-[12px] font-semibold text-slate-600 truncate">{r.name}</span>
+                          <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
+                            <div
+                              className="h-full rounded-md bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
+                              style={{ width: `${Math.max(3, (r.count / maxRegion) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right text-[12px] font-black text-slate-700 tabular-nums">{r.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {reportState === 'ready' && (
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                   {[
                     { label: 'Total Trip', val: reportTrips.length, color: 'bg-blue-100 text-blue-600' },
                     { label: 'Trip Muatan', val: reportTrips.filter(t => t.status_muatan === 'muatan').length, color: 'bg-sky-100 text-sky-600' },

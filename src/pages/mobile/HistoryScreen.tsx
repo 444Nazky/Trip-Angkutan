@@ -19,7 +19,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
   return (
-    <div className="px-4 pt-2 pb-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4">
       <h2 className="font-black text-slate-900 text-[20px] mb-3">Riwayat Trip</h2>
 
       {/* Filter */}
