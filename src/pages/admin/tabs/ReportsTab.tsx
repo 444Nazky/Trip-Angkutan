@@ -203,7 +203,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             <option value="">Semua</option>
             {golonganOptions.map(g => <option key={g} value={g}>Gol {g}</option>)}
           </select></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jenis</label>
+        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jenis Kendaraan</label>
           <select value={reportFilters.vehicleType || ''} onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
             className="border rounded-xl px-3 py-2 text-sm min-w-[150px] bg-white">
             <option value="">Semua</option>
