@@ -49,13 +49,24 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// Detect if running on mobile device (Capacitor/Cordova)
+// Detect if running on a REAL mobile device.
+// Penting: window.Capacitor juga ikut terdefinisi di build web (platform 'web'),
+// jadi cek keberadaannya saja akan salah menganggap browser desktop sebagai
+// perangkat fisik → base URL jatuh ke deviceApiBaseUrl (host mati) dan login
+// menggantung. Yang benar: hanya native platform (Android/iOS) atau UA mobile.
 function isMobileDevice(): boolean {
-  return (
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (window as any).Capacitor !== undefined ||
-    (window as any).cordova !== undefined
-  )
+  // UA mobile → browser di HP/tablet (perlu IP host, bukan localhost)
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true
+
+  const cap = (window as any).Capacitor
+  // Hanya native (Android/iOS) yang dianggap perangkat fisik
+  if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true
+  if (cap && typeof cap.getPlatform === 'function') {
+    const platform = cap.getPlatform()
+    if (platform === 'android' || platform === 'ios') return true
+  }
+
+  return (window as any).cordova !== undefined
 }
 
 // Get current base URL (user-configurable for physical devices)
@@ -129,13 +140,24 @@ class ApiService {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-      })
+      // Timeout 12s — kalau base URL salah/host mati, request dibatalkan
+      // dan login menampilkan error, bukan loading selamanya.
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 12000)
 
-      const data = await res.json()
+      let res: Response
+      try {
+        res = await fetch(`${this.baseUrl}${path}`, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+
+      const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
         // Clear token on auth errors
@@ -147,7 +169,10 @@ class ApiService {
 
       return { ok: true, data }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error'
+      const aborted = err instanceof DOMException && err.name === 'AbortError'
+      const message = aborted
+        ? `Server tidak merespon (12 detik timeout) — periksa API ${this.baseUrl}`
+        : err instanceof Error ? err.message : 'Network error'
       return { ok: false, error: { message } }
     }
   }

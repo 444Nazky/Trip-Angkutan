@@ -15,35 +15,47 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
 
+  const showError = (msg: string) => {
+    setError(msg)
+    setTimeout(() => setError(null), 4000)
+  }
+
   const handleLogin = async () => {
-    setError(false)
+    setError(null)
+    setLoading(true)
 
-    const userType = adminMode ? 'admin' : 'member'
-    const creds = USERS[userType]
-
-    if (adminMode) {
-      // Admin: check against fixed credentials
-      if (username === creds.username && password === creds.password) {
-        setLoading(true)
-        onLogin(userType)
+    try {
+      if (adminMode) {
+        // Admin: check against fixed credentials
+        if (username === 'admin' && password === 'admin123') {
+          onLogin('admin')
+        } else {
+          showError('Username atau password salah')
+        }
       } else {
-        setError(true)
-        setTimeout(() => setError(false), 2500)
+        // Member: use backend API for validation
+        const result = await memberLogin(username, password)
+        if (result.success) {
+          onLogin('member', result.officer?.id)
+        } else {
+          // Bedakan kesalahan kredensial vs masalah koneksi/server
+          const msg = result.error || ''
+          const isConn = /timeout|network|failed|fetch|merespon/i.test(msg)
+          showError(
+            isConn
+              ? 'Tidak bisa terhubung ke server. Pastikan backend berjalan.'
+              : 'Username atau password salah'
+          )
+        }
       }
-    } else {
-      // Member: use backend API for validation
-      setLoading(true)
-      const result = await memberLogin(username, password)
-      if (result.success) {
-        onLogin(userType, result.officer?.id)
-      } else {
-        setError(true)
-        setTimeout(() => setError(false), 2500)
-      }
+    } catch (err) {
+      console.error('[Login] Error:', err)
+      showError('Terjadi kesalahan. Coba lagi.')
+    } finally {
       setLoading(false)
     }
   }
@@ -128,7 +140,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             {error && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fade-in">
                 <AlertCircle size={16} className="text-red-500 shrink-0" />
-                <p className="text-red-600 text-xs font-medium">Username atau password salah</p>
+                <p className="text-red-600 text-xs font-medium">{error}</p>
               </div>
             )}
 
