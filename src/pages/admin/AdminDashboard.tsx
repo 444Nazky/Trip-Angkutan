@@ -150,8 +150,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 ml-60 bg-white min-h-screen">
+      {/* Content — latar off-white agar kartu putih punya kontras & batas jelas */}
+      <div className="flex-1 ml-60 bg-slate-50 min-h-screen">
         <div className="p-8 max-w-[1400px]">
           {tab === 'overview' && (
             <OverviewTab
@@ -203,6 +203,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               serverTrips={serverTrips}
               onServerTripsChange={setServerTrips}
               showToast={showToast}
+              baseUrl={getApiBaseUrl()}
             />
           )}
 

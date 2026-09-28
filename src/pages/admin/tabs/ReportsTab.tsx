@@ -173,7 +173,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       </div>
 
       {/* Filter */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-wrap items-end gap-4">
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
         <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
             className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
@@ -207,19 +207,19 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       {/* Ringkasan */}
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Muatan</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Unit</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{totalUnit}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
             <CurrencyDisplay amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
           </div>
@@ -230,7 +230,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       {reportState === 'ready' && totalTrip > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Trip per hari */}
-          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200">
+          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">Trip per Hari</h4>
@@ -254,7 +254,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           </div>
 
           {/* Komposisi muatan */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
@@ -293,7 +293,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       )}
 
       {/* Tabel */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-slate-50">

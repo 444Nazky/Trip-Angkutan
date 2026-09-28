@@ -64,7 +64,7 @@ export function OverviewTab({
       </div>
 
       {/* Kartu metrik */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 border border-slate-200 rounded-2xl divide-x divide-slate-100 overflow-hidden">
+      <div className="grid grid-cols-2 xl:grid-cols-4 bg-white border border-slate-200 shadow-sm rounded-2xl divide-x divide-slate-100 overflow-hidden">
         <MetricCard
           label="Trip Hari Ini"
           val={dashSummary ? String(dashSummary.totalTrips) : '—'}
@@ -92,7 +92,7 @@ export function OverviewTab({
       </div>
 
       {/* 5 trip terbaru */}
-      <div className="border border-slate-200 rounded-2xl overflow-hidden">
+      <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 font-bold text-slate-800 flex justify-between items-center gap-3 flex-wrap">
           <span className="flex items-center gap-2 text-sm">
             5 Trip Terbaru
