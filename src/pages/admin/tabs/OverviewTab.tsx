@@ -155,13 +155,15 @@ export function OverviewTab({
 function MetricCard({
   label,
   val,
+  amount,
   sub,
   Icon,
   bg,
   fg,
 }: {
   label: string
-  val: string
+  val?: string
+  amount?: number
   sub: string
   Icon: React.ComponentType<{ size?: number }>
   bg: string
@@ -175,7 +177,11 @@ function MetricCard({
           <Icon size={15} />
         </span>
       </div>
-      <p className="text-2xl font-black text-slate-900 tabular-nums truncate">{val}</p>
+      {amount !== undefined ? (
+        <CurrencyDisplay amount={amount} className="text-2xl font-black text-slate-900" />
+      ) : (
+        <p className="text-2xl font-black text-slate-900 tabular-nums truncate">{val}</p>
+      )}
       <p className="text-[11px] text-slate-400 mt-1">{sub}</p>
     </div>
   )

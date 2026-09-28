@@ -82,6 +82,20 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   JARAK AMAN ATAS (safe area) — konten layar tidak menabrak status bar/notch
+   sistem, tapi juga tidak menyisakan "jidat" kosong yang terlalu lebar.
+
+   • --ion-safe-area-top  : dipakai bila Ionic/Capacitor menyuntikkan tinggi
+                            status bar bawaan perangkat.
+   • env(safe-area-inset-top) : nilai asli safe-area bawaan browser/WebView.
+   • +12px               : ruang lega tambahan — HomeScreen memakai pt-1 (4px),
+                            sehingga hero biru berhenti 16px dari tepi atas.
+   ═════════════════════════════════════════════════════════════════════════ */
+.screen-scroll {
+  padding-top: calc(var(--ion-safe-area-top, 0px) + env(safe-area-inset-top, 0px) + 12px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    FEEDBACK SENTUHAN TOMBOL — skalakan halus saat ditekan (semua platform).
    :where() dipakai supaya spesifikasinya nol → kelas active:scale bawaan
    Tailwind tetap menang bila ada, dan tombol yang tak diberi kelas pun

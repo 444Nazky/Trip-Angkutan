@@ -109,7 +109,7 @@ export default function MobileApp() {
   // Show dermaga selection if needed
   if (pendingDermagas && pendingDermagas.length > 1) {
     return framed(
-      <div className="flex-1 overflow-y-auto hide-scrollbar">
+      <div className="flex-1 overflow-y-auto hide-scrollbar screen-scroll">
         <DermagaSelectScreen
           dermagas={pendingDermagas}
           onSelected={handleDermagaSelected}
@@ -123,7 +123,7 @@ export default function MobileApp() {
   // Screens without bottom nav
   if (noNavScreens.includes(screen)) {
     return framed(
-      <div className="flex-1 overflow-y-auto hide-scrollbar">
+      <div className="flex-1 overflow-y-auto hide-scrollbar screen-scroll">
         <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
       </div>,
     )

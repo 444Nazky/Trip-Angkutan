@@ -72,17 +72,53 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
     const now = new Date()
     const stamped = formatReportDateTime(now.toISOString().slice(0, 19).replace('T', ' '), { withSeconds: true })
     const dateSlug = now.toISOString().slice(0, 10)
-    const header = ['No Trip', 'Tanggal', 'Jam', 'Wilayah', 'Rute', 'Petugas', 'Muatan', 'Unit', 'Total (Rp)']
-    const rows: (string | number | null)[][] = [
-      ['Laporan Trip'], ['Dicetak', stamped.full], [],
+    const header = ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Rute', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)']
+    const rentang = reportFilters.startDate || reportFilters.endDate
+      ? `${reportFilters.startDate || 'Awal'} s/d ${reportFilters.endDate || 'Akhir'}`
+      : 'Semua tanggal'
+    const place = (t: ReportTrip) => t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
+    const asal = (t: ReportTrip) => t.route_from ? `${t.route_from_name ? `${t.route_from_name} (` : ''}${t.route_from}${t.route_from_name ? ')' : ''}` : '-'
+    const tujuan = (t: ReportTrip) => t.route_to ? `${t.route_to_name ? `${t.route_to_name} (` : ''}${t.route_to}${t.route_to_name ? ')' : ''}` : '-'
+
+    // Sheet 1 — ringkasan trip
+    const tripRows: (string | number | null)[][] = [
+      ['Laporan Trip Angkutan'],
+      ['Dicetak', stamped.full],
+      ['Rentang Tanggal', rentang],
+      ['Filter Golongan', reportFilters.golongan || 'Semua'],
+      ['Filter Jenis Kendaraan', reportFilters.vehicleType || 'Semua'],
+      ['Jumlah Trip', totalTrip],
+      [],
       header,
       ...reportTrips.map(t => {
         const d = formatReportDateTime(t.created_at)
-        return [t.no_trip, d.date, d.time, t.region_name || '-', `${t.route_from} → ${t.route_to}`, t.officer_name || '-', t.status_muatan === 'muatan' ? 'Ada' : 'Kosong', t.vehicle_count || 0, t.trip_revenue || 0]
+        return [t.no_trip, d.date, d.time, place(t), asal(t), tujuan(t),
+          `${t.route_from || '-'} → ${t.route_to || '-'}`, t.officer_name || '-',
+          t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
+          t.keterangan && t.keterangan !== '-' ? t.keterangan : '-',
+          t.vehicle_count || 0, t.trip_revenue || 0]
       }),
     ]
-    downloadXlsx(`laporan-trip-${dateSlug}.xlsx`, [{ name: 'Trip', rows }])
-    showToast('Excel diunduh')
+
+    // Sheet 2 — detail kendaraan per trip
+    const vehRows: (string | number | null)[][] = [
+      ['Detail Kendaraan per Trip'],
+      ['Rentang Tanggal', rentang],
+      [],
+      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Kategori', 'Beban', 'Tarif (Rp)'],
+      ...reportTrips.flatMap(t => {
+        const d = formatReportDateTime(t.created_at)
+        return t.vehicles.map(v => [t.no_trip, d.date, d.time, place(t), v.no_polisi, v.vehicle_type,
+          v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'), v.golongan,
+          v.has_load ? 'Ada Muatan' : 'Kosong', v.tariff_amount || 0])
+      }),
+    ]
+
+    downloadXlsx(`laporan-trip-${dateSlug}.xlsx`, [
+      { name: 'Laporan Trip', rows: tripRows },
+      { name: 'Detail Kendaraan', rows: vehRows },
+    ])
+    showToast('Laporan Excel (.xlsx) diunduh')
   }
 
   const golonganOptions = filterOptions.golongan.length > 0 ? filterOptions.golongan : []
@@ -93,6 +129,31 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
   const totalUnit = reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
   const totalRevenue = reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
   const muatanCount = reportTrips.filter(t => t.status_muatan === 'muatan').length
+  const kosongCount = totalTrip - muatanCount
+  const muatanPct = totalTrip ? (muatanCount / totalTrip) * 100 : 0
+
+  // Grafik 1 — trip per hari (maksimal 14 hari dalam rentang terpilih)
+  const reportDaily = Array.from(
+    reportTrips.reduce((m, t) => {
+      const k = dayKeyWib(t.created_at)
+      m.set(k, (m.get(k) || 0) + 1)
+      return m
+    }, new Map<string, number>()),
+    ([day, count]) => ({ day, count }),
+  ).sort((a, b) => a.day.localeCompare(b.day)).slice(-14)
+
+  // Grafik 2 — sebaran trip per wilayah pos pemeriksaan
+  const reportByRegion = Array.from(
+    reportTrips.reduce((m, t) => {
+      const k = t.region_name || t.region_code || 'Wilayah lain'
+      m.set(k, (m.get(k) || 0) + 1)
+      return m
+    }, new Map<string, number>()),
+    ([name, count]) => ({ name, count }),
+  ).sort((a, b) => b.count - a.count).slice(0, 6)
+
+  const maxDaily = Math.max(1, ...reportDaily.map(d => d.count))
+  const maxRegion = Math.max(1, ...reportByRegion.map(r => r.count))
 
   return (
     <div className="space-y-4">
@@ -115,7 +176,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           </button>
           <button onClick={handleExport} disabled={reportState !== 'ready'}
             className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-50">
-            <Download size={15} /> Ekspor
+            <Download size={15} /> Ekspor Excel
           </button>
         </div>
       </div>
@@ -170,6 +231,86 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
             <p className="text-slate-500 text-[11px] font-bold uppercase">Pendapatan</p>
             <CurrencyDisplay amount={totalRevenue} className="text-2xl font-black text-emerald-600 mt-1" />
+          </div>
+        </div>
+      )}
+
+      {/* Grafik analitik — di atas tabel agar terasa sebagai laporan utuh */}
+      {reportState === 'ready' && totalTrip > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Trip per hari */}
+          <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">Trip per Hari</h4>
+                <p className="text-[11px] text-slate-400">maksimal 14 hari terakhir dalam rentang terpilih</p>
+              </div>
+              <span className="text-[11px] font-bold text-slate-400">puncak {maxDaily} trip/hari</span>
+            </div>
+            <div className="flex items-end gap-1.5 h-40">
+              {reportDaily.map((d, i) => (
+                <div key={d.day} title={`${d.day} · ${d.count} trip`}
+                  className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-1">
+                  <span className="text-[9px] font-bold text-slate-500 tabular-nums">{d.count}</span>
+                  <div className="w-full rounded-t-md bg-gradient-to-t from-blue-600 to-blue-400 transition-all"
+                    style={{ height: `${Math.max(6, (d.count / maxDaily) * 70)}%` }} />
+                  <span className={`text-[9px] text-slate-400 whitespace-nowrap ${reportDaily.length > 8 && i % 2 === 1 ? 'opacity-0' : ''}`}>
+                    {Number(d.day.slice(8))}/{d.day.slice(5, 7)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Komposisi muatan */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
+            <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
+            <div className="flex items-center gap-5">
+              <div className="relative w-28 h-28 shrink-0 rounded-full"
+                style={{ background: `conic-gradient(#2563eb 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
+                <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
+                  <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{totalTrip}</span>
+                  <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>
+                </div>
+              </div>
+              <div className="space-y-2.5 text-[12px]">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                  <span className="text-slate-600 font-semibold">Ada Muatan</span>
+                  <span className="font-black text-slate-800 tabular-nums">{muatanCount}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                  <span className="text-slate-600 font-semibold">Kosong</span>
+                  <span className="font-black text-slate-800 tabular-nums">{kosongCount}</span>
+                </div>
+                <p className="text-[11px] text-slate-400 pt-1">{Math.round(muatanPct)}% trip bermuatan</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Trip per wilayah */}
+          <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">Trip per Wilayah</h4>
+                <p className="text-[11px] text-slate-400">sebaran trip berdasarkan tempat pos pemeriksaan</p>
+              </div>
+              <span className="text-[11px] font-bold text-slate-400">{reportByRegion.length} wilayah</span>
+            </div>
+            <div className="space-y-2.5">
+              {reportByRegion.map(r => (
+                <div key={r.name} className="flex items-center gap-3">
+                  <span className="w-40 shrink-0 text-[12px] font-semibold text-slate-600 truncate">{r.name}</span>
+                  <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
+                    <div className="h-full rounded-md bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
+                      style={{ width: `${Math.max(3, (r.count / maxRegion) * 100)}%` }} />
+                  </div>
+                  <span className="w-12 text-right text-[12px] font-black text-slate-700 tabular-nums">{r.count}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

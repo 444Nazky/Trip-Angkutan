@@ -4,7 +4,7 @@ import { useApp } from '../store'
 import { fetchTariffs, fetchRegionTariffs } from '../../services/tariffs'
 import { fetchRegions } from '../../services/regions'
 import { fetchPlates } from '../../services/plates'
-import { fetchTrips, fetchReportFilters, fetchReportSummary } from '../../services/trips'
+import { fetchTrips, fetchReportFilters, fetchReportSummary, dayKeyWib } from '../../services/trips'
 import { ensureAdminBackendSession } from '../../services/auth'
 import { api } from '../../services/api'
 import type { AdminTab } from './components/types'
@@ -81,8 +81,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const loadOverview = async () => {
     const ok = await ensureAdminBackendSession()
     if (!ok) { setServerState('offline'); return }
-    const [trips, summ] = await Promise.all([fetchTrips(), fetchReportSummary()])
+    // Ringkasan khusus HARI INI (WIB) — dipakai kartu "Trip/Pendapatan/Unit Hari Ini"
+    const today = dayKeyWib(new Date().toISOString())
+    const [trips, summ] = await Promise.all([fetchTrips(), fetchReportSummary(today, today)])
     if (trips) setServerTrips(trips)
+    setServerState('online')
     setDashSummary(summ)
     setDashAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))
   }
