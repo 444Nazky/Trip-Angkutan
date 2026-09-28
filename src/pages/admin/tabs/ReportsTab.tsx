@@ -1,9 +1,9 @@
 import { Fragment, useState, useEffect } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Eye, EyeOff } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportSummary } from '../../../services/trips'
 import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
-import { CurrencyDisplay } from '../components/CurrencyDisplay'
+import { CurrencyDisplay, useCurrencyReveal } from '../components/CurrencyDisplay'
 import { PhotoViewer } from '../components/PhotoViewer'
 
 interface ReportsTabProps {
@@ -14,6 +14,7 @@ interface ReportsTabProps {
 }
 
 export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast }: ReportsTabProps) {
+  const { revealed, toggle } = useCurrencyReveal()
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [openTripId, setOpenTripId] = useState<string | null>(null)
@@ -224,7 +225,26 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       )}
 
-      {/* Grafik analitik — di atas tabel agar terasa sebagai laporan utuh */}
+      {/* Tombol aksi */}
+      {reportState === 'ready' && (
+        <div className="flex justify-end gap-2">
+          <button onClick={toggle}
+            className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 ${revealed ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-700 text-white hover:bg-slate-800'}`}>
+            {revealed ? <><EyeOff size={15} /> Sembunyikan Nominal</> : <><Eye size={15} /> Tampilkan Nominal</>}
+          </button>
+          <button onClick={() => {
+            const photos = serverTrips
+              .filter(t => (t as any).photo_url)
+              .map(t => ({ id: t.id, url: (t as any).photo_url as string, caption: t.no_trip }))
+            setViewingPhotos(photos.length > 0 ? photos : null)
+          }}
+            className="bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800">
+            📷 Lihat Foto Dokumentasi
+          </button>
+        </div>
+      )}
+
+      {/* Grafik analitik */}
       {reportState === 'ready' && totalTrip > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Trip per hari */}
@@ -279,21 +299,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             </div>
           </div>
 
-        </div>
-      )}
-
-      {/* Tombol foto */}
-      {reportState === 'ready' && (
-        <div className="flex justify-end">
-          <button onClick={() => {
-            const photos = serverTrips
-              .filter(t => (t as any).photo_url)
-              .map(t => ({ id: t.id, url: (t as any).photo_url as string, caption: t.no_trip }))
-            setViewingPhotos(photos.length > 0 ? photos : null)
-          }}
-            className="bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800">
-            📷 Lihat Foto Dokumentasi
-          </button>
         </div>
       )}
 

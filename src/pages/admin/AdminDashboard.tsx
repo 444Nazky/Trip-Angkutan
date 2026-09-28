@@ -109,7 +109,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   ]
 
   return (
-    <div className="flex min-h-screen">
+    <CurrencyProvider>
+      <div className="flex min-h-screen">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${
@@ -213,5 +214,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
     </div>
+    </CurrencyProvider>
   )
 }
