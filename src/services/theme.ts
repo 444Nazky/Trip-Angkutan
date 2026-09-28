@@ -5,7 +5,7 @@
 // di-scope khusus `html[data-admin]` — aplikasi mobile tidak terpengaruh.
 
 export type ThemeMode = 'light' | 'dark'
-export type AccentKey = 'blue' | 'green' | 'violet' | 'amber'
+export type AccentKey = 'blue' | 'black' | 'green' | 'violet' | 'amber'
 
 export interface AdminTheme {
   /** Terang / Gelap */
@@ -29,6 +29,7 @@ export const ZOOM_OPTIONS: Array<{ value: number; label: string }> = [
 
 export const ACCENT_OPTIONS: Array<{ key: AccentKey; label: string; swatch: string; hover: string }> = [
   { key: 'blue', label: 'Biru', swatch: '#2563eb', hover: '#1d4ed8' },
+  { key: 'black', label: 'Hitam', swatch: '#0f172a', hover: '#1e293b' },
   { key: 'green', label: 'Hijau', swatch: '#059669', hover: '#047857' },
   { key: 'violet', label: 'Ungu', swatch: '#7c3aed', hover: '#6d28d9' },
   { key: 'amber', label: 'Kuning', swatch: '#d97706', hover: '#b45309' },

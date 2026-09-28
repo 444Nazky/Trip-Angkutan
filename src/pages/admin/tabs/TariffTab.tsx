@@ -87,7 +87,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           Server: {serverState === 'online' ? 'Tersambung' : 'Offline'}
         </span>
         <button onClick={() => setAddTar(true)}
-          className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800">
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
           <Plus size={14} />Tambah Golongan
         </button>
       </div>
@@ -117,7 +117,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           </div>
           <div className="flex gap-3">
             <button onClick={() => setAddTar(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleAddTar} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Simpan</button>
+            <button onClick={handleAddTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Simpan</button>
           </div>
         </div>
       )}
@@ -147,7 +147,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           </div>
           <div className="flex gap-3">
             <button onClick={() => setEditTarIdx(null)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleUpdTar} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Update</button>
+            <button onClick={handleUpdTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Update</button>
           </div>
         </div>
       )}

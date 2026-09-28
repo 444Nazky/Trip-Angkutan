@@ -151,6 +151,13 @@ html[data-admin] {
   --admin-accent-soft-strong: #dbeafe;
   --admin-accent-text: #1d4ed8;
 }
+html[data-admin][data-accent="black"] {
+  --admin-accent: #0f172a;
+  --admin-accent-hover: #1e293b;
+  --admin-accent-soft: #f1f5f9;
+  --admin-accent-soft-strong: #e2e8f0;
+  --admin-accent-text: #0f172a;
+}
 html[data-admin][data-accent="green"] {
   --admin-accent: #059669;
   --admin-accent-hover: #047857;

@@ -151,7 +151,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     <div className="space-y-4">
       <div className="flex justify-end">
         <button onClick={() => setAddOff(true)}
-          className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800">
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
           <Plus size={14} />Tambah Petugas
         </button>
       </div>
@@ -191,7 +191,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
               className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
           <div className="flex gap-3">
             <button onClick={() => setAddOff(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleAddOff} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Simpan</button>
+            <button onClick={handleAddOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Simpan</button>
           </div>
         </div>
       )}
@@ -237,7 +237,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
           <div className="flex gap-3">
             <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }}
               className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleUpdOff} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800">Update</button>
+            <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Update</button>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { Settings, LogOut } from 'lucide-react'
+import { Settings, LogOut, Sun, Moon } from 'lucide-react'
 import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, applyTheme, type AdminTheme } from '../../../services/theme'
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
@@ -41,13 +41,13 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
               <p className="text-[11px] text-slate-400">Terang atau gelap</p>
             </div>
             <div className="flex rounded-xl border border-slate-200 p-1 gap-1 bg-slate-50">
-              {([['light', 'Terang', '☀️'], ['dark', 'Gelap', '🌙']] as const).map(([m, label, icon]) => (
+              {([['light', 'Terang', Sun], ['dark', 'Gelap', Moon]] as const).map(([m, label, Icon]) => (
                 <button
                   key={m}
                   onClick={() => updateTheme({ mode: m })}
-                  className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.mode === m ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-white'}`}
+                  className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors flex items-center gap-1.5 ${theme.mode === m ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-white'}`}
                 >
-                  {icon} {label}
+                  <Icon size={14} /> {label}
                 </button>
               ))}
             </div>
@@ -64,7 +64,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 <button
                   key={opt.value}
                   onClick={() => updateTheme({ zoom: opt.value })}
-                  className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-white'}`}
+                  className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-white'}`}
                 >
                   {opt.label}
                 </button>
@@ -127,7 +127,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 const ok = await ensureAdminBackendSession()
                 showToast(ok ? 'Backend aktif' : 'Gagal', ok ? 'success' : 'error')
               }}
-              className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800"
+              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700"
             >
               Tes Koneksi
             </button>

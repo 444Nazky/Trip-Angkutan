@@ -165,7 +165,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             Refresh
           </button>
           <button onClick={handleExport} disabled={reportState !== 'ready'}
-            className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800 disabled:opacity-50">
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
             <Download size={15} /> Ekspor Excel
           </button>
         </div>
@@ -242,7 +242,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                 <div key={d.day} title={`${d.day} · ${d.count} trip`}
                   className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-1">
                   <span className="text-[9px] font-bold text-slate-500 tabular-nums">{d.count}</span>
-                  <div className="w-full rounded-t-md bg-slate-900 transition-all"
+                  <div className="w-full rounded-t-md bg-blue-600 transition-all"
                     style={{ height: `${Math.max(6, (d.count / maxDaily) * 70)}%` }} />
                   <span className={`text-[9px] text-slate-400 whitespace-nowrap ${reportDaily.length > 8 && i % 2 === 1 ? 'opacity-0' : ''}`}>
                     {Number(d.day.slice(8))}/{d.day.slice(5, 7)}
@@ -258,7 +258,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
               <div className="relative w-28 h-28 shrink-0 rounded-full"
-                style={{ background: `conic-gradient(#0F172A 0 ${muatanPct}%, #e2e8f0 ${muatanPct}% 100%)` }}>
+                style={{ background: `conic-gradient(var(--admin-accent) 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
                 <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
                   <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{totalTrip}</span>
                   <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>
@@ -266,7 +266,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
               </div>
               <div className="space-y-2.5 text-[12px]">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-900" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                   <span className="text-slate-600 font-semibold">Ada Muatan</span>
                   <span className="font-black text-slate-800 tabular-nums">{muatanCount}</span>
                 </div>
@@ -299,7 +299,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
               <th colSpan={9} className="px-4 py-3 border-b border-slate-200">
                 <div className="flex justify-end gap-2">
                   <button onClick={toggle}
-                    className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-slate-900 text-slate-900 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
+                    className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-blue-500 text-blue-600 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
                     {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
                     {revealed ? 'Hide' : 'Show'} Nominal
                   </button>
@@ -309,7 +309,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                       .map(t => ({ id: t.id, url: (t as any).photo_url as string, caption: t.no_trip }))
                     setViewingPhotos(photos)
                   }}
-                    className="bg-slate-900 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-800">
+                    className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
                     <Camera size={15} /> Foto
                   </button>
                 </div>

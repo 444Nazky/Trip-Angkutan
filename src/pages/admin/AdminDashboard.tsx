@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Truck, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut } from 'lucide-react'
+import { Truck, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Check, X } from 'lucide-react'
 import { useApp } from '../store'
 import { fetchTariffs, fetchRegionTariffs } from '../../services/tariffs'
 import { fetchRegions } from '../../services/regions'
@@ -13,6 +13,7 @@ import type { BackendTrip } from '../../services/trips'
 import type { PlateRecord } from '../../services/plates'
 import type { Officer } from './components/types'
 import { CurrencyProvider } from './components/CurrencyDisplay'
+import { loadTheme, applyTheme } from '../../services/theme'
 
 // Tabs
 import { OverviewTab, TariffTab, PlatesTab, RoutesTab, OfficersTab, ReportsTab, SettingsTab } from './tabs'
@@ -52,6 +53,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
     })
   }
+
+  // Terapkan tema tersimpan (warna aksen, mode, zoom) begitu dashboard dibuka —
+  // tanpa ini preferensi baru aktif setelah tab Pengaturan dikunjungi.
+  useEffect(() => { applyTheme(loadTheme()) }, [])
 
   useEffect(() => {
     let alive = true
@@ -113,9 +118,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <div className="flex min-h-screen">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${            toast.type === 'success' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'
+        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${            toast.type === 'success' ? 'bg-blue-600 text-white' : 'bg-red-500 text-white'
         }`}>
-          {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
+          {toast.type === 'success' ? <Check size={15} strokeWidth={3} /> : <X size={15} strokeWidth={3} />} {toast.msg}
         </div>
       )}
 
@@ -123,7 +128,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"><Truck size={18} className="text-white" /></div>
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center"><Truck size={18} className="text-white" /></div>
             <div><p className="text-white font-black text-[13px]">Trip Angkutan</p><p className="text-slate-500 text-[10px]">Admin</p></div>
           </div>
         </div>
@@ -131,7 +136,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] ${
-                tab === key ? 'bg-white/10 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}>
               <Icon size={16} />{label}
             </button>

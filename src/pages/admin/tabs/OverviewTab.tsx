@@ -100,7 +100,7 @@ export function OverviewTab({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />REAL-TIME
             </span>
           </span>
-          <button onClick={onOpenReports} className="text-slate-500 text-sm font-semibold hover:text-slate-900">
+          <button onClick={onOpenReports} className="text-blue-600 text-sm font-semibold hover:underline">
             Buka Laporan →
           </button>
         </div>
@@ -161,7 +161,7 @@ function MetricCard({
     <div className="p-5 border-r border-slate-100 last:border-r-0">
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide">{label}</p>
-        <span className="text-slate-300"><Icon size={14} /></span>
+        <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><Icon size={14} /></span>
       </div>
       {amount !== undefined ? (
         <CurrencyDisplay amount={amount} className="text-2xl font-black text-slate-900" />

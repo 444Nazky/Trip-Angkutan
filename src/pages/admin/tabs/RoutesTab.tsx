@@ -137,7 +137,7 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
         <div className="flex gap-3">
           {editRouteId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
           <button onClick={() => void handleSave()}
-            className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800`}>
+            className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700`}>
             {editRouteId ? 'Update' : 'Tambah Rute'}
           </button>
         </div>
