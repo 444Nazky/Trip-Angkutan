@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X } from 'lucide-react'
 import { useApp } from '../store'
 import { tariffData } from '../data'
@@ -1026,98 +1026,140 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl shadow-sm divide-y divide-slate-100 overflow-hidden">
-                {reportState === 'offline' ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">Tidak dapat terhubung ke server. Pastikan backend berjalan.</div>
-                ) : reportState !== 'ready' ? (
-                  <div className="p-8 text-center text-slate-400 text-sm animate-pulse">Memuat laporan dari server...</div>
-                ) : reportTrips.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">Belum ada trip di server</div>
-                ) : reportTrips.map(t => {
-                  const open = openTripId === t.id
-                  const d = formatReportDateTime(t.created_at)
-                  const place = t.region_name
-                    ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}`
-                    : '-'
-                  return (
-                    <div key={t.id}>
-                      <button onClick={() => setOpenTripId(open ? null : t.id)}
-                        className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 text-left">
-                        <div className="w-40 shrink-0">
-                          <p className="font-mono text-[12px] text-slate-500">{t.no_trip}</p>
-                          <p className="font-bold text-slate-800 text-[13px]">{t.route_from} → {t.route_to}</p>
-                        </div>
-                        <div className="w-44 shrink-0">
-                          <p className="text-[13px] text-slate-700 font-semibold">{d.date}</p>
-                          <p className="text-[11px] text-slate-400">{d.time} WIB · {place}</p>
-                        </div>
-                        <span className="text-slate-600 text-[13px] w-32 shrink-0">{t.officer_name || '-'}</span>
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                          {t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong'}
-                        </span>
-                        <span className="text-slate-400 text-[12px] w-14 shrink-0">{t.vehicle_count} unit</span>
-                        <span className="ml-auto font-black text-slate-900">{fmtRp(t.trip_revenue || 0)}</span>
-                        <ChevronDown size={16} className={`text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
-                      </button>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+                        <th className="text-left font-bold px-4 py-2.5 border-b border-slate-200 w-10">#</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">No Trip</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Tanggal</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Jam</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Tempat / Wilayah</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Rute</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Petugas</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Muatan</th>
+                        <th className="text-left font-bold px-3 py-2.5 border-b border-slate-200">Unit</th>
+                        <th className="text-right font-bold px-4 py-2.5 border-b border-slate-200">Pendapatan</th>
+                        <th className="border-b border-slate-200 w-8" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportState === 'offline' ? (
+                        <tr><td colSpan={11} className="p-8 text-center text-slate-400 text-sm">Tidak dapat terhubung ke server. Pastikan backend berjalan.</td></tr>
+                      ) : reportState !== 'ready' ? (
+                        <tr><td colSpan={11} className="p-8 text-center text-slate-400 text-sm animate-pulse">Memuat laporan dari server...</td></tr>
+                      ) : reportTrips.length === 0 ? (
+                        <tr><td colSpan={11} className="p-8 text-center text-slate-400 text-sm">Belum ada trip di server</td></tr>
+                      ) : reportTrips.map((t, idx) => {
+                        const open = openTripId === t.id
+                        const d = formatReportDateTime(t.created_at)
+                        const place = t.region_name
+                          ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}`
+                          : '-'
+                        return (
+                          <Fragment key={t.id}>
+                            <tr
+                              onClick={() => setOpenTripId(open ? null : t.id)}
+                              className={`cursor-pointer transition-colors hover:bg-slate-50 ${open ? 'bg-blue-50/60' : idx % 2 === 1 ? 'bg-slate-50/40' : ''}`}
+                            >
+                              <td className="px-4 py-2.5 border-b border-slate-100 text-slate-400 tabular-nums align-middle">{idx + 1}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 font-mono font-semibold text-slate-700 whitespace-nowrap align-middle">{t.no_trip}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-700 whitespace-nowrap align-middle">{d.date}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-500 tabular-nums whitespace-nowrap align-middle">{d.time}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-700 align-middle">{place}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-600 whitespace-nowrap align-middle">
+                                <span className="font-semibold">{t.route_from_name || t.route_from}</span>
+                                <span className="text-slate-400 mx-1">→</span>
+                                <span className="font-semibold">{t.route_to_name || t.route_to}</span>
+                              </td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-600 whitespace-nowrap align-middle">{t.officer_name || '-'}</td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 align-middle">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                                  {t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 border-b border-slate-100 text-slate-600 tabular-nums align-middle">{t.vehicle_count}</td>
+                              <td className="px-4 py-2.5 border-b border-slate-100 text-right font-semibold text-slate-900 tabular-nums align-middle">{fmtRp(t.trip_revenue || 0)}</td>
+                              <td className="px-2 py-2.5 border-b border-slate-100 text-center align-middle">
+                                <ChevronDown size={14} className={`inline text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                              </td>
+                            </tr>
 
-                      {open && (
-                        <div className="px-6 pb-5 pt-1 bg-slate-50/60 border-t border-slate-100">
-                          <div className="flex flex-wrap gap-x-8 gap-y-1 py-3 text-[12px]">
-                            <span><span className="text-slate-400">Tempat:</span> <span className="font-semibold text-slate-700">{place}</span></span>
-                            <span><span className="text-slate-400">Rute:</span> <span className="font-semibold text-slate-700">{t.route_from_name || t.route_from || '-'} → {t.route_to_name || t.route_to || '-'}</span></span>
-                            <span><span className="text-slate-400">Tanggal:</span> <span className="font-semibold text-slate-700">{d.full}</span></span>
-                            <span><span className="text-slate-400">Kategori:</span> <span className="font-semibold text-slate-700">{t.keterangan && t.keterangan !== '-' ? t.keterangan : '-'}</span></span>
-                            <span><span className="text-slate-400">Petugas:</span> <span className="font-semibold text-slate-700">{t.officer_name || '-'}</span></span>
-                          </div>
+                            {open && (
+                              <tr className="bg-slate-50/80">
+                                <td colSpan={11} className="px-4 py-3 border-b border-slate-200">
+                                  <div className="flex flex-wrap gap-x-8 gap-y-1 mb-3 text-[12px]">
+                                    <span><span className="text-slate-400">Tempat:</span> <span className="font-semibold text-slate-700">{place}</span></span>
+                                    <span><span className="text-slate-400">Rute:</span> <span className="font-semibold text-slate-700">{t.route_from_name || t.route_from || '-'} → {t.route_to_name || t.route_to || '-'}</span></span>
+                                    <span><span className="text-slate-400">Tanggal:</span> <span className="font-semibold text-slate-700">{d.full}</span></span>
+                                    <span><span className="text-slate-400">Kategori:</span> <span className="font-semibold text-slate-700">{t.keterangan && t.keterangan !== '-' ? t.keterangan : '-'}</span></span>
+                                    <span><span className="text-slate-400">Petugas:</span> <span className="font-semibold text-slate-700">{t.officer_name || '-'}</span></span>
+                                  </div>
 
-                          {t.vehicles.length === 0 ? (
-                            <p className="text-slate-400 text-[13px] py-3">Tidak ada kendaraan — trip dalam kondisi kosong.</p>
-                          ) : (
-                            <div className="bg-white rounded-xl overflow-hidden border border-slate-100">
-                              <table className="w-full text-[13px]">
-                                <thead className="bg-slate-100 text-slate-400 text-[10px] uppercase">
-                                  <tr>
-                                    <th className="text-left p-3">No. Plat</th>
-                                    <th className="text-left p-3">Jenis</th>
-                                    <th className="text-left p-3">Kategori</th>
-                                    <th className="text-left p-3">Beban</th>
-                                    <th className="text-right p-3">Tarif</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                  {t.vehicles.map((v, i) => {
-                                    const cat = v.golongan
-                                    const catColor = cat === 'Internal' ? 'bg-slate-800 text-white'
-                                      : cat === 'Eksternal' ? 'bg-amber-500 text-white'
-                                      : cat === 'Eksternal Bebas' ? 'bg-rose-500 text-white'
-                                      : 'bg-blue-100 text-blue-700'
-                                    return (
-                                      <tr key={`${v.no_polisi}-${i}`} className="hover:bg-slate-50">
-                                        <td className="p-3 font-mono font-bold text-slate-700">{v.no_polisi}</td>
-                                        <td className="p-3">{v.vehicle_type}</td>
-                                        <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${catColor}`}>{cat}</span></td>
-                                        <td className="p-3">
-                                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${v.has_load ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {v.has_load ? 'Ada Muatan' : 'Kosong'}
-                                          </span>
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-slate-900">{fmtRp(v.tariff_amount || 0)}</td>
-                                      </tr>
-                                    )
-                                  })}
-                                  <tr className="bg-slate-50">
-                                    <td colSpan={4} className="p-3 text-right font-bold text-slate-600 text-[12px]">Total Tarif Trip ({t.vehicles.length} unit)</td>
-                                    <td className="p-3 text-right font-black text-emerald-600">{fmtRp(t.trip_revenue || 0)}</td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                                  {t.vehicles.length === 0 ? (
+                                    <p className="text-slate-400 text-[13px] py-1">Tidak ada kendaraan — trip dalam kondisi kosong.</p>
+                                  ) : (
+                                    <div className="bg-white rounded-xl overflow-hidden border border-slate-200">
+                                      <table className="w-full text-[13px]">
+                                        <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase">
+                                          <tr>
+                                            <th className="text-left font-semibold p-3 border-b border-slate-200">No. Plat</th>
+                                            <th className="text-left font-semibold p-3 border-b border-slate-200">Jenis</th>
+                                            <th className="text-left font-semibold p-3 border-b border-slate-200">Kategori</th>
+                                            <th className="text-left font-semibold p-3 border-b border-slate-200">Beban</th>
+                                            <th className="text-right font-semibold p-3 border-b border-slate-200">Tarif</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {t.vehicles.map((v, i) => {
+                                            const cat = v.golongan
+                                            const catColor = cat === 'Internal' ? 'bg-slate-800 text-white'
+                                              : cat === 'Eksternal' ? 'bg-amber-500 text-white'
+                                              : cat === 'Eksternal Bebas' ? 'bg-rose-500 text-white'
+                                              : 'bg-blue-100 text-blue-700'
+                                            return (
+                                              <tr key={`${v.no_polisi}-${i}`} className="hover:bg-slate-50">
+                                                <td className="p-3 font-mono font-bold text-slate-700">{v.no_polisi}</td>
+                                                <td className="p-3">{v.vehicle_type}</td>
+                                                <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-bold ${catColor}`}>{cat}</span></td>
+                                                <td className="p-3">
+                                                  <span className={`px-2 py-1 rounded text-[10px] font-bold ${v.has_load ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                    {v.has_load ? 'Ada Muatan' : 'Kosong'}
+                                                  </span>
+                                                </td>
+                                                <td className="p-3 text-right font-bold text-slate-900 tabular-nums">{fmtRp(v.tariff_amount || 0)}</td>
+                                              </tr>
+                                            )
+                                          })}
+                                          <tr className="bg-slate-50">
+                                            <td colSpan={4} className="p-3 text-right font-bold text-slate-600 text-[12px]">Total Tarif Trip ({t.vehicles.length} unit)</td>
+                                            <td className="p-3 text-right font-black text-emerald-600 tabular-nums">{fmtRp(t.trip_revenue || 0)}</td>
+                                          </tr>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-100 font-bold text-slate-700">
+                        <td colSpan={9} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
+                          Total {reportTrips.length} trip · {reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)} unit
+                        </td>
+                        <td className="px-4 py-3 border-t-2 border-slate-300 text-right text-emerald-700 tabular-nums">
+                          {fmtRp(reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0))}
+                        </td>
+                        <td className="border-t-2 border-slate-300" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           )}
