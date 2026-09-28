@@ -113,8 +113,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <div className="flex min-h-screen">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${
-          toast.type === 'success' ? 'bg-blue-600 text-white' : 'bg-red-500 text-white'
+        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${            toast.type === 'success' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
         </div>
@@ -124,7 +123,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center"><Truck size={18} className="text-white" /></div>
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center"><Truck size={18} className="text-white" /></div>
             <div><p className="text-white font-black text-[13px]">Trip Angkutan</p><p className="text-slate-500 text-[10px]">Admin</p></div>
           </div>
         </div>
@@ -132,7 +131,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] ${
-                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                tab === key ? 'bg-white/10 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}>
               <Icon size={16} />{label}
             </button>
@@ -146,8 +145,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 ml-60 bg-slate-100 min-h-screen">
-        <div className="p-8">
+      <div className="flex-1 ml-60 bg-white min-h-screen">
+        <div className="p-8 max-w-[1400px]">
           {tab === 'overview' && (
             <OverviewTab
               serverTrips={serverTrips}
