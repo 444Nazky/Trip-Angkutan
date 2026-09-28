@@ -24,7 +24,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [showModal, setShowModal] = useState(false)
 
   const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : ['Motor', 'Mobil', 'Truck Kecil', 'Truck Sedang', 'Truck Besar']
-  const categories = ['Internal', 'Eksternal', 'Eksternal Bebas']
+  const categories = ['Internal', 'Eksternal', 'Lokal']
 
   // Semua field wajib — tidak ada satu pun yang opsional.
   const plateOk = plate.trim().length >= 2

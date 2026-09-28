@@ -178,9 +178,11 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       {/* Konfigurasi Tarif Region */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
-          <p className="font-bold text-slate-800">Konfigurasi Tarif Region</p>
-          <div className="text-[11px] text-slate-500 mt-1">
-            <p><b>Internal</b> = <b>Rp 0</b> (dikunci). <b>Lokal</b> = tarif cadangan. <b>Eksternal</b> = tarif region pos.</p>
+          <p className="font-bold text-slate-800">Konfigurasi Tarif Terpusat (Penarifan Plat)</p>
+          <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+            <p><b className="text-slate-700">Internal</b> = <b>selalu Rp 0</b> (dikunci, tidak dapat diubah).</p>
+            <p><b className="text-slate-700">Lokal</b> = tarif cadangan kebijakan — <b>bisa diubah</b> per region dan dapat diaktifkan/nonaktifkan.</p>
+            <p><b className="text-slate-700">Eksternal</b> = tarif region pos pemeriksaan (menyesuaikan region).</p>
           </div>
         </div>
         <table className="w-full text-sm">
