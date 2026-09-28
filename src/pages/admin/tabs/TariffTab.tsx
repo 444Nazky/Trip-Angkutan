@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-import type { TariffRow, RegionTariffRow } from '../components/types'
-import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff } from '../../../services/tariffs'
+import type { TariffRow } from '../components/types'
+import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../../services/tariffs'
 import { ensureAdminBackendSession } from '../../../services/auth'
 
 interface TariffTabProps {

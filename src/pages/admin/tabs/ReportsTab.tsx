@@ -177,7 +177,12 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       {/* Tombol foto */}
       {reportState === 'ready' && (
         <div className="flex justify-end">
-          <button onClick={() => setViewingPhotos(serverTrips.flatMap(t => (t.photo_url ? [{ id: t.id, url: t.photo_url, caption: t.no_trip }] : [])))}
+          <button onClick={() => {
+            const photos = serverTrips
+              .filter(t => (t as any).photo_url)
+              .map(t => ({ id: t.id, url: (t as any).photo_url as string, caption: t.no_trip }))
+            setViewingPhotos(photos.length > 0 ? photos : null)
+          }}
             className="bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800">
             📷 Lihat Foto Dokumentasi
           </button>
