@@ -23,7 +23,7 @@ function Shell() {
   // oleh dashboard lewat /auth/admin-login).
   if (isAdminHost()) return <AdminDashboard onLogout={logout} />
 
-  if (!loggedIn) return <LoginPage onLogin={(type, officerId) => login(type, officerId)} />
+  if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans">

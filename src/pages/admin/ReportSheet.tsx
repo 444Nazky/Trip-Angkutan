@@ -153,11 +153,11 @@ export default function ReportSheet() {
             <span className={`w-1.5 h-1.5 rounded-full ${
               state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'
             }`} />
-            {state === 'ready' ? 'Tersinkron' : state === 'offline' ? 'Offline' : 'Memuat...'}
+            {state === 'ready' ? 'Connected' : state === 'offline' ? 'Offline' : 'Connecting...'}
           </span>
           <button onClick={() => void load(filters)} disabled={state === 'loading'}
             className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Segarkan
+            <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Refresh
           </button>
           <button onClick={copyTsv} disabled={state !== 'ready' || matrix.length === 0}
             className={`px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 disabled:opacity-50 ${

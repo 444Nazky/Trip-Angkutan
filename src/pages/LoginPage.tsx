@@ -3,7 +3,7 @@ import { Truck, User, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-
 import { memberLogin } from '../services/auth'
 
 interface LoginPageProps {
-  onLogin: (userType: 'admin' | 'member', officerId?: string) => void
+  onLogin: (userType: 'admin' | 'member') => void
 }
 
 /**
@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const result = await memberLogin(username.trim(), password)
 
       if (result.success) {
-        onLogin('member', result.officer?.id)
+        onLogin('member')
         return
       }
 

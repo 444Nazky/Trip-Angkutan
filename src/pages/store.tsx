@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
-import { ensureBackendSession, logout as endBackendSession, refreshBackendSession } from '../services/auth'
+import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { api } from '../services/api'
 import { syncOfficersToLocal } from '../services/officers'
 import type { MobileScreen } from './types'
+import type { Officer } from './admin/components/types'
 
 export interface VehicleEntry {
   plate: string
@@ -69,18 +70,12 @@ export interface Draft {
   startedAt: number | null
 }
 
-export interface DermagaAccess {
-  id: string
-  name: string
-}
-
-type Officer = (typeof officerList)[number] & { regions?: string[]; dermagaAccess?: DermagaAccess[] }
 export type TariffRow = (typeof tariffData)[number] & { id?: string }
 export type VerifyIntent = 'switch' | 'security'
 
 interface StoreValue {
   loggedIn: boolean
-  login: (userType: 'admin' | 'member', officerId?: string) => void
+  login: (userType: 'admin' | 'member') => void
   logout: () => void
   userType: 'admin' | 'member'
   officer: Officer
@@ -292,12 +287,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [officers, officerId],
   )
 
-  const login = useCallback((type: 'admin' | 'member', selectedOfficerId?: string) => {
+  const login = useCallback((type: 'admin' | 'member') => {
     setUserType(type)
     setLoggedIn(true)
     if (type === 'member') {
-      const id = selectedOfficerId ? String(selectedOfficerId) : officerId
-      if (selectedOfficerId) setOfficerIdState(id)
+      const authenticatedOfficerId = getStoredOfficer()?.id
+      const id = authenticatedOfficerId ? String(authenticatedOfficerId) : officerId
+      if (authenticatedOfficerId) setOfficerIdState(id)
       // Fetch a backend JWT for the same officer authenticated by the login form.
       void ensureBackendSession(id)
     }
