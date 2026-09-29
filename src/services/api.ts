@@ -184,7 +184,7 @@ class ApiService {
 
   async postMultipart<T>(path: string, body: FormData): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = {}
-    if (this._token) headers.Authorization = `Bearer ${this._token}`
+    if (this._token) headers['Authorization'] = `Bearer ${this._token}`
 
     try {
       const controller = new AbortController()
