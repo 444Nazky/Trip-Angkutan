@@ -16,7 +16,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const handlePin = (key: string) => {
     setError(null)
-    if (key === 'del') { setPin(p => p.slice(0, -1); return }
+    if (key === 'del') { setPin(p => p.slice(0, -1)); return }
     if (pin.length >= 6) return
     const next = pin + key
     setPin(next)

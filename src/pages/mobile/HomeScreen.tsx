@@ -1,4 +1,4 @@
-import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
+import { Truck, ChevronRight, ArrowRight, RefreshCw, Check } from 'lucide-react'
 import { useApp } from '../store'
 import { getPendingCount, processSyncQueue } from '../../services/sync'
 import { useState, useEffect } from 'react'
@@ -10,8 +10,10 @@ interface HomeScreenProps {
 
 export default function HomeScreen({ go }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
-  const [pendingCount, setPendingCount] = useState(getPendingCount)
+  const [pendingCount, setPendingCount] = useState(getPendingCount())
   const [syncing, setSyncing] = useState(false)
+  const [showRegionSelect, setShowRegionSelect] = useState(false)
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
 
   useEffect(() => {
     // Check pending count on mount
@@ -21,7 +23,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [])
-//woiii
+
   const handleSync = async () => {
     if (syncing || !navigator.onLine) return
     setSyncing(true)
@@ -33,14 +35,24 @@ export default function HomeScreen({ go }: HomeScreenProps) {
     }
   }
 
+  const hasDualAccess = !!(officer.dermagaAccess && officer.dermagaAccess.length > 1)
+
+  const openRegionSelect = () => setShowRegionSelect(true)
+  const closeRegionSelect = () => setShowRegionSelect(false)
+  const confirmRegionSelect = (region: string) => {
+    setSelectedRegion(region)
+    setShowRegionSelect(false)
+  }
+
   const myTrips = trips.filter(t => t.officer === officer.name)
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
       .filter(p => p && p !== '-'),
   )
+
   return (
-    <div className="px-4 pt-1 pb-4 space-y-3.5">
+    <>
       {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
@@ -49,13 +61,88 @@ export default function HomeScreen({ go }: HomeScreenProps) {
           <p className="text-blue-100 text-[11px] font-semibold mb-0.5">Siap bertugas?</p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">Mulai Trip<br />Baru Sekarang</h2>
           <button
-            onClick={() => { resetDraft(); go('trip-condition') }}
+            onClick={() => {
+              if (hasDualAccess) {
+                openRegionSelect()
+              } else {
+                resetDraft()
+                go('trip-condition')
+              }
+            }}
             className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[13px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
           >
             Mulai Trip <ArrowRight size={15} />
           </button>
         </div>
       </div>
+
+      {/* Region Select Dialog for dual-access officers */}
+      {showRegionSelect && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0F172A] rounded-3xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-2 mb-4">
+              <Check size={14} className="text-amber-400" />
+              <span className="text-amber-400 text-[11px] font-black tracking-widest uppercase">Pilih Wilayah</span>
+              <button
+                onClick={closeRegionSelect}
+                className="self-start text-slate-400 hover:text-slate-300 text-[12px]"
+              >
+                ✕
+              </button>
+            </div>
+            <h2 className="text-white font-black text-[18px] mb-0.5">Wilayah Tugas</h2>
+            <p className="text-slate-400 text-[12px] mb-6">
+              Anda memiliki akses ke {(officer.dermagaAccess?.length || 0)} dermaga. Pilih wilayah untuk sesi ini.
+            </p>
+            <div className="space-y-3">
+              {(officer.dermagaAccess || []).map(dm => (
+                <button
+                  key={dm.id}
+                  onClick={() => confirmRegionSelect(dm.code)}
+                  className={`w-full rounded-3xl p-3 text-left border-2 transition-all flex items-center gap-3 ${
+                    selectedRegion === dm.code
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-slate-100 hover:border-slate-200'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${
+                    selectedRegion === dm.code ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    <Check size={12} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-bold text-slate-900 text-[13px]">{dm.name}</p>
+                    <p className="text-[10px] text-slate-500">{dm.code}</p>
+                  </div>
+                  {selectedRegion === dm.code && (
+                    <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center">
+                      <Check size={8} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeRegionSelect}
+                className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-700 font-semibold text-[12px]"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  resetDraft()
+                  go('trip-condition')
+                }}
+                disabled={!selectedRegion}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-[12px] disabled:opacity-50"
+              >
+                {selectedRegion ? 'Mulai Trip' : 'Pilih Wilayah'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sync Status */}
       {pendingCount > 0 && (
@@ -115,6 +202,6 @@ export default function HomeScreen({ go }: HomeScreenProps) {
           ))}
         </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -28,7 +28,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
     const url = apiUrl.trim()
     if (!url) return
 
-    // Basic URL validation
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       alert('URL harus dimulai dengan http:// atau https://')
       return

@@ -79,7 +79,7 @@ export type VerifyIntent = 'switch' | 'security'
 
 interface StoreValue {
   loggedIn: boolean
-  login: (userType: 'admin' | 'member') => void
+  login: (userType: 'admin' | 'member', officerId?: string) => void
   logout: () => void
   userType: 'admin' | 'member'
   officer: Officer
