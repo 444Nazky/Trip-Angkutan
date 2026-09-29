@@ -82,6 +82,11 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
       duration: fmtElapsed(elapsed),
       photo: draft.photo,
       photoUrl: draft.photoUrl,
+      photoCapturedAt: draft.photoCapturedAt,
+      photoLatitude: draft.photoLatitude,
+      photoLongitude: draft.photoLongitude,
+      startedAt: new Date(startedAt).toISOString(),
+      completedAt: now.toISOString(),
       vehicles: isMuatan ? vehicles : [],
       synced: false,
     })

@@ -182,6 +182,40 @@ class ApiService {
   put<T>(path: string, body?: unknown) { return this.request<T>('PUT', path, body) }
   delete<T>(path: string) { return this.request<T>('DELETE', path) }
 
+  async postMultipart<T>(path: string, body: FormData): Promise<ApiResponse<T>> {
+    const headers: Record<string, string> = {}
+    if (this._token) headers.Authorization = `Bearer ${this._token}`
+
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 60000)
+      let res: Response
+      try {
+        res = await fetch(`${this.baseUrl}${path}`, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 401) this.setToken(null)
+        return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
+      }
+      return { ok: true, data }
+    } catch (err) {
+      const aborted = err instanceof DOMException && err.name === 'AbortError'
+      return {
+        ok: false,
+        error: { message: aborted ? 'Unggah dokumentasi melewati batas waktu' : err instanceof Error ? err.message : 'Network error' },
+      }
+    }
+  }
+
   async uploadPhoto(file: File): Promise<{ url: string } | null> {
     const form = new FormData()
     form.append('foto', file)

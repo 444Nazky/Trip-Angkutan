@@ -72,12 +72,18 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       category: category,
       tariff: tariffFor(vehicleType).loadedNum,
       photoUrl: draft.photoUrl,
+      photoCapturedAt: draft.photoCapturedAt,
+      photoLatitude: draft.photoLatitude,
+      photoLongitude: draft.photoLongitude,
       plateStatus: check?.status,
     })
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
       photo: false,
       photoUrl: undefined,
+      photoCapturedAt: undefined,
+      photoLatitude: undefined,
+      photoLongitude: undefined,
     })
     setCheck(null)
     return true

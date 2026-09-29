@@ -63,24 +63,57 @@ export function getPendingCount(): number {
 // ─── Trip Sync ────────────────────────────────────────────────────────────────
 
 async function postTripToServer(trip: Trip): Promise<SyncResult> {
-  // Transform app trip to backend format
+  if (trip.photo && !trip.photoUrl) {
+    return { id: trip.id, success: false, error: 'Foto bukti trip tidak tersedia' }
+  }
+  if (trip.vehicles?.some(vehicle => !vehicle.photoUrl)) {
+    return { id: trip.id, success: false, error: 'Foto dokumentasi kendaraan tidak lengkap' }
+  }
+
+  const photos: Blob[] = []
+  const toPhotoIndex = async (dataUrl?: string) => {
+    if (!dataUrl) return null
+    const index = photos.length
+    const photo = await (await fetch(dataUrl)).blob()
+    photos.push(photo)
+    return index
+  }
+
+  const tripPhotoIndex = await toPhotoIndex(trip.photoUrl)
+  const vehicles = []
+  for (const vehicle of trip.vehicles || []) {
+    vehicles.push({
+      noPolisi: vehicle.plate,
+      vehicleType: vehicle.type,
+      golongan: vehicle.category,
+      hasLoad: trip.load === 'Ada Muatan',
+      tariffAmount: vehicle.tariff,
+      photoIndex: await toPhotoIndex(vehicle.photoUrl),
+      photoCapturedAt: vehicle.photoCapturedAt || null,
+      latitude: vehicle.photoLatitude ?? null,
+      longitude: vehicle.photoLongitude ?? null,
+    })
+  }
+
+  // One multipart request carries the full trip manifest and every image.
   const payload = {
     statusMuatan: trip.load === 'Ada Muatan' ? 'muatan' : 'kosong',
     routeFrom: trip.route.split(' → ')[0],
     routeTo: trip.route.split(' → ')[1],
     keterangan: trip.category || 'Internal',
-    fotoKosongPath: null,
-    vehicles: trip.vehicles?.map(v => ({
-      noPolisi: v.plate,
-      vehicleType: v.type,
-      golongan: v.category,
-      hasLoad: trip.load === 'Ada Muatan',
-      tariffAmount: v.tariff,
-    })) || [],
+    startedAt: trip.startedAt || null,
+    completedAt: trip.completedAt || null,
+    tripPhotoIndex,
+    tripPhotoCapturedAt: trip.photoCapturedAt || null,
+    tripPhotoLatitude: trip.photoLatitude ?? null,
+    tripPhotoLongitude: trip.photoLongitude ?? null,
+    vehicles,
   }
 
-  // Step 1: Create trip record
-  const tripResult = await api.post<{ id: string; noTrip: string }>('/trips', payload)
+  const form = new FormData()
+  form.append('payload', JSON.stringify(payload))
+  photos.forEach((photo, index) => form.append('photos', photo, `documentation-${index}.jpg`))
+  const tripResult = await api.postMultipart<{ id: string; noTrip: string }>('/trips/complete', form)
 
   if (!tripResult.ok || !tripResult.data) {
     return {
@@ -88,23 +121,6 @@ async function postTripToServer(trip: Trip): Promise<SyncResult> {
       success: false,
       error: tripResult.error?.message,
       code: tripResult.error?.code,
-    }
-  }
-
-  // Step 2: Add vehicles to trip (if any)
-  if (payload.vehicles.length > 0) {
-    for (const vehicle of payload.vehicles) {
-      const vehicleResult = await api.post(`/trips/${tripResult.data.id}/vehicles`, {
-        ...vehicle,
-        fotoPath: null,
-        latitude: null,
-        longitude: null,
-      })
-
-      if (!vehicleResult.ok) {
-        // Log but don't fail - trip is created
-        console.error('Failed to sync vehicle:', vehicleResult.error)
-      }
     }
   }
 

@@ -142,6 +142,16 @@ function migrate() {
   `);
 
   relaxTripsDermagaNotNull();
+  for (const [table, column, definition] of [
+    ['trips', 'foto_captured_at', 'TEXT'],
+    ['trips', 'foto_latitude', 'REAL'],
+    ['trips', 'foto_longitude', 'REAL'],
+    ['trips', 'started_at', 'TEXT'],
+    ['trips', 'completed_at', 'TEXT'],
+    ['vehicles', 'foto_captured_at', 'TEXT'],
+  ]) {
+    try { db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`); } catch (e) { /* already exists */ }
+  }
   // Urutan penting: wilayah spec dibuat dulu, baru seedSpecTables memberi
   // tarif region (lokal/eksternal) untuk region yang baru saja ditambahkan.
   ensureSpecRegions();
@@ -495,6 +505,7 @@ function initialize() {
       tariff_id TEXT,
       tariff_amount INTEGER DEFAULT 0,
       foto_path TEXT,
+      foto_captured_at TEXT,
       latitude REAL,
       longitude REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -517,6 +528,11 @@ function initialize() {
       route_to TEXT,
       keterangan TEXT,
       foto_kosong_path TEXT,
+      foto_captured_at TEXT,
+      foto_latitude REAL,
+      foto_longitude REAL,
+      started_at TEXT,
+      completed_at TEXT,
       is_synced INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (officer_id) REFERENCES officers(id),

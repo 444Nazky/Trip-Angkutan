@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, RefreshCw, Camera, AlertCircle, Loader2 } from 'lucide-react'
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
 import { readPlateFromImage } from '../../services/ocr'
@@ -96,7 +97,27 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       }
       return
     }
-    patchDraft({ photo: true, photoUrl: dataUrl })
+    const capturedAt = new Date().toISOString()
+    let latitude: number | null = null
+    let longitude: number | null = null
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 30000,
+      })
+      latitude = position.coords.latitude
+      longitude = position.coords.longitude
+    } catch {
+      // Dokumentasi tetap dapat disimpan ketika izin/lokasi tidak tersedia.
+    }
+    patchDraft({
+      photo: true,
+      photoUrl: dataUrl,
+      photoCapturedAt: capturedAt,
+      photoLatitude: latitude,
+      photoLongitude: longitude,
+    })
     go(returnTo)
   }
 

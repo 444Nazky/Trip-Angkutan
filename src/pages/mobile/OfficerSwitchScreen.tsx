@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Lock, RefreshCw } from 'lucide-react'
+import { ChevronLeft, Lock, RefreshCw, LogOut } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -9,7 +9,7 @@ interface OfficerSwitchScreenProps {
 }
 
 export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
-  const { officer, beginVerify, officers, refreshOfficers } = useApp()
+  const { officer, beginVerify, officers, refreshOfficers, logout } = useApp()
   const [syncing, setSyncing] = useState(false)
 
   const pull = async () => {
@@ -24,19 +24,18 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Filter: region SAMA dan minimal 1 dermaga sama dengan petugas aktif
+  // Filter: region SAMA dan minimal 1 dermaga irisan dengan petugas aktif
   const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
   const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
   const regionOfficers = officers.filter(o => {
-    // Region harus sama
     const regs = o.regions && o.regions.length > 0 ? o.regions : [o.region]
     const sameRegion = regs.some(r => myRegions.includes(r))
     if (!sameRegion) return false
-    // Dermaga harus ada irisan dengan petugas aktif
     const theirs = o.dermagaAccess || []
     const shareDermaga = theirs.some(d => myDermagaIds.has(d.id))
     return myDermagaIds.size > 0 ? shareDermaga : true
   })
+
   return (
     <div className="px-4 pt-2 pb-4">
       <button onClick={() => go('profile')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
@@ -89,6 +88,13 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => logout()}
+        className="w-full flex items-center justify-center gap-2 py-3 text-red-500 font-bold text-[13px] rounded-2xl hover:bg-red-50 active:bg-red-100 transition-colors mt-4"
+      >
+        <LogOut size={15} /> Logout Akun
+      </button>
     </div>
   )
 }

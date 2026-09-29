@@ -1,8 +1,32 @@
 const express = require('express');
+const fs = require('fs');
+const multer = require('multer');
+const path = require('path');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
+
+const uploadDocumentation = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 50 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+  },
+});
+
+const photoExtension = (mimetype) => ({
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+}[mimetype]);
+
+const validPhotoIndex = (value, files) =>
+  value === null || value === undefined
+    ? null
+    : Number.isInteger(value) && value >= 0 && value < files.length ? value : undefined;
+
+const numericCoordinate = (value) => Number.isFinite(value) ? value : null;
 
 // Generate trip number
 function generateTripNo() {
@@ -11,6 +35,94 @@ function generateTripNo() {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `TRP${dateStr}${random}`;
 }
+
+// Create a trip with its complete photo manifest in one multipart request.
+router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), (req, res) => {
+  const writtenFiles = [];
+  try {
+    const payload = JSON.parse(req.body.payload || '{}');
+    const files = req.files || [];
+    const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
+    if (!payload.statusMuatan) {
+      return res.status(400).json({ error: 'statusMuatan wajib diisi' });
+    }
+
+    const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files);
+    const vehiclePhotoIndexes = vehicles.map(vehicle => validPhotoIndex(vehicle.photoIndex, files));
+    if (tripPhotoIndex === null || tripPhotoIndex === undefined || vehiclePhotoIndexes.some(index => index === null || index === undefined)) {
+      return res.status(400).json({ error: 'Semua foto dokumentasi wajib disertakan' });
+    }
+    const usedIndexes = [tripPhotoIndex, ...vehiclePhotoIndexes];
+    if (new Set(usedIndexes).size !== files.length) {
+      return res.status(400).json({ error: 'Payload harus menyertakan seluruh foto dokumentasi tepat satu kali' });
+    }
+
+    const { officerId, regionId } = req.officer;
+    const dermagaId =
+      req.body.dermagaId ||
+      (db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ? LIMIT 1`).get(officerId)?.dermaga_id) ||
+      (db.prepare(`SELECT id FROM dermagas WHERE region_id = ? LIMIT 1`).get(regionId)?.id) ||
+      (db.prepare(`SELECT id FROM dermagas LIMIT 1`).get()?.id) || null;
+
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    const photoPaths = files.map(file => {
+      const ext = photoExtension(file.mimetype);
+      if (!ext) throw new Error('Format foto tidak didukung');
+      const filename = `${uuidv4()}${ext}`;
+      const fullPath = path.join(uploadsDir, filename);
+      fs.writeFileSync(fullPath, file.buffer);
+      writtenFiles.push(fullPath);
+      return `/uploads/${filename}`;
+    });
+
+    const tripId = uuidv4();
+    const noTrip = generateTripNo();
+    db.prepare(`
+      INSERT INTO trips (
+        id, no_trip, officer_id, region_id, dermaga_id, status_muatan,
+        route_from, route_to, keterangan, foto_kosong_path, foto_captured_at,
+        foto_latitude, foto_longitude, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      tripId, noTrip, officerId, regionId, dermagaId, payload.statusMuatan,
+      payload.routeFrom || null, payload.routeTo || null, payload.keterangan || null,
+      photoPaths[tripPhotoIndex], payload.tripPhotoCapturedAt || null,
+      numericCoordinate(payload.tripPhotoLatitude), numericCoordinate(payload.tripPhotoLongitude),
+      payload.startedAt || null, payload.completedAt || null
+    );
+
+    vehicles.forEach((vehicle, index) => {
+      const masterTariff = db.prepare(`
+        SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
+      `).get(vehicle.vehicleType);
+      const amount = masterTariff
+        ? (vehicle.hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
+        : (vehicle.tariffAmount || 0);
+      const vehicleId = uuidv4();
+      const photoIndex = vehiclePhotoIndexes[index];
+      db.prepare(`
+        INSERT INTO vehicles (
+          id, no_polisi, vehicle_type, golongan, trip_id, has_load, tariff_id,
+          tariff_amount, foto_path, foto_captured_at, latitude, longitude
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        vehicleId, vehicle.noPolisi, vehicle.vehicleType, vehicle.golongan, tripId,
+        vehicle.hasLoad ? 1 : 0, masterTariff ? masterTariff.id : null, amount,
+        photoPaths[photoIndex], vehicle.photoCapturedAt || null,
+        numericCoordinate(vehicle.latitude), numericCoordinate(vehicle.longitude)
+      );
+      db.prepare(`INSERT INTO trip_vehicles (id, trip_id, vehicle_id) VALUES (?, ?, ?)`)
+        .run(uuidv4(), tripId, vehicleId);
+    });
+
+    return res.status(201).json({ id: tripId, noTrip });
+  } catch (error) {
+    writtenFiles.forEach(filePath => { try { fs.unlinkSync(filePath); } catch { /* already removed */ } });
+    console.error('Complete trip submission error:', error);
+    return res.status(500).json({ error: 'Failed to submit complete trip documentation' });
+  }
+});
 
 // Create trip
 router.post('/', authenticate, (req, res) => {

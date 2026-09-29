@@ -13,6 +13,9 @@ export interface VehicleEntry {
   tariff: number
   /** Foto dokumentasi kendaraan ini (dari kamera) */
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
   /** Hasil cek status plat saat input: internal / lokal / eksternal */
   plateStatus?: string
   /** Region asal kendaraan & pos pemeriksaan saat cek plat */
@@ -36,6 +39,11 @@ export interface Trip {
   duration: string
   photo: boolean
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
+  startedAt?: string
+  completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
 }
@@ -47,6 +55,9 @@ export interface Draft {
   vehicleForm: { plate: string; type: string; category: string }
   photo: boolean
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
   /** Layar tujuan kembali setelah pengambilan foto kamera */
   cameraFrom: MobileScreen
   /** Mode kamera: 'photo' = foto dokumentasi · 'ocr' = scan plat (keduanya HANYA kamera, tanpa galeri) */
@@ -101,6 +112,9 @@ const emptyDraft: Draft = {
   vehicleForm: { plate: '', type: '', category: '' },
   photo: false,
   photoUrl: undefined,
+  photoCapturedAt: undefined,
+  photoLatitude: undefined,
+  photoLongitude: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
   startedAt: null,
