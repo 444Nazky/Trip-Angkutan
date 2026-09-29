@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from 'react'
-import { Camera, Download, Eye, EyeOff } from 'lucide-react'
+import { Camera, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportSummary } from '../../../services/trips'
 import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
@@ -165,9 +165,21 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
             Refresh
           </button>
-          <button onClick={handleExport} disabled={reportState !== 'ready'}
+          {/* Buka Spreadsheet Live — redirect (andalan, tak terblokir popup blocker) */}
+          <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
+            title="Buka spreadsheet live yang tersinkron langsung dari database"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
-            <Download size={15} /> Ekspor Excel
+            <Table2 size={15} /> Ekspor Spreadsheet
+          </button>
+          <button onClick={() => window.open(`${window.location.pathname}#/sheet`, '_blank')} disabled={reportState !== 'ready'}
+            title="Buka spreadsheet di tab baru" aria-label="Buka spreadsheet di tab baru"
+            className="border border-slate-200 text-slate-600 px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
+            <ExternalLink size={15} />
+          </button>
+          <button onClick={handleExport} disabled={reportState !== 'ready'}
+            title="Unduh berkas .xlsx (cara lama, opsional)"
+            className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
+            <Download size={15} /> .xlsx
           </button>
         </div>
       </div>

@@ -15,6 +15,7 @@ import type { Officer } from './components/types'
 import { CurrencyProvider } from './components/CurrencyDisplay'
 import { getApiBaseUrl } from '../../services/api'
 import { loadTheme, applyTheme } from '../../services/theme'
+import ReportSheet from './ReportSheet'
 
 // Tabs
 import { OverviewTab, TariffTab, PlatesTab, RoutesTab, OfficersTab, ReportsTab, SettingsTab } from './tabs'
@@ -31,6 +32,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [backendOfficers, setBackendOfficers] = useState<BackendOfficerRow[]>([])
   const [dashSummary, setDashSummary] = useState<{ totalTrips: number; totalRevenue: number; totalVehicles: number } | null>(null)
   const [dashAt, setDashAt] = useState('')
+
+  // Mode Spreadsheet Live (tab baru dibuka dari tombol "Ekspor Spreadsheet" — `#/sheet`)
+  const [sheetMode, setSheetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/sheet')
+  useEffect(() => {
+    const onHash = () => setSheetMode(window.location.hash === '#/sheet')
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
@@ -114,7 +123,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
 
-  return (
+  return sheetMode ? <ReportSheet /> : (
     <CurrencyProvider>
       <div className="flex min-h-screen">
       {/* Toast */}
