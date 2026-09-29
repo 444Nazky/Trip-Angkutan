@@ -1,24 +1,11 @@
 // ─── Shared Data ──────────────────────────────────────────────────────────────
 
-import { getStoredRoutes, hasDockScopedRoutes } from '../services/auth'
-
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
   { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Sabadi → Sijangkung', distance: '42 km', duration: '1j 10m' },
   { code: 'SJRE-BDAU', from: 'SJRE', to: 'BDAU', label: 'Sijangkung → Badau', distance: '18 km', duration: '35m' },
   { code: 'BDAU-SJRE', from: 'BDAU', to: 'SJRE', label: 'Badau → Sijangkung', distance: '18 km', duration: '35m' },
 ]
-
-/**
- * Daftar rute yang dipakai layar mobile (Pilih Rute / Ringkasan / Trip Aktif).
- * Sumber utama: Master Rute milik petugas yang login (ikut tersimpan saat
- * login PIN / segar dari GET /routes/mine). Bila belum ada (mis. belum pernah
- * login backend), fallback ke rute statis di atas.
- */
-export function activeRoutes() {
-  const stored = getStoredRoutes()
-  return stored.length || hasDockScopedRoutes() ? stored : ROUTES
-}
 
 export const allTrips = [
   { id: 'TRP-2026-0091', route: 'SJRE → SBDZ', status: 'Selesai', time: '08:42', date: '21 Sep 2026', load: 'Ada Muatan', vehicle: 'B 3821 KDA', type: 'Truck Sedang', category: 'Internal', revenue: 'Rp 280.000', officer: 'Budi Santoso', duration: '1j 08m', photo: true },
@@ -37,10 +24,15 @@ export const tariffData = [
   { golongan: 'V', type: 'Truck Besar', loaded: 'Rp 450.000', loadedNum: 450000, empty: 'Rp 200.000', emptyNum: 200000, desc: 'Truck besar / trailer di atas 8 ton' },
 ]
 
+export interface DermagaAccess {
+  id: string
+  name: string
+}
+
 export const officerList = [
-  { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 14', trips: 91, lastActive: 'Hari ini 08:42', joined: '12 Jan 2025' },
-  { id: '2', name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Samsung A54', trips: 78, lastActive: 'Hari ini 06:30', joined: '3 Mar 2025' },
-  { id: '3', name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Nonaktif', device: 'Redmi 12', trips: 43, lastActive: '15 Sep 2026', joined: '22 Jun 2025' },
-  { id: '4', name: 'Rizky Maulana', initials: 'RM', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'Oppo A78', trips: 112, lastActive: 'Hari ini 09:15', joined: '8 Feb 2025' },
-  { id: '5', name: 'Dewi Kusuma', initials: 'DK', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'iPhone 13', trips: 65, lastActive: 'Kemarin 14:00', joined: '17 Apr 2025' },
+  { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 14', trips: 91, lastActive: 'Hari ini 08:42', joined: '12 Jan 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
+  { id: '2', name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Samsung A54', trips: 78, lastActive: 'Hari ini 06:30', joined: '3 Mar 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }, { id: 'd2', name: 'Dermaga 2' }] },
+  { id: '3', name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Redmi 12', trips: 43, lastActive: '15 Sep 2026', joined: '22 Jun 2025', dermagaAccess: [{ id: 'd2', name: 'Dermaga 2' }] },
+  { id: '4', name: 'Rizky Maulana', initials: 'RM', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'Oppo A78', trips: 112, lastActive: 'Hari ini 09:15', joined: '8 Feb 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
+  { id: '5', name: 'Dewi Kusuma', initials: 'DK', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 13', trips: 65, lastActive: 'Kemarin 14:00', joined: '17 Apr 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
 ]

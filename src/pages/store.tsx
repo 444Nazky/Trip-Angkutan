@@ -13,9 +13,6 @@ export interface VehicleEntry {
   tariff: number
   /** Foto dokumentasi kendaraan ini (dari kamera) */
   photoUrl?: string
-  photoCapturedAt?: string
-  photoLatitude?: number | null
-  photoLongitude?: number | null
   /** Hasil cek status plat saat input: internal / lokal / eksternal */
   plateStatus?: string
   /** Region asal kendaraan & pos pemeriksaan saat cek plat */
@@ -39,11 +36,6 @@ export interface Trip {
   duration: string
   photo: boolean
   photoUrl?: string
-  photoCapturedAt?: string
-  photoLatitude?: number | null
-  photoLongitude?: number | null
-  startedAt?: string
-  completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
 }
@@ -55,9 +47,6 @@ export interface Draft {
   vehicleForm: { plate: string; type: string; category: string }
   photo: boolean
   photoUrl?: string
-  photoCapturedAt?: string
-  photoLatitude?: number | null
-  photoLongitude?: number | null
   /** Layar tujuan kembali setelah pengambilan foto kamera */
   cameraFrom: MobileScreen
   /** Mode kamera: 'photo' = foto dokumentasi · 'ocr' = scan plat (keduanya HANYA kamera, tanpa galeri) */
@@ -69,17 +58,18 @@ export interface Draft {
   startedAt: number | null
 }
 
-type Officer = (typeof officerList)[number] & {
-  regions?: string[]
-  // Akses dermaga (D1/D2) dari backend — menentukan rute yang tampil di mobile
-  dermagaAccess?: { id: string; code: string; name: string; region_id?: string }[]
+export interface DermagaAccess {
+  id: string
+  name: string
 }
+
+type Officer = (typeof officerList)[number] & { regions?: string[]; dermagaAccess?: DermagaAccess[] }
 export type TariffRow = (typeof tariffData)[number] & { id?: string }
 export type VerifyIntent = 'switch' | 'security'
 
 interface StoreValue {
   loggedIn: boolean
-  login: (userType: 'admin' | 'member', officerId?: string) => void
+  login: (userType: 'admin' | 'member') => void
   logout: () => void
   userType: 'admin' | 'member'
   officer: Officer
@@ -112,9 +102,6 @@ const emptyDraft: Draft = {
   vehicleForm: { plate: '', type: '', category: '' },
   photo: false,
   photoUrl: undefined,
-  photoCapturedAt: undefined,
-  photoLatitude: undefined,
-  photoLongitude: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
   startedAt: null,
@@ -246,15 +233,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch { return false }
   }
 
-  // Sesi admin hanya valid di build admin (:8000). Di aplikasi mobile
-  // (:5173 / Capacitor) opsi login administrator sudah dihapus, jadi sesi
-  // admin lama yang tertinggal langsung dibersihkan agar tidak nyangkut.
-  const staleAdminSession = !isAdminBuild() && (load('trip.userType', 'member') as string) === 'admin'
-  const [loggedIn, setLoggedIn] = useState<boolean>(() =>
-    staleAdminSession ? false : load(LS.session, false))
+  const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => {
     if (isAdminBuild()) return 'admin'
-    if (staleAdminSession) return 'member'
     return load('trip.userType', 'member')
   })
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
@@ -297,16 +278,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [officers, officerId],
   )
 
-  const login = useCallback((type: 'admin' | 'member', officerId?: string) => {
+  const login = useCallback((type: 'admin' | 'member') => {
     setUserType(type)
     setLoggedIn(true)
-    // If officerId provided (member login), update it in store
-    if (type === 'member' && officerId) {
-      setOfficerIdState(officerId)
-    }
     // Login screen is local-only — fetch a backend JWT so trip sync can authenticate
-    if (type === 'member') void ensureBackendSession(officerId || undefined)
-  }, [])
+    if (type === 'member') void ensureBackendSession(officerId)
+  }, [officerId])
   const logout = useCallback(() => {
     setLoggedIn(false)
     setUserType('member')
@@ -353,12 +330,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isAdminBuild()) return
     const synced = await syncOfficersToLocal(force)
     if (synced.length === 0) return
+
+    // Ensure all synced officers have dermagaAccess
+    const syncedWithDermaga = synced.map(o => ({
+      ...o,
+      dermagaAccess: o.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }],
+    }))
+
     setOfficers(prev => {
-      const hasCurrent = synced.some(o => String(o.id) === String(officerId))
-      if (hasCurrent) return synced
+      const hasCurrent = syncedWithDermaga.some(o => String(o.id) === String(officerId))
+      if (hasCurrent) return syncedWithDermaga
       // Petugas aktif tidak boleh hilang dari daftar (mis. sementara offline)
       const current = prev.find(o => String(o.id) === String(officerId))
-      return current ? [...synced, current] : synced
+      if (current) {
+        return [...syncedWithDermaga, { ...current, dermagaAccess: current.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }] }]
+      }
+      return syncedWithDermaga
     })
 
     // Sinkronisasi paksa: wilayah petugas mungkin saja dipindah admin,

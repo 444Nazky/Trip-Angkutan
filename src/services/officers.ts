@@ -82,6 +82,7 @@ export function toMobileOfficer(bo: BackendOfficer) {
     trips: 0,
     lastActive: '-',
     joined: '-',
+    dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }], // Default, backend can extend this later
   }
 }
 
