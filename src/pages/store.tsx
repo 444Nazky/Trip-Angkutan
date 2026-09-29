@@ -353,11 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const synced = await syncOfficersToLocal(force)
     if (synced.length === 0) return
 
-    // Ensure all synced officers have dermagaAccess
-    const syncedWithDermaga = synced.map(o => ({
-      ...o,
-      dermagaAccess: o.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }],
-    }))
+    const syncedWithDermaga = synced.map(o => ({ ...o, dermagaAccess: o.dermagaAccess || [] }))
 
     setOfficers(prev => {
       const hasCurrent = syncedWithDermaga.some(o => String(o.id) === String(officerId))
@@ -365,7 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Petugas aktif tidak boleh hilang dari daftar (mis. sementara offline)
       const current = prev.find(o => String(o.id) === String(officerId))
       if (current) {
-        return [...syncedWithDermaga, { ...current, dermagaAccess: current.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }] }]
+        return [...syncedWithDermaga, { ...current, dermagaAccess: current.dermagaAccess || [] }]
       }
       return syncedWithDermaga
     })

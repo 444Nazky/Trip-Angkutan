@@ -34,13 +34,18 @@ export const tariffData = [
 
 export interface DermagaAccess {
   id: string
+  code?: string
   name: string
+  region_id?: string
 }
 
 export const officerList = [
-  { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 14', trips: 91, lastActive: 'Hari ini 08:42', joined: '12 Jan 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
-  { id: '2', name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Samsung A54', trips: 78, lastActive: 'Hari ini 06:30', joined: '3 Mar 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }, { id: 'd2', name: 'Dermaga 2' }] },
-  { id: '3', name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'Redmi 12', trips: 43, lastActive: '15 Sep 2026', joined: '22 Jun 2025', dermagaAccess: [{ id: 'd2', name: 'Dermaga 2' }] },
-  { id: '4', name: 'Rizky Maulana', initials: 'RM', region: 'ENTIKONG', pin: '123456', status: 'Aktif', device: 'Oppo A78', trips: 112, lastActive: 'Hari ini 09:15', joined: '8 Feb 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
-  { id: '5', name: 'Dewi Kusuma', initials: 'DK', region: 'BADAU', pin: '123456', status: 'Aktif', device: 'iPhone 13', trips: 65, lastActive: 'Kemarin 14:00', joined: '17 Apr 2025', dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }] },
+  { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BADAU-D1', code: 'D1', name: 'Dermaga 1' }] },
+  { id: '2', name: 'Andi Pratama', initials: 'AP', region: 'BADAU', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BADAU-D2', code: 'D2', name: 'Dermaga 2' }] },
+  { id: '3', name: 'Dewi Kusuma', initials: 'DK', region: 'BADAU', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BADAU-D1', code: 'D1', name: 'Dermaga 1' }, { id: 'BADAU-D2', code: 'D2', name: 'Dermaga 2' }] },
+  { id: '4', name: 'Siti Rahayu', initials: 'SR', region: 'BADAU', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BADAU-D1', code: 'D1', name: 'Dermaga 1' }] },
+  { id: '5', name: 'Agung Suntoso', initials: 'AS', region: 'BELITUNG', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BELITUNG-D1', code: 'D1', name: 'Dermaga 1' }] },
+  { id: '6', name: 'Rahmat Hidayat', initials: 'RH', region: 'BELITUNG', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BELITUNG-D2', code: 'D2', name: 'Dermaga 2' }] },
+  { id: '7', name: 'Hendra Gunawan', initials: 'HG', region: 'KELAPAKAMPIT', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'KELAPAKAMPIT-D1', code: 'D1', name: 'Dermaga 1' }] },
+  { id: '8', name: 'Maya Sari', initials: 'MS', region: 'KELAPAKAMPIT', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'KELAPAKAMPIT-D2', code: 'D2', name: 'Dermaga 2' }] },
 ]

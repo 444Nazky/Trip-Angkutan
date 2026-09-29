@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
+import { ROUTES } from '../data'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import { EMPTY_ROUTE_CODE } from './TripConditionScreen'
@@ -10,13 +11,24 @@ interface RouteSelectScreenProps {
 }
 
 export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
-  const { draft, patchDraft, officer, activeDermagaId } = useApp()
+  const { draft, patchDraft, officer, activeDermagaId, setActiveDermaga } = useApp()
   const selected = draft.routeCode
+
+  const accessibleDermagas = officer.dermagaAccess || []
+  const hasDualAccess = accessibleDermagas.length > 1
+
+  // Single-access officer is always scoped to their only assigned dock.
+  useEffect(() => {
+    if (activeDermagaId) return // Sudah diset (mis. dual-access via DermagaPickerModal)
+    if (!hasDualAccess && accessibleDermagas[0]?.id) {
+      setActiveDermaga(accessibleDermagas[0].id)
+    }
+  }, [activeDermagaId, accessibleDermagas, hasDualAccess, setActiveDermaga])
 
   // Nama dermaga aktif untuk ditampilkan di banner (cari dari dermagaAccess petugas)
   const activeDermagaName = activeDermagaId
-    ? (officer.dermagaAccess || []).find(d => d.id === activeDermagaId)?.name ?? null
-    : null
+    ? accessibleDermagas.find(d => d.id === activeDermagaId)?.name ?? null
+    : hasDualAccess ? accessibleDermagas.map(d => d.name).join(' + ') : null
 
   // Rute dari backend — TIDAK fallback ke data statis.
   // Jika cache kosong dan backend tidak tersedia, tampilkan pesan kosong.
@@ -36,16 +48,20 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
     return () => { alive = false }
   }, [])
 
-  // Saring rute berdasarkan dermaga aktif untuk trip ini.
-  // Petugas hanya boleh melihat rute dari dermaga yang dipilih.
-  const dermagaFiltered = activeDermagaId
-    ? routes.filter(r => r.dermagaId === activeDermagaId)
-    : routes
+  // /routes/mine already scopes the response to authorized docks. Dual-access
+  // users intentionally see routes from both assigned docks; single access is
+  // additionally pinned to its only dock.
+  const allowedDockIds = new Set(accessibleDermagas.map(d => d.id))
+  const dermagaFiltered = hasDualAccess
+    ? routes.filter(r => allowedDockIds.has(r.dermagaId || ''))
+    : routes.filter(r => r.dermagaId === (activeDermagaId || accessibleDermagas[0]?.id))
 
   // Trip tanpa muatan: rute dibatasi & dikunci hanya SJRE → SBDZ.
   // Trip bermuatan: seluruh rute yang lolos filter dermaga bebas dipilih.
   const isEmptyTrip = draft.condition === 'kosong'
-  const list = isEmptyTrip ? dermagaFiltered.filter(r => r.code === EMPTY_ROUTE_CODE) : dermagaFiltered
+  const emptyRoute = dermagaFiltered.find(r => r.code === EMPTY_ROUTE_CODE)
+    || ROUTES.find(r => r.code === EMPTY_ROUTE_CODE)
+  const list = isEmptyTrip ? (emptyRoute ? [emptyRoute] : []) : dermagaFiltered
 
   // Guard: rute lama yang tidak valid saat kondisi berubah ke "kosong"
   const validSelected = selected && list.some(r => r.code === selected)

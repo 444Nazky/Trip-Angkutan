@@ -20,6 +20,7 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
       FROM officer_dermagas od
       JOIN dermagas d ON od.dermaga_id = d.id
       WHERE od.officer_id = ?
+      ORDER BY d.code
     `);
 
     // Get region for each officer from their dermaga access
@@ -33,8 +34,7 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
 
     for (const o of officers) {
       o.regions = officerRegionsStmt.all(o.id);
-      // Akses dermaga petugas (D1/D2) — menentukan rute yang tampil di mobile
-      o.dermagas = dermagaStmt.all(o.id);
+      o.dermagas = dermagaStmt.all(String(o.id));
     }
 
     res.json(officers);
@@ -74,12 +74,20 @@ router.get('/my-region', authenticate, (req, res) => {
       WHERE orr.officer_id = ?
       ORDER BY r.name
     `);
+    const dermagaStmt = db.prepare(`
+      SELECT d.id, d.name, d.code, d.region_id
+      FROM officer_dermagas od
+      JOIN dermagas d ON od.dermaga_id = d.id
+      WHERE od.officer_id = ?
+      ORDER BY d.code
+    `);
 
     const out = [];
     for (const o of officers) {
       let regions = regionsStmt.all(String(o.id));
       if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
       o.regions = regions;
+      o.dermagas = dermagaStmt.all(String(o.id));
       // Tampilkan petugas yang berbagi minimal satu wilayah dengan peminta
       if (regions.some(r => myRegionIds.has(String(r.id)))) out.push(o);
     }

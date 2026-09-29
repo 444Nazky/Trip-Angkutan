@@ -9,6 +9,7 @@ export interface BackendOfficer {
   name: string
   region_id: string
   regions: Array<{ id: string; name: string; code: string }>
+  dermagas?: Array<{ id: string; name: string; code: string; region_id: string }>
   is_active: number
 }
 
@@ -82,7 +83,7 @@ export function toMobileOfficer(bo: BackendOfficer) {
     trips: 0,
     lastActive: '-',
     joined: '-',
-    dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }], // Default, backend can extend this later
+    dermagaAccess: bo.dermagas || [],
   }
 }
 

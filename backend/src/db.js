@@ -261,6 +261,17 @@ const SPEC_WILAYAH = [
   },
 ];
 
+const DEMO_OFFICERS = [
+  { name: 'Budi Santoso', region: 'BADAU', docks: ['D1'] },
+  { name: 'Andi Pratama', region: 'BADAU', docks: ['D2'] },
+  { name: 'Dewi Kusuma', region: 'BADAU', docks: ['D1', 'D2'] },
+  { name: 'Siti Rahayu', region: 'BADAU', docks: ['D1'] },
+  { name: 'Agung Suntoso', region: 'BELITUNG', docks: ['D1'] },
+  { name: 'Rahmat Hidayat', region: 'BELITUNG', docks: ['D2'] },
+  { name: 'Hendra Gunawan', region: 'KELAPAKAMPIT', docks: ['D1'] },
+  { name: 'Maya Sari', region: 'KELAPAKAMPIT', docks: ['D2'] },
+];
+
 const regionDefaultPassword = (code) => `${String(code).toLowerCase()}123`;
 
 // Helper query — modul ini memakai objek sql.js mentah (bukan dbWrapper),
@@ -350,25 +361,7 @@ function ensureSpecRegions() {
       }
     }
 
-    // 6. Petugas contoh bila wilayah belum punya petugas aktif
-    const active = q1(`SELECT COUNT(*) as c FROM officers WHERE region_id = ? AND is_active = 1`, [region.id]);
-    if (!active || active.c === 0) {
-      const dm1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [region.id]);
-      const dm2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [region.id]) || dm1;
-      w.officers.forEach((name, i) => {
-        const oid = uuidv4();
-        db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
-          [oid, name, hashedPin, region.id]);
-        const dmId = (i % 2 === 1 ? dm2 : dm1) || dm1;
-        if (dmId) {
-          db.run(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`,
-            [oid, dmId.id]);
-        }
-      });
-      console.log(`Seeded petugas ${w.code}: ${w.officers.join(', ')}`);
-    }
-
-    // 7. Backfill: petugas wilayah spec tanpa akses dermaga → D1
+    // 6. Backfill legacy officers without dock access to D1.
     const noAccess = qAll(`
       SELECT o.id FROM officers o
       WHERE o.region_id = ?
@@ -381,6 +374,32 @@ function ensureSpecRegions() {
           db.run(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`,
             [o.id, dm1.id]);
         }
+      }
+    }
+  }
+
+  // 7. Keep the published demo accounts aligned with their documented region
+  // and dock access, including existing databases created with older seeds.
+  for (const demo of DEMO_OFFICERS) {
+    const region = q1(`SELECT id FROM regions WHERE code = ?`, [demo.region]);
+    if (!region) continue;
+    let officer = q1(`SELECT id FROM officers WHERE name = ?`, [demo.name]);
+    if (!officer) {
+      const id = uuidv4();
+      db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
+        [id, demo.name, hashedPin, region.id]);
+      officer = { id };
+    } else {
+      db.run(`UPDATE officers SET region_id = ? WHERE id = ?`, [region.id, officer.id]);
+    }
+
+    db.run(`DELETE FROM officer_dermagas WHERE officer_id = ?`, [officer.id]);
+    db.run(`DELETE FROM officer_regions WHERE officer_id = ?`, [officer.id]);
+    db.run(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`, [officer.id, region.id]);
+    for (const dockCode of demo.docks) {
+      const dock = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dockCode]);
+      if (dock) {
+        db.run(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`, [officer.id, dock.id]);
       }
     }
   }

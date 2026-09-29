@@ -15,7 +15,6 @@ import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
 import SettingsScreen from './SettingsScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
-import DermagaPickerModal from './DermagaPickerModal'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
@@ -35,8 +34,6 @@ export default function MobileApp() {
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
-  /** Modal pilih dermaga sebelum memulai trip (hanya untuk petugas dual-access) */
-  const [showDermagaPicker, setShowDermagaPicker] = useState(false)
   const stack = useRef<MobileScreen[]>(['home'])
 
   const noNavScreens: MobileScreen[] = [
@@ -90,25 +87,12 @@ export default function MobileApp() {
 
   /**
    * Dipanggil saat petugas menekan "Mulai Trip" di HomeScreen.
-   * Jika akses ganda → tampilkan DermagaPickerModal terlebih dahulu.
-   * Jika akses tunggal → set dermaga aktif otomatis lalu langsung ke trip-condition.
+   * Petugas dual-access melihat gabungan rute dari semua dermaga yang ditugaskan.
+   * Petugas single-access tetap terkunci ke dermaga satu-satunya.
    */
   function handleStartTrip() {
     const accesses = officer.dermagaAccess || []
-    if (accesses.length > 1) {
-      // Akses ganda: tampilkan modal pilihan dermaga
-      setShowDermagaPicker(true)
-    } else {
-      // Akses tunggal: set dermaga aktif secara otomatis
-      setActiveDermaga(accesses[0]?.id ?? null)
-      go('trip-condition')
-    }
-  }
-
-  /** Petugas memilih dermaga dari modal → simpan ke store lalu lanjutkan trip */
-  function handleDermagaPickerSelect(dermagaId: string) {
-    setShowDermagaPicker(false)
-    setActiveDermaga(dermagaId)
+    setActiveDermaga(accesses.length === 1 ? accesses[0].id : null)
     go('trip-condition')
   }
 
@@ -163,14 +147,6 @@ export default function MobileApp() {
       <MobileShell activeNav={activeNav} onNav={goTab}>
         <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
       </MobileShell>
-      {/* Modal pilih dermaga untuk petugas dual-access — muncul sebelum memulai trip */}
-      {showDermagaPicker && (
-        <DermagaPickerModal
-          dermagas={officer.dermagaAccess || []}
-          onSelect={handleDermagaPickerSelect}
-          onCancel={() => setShowDermagaPicker(false)}
-        />
-      )}
     </>
   )
 }

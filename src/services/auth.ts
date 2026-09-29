@@ -102,23 +102,19 @@ export function getStoredRoutes(): UiRoute[] {
     const raw = localStorage.getItem(ROUTES_KEY)
     if (!raw) return []
     const map = JSON.parse(raw) as Record<string, Route[]>
-    const selectedDermaga = getStoredDermaga()
-    const routeGroups: Array<[string, Route[]]> = selectedDermaga
-      ? [[selectedDermaga.id, map[selectedDermaga.id] || []]]
-      : Object.keys(map).length === 1 ? [[Object.keys(map)[0], Object.values(map)[0] || []]] : []
     const out: UiRoute[] = []
-    for (const [dermagaId, list] of routeGroups) {
-      for (const r of list || []) {
-        if (!r?.route_from || !r?.route_to) continue
-        const code = `${r.route_from}-${r.route_to}`
-        if (out.some(x => x.code === code)) continue
+    for (const [dermagaId, list] of Object.entries(map)) {
+      for (const route of list || []) {
+        if (!route?.route_from || !route?.route_to) continue
+        const code = `${route.route_from}-${route.route_to}`
+        if (out.some(item => item.code === code && item.dermagaId === dermagaId)) continue
         out.push({
           code,
-          from: r.route_from,
-          to: r.route_to,
-          label: r.name || `${r.route_from} → ${r.route_to}`,
-          distance: r.distance,
-          duration: r.duration,
+          from: route.route_from,
+          to: route.route_to,
+          label: route.name || `${route.route_from} → ${route.route_to}`,
+          distance: route.distance || undefined,
+          duration: route.duration || undefined,
           dermagaId,
         })
       }
