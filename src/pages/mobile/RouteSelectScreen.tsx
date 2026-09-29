@@ -59,7 +59,7 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
   // Trip tanpa muatan: rute dibatasi & dikunci hanya SJRE → SBDZ.
   // Trip bermuatan: seluruh rute yang lolos filter dermaga bebas dipilih.
   const isEmptyTrip = draft.condition === 'kosong'
-  const emptyRoute = dermagaFiltered.find(r => r.code === EMPTY_ROUTE_CODE)
+  const emptyRoute: UiRoute | undefined = dermagaFiltered.find(r => r.code === EMPTY_ROUTE_CODE)
     || ROUTES.find(r => r.code === EMPTY_ROUTE_CODE)
   const list = isEmptyTrip ? (emptyRoute ? [emptyRoute] : []) : dermagaFiltered
 
@@ -101,7 +101,9 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
       <p className="text-slate-500 text-[13px] mb-4">
         {isEmptyTrip
           ? 'Trip kosong — rute dibatasi hanya SJRE → SBDZ'
-          : 'Tentukan asal dan tujuan perjalanan'}
+          : hasDualAccess
+            ? 'Menampilkan rute dari seluruh dermaga yang Anda akses'
+            : 'Tentukan asal dan tujuan perjalanan'}
       </p>
 
       <div className="bg-[#0F172A] rounded-2xl p-4 mb-4 flex items-center gap-3">
@@ -144,6 +146,7 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
         {!loading && list.map(r => {
           const locked = isEmptyTrip
           const isSelected = validSelected === r.code
+          const routeDock = accessibleDermagas.find(d => d.id === r.dermagaId)
           return (
             <button
               key={r.code}
@@ -160,6 +163,9 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
                   <div>
                     <p className="font-bold text-slate-900 text-[13px]">{r.from} → {r.to}</p>
                     <p className="text-[11px] text-slate-400">{r.label}</p>
+                    {hasDualAccess && routeDock && (
+                      <p className="text-[10px] text-blue-600 font-semibold mt-0.5">{routeDock.name} · {routeDock.code}</p>
+                    )}
                   </div>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>

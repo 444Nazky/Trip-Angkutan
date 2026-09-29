@@ -229,7 +229,7 @@ const SPEC_WILAYAH = [
   },
   {
     code: 'BADAU', name: 'Badau',
-    officers: ['Budi Santoso', 'Andi Pratama', 'Siti Rahayu'],
+    officers: [],
     routes: [
       // Dermaga 1 — rute utama (dipertahankan dari data lama)
       { d: 'D1', from: 'SJRE', to: 'SBDZ', name: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
@@ -241,7 +241,7 @@ const SPEC_WILAYAH = [
   },
   {
     code: 'BELITUNG', name: 'Belitung',
-    officers: ['Agung Suntoso', 'Rahmat Hidayat'],
+    officers: [],
     routes: [
       { d: 'D1', from: 'CCCC', to: 'DDDD', name: 'CCCC → DDDD', distance: null, duration: null },
       { d: 'D1', from: 'DDDD', to: 'CCCC', name: 'DDDD → CCCC', distance: null, duration: null },
@@ -251,7 +251,7 @@ const SPEC_WILAYAH = [
   },
   {
     code: 'KELAPAKAMPIT', name: 'Kelapa Kampit',
-    officers: ['Hendra Gunawan', 'Maya Sari'],
+    officers: [],
     routes: [
       { d: 'D1', from: 'GGGG', to: 'HHHH', name: 'GGGG → HHHH', distance: null, duration: null },
       { d: 'D1', from: 'HHHH', to: 'GGGG', name: 'HHHH → GGGG', distance: null, duration: null },
