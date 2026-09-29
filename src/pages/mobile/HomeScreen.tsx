@@ -21,7 +21,6 @@ export default function HomeScreen({ go }: HomeScreenProps) {
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [])
-//woiii
   const handleSync = async () => {
     if (syncing || !navigator.onLine) return
     setSyncing(true)
@@ -40,7 +39,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
       .filter(p => p && p !== '-'),
   )
   return (
-    <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
+    <div className="flex flex-col px-4 pt-2 pb-4 animate-fade-in" style={{ gap: 16 }}>
       {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
@@ -73,7 +72,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
           { label: 'Trip', val: String(myTrips.length), sub: 'Total tercatat', color: 'blue' },
           { label: 'Kendaraan', val: String(units.size), sub: 'Unit unik', color: 'slate' },
@@ -81,7 +80,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
           <div key={s.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
             <p className={`text-[22px] font-black ${s.color === 'blue' ? 'text-blue-600' : 'text-slate-900'}`}>{s.val}</p>
             <p className="text-[12px] font-semibold text-slate-700 mt-1">{s.label}</p>
-            <p className="text-[12px] text-slate-400 mt-0.5 mt-0.5">{s.sub}</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{s.sub}</p>
           </div>
         ))}
       </div>
@@ -94,7 +93,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
             Lihat Semua <ChevronRight size={14} />
           </button>
         </div>
-        <div className="space-y-3">
+        <div className="flex flex-col" style={{ gap: 12 }}>
           {myTrips.slice(0, 3).map(t => (
             <button
               key={t.id}

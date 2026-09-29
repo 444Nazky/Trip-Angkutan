@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const result = await memberLogin(username.trim(), password)
 
       if (result.success) {
-        onLogin('member')
+        onLogin('member', result.officer?.id)
         return
       }
 

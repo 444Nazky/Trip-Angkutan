@@ -13,6 +13,9 @@ export interface VehicleEntry {
   tariff: number
   /** Foto dokumentasi kendaraan ini (dari kamera) */
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
   /** Hasil cek status plat saat input: internal / lokal / eksternal */
   plateStatus?: string
   /** Region asal kendaraan & pos pemeriksaan saat cek plat */
@@ -36,6 +39,11 @@ export interface Trip {
   duration: string
   photo: boolean
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
+  startedAt?: string
+  completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
 }
@@ -47,6 +55,9 @@ export interface Draft {
   vehicleForm: { plate: string; type: string; category: string }
   photo: boolean
   photoUrl?: string
+  photoCapturedAt?: string
+  photoLatitude?: number | null
+  photoLongitude?: number | null
   /** Layar tujuan kembali setelah pengambilan foto kamera */
   cameraFrom: MobileScreen
   /** Mode kamera: 'photo' = foto dokumentasi · 'ocr' = scan plat (keduanya HANYA kamera, tanpa galeri) */
@@ -69,7 +80,7 @@ export type VerifyIntent = 'switch' | 'security'
 
 interface StoreValue {
   loggedIn: boolean
-  login: (userType: 'admin' | 'member') => void
+  login: (userType: 'admin' | 'member', officerId?: string) => void
   logout: () => void
   userType: 'admin' | 'member'
   officer: Officer
@@ -102,6 +113,9 @@ const emptyDraft: Draft = {
   vehicleForm: { plate: '', type: '', category: '' },
   photo: false,
   photoUrl: undefined,
+  photoCapturedAt: undefined,
+  photoLatitude: undefined,
+  photoLongitude: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
   startedAt: null,
@@ -278,11 +292,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [officers, officerId],
   )
 
-  const login = useCallback((type: 'admin' | 'member') => {
+  const login = useCallback((type: 'admin' | 'member', selectedOfficerId?: string) => {
     setUserType(type)
     setLoggedIn(true)
-    // Login screen is local-only — fetch a backend JWT so trip sync can authenticate
-    if (type === 'member') void ensureBackendSession(officerId)
+    if (type === 'member') {
+      const id = selectedOfficerId ? String(selectedOfficerId) : officerId
+      if (selectedOfficerId) setOfficerIdState(id)
+      // Fetch a backend JWT for the same officer authenticated by the login form.
+      void ensureBackendSession(id)
+    }
   }, [officerId])
   const logout = useCallback(() => {
     setLoggedIn(false)
