@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Truck, Map, ShieldCheck, Settings, ChevronRight, LogOut, Lock } from 'lucide-react'
+import { Truck, Map, ShieldCheck, Settings, ChevronRight, LogOut, Lock, Users } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -76,10 +76,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       </div>
 
       <button
-        onClick={() => logout()}
-        className="w-full flex items-center justify-center gap-2 py-3 text-red-500 font-bold text-[13px] rounded-2xl hover:bg-red-50 active:bg-red-100 transition-colors"
+        onClick={() => go('officer-switch')}
+        className="w-full flex items-center justify-center gap-2 py-3 text-blue-600 font-bold text-[13px] rounded-2xl hover:bg-blue-50 active:bg-blue-100 transition-colors"
       >
-        <LogOut size={15} /> Logout
+        <Users size={15} /> Ganti Petugas
       </button>
     </div>
   )

@@ -24,11 +24,18 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Petugas yang berbagi minimal satu wilayah dengan petugas aktif saat ini
+  // Filter: region SAMA dan minimal 1 dermaga sama dengan petugas aktif
   const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
+  const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
   const regionOfficers = officers.filter(o => {
+    // Region harus sama
     const regs = o.regions && o.regions.length > 0 ? o.regions : [o.region]
-    return regs.some(r => myRegions.includes(r))
+    const sameRegion = regs.some(r => myRegions.includes(r))
+    if (!sameRegion) return false
+    // Dermaga harus ada irisan dengan petugas aktif
+    const theirs = o.dermagaAccess || []
+    const shareDermaga = theirs.some(d => myDermagaIds.has(d.id))
+    return myDermagaIds.size > 0 ? shareDermaga : true
   })
   return (
     <div className="px-4 pt-2 pb-4">
