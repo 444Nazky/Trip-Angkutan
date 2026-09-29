@@ -1,11 +1,19 @@
 // ─── Shared Data ──────────────────────────────────────────────────────────────
 
+import { getStoredRoutes, hasDockScopedRoutes, type UiRoute } from '../services/auth'
+
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
   { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Sabadi → Sijangkung', distance: '42 km', duration: '1j 10m' },
   { code: 'SJRE-BDAU', from: 'SJRE', to: 'BDAU', label: 'Sijangkung → Badau', distance: '18 km', duration: '35m' },
   { code: 'BDAU-SJRE', from: 'BDAU', to: 'SJRE', label: 'Badau → Sijangkung', distance: '18 km', duration: '35m' },
 ]
+
+/** Prefer backend routes scoped to the active dock; use static defaults only before route data exists. */
+export function activeRoutes(): UiRoute[] {
+  const stored = getStoredRoutes()
+  return stored.length > 0 || hasDockScopedRoutes() ? stored : ROUTES
+}
 
 export const allTrips = [
   { id: 'TRP-2026-0091', route: 'SJRE → SBDZ', status: 'Selesai', time: '08:42', date: '21 Sep 2026', load: 'Ada Muatan', vehicle: 'B 3821 KDA', type: 'Truck Sedang', category: 'Internal', revenue: 'Rp 280.000', officer: 'Budi Santoso', duration: '1j 08m', photo: true },

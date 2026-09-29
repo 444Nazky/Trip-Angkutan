@@ -65,7 +65,7 @@ export const emptyRouteForm: RouteFormState = {
 
 export interface DermagaAccess {
   id: string
-  code: string
+  code?: string
   name: string
   region_id?: string
 }
