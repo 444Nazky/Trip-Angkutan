@@ -1,6 +1,7 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw, Check } from 'lucide-react'
 import { useApp } from '../store'
 import { getPendingCount, processSyncQueue } from '../../services/sync'
+import { selectDermaga } from '../../services/auth'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -13,7 +14,9 @@ export default function HomeScreen({ go }: HomeScreenProps) {
   const [pendingCount, setPendingCount] = useState(getPendingCount())
   const [syncing, setSyncing] = useState(false)
   const [showRegionSelect, setShowRegionSelect] = useState(false)
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
+  const [selectedDermagaId, setSelectedDermagaId] = useState<string | null>(null)
+  const [selectingDermaga, setSelectingDermaga] = useState(false)
+  const [dermagaError, setDermagaError] = useState('')
 
   useEffect(() => {
     // Check pending count on mount
@@ -37,11 +40,28 @@ export default function HomeScreen({ go }: HomeScreenProps) {
 
   const hasDualAccess = !!(officer.dermagaAccess && officer.dermagaAccess.length > 1)
 
-  const openRegionSelect = () => setShowRegionSelect(true)
-  const closeRegionSelect = () => setShowRegionSelect(false)
-  const confirmRegionSelect = (region: string) => {
-    setSelectedRegion(region)
+  const openRegionSelect = () => {
+    setSelectedDermagaId(null)
+    setDermagaError('')
+    setShowRegionSelect(true)
+  }
+  const closeRegionSelect = () => {
+    if (!selectingDermaga) setShowRegionSelect(false)
+  }
+  const confirmDermagaSelect = async () => {
+    if (!selectedDermagaId || selectingDermaga) return
+    setSelectingDermaga(true)
+    setDermagaError('')
+    const result = await selectDermaga(selectedDermagaId)
+    if (!result.success) {
+      setDermagaError(result.error || 'Gagal memilih dermaga. Periksa koneksi lalu coba lagi.')
+      setSelectingDermaga(false)
+      return
+    }
     setShowRegionSelect(false)
+    setSelectingDermaga(false)
+    resetDraft()
+    go('trip-condition')
   }
 
   const myTrips = trips.filter(t => t.officer === officer.name)
@@ -76,37 +96,40 @@ export default function HomeScreen({ go }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Region Select Dialog for dual-access officers */}
+      {/* Dermaga select dialog for dual-access officers */}
       {showRegionSelect && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0F172A] rounded-3xl p-6 max-w-md w-full">
             <div className="flex items-center gap-2 mb-4">
               <Check size={14} className="text-amber-400" />
-              <span className="text-amber-400 text-[11px] font-black tracking-widest uppercase">Pilih Wilayah</span>
+              <span className="text-amber-400 text-[11px] font-black tracking-widest uppercase">Pilih Dermaga</span>
               <button
                 onClick={closeRegionSelect}
+                disabled={selectingDermaga}
                 className="self-start text-slate-400 hover:text-slate-300 text-[12px]"
               >
                 ✕
               </button>
             </div>
-            <h2 className="text-white font-black text-[18px] mb-0.5">Wilayah Tugas</h2>
+            <h2 className="text-white font-black text-[18px] mb-0.5">Dermaga Tugas</h2>
             <p className="text-slate-400 text-[12px] mb-6">
-              Anda memiliki akses ke {(officer.dermagaAccess?.length || 0)} dermaga. Pilih wilayah untuk sesi ini.
+              Anda memiliki akses ke {(officer.dermagaAccess?.length || 0)} dermaga. Pilih dermaga untuk sesi ini.
             </p>
+            {dermagaError && <p className="text-red-300 text-[12px] font-semibold mb-3">{dermagaError}</p>}
             <div className="space-y-3">
               {(officer.dermagaAccess || []).map(dm => (
                 <button
                   key={dm.id}
-                  onClick={() => confirmRegionSelect(dm.code)}
+                  onClick={() => setSelectedDermagaId(dm.id)}
+                  disabled={selectingDermaga}
                   className={`w-full rounded-3xl p-3 text-left border-2 transition-all flex items-center gap-3 ${
-                    selectedRegion === dm.code
+                    selectedDermagaId === dm.id
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-slate-100 hover:border-slate-200'
                   }`}
                 >
                   <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${
-                    selectedRegion === dm.code ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                    selectedDermagaId === dm.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
                   }`}>
                     <Check size={12} />
                   </div>
@@ -114,7 +137,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
                     <p className="font-bold text-slate-900 text-[13px]">{dm.name}</p>
                     <p className="text-[10px] text-slate-500">{dm.code}</p>
                   </div>
-                  {selectedRegion === dm.code && (
+                  {selectedDermagaId === dm.id && (
                     <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center">
                       <Check size={8} className="text-white" />
                     </div>
@@ -125,19 +148,17 @@ export default function HomeScreen({ go }: HomeScreenProps) {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={closeRegionSelect}
+                disabled={selectingDermaga}
                 className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-700 font-semibold text-[12px]"
               >
                 Batal
               </button>
               <button
-                onClick={() => {
-                  resetDraft()
-                  go('trip-condition')
-                }}
-                disabled={!selectedRegion}
+                onClick={() => void confirmDermagaSelect()}
+                disabled={!selectedDermagaId || selectingDermaga}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-[12px] disabled:opacity-50"
               >
-                {selectedRegion ? 'Mulai Trip' : 'Pilih Wilayah'}
+                {selectingDermaga ? 'Memilih...' : selectedDermagaId ? 'Mulai Trip' : 'Pilih Dermaga'}
               </button>
             </div>
           </div>

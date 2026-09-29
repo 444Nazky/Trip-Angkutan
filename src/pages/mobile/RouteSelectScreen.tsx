@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock } from 'lucide-react'
-import { activeRoutes, ROUTES } from '../data'
+import { activeRoutes } from '../data'
 import { refreshStoredRoutes, type UiRoute } from '../../services/auth'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -22,7 +22,7 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
   useEffect(() => {
     let alive = true
     refreshStoredRoutes().then(fresh => {
-      if (alive && fresh && fresh.length) setRoutes(fresh)
+      if (alive && fresh !== null) setRoutes(fresh)
     })
     return () => { alive = false }
   }, [])
@@ -30,15 +30,12 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
   // Trip tanpa muatan: rute dibatasi & dikunci hanya SJRE → SBDZ.
   // Trip bermuatan: seluruh rute bebas dipilih.
   const isEmptyTrip = draft.condition === 'kosong'
-  const emptyRoutes = routes.some(r => r.code === EMPTY_ROUTE_CODE)
-    ? routes
-    : ROUTES // petugas tanpa SJRE → SBDZ di dermaganya: pakai rute statis
-  const list = isEmptyTrip ? emptyRoutes.filter(r => r.code === EMPTY_ROUTE_CODE) : routes
+  const list = isEmptyTrip ? routes.filter(r => r.code === EMPTY_ROUTE_CODE) : routes
 
   // Guard: rute lama yang tidak valid saat kondisi berubah ke "kosong"
   const validSelected = selected && list.some(r => r.code === selected)
     ? selected
-    : isEmptyTrip ? EMPTY_ROUTE_CODE : selected
+    : isEmptyTrip ? list[0]?.code || null : null
 
   const handleContinue = () => {
     if (!draft.condition) {
@@ -46,12 +43,15 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
       return
     }
     if (draft.condition === 'muatan') {
+      if (!validSelected) return
+      patchDraft({ routeCode: validSelected })
       go('vehicle-form')
       return
     }
+    if (!validSelected) return
     // Trip kosong: wajib foto kamera sebelum lanjut ke ringkasan
     patchDraft({
-      routeCode: draft.routeCode || EMPTY_ROUTE_CODE,
+      routeCode: validSelected,
       cameraFrom: 'trip-summary',
       cameraMode: 'photo',
     })
@@ -87,6 +87,13 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
       </div>
 
       <div className="space-y-2.5 mb-5">
+        {list.length === 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
+            {isEmptyTrip
+              ? `Rute ${EMPTY_ROUTE_CODE} belum tersedia di dermaga yang dipilih.`
+              : 'Belum ada rute yang tersedia untuk dermaga yang dipilih.'}
+          </div>
+        )}
         {list.map(r => {
           const locked = isEmptyTrip
           const isSelected = validSelected === r.code

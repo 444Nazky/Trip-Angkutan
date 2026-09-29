@@ -32,6 +32,7 @@ export async function fetchTrips(): Promise<BackendTrip[] | null> {
 // ─── Admin report: trips with full vehicle detail ─────────────────────────────
 
 export interface ReportVehicle {
+  id: string
   no_polisi: string
   vehicle_type: string
   /** Kategori: 'Internal' | 'Eksternal' | 'Eksternal Bebas' (baris lama bisa berisi golongan romawi) */
@@ -40,6 +41,10 @@ export interface ReportVehicle {
   master_golongan?: string | null
   has_load: number
   tariff_amount: number
+  foto_path: string | null
+  foto_captured_at?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface ReportTrip {
@@ -49,6 +54,12 @@ export interface ReportTrip {
   route_to: string | null
   status_muatan: 'muatan' | 'kosong'
   keterangan: string | null
+  foto_kosong_path: string | null
+  foto_captured_at?: string | null
+  foto_latitude?: number | null
+  foto_longitude?: number | null
+  started_at?: string | null
+  completed_at?: string | null
   created_at: string
   officer_name?: string | null
   region_name?: string | null

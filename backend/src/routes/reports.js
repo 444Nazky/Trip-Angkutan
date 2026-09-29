@@ -127,9 +127,10 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
 
     const trips = db.prepare(query).all(...params);
 
-    // Attach full vehicle detail per trip (plat, jenis, golongan, kategori, tarif)
+    // Attach full vehicle detail and documentation per trip.
     const vehStmt = db.prepare(`
-      SELECT v.no_polisi, v.vehicle_type, v.golongan, v.has_load, v.tariff_amount,
+      SELECT v.id, v.no_polisi, v.vehicle_type, v.golongan, v.has_load, v.tariff_amount,
+        v.foto_path, v.foto_captured_at, v.latitude, v.longitude,
         (SELECT tf.golongan FROM tariffs tf WHERE tf.vehicle_type = v.vehicle_type LIMIT 1) as master_golongan
       FROM vehicles v
       WHERE v.trip_id = ?

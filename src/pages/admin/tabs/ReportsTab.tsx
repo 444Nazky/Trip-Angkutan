@@ -4,7 +4,16 @@ import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, f
 import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay, useCurrencyReveal } from '../components/CurrencyDisplay'
-import { PhotoViewer } from '../components/PhotoViewer'
+import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
+
+function vehiclePhotoCaption(trip: ReportTrip, vehicle: ReportTrip['vehicles'][number]): string {
+  const metadata = [
+    vehicle.foto_captured_at ? formatReportDateTime(vehicle.foto_captured_at).full : '',
+    typeof vehicle.latitude === 'number' && typeof vehicle.longitude === 'number'
+      ? `${vehicle.latitude.toFixed(5)}, ${vehicle.longitude.toFixed(5)}` : '',
+  ].filter(Boolean).join(' · ')
+  return `${trip.no_trip} · ${vehicle.no_polisi} · ${vehicle.vehicle_type} · ${vehicle.golongan}${metadata ? ` · ${metadata}` : ''}`
+}
 
 interface ReportsTabProps {
   serverState: 'connecting' | 'online' | 'offline'
@@ -317,13 +326,23 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                     {revealed ? 'Hide' : 'Show'} Nominal
                   </button>
                   <button onClick={() => {
-                    const photos = serverTrips
-                      .filter(t => (t as any).photo_url)
-                      .map(t => ({ id: t.id, url: (t as any).photo_url as string, caption: t.no_trip }))
+                    const photos = reportTrips.flatMap(t => [
+                      ...(t.foto_kosong_path ? [{
+                        id: `trip-${t.id}`,
+                        url: t.foto_kosong_path,
+                        caption: `${t.no_trip} · Bukti trip`,
+                      }] : []),
+                      ...t.vehicles.filter(v => v.foto_path).map(v => ({
+                        id: `vehicle-${v.id}`,
+                        url: v.foto_path as string,
+                        caption: vehiclePhotoCaption(t, v),
+                      })),
+                    ])
                     setViewingPhotos(photos)
                   }}
+                    disabled={reportState !== 'ready'}
                     className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
-                    <Camera size={15} /> Foto
+                    <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
                 </div>
               </th>
@@ -377,22 +396,58 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
                           <span>Kategori: {t.keterangan || '-'}</span>
                         </div>
+                        {t.foto_kosong_path && (
+                          <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-200 bg-white max-w-xl">
+                            <button
+                              type="button"
+                              onClick={() => setViewingPhotos([{
+                                id: `trip-${t.id}`,
+                                url: t.foto_kosong_path!,
+                                caption: `${t.no_trip} · Bukti trip`,
+                              }])}
+                              className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
+                              aria-label={`Lihat foto bukti trip ${t.no_trip}`}
+                            >
+                              <img src={resolvePhotoUrl(t.foto_kosong_path, baseUrl)} alt="" className="w-full h-full object-cover" />
+                            </button>
+                            <span className="text-[12px] font-semibold text-slate-700">Foto bukti trip</span>
+                          </div>
+                        )}
                         {t.vehicles.length > 0 && (
-                          <table className="w-full text-[13px] bg-white rounded-xl overflow-hidden border border-slate-200">
+                          <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full min-w-[680px] text-[13px] bg-white">
                             <thead className="bg-slate-100 text-[10px] uppercase text-slate-500">
-                              <tr><th className="text-left p-3">Plat</th><th className="text-left p-3">Jenis</th><th className="text-left p-3">Kategori</th><th className="text-right p-3">Tarif</th></tr>
+                              <tr><th className="text-left p-3">Foto</th><th className="text-left p-3">Plat</th><th className="text-left p-3">Jenis</th><th className="text-left p-3">Kategori</th><th className="text-left p-3">Muatan</th><th className="text-right p-3">Tarif</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {t.vehicles.map((v, i) => (
                                 <tr key={`${v.no_polisi}-${i}`}>
+                                  <td className="p-3">
+                                    {v.foto_path ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingPhotos([{
+                                          id: `vehicle-${v.id}`,
+                                          url: v.foto_path!,
+                                          caption: vehiclePhotoCaption(t, v),
+                                        }])}
+                                        className="block w-16 h-12 sm:w-20 sm:h-14 overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        aria-label={`Lihat foto kendaraan ${v.no_polisi}`}
+                                      >
+                                        <img src={resolvePhotoUrl(v.foto_path, baseUrl)} alt={`Kendaraan ${v.no_polisi}`} className="w-full h-full object-cover" />
+                                      </button>
+                                    ) : <span className="text-[10px] text-slate-400">Tidak ada foto</span>}
+                                  </td>
                                   <td className="p-3 font-mono font-bold">{v.no_polisi}</td>
                                   <td className="p-3">{v.vehicle_type}</td>
                                   <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-semibold border ${v.golongan === 'Internal' ? 'border-slate-800 text-slate-800' : v.golongan === 'Eksternal' ? 'border-slate-400 text-slate-600' : 'border-slate-200 text-slate-500'}`}>{v.golongan}</span></td>
+                                  <td className="p-3">{v.has_load ? 'Ada Muatan' : 'Kosong'}</td>
                                   <td className="p-3 text-right font-bold"><CurrencyDisplay amount={v.tariff_amount || 0} /></td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         )}
                       </td>
                     </tr>

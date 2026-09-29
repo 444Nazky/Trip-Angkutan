@@ -1,6 +1,6 @@
 // ─── Shared Data ──────────────────────────────────────────────────────────────
 
-import { getStoredRoutes } from '../services/auth'
+import { getStoredRoutes, hasDockScopedRoutes } from '../services/auth'
 
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
@@ -17,7 +17,7 @@ export const ROUTES = [
  */
 export function activeRoutes() {
   const stored = getStoredRoutes()
-  return stored.length ? stored : ROUTES
+  return stored.length || hasDockScopedRoutes() ? stored : ROUTES
 }
 
 export const allTrips = [

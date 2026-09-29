@@ -100,8 +100,12 @@ export function getStoredRoutes(): UiRoute[] {
     const raw = localStorage.getItem(ROUTES_KEY)
     if (!raw) return []
     const map = JSON.parse(raw) as Record<string, Route[]>
+    const selectedDermaga = getStoredDermaga()
+    const routeGroups = selectedDermaga
+      ? [map[selectedDermaga.id] || []]
+      : Object.keys(map).length === 1 ? [Object.values(map)[0] || []] : []
     const out: UiRoute[] = []
-    for (const list of Object.values(map)) {
+    for (const list of routeGroups) {
       for (const r of list || []) {
         if (!r?.route_from || !r?.route_to) continue
         const code = `${r.route_from}-${r.route_to}`
@@ -130,7 +134,7 @@ export function getStoredRoutes(): UiRoute[] {
  */
 export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   const result = await api.get<(Route & { dermaga_id: string })[]>('/routes/mine')
-  if (!result.ok || !result.data || result.data.length === 0) return null
+  if (!result.ok || !result.data) return null
 
   const map: Record<string, Route[]> = {}
   for (const r of result.data) {
@@ -140,6 +144,18 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   }
   saveRoutesMap(map)
   return getStoredRoutes()
+}
+
+/** True when backend route data or a dock selection must prevent static fallback. */
+export function hasDockScopedRoutes(): boolean {
+  try {
+    const raw = localStorage.getItem(ROUTES_KEY)
+    if (!raw) return !!getStoredDermaga()
+    const map = JSON.parse(raw) as Record<string, Route[]>
+    return !!getStoredDermaga() || Object.keys(map).length > 0
+  } catch {
+    return !!getStoredDermaga()
+  }
 }
 
 export function getStoredOfficer(): StoredOfficer | null {
