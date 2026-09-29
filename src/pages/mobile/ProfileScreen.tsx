@@ -10,10 +10,9 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, beginVerify, refreshOfficers } = useApp()
 
-  // Pastikan status/wilayah petugas selalu terbaru (sinkron dengan admin)
   useEffect(() => {
     void refreshOfficers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const myTrips = trips.filter(t => t.officer === officer.name)
@@ -24,14 +23,14 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   )
   return (
     <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
-      <h2 className="font-black text-slate-900 text-[18px] mb-4">Profil Saya</h2>
+      <h2 className="font-black text-slate-900 text-[18px] mb-4">Profil</h2>
 
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="flex items-center gap-4 mb-4">
           <img src="/assets/guest-profile.jpeg" alt={officer.name} className="w-16 h-16 rounded-2xl object-cover" />
           <div className="min-w-0">
             <p className="text-white font-bold text-[16px] leading-tight">{officer.name}</p>
-            <p className="text-slate-400 text-[12px] mt-0.5">Petugas Lapangan · OFF-{String(officer.id).padStart(3, '0')}</p>
+            <p className="text-slate-400 text-[12px] mt-0.5">{String(officer.id).padStart(3, '0')}</p>
             <div className="flex items-center gap-1.5 mt-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
               <span className="text-emerald-400 text-[11px] font-bold">{officer.region} · {officer.status}</span>

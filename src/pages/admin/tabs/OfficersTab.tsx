@@ -4,10 +4,10 @@ import { fetchRegions } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
 import { api } from '../../../services/api'
 import { ensureAdminBackendSession } from '../../../services/auth'
-import type { Officer, BackendOfficerRow, Region, RouteRow, RouteDermaga, DermagaAccess } from '../components/types'
+import type { Officer, BackendOfficerRow, Region, RouteRow, RouteDermaga } from '../components/types'
 
 interface OfficersTabProps {
-  officers: Officer[]
+  officers: Officer[]   // dari store (mobile), hanya untuk sinkronisasi saat ada mutasi
   serverState: 'connecting' | 'online' | 'offline'
   onSaveOfficers: (o: Officer[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -15,32 +15,47 @@ interface OfficersTabProps {
 
 const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']
 
+/**
+ * Merge data backend dengan data lama dari store (mobile).
+ * Prioritas: data backend (dermagaAccess, regions) > fallback dari store > default D1.
+ */
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
   return rows.map(b => {
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
     const region = b.regions?.[0]?.code ?? b.region_code ?? b.region_id
+    const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region]
+    const dermagaAccess = b.dermagas && b.dermagas.length > 0
+      ? b.dermagas
+      : old?.dermagaAccess && old.dermagaAccess.length > 0
+        ? old.dermagaAccess
+        : [{ id: '', name: 'Dermaga 1', code: 'D1' }]  // fallback D1 sementara
     return {
       id: String(b.id),
       name: b.name,
       initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
       region,
-      regions: b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region],
+      regions,
       pin: old?.pin ?? '',
       status: b.is_active ? 'Aktif' : 'Nonaktif',
       device: old?.device ?? '-',
       trips: old?.trips ?? 0,
       lastActive: old?.lastActive ?? '-',
       joined: old?.joined ?? '-',
-      dermagaAccess: b.dermagas && b.dermagas.length > 0 ? b.dermagas : old?.dermagaAccess,
+      dermagaAccess,
     }
   })
 }
 
 export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }: OfficersTabProps) {
+  // localOfficers = state untuk display; ambil dari backend, bukan dari store prop.
+  // Ini agar admin dashboard selalu tampil data terbaru dari database,
+  // tidak bergantung pada refreshOfficers mobile yang di-skip saat isAdminBuild().
+  const [localOfficers, setLocalOfficers] = useState<Officer[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [routeRows, setRouteRows] = useState<RouteRow[]>([])
   const [routeDermagas, setRouteDermagas] = useState<RouteDermaga[]>([])
   const [backendOfficers, setBackendOfficers] = useState<BackendOfficerRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [addOff, setAddOff] = useState(false)
   const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
   const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] as string[] })
@@ -48,24 +63,41 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
 
+  // Fetch data backend saat tab dimuat — independen dari refreshOfficers mobile.
+  // Admin dashboard perlu data terkini dari DB (dermagaAccess, regions) yang mungkin
+  // tidak ada di localStorage mobile store.
   useEffect(() => {
+    let alive = true
+    setLoading(true)
     ensureAdminBackendSession().then(ok => {
-      if (!ok) return
-      Promise.all([fetchRegions(), fetchRoutes(), fetchDermagas(), api.get<BackendOfficerRow[]>('/officers')])
-        .then(([regs, rts, dms, offs]) => {
-          if (regs) setRegions(regs)
-          if (rts) setRouteRows(rts as RouteRow[])
-          if (dms) setRouteDermagas(dms as RouteDermaga[])
-          if (offs.ok && offs.data) {
-            setBackendOfficers(offs.data)
-            onSaveOfficers(mergeBackendOfficers(offs.data, officers))
-          }
-        })
+      if (!ok || !alive) { if (alive) setLoading(false); return }
+      return Promise.all([
+        fetchRegions(),
+        fetchRoutes(),
+        fetchDermagas(),
+        api.get<BackendOfficerRow[]>('/officers'),
+      ]).then(([regs, rts, dms, offs]) => {
+        if (!alive) return
+        if (regs) setRegions(regs)
+        if (rts) setRouteRows(rts as RouteRow[])
+        if (dms) setRouteDermagas(dms as RouteDermaga[])
+        if (offs.ok && offs.data) {
+          setBackendOfficers(offs.data)
+          const merged = mergeBackendOfficers(offs.data, officers)
+          setLocalOfficers(merged)
+          onSaveOfficers(merged)
+        }
+        setLoading(false)
+      })
     })
+    return () => { alive = false }
   }, [])
 
+  // Officer grouping: semua berdasarkan localOfficers (data backend), bukan store prop.
+  // Admin dashboard butuh grup wilayah aktual dari DB.
   const regionCodes = regions.map(r => r.code).filter(c => !HIDDEN_REGION_CODES.includes(c))
-  const officerRegionCodes = (o: Officer) => (o.regions && o.regions.length > 0 ? o.regions : [o.region])
+  const officerRegionCodes = (o: Officer) =>
+    (o.regions && o.regions.length > 0 ? o.regions : [o.region])
   const inRegionGroup = (o: Officer, group: string) =>
     group === 'LAINNYA'
       ? !officerRegionCodes(o).some(c => regionCodes.includes(c))
@@ -73,7 +105,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
 
   const officerGroups = [
     ...regionCodes,
-    ...(officers.some(o => !officerRegionCodes(o).some(c => regionCodes.includes(c))) ? ['LAINNYA'] : []),
+    ...(localOfficers.some(o => !officerRegionCodes(o).some(c => regionCodes.includes(c))) ? ['LAINNYA'] : []),
   ]
 
   const regionCodeOfDermaga = (d: RouteDermaga) => d.region_code || regions.find(r => r.id === d.region_id)?.code || ''
@@ -86,16 +118,25 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
   const findBackendOfficer = (o: { id?: string; name: string }) =>
     backendOfficers.find(b => String(b.id) === String(o.id)) ?? backendOfficers.find(b => b.name === o.name)
 
+  const reloadAndSync = (offsResp: { ok: boolean; data?: BackendOfficerRow[] }) => {
+    if (offsResp.ok && offsResp.data) {
+      const merged = mergeBackendOfficers(offsResp.data, officers)
+      setBackendOfficers(offsResp.data)
+      setLocalOfficers(merged)
+      onSaveOfficers(merged)
+    }
+  }
+
   const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
     const region = regions.find(r => r.code === offForm.region)
     const res = await api.post<{ id: string }>('/officers', {
       name: offForm.name, pin: offForm.pin, regionId: region?.id,
-      regionIds: region ? [region.id] : undefined, dermagaIds: offForm.dermagaIds.length > 0 ? offForm.dermagaIds : undefined,
+      regionIds: region ? [region.id] : undefined,
+      dermagaIds: offForm.dermagaIds.length > 0 ? offForm.dermagaIds : undefined,
     })
     if (!res.ok || !res.data) return showToast('Gagal tambah petugas', 'error')
-    const offs = await api.get<BackendOfficerRow[]>('/officers')
-    if (offs.ok && offs.data) { setBackendOfficers(offs.data); onSaveOfficers(mergeBackendOfficers(offs.data, officers)) }
+    await reloadAndSync(await api.get<BackendOfficerRow[]>('/officers'))
     setOffForm({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] })
     setAddOff(false)
     showToast('Petugas ditambahkan')
@@ -112,8 +153,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
       const dmIds = editDermagaIds.filter(id => validDm.has(id))
       await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
       if (editOff.pin && editOff.pin.length === 6) await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
-      const offs = await api.get<BackendOfficerRow[]>('/officers')
-      if (offs.ok && offs.data) { setBackendOfficers(offs.data); onSaveOfficers(mergeBackendOfficers(offs.data, officers)) }
+      await reloadAndSync(await api.get<BackendOfficerRow[]>('/officers'))
     }
     setEditOffIdx(null)
     setEditOff(null)
@@ -121,30 +161,39 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     showToast('Petugas diupdate')
   }
 
-  const handleDelOff = async (i: number) => {
+  const handleDelOff = async (localIdx: number) => {
     if (!confirm('Hapus?')) return
-    const officer = officers[i]
+    const officer = localOfficers[localIdx]
     const be = findBackendOfficer(officer)
     if (be) {
       const res = await api.delete(`/officers/${be.id}`)
       if (!res.ok) return showToast('Gagal hapus', 'error')
-      const offs = await api.get<BackendOfficerRow[]>('/officers')
-      if (offs.ok && offs.data) { setBackendOfficers(offs.data); onSaveOfficers(mergeBackendOfficers(offs.data, officers)) }
+      await reloadAndSync(await api.get<BackendOfficerRow[]>('/officers'))
     }
     showToast('Petugas dihapus')
   }
 
-  const toggleOffStatus = async (i: number) => {
-    const officer = officers[i]
+  const toggleOffStatus = async (localIdx: number) => {
+    const officer = localOfficers[localIdx]
     const newStatus = officer.status === 'Aktif' ? 'Nonaktif' : 'Aktif'
     const be = findBackendOfficer(officer)
     if (be) {
       const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
       if (!res.ok) return showToast('Gagal sync status', 'error')
-      const offs = await api.get<BackendOfficerRow[]>('/officers')
-      if (offs.ok && offs.data) { setBackendOfficers(offs.data); onSaveOfficers(mergeBackendOfficers(offs.data, officers)) }
+      await reloadAndSync(await api.get<BackendOfficerRow[]>('/officers'))
     }
     showToast(`Status diubah ke ${newStatus}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-slate-400 text-sm">Memuat data petugas...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -232,7 +281,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
             )}
           </div>
           <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN Baru</label>
-            <input type="password" maxLength={6} value={editOff.pin} onChange={e => setEditOff({...editOff, pin: e.target.value})}
+            <input type="password" maxLength={6} value={editOff.pin ?? ''} onChange={e => setEditOff({...editOff, pin: e.target.value})}
               className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
           <div className="flex gap-3">
             <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }}
@@ -242,60 +291,74 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         </div>
       )}
 
-      {/* Tabel per grup */}
-      {officerGroups.map(region => (
-        <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
-            <Lock size={14} className="text-blue-400" />
-            {region === 'LAINNYA' ? 'Lainnya' : region} ({officers.filter(o => inRegionGroup(o, region)).length} petugas)
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-              <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
-            </thead>
-            <tbody className="divide-y">
-              {officers.filter(o => inRegionGroup(o, region)).map((o, _, arr) => {
-                const i = officers.indexOf(o)
-                return (
-                  <tr key={o.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-bold">{o.name}</td>
-                    <td className="p-4">
-                      {(o.dermagaAccess ?? []).length === 0 ? <span className="text-slate-300 text-xs">—</span> : (
-                        <span className="flex flex-wrap gap-1">
-                          {o.dermagaAccess!.map(d => (
-                            <span key={d.id} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 text-[10px] font-semibold">{d.code}</span>
-                          ))}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-[12px] text-slate-600">
-                      {routesForOfficer(o).length === 0 ? <span className="text-slate-300">—</span> : (
-                        <span className="flex flex-wrap gap-1">
-                          {routesForOfficer(o).map(r => (
-                            <span key={r.id} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
-                              {r.name || `${r.route_from} → ${r.route_to}`}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
-                    </td>
-                    <td className="p-4">
-                      <button onClick={() => { setEditOffIdx(i); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).map(d => d.id)) }}
-                        className="text-blue-600 font-bold text-sm mr-3">Edit</button>
-                      <button onClick={() => toggleOffStatus(i)}
-                        className="text-amber-500 font-bold text-sm mr-3">{o.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
-                      <button onClick={() => handleDelOff(i)} className="text-red-500 font-bold text-sm">Hapus</button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      {/* Empty state */}
+      {localOfficers.length === 0 && !loading && (
+        <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
+          <p className="text-slate-500 font-semibold mb-1">Belum ada petugas</p>
+          <p className="text-slate-400 text-sm">Klik "Tambah Petugas" untuk menambahkan petugas pertama</p>
         </div>
-      ))}
+      )}
+
+      {/* Tabel per grup wilayah */}
+      {officerGroups.map(region => {
+        const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
+        if (groupOfficers.length === 0) return null
+        return (
+          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
+              <Lock size={14} className="text-blue-400" />
+              {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+                <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
+              </thead>
+              <tbody className="divide-y">
+                {groupOfficers.map((o) => {
+                  const localIdx = localOfficers.indexOf(o)
+                  return (
+                    <tr key={o.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{o.name}</td>
+                      <td className="p-4">
+                        {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
+                          ? <span className="text-slate-300 text-xs">—</span>
+                          : <span className="flex flex-wrap gap-1">
+                            {o.dermagaAccess!.map(d => (
+                              <span key={d.id} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 text-[10px] font-semibold">{d.code}</span>
+                            ))}
+                          </span>
+                        }
+                      </td>
+                      <td className="p-4 text-[12px] text-slate-600">
+                        {routesForOfficer(o).length === 0
+                          ? <span className="text-slate-300">—</span>
+                          : <span className="flex flex-wrap gap-1">
+                            {routesForOfficer(o).map(r => (
+                              <span key={r.id} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                {r.name || `${r.route_from} → ${r.route_to}`}
+                              </span>
+                            ))}
+                          </span>
+                        }
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
+                      </td>
+                      <td className="p-4">
+                        <button onClick={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
+                          className="text-blue-600 font-bold text-sm mr-3">Edit</button>
+                        <button onClick={() => toggleOffStatus(localIdx)}
+                          className="text-amber-500 font-bold text-sm mr-3">{o.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        <button onClick={() => handleDelOff(localIdx)} className="text-red-500 font-bold text-sm">Hapus</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }

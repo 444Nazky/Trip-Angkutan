@@ -12,14 +12,14 @@ export interface VehicleEntry {
   type: string
   category: string
   tariff: number
-  /** Foto dokumentasi kendaraan ini (dari kamera) */
+
   photoUrl?: string
   photoCapturedAt?: string
   photoLatitude?: number | null
   photoLongitude?: number | null
-  /** Hasil cek status plat saat input: internal / lokal / eksternal */
+
   plateStatus?: string
-  /** Region asal kendaraan & pos pemeriksaan saat cek plat */
+
   originRegion?: string
   checkpointRegion?: string
 }
@@ -59,13 +59,13 @@ export interface Draft {
   photoCapturedAt?: string
   photoLatitude?: number | null
   photoLongitude?: number | null
-  /** Layar tujuan kembali setelah pengambilan foto kamera */
+
   cameraFrom: MobileScreen
-  /** Mode kamera: 'photo' = foto dokumentasi · 'ocr' = scan plat (keduanya HANYA kamera, tanpa galeri) */
+
   cameraMode: 'photo' | 'ocr'
-  /** Hasil OCR sekali pakai dari layar kamera (dikonsumsi form kendaraan) */
+
   ocrResult?: string
-  /** Pesan kegagalan OCR sekali pakai */
+
   ocrError?: string
   startedAt: number | null
 }
@@ -99,7 +99,7 @@ interface StoreValue {
   verifyIntent: VerifyIntent
   beginVerify: (opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => void
   clearVerify: () => void
-  /** Dermaga yang dipilih petugas sebelum memulai trip (per-trip, di-reset saat resetDraft) */
+
   activeDermagaId: string | null
   setActiveDermaga: (id: string | null) => void
 }
@@ -189,13 +189,13 @@ export function fmtElapsed(totalSec: number): string {
 export function tariffFor(vehicleType: string) {
   const list = load(LS.tariffs, tariffData)
   return (
-    // Exact match against master tariff (form options are built from it)
+
     list.find(t => t.type === vehicleType) ??
-    // Partial match, e.g. legacy 'Truck' → 'Truck Kecil'/'Truck Sedang'/...
+
     list.find(t => t.type.startsWith(vehicleType)) ??
     list.find(t => vehicleType.startsWith(t.type)) ??
     list.find(t => t.type === 'Truck Sedang') ??
-    // Master tariff wiped by admin — fall back to shipped defaults
+
     tariffData.find(t => t.type === 'Truck Sedang') ??
     tariffData[0]
   )
@@ -216,13 +216,12 @@ const seedTrips: Trip[] = allTrips.map(t => ({
   revenueNum: parseRp(t.revenue),
 }))
 
-// ── Normalisasi kategori ──────────────────────────────────────────────────────
-// Kategori lama dengan berbagai variasi istilah dibersihkan menjadi istilah
-// lapangan: Internal · Eksternal · Eksternal Bebas. Data lama di localStorage
-// ikut dinormalkan saat dibaca supaya tampilan seragam.
+
+
 export function normalizeCategory(c?: string): string | undefined {
   if (!c) return c
-  // Baris lama non-eksternal (mis. angka romawi) dibiarkan apa adanya
+
+  
   if (!/^ekst/i.test(c)) return c
   return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
 }
@@ -236,7 +235,8 @@ function normalizeTrips(list: Trip[]): Trip[] {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Detect admin mode from the page title or known static signals
+
+  
   const isAdminPage = typeof document !== 'undefined'
     && (document.title === 'Trip Angkutan' || document.querySelector('[data-admin]') !== null)
   const isAdminBuild = () => {
@@ -298,14 +298,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const authenticatedOfficerId = getStoredOfficer()?.id
       const id = authenticatedOfficerId ? String(authenticatedOfficerId) : officerId
       if (authenticatedOfficerId) setOfficerIdState(id)
-      // Fetch a backend JWT for the same officer authenticated by the login form.
+
+        
       void ensureBackendSession(id)
     }
   }, [officerId])
   const logout = useCallback(() => {
     setLoggedIn(false)
     setUserType('member')
-    // Clear session-scoped state so the next login starts clean
+
+    
     setDetailTripId(null)
     setPendingOfficerId(null)
     setDraft(emptyDraft)
@@ -313,7 +315,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
   const setOfficerId = useCallback((id: string) => {
     setOfficerIdState(String(id))
-    // Token must match the newly switched officer
+
+    
     void ensureBackendSession(String(id))
   }, [])
   const resetDraft = useCallback(() => {
@@ -335,7 +338,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)
-    // Add to sync queue for background upload
+
+    
     addToSyncQueue(tripWithSync)
   }, [])
   const beginVerify = useCallback((opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => {
@@ -346,8 +350,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveTariffs = useCallback((rows: TariffRow[]) => setTariffs(rows), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
-  // Ambil ulang daftar petugas dari server. `force = true` melewati cache
-  // (dipakai layar Ganti Petugas agar status/wilayah terbaru langsung terbaca).
+  
+
   const refreshOfficers = useCallback(async (force = false) => {
     if (isAdminBuild()) return
     const synced = await syncOfficersToLocal(force)
@@ -358,7 +362,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOfficers(prev => {
       const hasCurrent = syncedWithDermaga.some(o => String(o.id) === String(officerId))
       if (hasCurrent) return syncedWithDermaga
-      // Petugas aktif tidak boleh hilang dari daftar (mis. sementara offline)
       const current = prev.find(o => String(o.id) === String(officerId))
       if (current) {
         return [...syncedWithDermaga, { ...current, dermagaAccess: current.dermagaAccess || [] }]
@@ -366,14 +369,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return syncedWithDermaga
     })
 
-    // Sinkronisasi paksa: wilayah petugas mungkin saja dipindah admin,
-    // jadi terbitkan ulang JWT agar klaim region ikut terbaru.
+
+    
+
+
     if (force) {
       const ok = await refreshBackendSession(String(officerId))
 
-      // Akun dinonaktifkan admin — server menolak penerbitan token baru,
-      // maka sesi petugas aktif harus dihentikan agar status admin dan
-      // mobile selalu sinkron. Draft trip dipertahankan (belum tentu selesai).
+
+      
+
+
       const me = synced.find(o => String(o.id) === String(officerId))
       if (!ok && me && me.status !== 'Aktif' && !api.isAuthenticated) {
         setLoggedIn(false)

@@ -14,6 +14,23 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const { draft, patchDraft } = useApp()
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
 
+  const bgForCondition = (key: string) => {
+    if (condition !== key) return 'bg-slate-100'
+    return key === 'muatan' ? 'bg-blue-100' : 'bg-slate-200'
+  }
+  const textColor = (key: string, selected: boolean) => {
+    if (!selected) return 'text-slate-400'
+    return key === 'muatan' ? 'text-blue-600' : 'text-slate-700'
+  }
+  const borderClass = (key: string) => {
+    if (condition !== key) return 'border-slate-100 bg-white hover:border-slate-200'
+    return key === 'muatan' ? 'border-blue-500 bg-blue-50' : 'border-slate-400 bg-slate-50'
+  }
+  const dotColor = (key: string) => {
+    if (condition !== key) return 'border-slate-200'
+    return key === 'muatan' ? 'border-blue-500 bg-blue-500' : 'border-slate-500 bg-slate-500'
+  }
+
   return (
     <div className="px-4 pt-2 pb-4">
       <button onClick={() => go('home')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
@@ -23,67 +40,67 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
       <p className="text-slate-500 text-[13px] mb-4">Pilih status muatan trip ini sebelum memilih rute</p>
 
       <div className="space-y-3 mb-5">
-        {[
-          {
-            key: 'kosong',
-            label: 'Kosong / Tidak Ada Muatan',
-            desc: 'Kendaraan berjalan tanpa muatan — rute dikunci SJRE → SBDZ',
-          },
-          {
-            key: 'muatan',
-            label: 'Ada Angkutan',
-            desc: 'Kendaraan membawa muatan — pilihan rute bebas tanpa batasan',
-          },
-        ].map(opt => (
-          <button
-            key={opt.key}
-            onClick={() => {
-              const next = opt.key as 'kosong' | 'muatan'
-              setCondition(next)
-              if (next === 'kosong') {
-                // Trip kosong: buang kendaraan/foto yang mungkin terlanjur diisi
-                // dan kunci rute hanya SJRE → SBDZ.
-                patchDraft({
-                  condition: 'kosong',
-                  vehicles: [],
-                  vehicleForm: { plate: '', type: '', category: '' },
-                  photo: false,
-                  photoUrl: undefined,
-                  photoCapturedAt: undefined,
-                  photoLatitude: undefined,
-                  photoLongitude: undefined,
-                  cameraMode: 'photo',
-                  ocrResult: undefined,
-                  ocrError: undefined,
-                  routeCode: EMPTY_ROUTE_CODE,
-                })
-              } else {
-                patchDraft({ condition: 'muatan' })
-              }
-            }}
-            className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${condition === opt.key ? opt.key === 'muatan' ? 'border-blue-500 bg-blue-50' : 'border-slate-400 bg-slate-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
-          >
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${condition === opt.key && opt.key === 'muatan' ? 'bg-blue-100' : condition === opt.key ? 'bg-slate-200' : 'bg-slate-100'}`}>
-                {opt.key === 'kosong'
-                  ? <Truck size={20} className={condition === opt.key ? 'text-slate-700' : 'text-slate-400'} />
-                  : <Package size={20} className={condition === opt.key ? 'text-blue-600' : 'text-slate-400'} />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-slate-900 text-[13px] mb-0.5">{opt.label}</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">{opt.desc}</p>
-                {opt.key === 'kosong' && condition === 'kosong' && (
-                  <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-black uppercase tracking-wide text-slate-600 bg-slate-200 rounded-full px-2 py-0.5">
-                    <Lock size={10} /> Rute terkunci SJRE → SBDZ
-                  </span>
-                )}
-              </div>
-              <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${condition === opt.key ? opt.key === 'muatan' ? 'border-blue-500 bg-blue-500' : 'border-slate-500 bg-slate-500' : 'border-slate-200'}`}>
-                {condition === opt.key && <div className="w-2 h-2 rounded-full bg-white" />}
-              </div>
+        {/* Kosong */}
+        <button
+          onClick={() => {
+            setCondition('kosong')
+            patchDraft({
+              condition: 'kosong',
+              vehicles: [],
+              vehicleForm: { plate: '', type: '', category: '' },
+              photo: false,
+              photoUrl: undefined,
+              photoCapturedAt: undefined,
+              photoLatitude: undefined,
+              photoLongitude: undefined,
+              cameraMode: 'photo',
+              ocrResult: undefined,
+              ocrError: undefined,
+              routeCode: EMPTY_ROUTE_CODE,
+            })
+          }}
+          className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('kosong')}`}
+        >
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${bgForCondition('kosong')}`}>
+              <Truck size={20} className={textColor('kosong', condition === 'kosong')} />
             </div>
-          </button>
-        ))}
+            <div className="flex-1">
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kosong / Tidak Ada Muatan</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan berjalan tanpa muatan — rute dikunci SJRE → SBDZ</p>
+              {condition === 'kosong' && (
+                <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-black uppercase tracking-wide text-slate-600 bg-slate-200 rounded-full px-2 py-0.5">
+                  <Lock size={10} /> Rute terkunci SJRE → SBDZ
+                </span>
+              )}
+            </div>
+            <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('kosong')}`}>
+              {condition === 'kosong' && <div className="w-2 h-2 rounded-full bg-white" />}
+            </div>
+          </div>
+        </button>
+
+        {/* Muatan */}
+        <button
+          onClick={() => {
+            setCondition('muatan')
+            patchDraft({ condition: 'muatan' })
+          }}
+          className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('muatan')}`}
+        >
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${bgForCondition('muatan')}`}>
+              <Package size={20} className={textColor('muatan', condition === 'muatan')} />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Ada Angkutan</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan membawa muatan — pilihan rute bebas tanpa batasan</p>
+            </div>
+            <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('muatan')}`}>
+              {condition === 'muatan' && <div className="w-2 h-2 rounded-full bg-white" />}
+            </div>
+          </div>
+        </button>
       </div>
 
       <button

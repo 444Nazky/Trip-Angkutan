@@ -45,9 +45,9 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
       </button>
 
       <h2 className="font-black text-slate-900 text-[20px] mb-1">Pengaturan Aplikasi</h2>
-      <p className="text-slate-500 text-[13px] mb-5">Preferensi perangkat dan diagnostik sistem</p>
+      <p className="text-slate-500 text-[13px] mb-5">Tema perangkat dan diagnostik sistem</p>
 
-      {/* Info Status Sistem */}
+
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4 space-y-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
@@ -85,7 +85,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-      {/* Konfigurasi API Server */}
+
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-5">
         <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Konfigurasi Server</p>
 
@@ -138,7 +138,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         )}
       </div>
 
-      {/* Tindakan Pemeliharaan */}
+
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-5">
         <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Pemeliharaan & Cache</p>
         <button
@@ -164,7 +164,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         <div>
           <p className="text-[11px] font-bold text-amber-800">Mode Local-First Aktif</p>
           <p className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
-            Semua pencatatan trip otomatis tersimpan di perangkat terlebih dahulu dan disinkronkan ke server pusat saat internet tersedia.
+            Semua pencatatan trip tersimpan di perangkat. menunggu syncing... 
           </p>
         </div>
       </div>

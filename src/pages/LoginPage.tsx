@@ -6,10 +6,6 @@ interface LoginPageProps {
   onLogin: (userType: 'admin' | 'member') => void
 }
 
-/**
- * Login page mobile — username & password authentication
- * Menghubungi API backend untuk verifikasi kredensial.
- */
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +13,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Handle login
+
+  
+
   const handleLogin = async () => {
     if (!username.trim() || !password) {
       setError('Username dan password harus diisi')
@@ -35,7 +33,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         return
       }
 
-      // Tampilkan error dari server atau fallback message
+
+      
+
       const msg = result.error || ''
       if (/timeout|network|failed|fetch|merespon|terjangkau/i.test(msg)) {
         setError('Tidak bisa terhubung ke server. Pastikan backend berjalan.')
@@ -51,12 +51,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
   }
 
-  // Handle enter key
+
+  
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       void handleLogin()
     }
   }
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-blue-100 flex items-center justify-center p-4">
@@ -118,6 +122,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                     error ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-blue-500 bg-slate-50/50'
                   }`}
                 />
+
+
+
+
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -128,6 +136,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
+
+
+
             {error && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fade-in">
                 <AlertCircle size={16} className="text-red-500 shrink-0" />
@@ -135,7 +146,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             )}
 
-            {/* Login Button */}
+        
+
+
+
             <button
               onClick={() => void handleLogin()}
               disabled={!username.trim() || !password || loading}
@@ -156,7 +170,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
         </div>
 
-        {/* Footer */}
+
+
+
+
         <p className="text-center text-xs text-slate-400 mt-8">Kalimantan Barat · Angkutan</p>
       </div>
     </div>
