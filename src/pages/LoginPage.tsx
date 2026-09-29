@@ -67,16 +67,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <Truck size={28} />
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">Trip Angkutan</h1>
-          <p className="text-sm text-slate-500 mt-1">Kalimantan Barat · Versi mobile</p>
+          <p className="text-sm text-slate-500 mt-1">Kalimantan Barat</p>
         </div>
 
-        {/* Login Card */}
+
+
+
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-1">Masuk</h2>
           <p className="text-sm text-slate-500 mb-6"></p>
 
           <div className="space-y-4">
-            {/* Username */}
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
                 Username / ID Petugas
@@ -98,10 +99,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
-            {/* Password */}
+
+
+
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block uppercase tracking-wide">
-                Password / Kata Sandi
+                Masukkan Pin
               </label>
               <div className="relative">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -125,7 +128,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fade-in">
                 <AlertCircle size={16} className="text-red-500 shrink-0" />

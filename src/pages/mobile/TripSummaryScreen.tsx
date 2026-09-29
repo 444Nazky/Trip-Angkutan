@@ -63,7 +63,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             {v.photoUrl ? (
               <img src={v.photoUrl} alt={`Foto ${v.plate}`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-lg shrink-0">🚛</div>
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Truck size={16} className="text-slate-400" /></div>
             )}
             <div className="flex-1 min-w-0">
               <p className="font-mono text-[11px] font-black text-slate-800">{v.plate}</p>

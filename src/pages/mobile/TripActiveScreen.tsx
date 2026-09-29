@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Square } from 'lucide-react'
+import { Square, Truck } from 'lucide-react'
 import { activeRoutes } from '../data'
 import {
   durationToSeconds, fmtElapsed, fmtTime, formatRp, kmNumber, useApp,
@@ -142,7 +142,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         {draft.vehicles.length > 0 ? (
           draft.vehicles.map((v, i) => (
             <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-2.5 border-t border-slate-100 mt-2.5' : ''}`}>
-              <span className="text-lg">🚛</span>
+              <Truck size={16} className="text-slate-400" />
               <div>
                 <p className="font-mono text-[11px] font-black text-slate-800">{v.plate}</p>
                 <p className="text-[10px] text-slate-400">{v.type}</p>

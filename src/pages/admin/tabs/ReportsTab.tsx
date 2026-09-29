@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from 'react'
-import { Camera, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
+import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportSummary } from '../../../services/trips'
 import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
@@ -387,7 +387,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                     <td className="px-4 py-2.5 text-right">
                       <CurrencyDisplay amount={t.trip_revenue || 0} />
                     </td>
-                    <td className="px-2 py-2.5 text-center text-slate-400">▶</td>
+                    <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
                   </tr>
                   {open && (
                     <tr className="bg-slate-50/80">

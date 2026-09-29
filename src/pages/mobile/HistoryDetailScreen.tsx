@@ -1,4 +1,4 @@
-import { ChevronLeft, Camera, Check, Clock3 } from 'lucide-react'
+import { ChevronLeft, Camera, Check, Clock3, Truck } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -59,7 +59,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
         {vehicles.map((v, i) => (
           <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
-            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">🚛</div>
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><Truck size={18} className="text-slate-400" /></div>
             <div className="flex-1">
               <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
               <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>

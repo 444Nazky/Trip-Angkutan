@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, Lock } from 'lucide-react'
+import { ChevronLeft, Lock, Package, Truck } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -28,13 +28,11 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             key: 'kosong',
             label: 'Kosong / Tidak Ada Muatan',
             desc: 'Kendaraan berjalan tanpa muatan — rute dikunci SJRE → SBDZ',
-            emoji: '🚛',
           },
           {
             key: 'muatan',
             label: 'Ada Angkutan',
             desc: 'Kendaraan membawa muatan — pilihan rute bebas tanpa batasan',
-            emoji: '📦',
           },
         ].map(opt => (
           <button
@@ -66,7 +64,11 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${condition === opt.key ? opt.key === 'muatan' ? 'border-blue-500 bg-blue-50' : 'border-slate-400 bg-slate-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
           >
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 ${condition === opt.key && opt.key === 'muatan' ? 'bg-blue-100' : condition === opt.key ? 'bg-slate-200' : 'bg-slate-100'}`}>{opt.emoji}</div>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${condition === opt.key && opt.key === 'muatan' ? 'bg-blue-100' : condition === opt.key ? 'bg-slate-200' : 'bg-slate-100'}`}>
+                {opt.key === 'kosong'
+                  ? <Truck size={20} className={condition === opt.key ? 'text-slate-700' : 'text-slate-400'} />
+                  : <Package size={20} className={condition === opt.key ? 'text-blue-600' : 'text-slate-400'} />
+              </div>
               <div className="flex-1">
                 <p className="font-bold text-slate-900 text-[13px] mb-0.5">{opt.label}</p>
                 <p className="text-[11px] text-slate-500 leading-relaxed">{opt.desc}</p>

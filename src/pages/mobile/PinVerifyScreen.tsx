@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, Lock } from 'lucide-react'
+import { ChevronLeft, Lock, Delete } from 'lucide-react'
 import { useApp } from '../store'
 import { loginWithPin, type Dermaga } from '../../services/auth'
 import type { MobileScreen } from '../types'
@@ -119,7 +119,7 @@ export default function PinVerifyScreen({ go, onDermagaSelect }: PinVerifyScreen
               onClick={() => press(key)}
               className={`h-14 rounded-2xl font-bold text-lg flex items-center justify-center transition-all active:scale-95 ${key === 'del' ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm' : 'bg-white shadow-sm text-slate-900 hover:bg-slate-50 border border-slate-100'}`}
             >
-              {key === 'del' ? '⌫' : key}
+              {key === 'del' ? <Delete size={16} /> : key}
             </button>
         ))}
       </div>
