@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock } from 'lucide-react'
-import { activeRoutes } from '../data'
-import { refreshStoredRoutes, type UiRoute } from '../../services/auth'
+import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
+import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import { EMPTY_ROUTE_CODE } from './TripConditionScreen'
@@ -11,26 +10,42 @@ interface RouteSelectScreenProps {
 }
 
 export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
-  const { draft, patchDraft, officer } = useApp()
+  const { draft, patchDraft, officer, activeDermagaId } = useApp()
   const selected = draft.routeCode
 
-  // Rute dari Master Rute petugas (backend) — fallback rute statis.
-  const [routes, setRoutes] = useState<UiRoute[]>(() => activeRoutes())
+  // Nama dermaga aktif untuk ditampilkan di banner (cari dari dermagaAccess petugas)
+  const activeDermagaName = activeDermagaId
+    ? (officer.dermagaAccess || []).find(d => d.id === activeDermagaId)?.name ?? null
+    : null
+
+  // Rute dari backend — TIDAK fallback ke data statis.
+  // Jika cache kosong dan backend tidak tersedia, tampilkan pesan kosong.
+  const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
+  const [loading, setLoading] = useState(false)
 
   // Segarkan tiap layar dibuka agar hasil edit Master Rute admin langsung
   // terpakai tanpa logout/login ulang.
   useEffect(() => {
     let alive = true
+    setLoading(true)
     refreshStoredRoutes().then(fresh => {
       if (alive && fresh !== null) setRoutes(fresh)
+    }).finally(() => {
+      if (alive) setLoading(false)
     })
     return () => { alive = false }
   }, [])
 
+  // Saring rute berdasarkan dermaga aktif untuk trip ini.
+  // Petugas hanya boleh melihat rute dari dermaga yang dipilih.
+  const dermagaFiltered = activeDermagaId
+    ? routes.filter(r => r.dermagaId === activeDermagaId)
+    : routes
+
   // Trip tanpa muatan: rute dibatasi & dikunci hanya SJRE → SBDZ.
-  // Trip bermuatan: seluruh rute bebas dipilih.
+  // Trip bermuatan: seluruh rute yang lolos filter dermaga bebas dipilih.
   const isEmptyTrip = draft.condition === 'kosong'
-  const list = isEmptyTrip ? routes.filter(r => r.code === EMPTY_ROUTE_CODE) : routes
+  const list = isEmptyTrip ? dermagaFiltered.filter(r => r.code === EMPTY_ROUTE_CODE) : dermagaFiltered
 
   // Guard: rute lama yang tidak valid saat kondisi berubah ke "kosong"
   const validSelected = selected && list.some(r => r.code === selected)
@@ -77,24 +92,40 @@ export default function RouteSelectScreen({ go }: RouteSelectScreenProps) {
         <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center">
           <MapPin size={16} className="text-emerald-400" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wide">Wilayah Aktif</p>
           <p className="text-white font-bold text-[13px]">{officer.region}</p>
+          {activeDermagaName && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <Anchor size={10} className="text-amber-400" />
+              <p className="text-amber-400 text-[10px] font-semibold">{activeDermagaName}</p>
+            </div>
+          )}
         </div>
         {isEmptyTrip
-          ? <Lock size={16} className="text-amber-400 ml-auto" />
-          : <Map size={16} className="text-slate-600 ml-auto" />}
+          ? <Lock size={16} className="text-amber-400 ml-auto shrink-0" />
+          : <Map size={16} className="text-slate-600 ml-auto shrink-0" />}
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 mb-2 flex items-center gap-3 text-[12px] text-slate-500">
+          <span className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Memuat rute terbaru...
+        </div>
+      )}
+
       <div className="space-y-2.5 mb-5">
-        {list.length === 0 && (
+        {!loading && list.length === 0 && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
             {isEmptyTrip
-              ? `Rute ${EMPTY_ROUTE_CODE} belum tersedia di dermaga yang dipilih.`
-              : 'Belum ada rute yang tersedia untuk dermaga yang dipilih.'}
+              ? `Rute ${EMPTY_ROUTE_CODE} belum tersedia di ${activeDermagaName ?? 'dermaga yang dipilih'}.`
+              : activeDermagaName
+                ? `Tidak ada rute untuk ${activeDermagaName}. Hubungi admin untuk menambahkan rute.`
+                : 'Belum ada rute. Pastikan koneksi aktif lalu coba lagi.'}
           </div>
         )}
-        {list.map(r => {
+        {!loading && list.map(r => {
           const locked = isEmptyTrip
           const isSelected = validSelected === r.code
           return (

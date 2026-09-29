@@ -15,8 +15,10 @@ import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
 import SettingsScreen from './SettingsScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
+import DermagaPickerModal from './DermagaPickerModal'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
+import { useApp } from '../store'
 
 // ─── Variasi transisi antar halaman ──────────────────────────────────────────
 // push  → maju (geser dari kanan)     pop → kembali (geser dari kiri)
@@ -29,9 +31,12 @@ const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settin
 
 // ─── Mobile App Container ─────────────────────────────────────────────────────
 export default function MobileApp() {
+  const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
+  /** Modal pilih dermaga sebelum memulai trip (hanya untuk petugas dual-access) */
+  const [showDermagaPicker, setShowDermagaPicker] = useState(false)
   const stack = useRef<MobileScreen[]>(['home'])
 
   const noNavScreens: MobileScreen[] = [
@@ -49,7 +54,7 @@ export default function MobileApp() {
     : 'home'
 
   const screenMap: Record<MobileScreen, React.ReactNode> = {
-    home: <HomeScreen go={go} />,
+    home: <HomeScreen go={go} onStartTrip={handleStartTrip} />,
     'route-select': <RouteSelectScreen go={go} />,
     'trip-condition': <TripConditionScreen go={go} />,
     'vehicle-form': <VehicleFormScreen go={go} />,
@@ -83,6 +88,30 @@ export default function MobileApp() {
     setScreen(next)
   }
 
+  /**
+   * Dipanggil saat petugas menekan "Mulai Trip" di HomeScreen.
+   * Jika akses ganda → tampilkan DermagaPickerModal terlebih dahulu.
+   * Jika akses tunggal → set dermaga aktif otomatis lalu langsung ke trip-condition.
+   */
+  function handleStartTrip() {
+    const accesses = officer.dermagaAccess || []
+    if (accesses.length > 1) {
+      // Akses ganda: tampilkan modal pilihan dermaga
+      setShowDermagaPicker(true)
+    } else {
+      // Akses tunggal: set dermaga aktif secara otomatis
+      setActiveDermaga(accesses[0]?.id ?? null)
+      go('trip-condition')
+    }
+  }
+
+  /** Petugas memilih dermaga dari modal → simpan ke store lalu lanjutkan trip */
+  function handleDermagaPickerSelect(dermagaId: string) {
+    setShowDermagaPicker(false)
+    setActiveDermaga(dermagaId)
+    go('trip-condition')
+  }
+
   /** Pindah lewat tab bawah — transisi khusus tab (bukan maju/kembali). */
   function goTab(next: MobileScreen) {
     if (next === screen) return
@@ -109,7 +138,7 @@ export default function MobileApp() {
   // Show dermaga selection if needed
   if (pendingDermagas && pendingDermagas.length > 1) {
     return framed(
-      <div className="flex-1 overflow-y-auto hide-scrollbar screen-scroll">
+      <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
         <DermagaSelectScreen
           dermagas={pendingDermagas}
           onSelected={handleDermagaSelected}
@@ -123,15 +152,25 @@ export default function MobileApp() {
   // Screens without bottom nav
   if (noNavScreens.includes(screen)) {
     return framed(
-      <div className="flex-1 overflow-y-auto hide-scrollbar screen-scroll">
+      <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
         <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
       </div>,
     )
   }
 
   return (
-    <MobileShell activeNav={activeNav} onNav={goTab}>
-      <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
-    </MobileShell>
+    <>
+      <MobileShell activeNav={activeNav} onNav={goTab}>
+        <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
+      </MobileShell>
+      {/* Modal pilih dermaga untuk petugas dual-access — muncul sebelum memulai trip */}
+      {showDermagaPicker && (
+        <DermagaPickerModal
+          dermagas={officer.dermagaAccess || []}
+          onSelect={handleDermagaPickerSelect}
+          onCancel={() => setShowDermagaPicker(false)}
+        />
+      )}
+    </>
   )
 }

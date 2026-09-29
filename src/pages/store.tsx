@@ -99,6 +99,9 @@ interface StoreValue {
   verifyIntent: VerifyIntent
   beginVerify: (opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => void
   clearVerify: () => void
+  /** Dermaga yang dipilih petugas sebelum memulai trip (per-trip, di-reset saat resetDraft) */
+  activeDermagaId: string | null
+  setActiveDermaga: (id: string | null) => void
 }
 
 const emptyDraft: Draft = {
@@ -255,6 +258,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
   const [pendingOfficerId, setPendingOfficerId] = useState<string | null>(null)
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
+  const [activeDermagaId, setActiveDermagaId] = useState<string | null>(null)
 
   useEffect(() => {
     try { localStorage.setItem(LS.trips, JSON.stringify(trips)) } catch { /* quota */ }
@@ -312,8 +316,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Token must match the newly switched officer
     void ensureBackendSession(String(id))
   }, [])
-  const resetDraft = useCallback(() => setDraft(emptyDraft), [])
+  const resetDraft = useCallback(() => {
+    setDraft(emptyDraft)
+    setActiveDermagaId(null)
+  }, [])
   const patchDraft = useCallback((p: Partial<Draft>) => setDraft(d => ({ ...d, ...p })), [])
+  const setActiveDermaga = useCallback((id: string | null) => setActiveDermagaId(id), [])
   const addVehicle = useCallback(
     (v: VehicleEntry) => setDraft(d => ({ ...d, vehicles: [...d.vehicles, v] })),
     [],
@@ -397,8 +405,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
+    activeDermagaId, setActiveDermaga,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify])
+    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
+    activeDermagaId, setActiveDermaga])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }

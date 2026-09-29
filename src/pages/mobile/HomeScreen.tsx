@@ -6,9 +6,11 @@ import type { MobileScreen } from '../types'
 
 interface HomeScreenProps {
   go: (s: MobileScreen) => void
+  /** Dipanggil saat petugas menekan "Mulai Trip". MobileApp menangani cek dual-access dermaga. */
+  onStartTrip: () => void
 }
 
-export default function HomeScreen({ go }: HomeScreenProps) {
+export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
   const [syncing, setSyncing] = useState(false)
@@ -48,7 +50,7 @@ export default function HomeScreen({ go }: HomeScreenProps) {
           <p className="text-blue-100 text-[13px] font-semibold mb-1">Siap bertugas?</p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">Mulai Trip<br />Baru Sekarang</h2>
           <button
-            onClick={() => { resetDraft(); go('trip-condition') }}
+            onClick={() => { resetDraft(); onStartTrip() }}
             className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
           >
             Mulai Trip <ArrowRight size={16} />

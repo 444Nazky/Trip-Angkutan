@@ -83,6 +83,8 @@ export interface UiRoute {
   label: string
   distance?: string
   duration?: string
+  /** ID dermaga asal rute — dipakai filter per dermaga di RouteSelectScreen */
+  dermagaId?: string
 }
 
 function saveRoutesMap(map: Record<string, Route[]>) {
@@ -101,11 +103,11 @@ export function getStoredRoutes(): UiRoute[] {
     if (!raw) return []
     const map = JSON.parse(raw) as Record<string, Route[]>
     const selectedDermaga = getStoredDermaga()
-    const routeGroups = selectedDermaga
-      ? [map[selectedDermaga.id] || []]
-      : Object.keys(map).length === 1 ? [Object.values(map)[0] || []] : []
+    const routeGroups: Array<[string, Route[]]> = selectedDermaga
+      ? [[selectedDermaga.id, map[selectedDermaga.id] || []]]
+      : Object.keys(map).length === 1 ? [[Object.keys(map)[0], Object.values(map)[0] || []]] : []
     const out: UiRoute[] = []
-    for (const list of routeGroups) {
+    for (const [dermagaId, list] of routeGroups) {
       for (const r of list || []) {
         if (!r?.route_from || !r?.route_to) continue
         const code = `${r.route_from}-${r.route_to}`
@@ -117,6 +119,7 @@ export function getStoredRoutes(): UiRoute[] {
           label: r.name || `${r.route_from} → ${r.route_to}`,
           distance: r.distance,
           duration: r.duration,
+          dermagaId,
         })
       }
     }
@@ -139,10 +142,18 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   const map: Record<string, Route[]> = {}
   for (const r of result.data) {
     if (!map[r.dermaga_id]) map[r.dermaga_id] = []
-    const { dermaga_id: _dm, ...route } = r
-    map[r.dermaga_id].push(route)
+    // Simpan route_from/route_to terpisah dari dermaga_id agar map tetap bersih
+    map[r.dermaga_id].push({
+      id: r.id,
+      name: r.name,
+      route_from: r.route_from,
+      route_to: r.route_to,
+      distance: r.distance,
+      duration: r.duration,
+    })
   }
   saveRoutesMap(map)
+  // getStoredRoutes() sudah menyertakan dermagaId dari key map
   return getStoredRoutes()
 }
 
