@@ -93,6 +93,15 @@ function getGolonganBadge($gol) {
     if (strpos($gol, 'Tanpa') !== false) return '<span class="badge badge-red">Ekst. Tanpa Garansi</span>';
     return '<span class="badge badge-gray">' . htmlspecialchars($gol) . '</span>';
 }
+function fotoUrl($path) {
+    if (!$path) return null;
+    if (strpos($path, 'http') === 0) return $path;
+    return 'http://localhost:3000/' . ltrim($path, '/');
+}
+function gmapsUrl($lat, $lng) {
+    if (!$lat || !$lng) return null;
+    return 'https://www.google.com/maps?q=' . $lat . ',' . $lng;
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -149,6 +158,22 @@ function getGolonganBadge($gol) {
         .vehicle-type { min-width: 80px; }
         .vehicle-actions { display: flex; gap: 6px; align-items: center; }
         .empty-state { text-align: center; padding: 48px; color: #94A3B8; }
+        /* Thumbnail & Lightbox */
+        .thumb-wrap { display: inline-flex; align-items: center; gap: 4px; }
+        .thumb-img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; border: 1px solid #E2E8F0; cursor: pointer; transition: box-shadow 0.2s; }
+        .thumb-img:hover { box-shadow: 0 0 0 2px #3B82F6; }
+        .map-link { color: #3B82F6; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+        .map-link:hover { text-decoration: underline; }
+        .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .lightbox.show { display: flex; }
+        .lightbox-inner { background: white; border-radius: 16px; max-width: 700px; width: 100%; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        .lightbox-header { background: #1E293B; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; }
+        .lightbox-img { width: 100%; max-height: 70vh; object-fit: contain; background: #0F172A; display: block; }
+        .lightbox-footer { padding: 10px 16px; background: #F8FAFC; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; font-size: 11px; color: #64748B; }
+        .detail-table { width: 100%; }
+        .detail-table th { background: #EFF6FF; color: #1E40AF; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid #BFDBFE; }
+        .detail-table td { padding: 8px 10px; border-bottom: 1px solid #F1F5F9; font-size: 12px; }
+        .detail-table tr:last-child td { border-bottom: none; }
     </style>
     <script>
         function toggleDetail(id) {
@@ -158,6 +183,32 @@ function getGolonganBadge($gol) {
                 row.classList.toggle('expanded');
                 detail.classList.toggle('show');
             }
+        }
+        function getBaseUrl() { return 'http://localhost:3000'; }
+        function fotoUrl(path) {
+            if (!path) return null;
+            if (path.startsWith('http')) return path;
+            return getBaseUrl() + '/' + path.replace(/^\//, '');
+        }
+        function openLightbox(imgSrc, noTrip) {
+            const lb = document.getElementById('lightbox');
+            const lbImg = document.getElementById('lightbox-img');
+            const lbMeta = document.getElementById('lightbox-meta');
+            const lbOrig = document.getElementById('lightbox-orig');
+            if (lb && lbImg) {
+                lbImg.src = imgSrc;
+                if (lbMeta) lbMeta.textContent = 'Trip: ' + (noTrip || '');
+                if (lbOrig) { lbOrig.href = imgSrc; lbOrig.style.display = ''; }
+                lb.classList.add('show');
+            }
+        }
+        function closeLightbox() {
+            const lb = document.getElementById('lightbox');
+            if (lb) lb.classList.remove('show');
+        }
+        function gmapsUrl(lat, lng) {
+            if (!lat || !lng) return null;
+            return 'https://www.google.com/maps?q=' + lat + ',' + lng;
         }
     </script>
 </head>
@@ -338,22 +389,60 @@ function getGolonganBadge($gol) {
                                         <div><span class="text-xs text-slate-500">Total Tarif</span><br><span class="font-bold text-emerald-600"><?= fmtRp($t['trip_revenue'] ?? 0) ?></span></div>
                                     </div>
                                     
-                                    <div class="bg-white rounded-xl p-4 border border-slate-200">
+                                    <div class="bg-white rounded-xl p-4 border border-slate-200 overflow-x-auto">
                                         <div class="text-xs font-bold text-slate-500 uppercase mb-3">Kendaraan (<?= count($vehicles) ?> Unit)</div>
                                         <?php if (empty($vehicles)): ?>
                                         <p class="text-slate-400 text-sm">Tidak ada data kendaraan</p>
-                                        <?php else: foreach ($vehicles as $v): ?>
-                                        <div class="vehicle-item">
-                                            <div class="vehicle-plate text-slate-700"><?= htmlspecialchars($v['no_polisi'] ?? '-') ?></div>
-                                            <div class="vehicle-type text-slate-600"><?= htmlspecialchars($v['vehicle_type'] ?? '-') ?></div>
-                                            <div><?= getGolonganBadge($v['golongan'] ?? '') ?></div>
-                                            <div>
-                                                <?= !empty($v['has_load']) ? '<span class="badge badge-success">Ada Muatan</span>' : '<span class="badge badge-gray">Kosong</span>' ?>
-                                            </div>
-                                            <div class="flex-1"></div>
-                                            <div class="font-bold text-emerald-600"><?= fmtRp($v['tariff_amount'] ?? 0) ?></div>
-                                        </div>
-                                        <?php endforeach; endif; ?>
+                                        <?php else: ?>
+                                        <table class="detail-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>No. Polisi</th>
+                                                    <th>Jenis</th>
+                                                    <th>Golongan</th>
+                                                    <th>Tarif</th>
+                                                    <th>Foto</th>
+                                                    <th>Lokasi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            <?php foreach ($vehicles as $v):
+                                                $fotoPath = $v['foto_path'] ?? null;
+                                                $fotoFull = $fotoPath ? fotoUrl($fotoPath) : null;
+                                                $lat = $v['latitude'] ?? null;
+                                                $lng = $v['longitude'] ?? null;
+                                                $mapLink = ($lat && $lng) ? gmapsUrl($lat, $lng) : null;
+                                            ?>
+                                                <tr>
+                                                    <td class="font-mono font-bold text-slate-800"><?= htmlspecialchars($v['no_polisi'] ?? '-') ?></td>
+                                                    <td><?= htmlspecialchars($v['vehicle_type'] ?? '-') ?></td>
+                                                    <td><?= getGolonganBadge($v['golongan'] ?? '') ?></td>
+                                                    <td class="font-bold text-emerald-600"><?= fmtRp($v['tariff_amount'] ?? 0) ?></td>
+                                                    <td>
+                                                        <?php if ($fotoFull): ?>
+                                                        <div class="thumb-wrap">
+                                                            <img src="<?= htmlspecialchars($fotoFull) ?>" alt="foto" class="thumb-img"
+                                                                onclick="openLightbox('<?= htmlspecialchars($fotoFull) ?>', '<?= htmlspecialchars($t['no_trip'] ?? $trip_id) ?>')" />
+                                                            <a href="<?= htmlspecialchars($fotoFull) ?>" target="_blank" class="text-blue-500 hover:text-blue-700" title="Buka di tab baru">🔗</a>
+                                                        </div>
+                                                        <?php else: ?>
+                                                        <span class="text-slate-300 text-xs">-</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php if ($mapLink): ?>
+                                                        <a href="<?= htmlspecialchars($mapLink) ?>" target="_blank" class="map-link" title="<?= htmlspecialchars($lat . ', ' . $lng) ?>">
+                                                            📍 <?= htmlspecialchars(number_format((float)$lat, 4, '.', '') . ', ' . number_format((float)$lng, 4, '.', '')) ?>
+                                                        </a>
+                                                        <?php else: ?>
+                                                        <span class="text-slate-300 text-xs">-</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </td>
@@ -377,5 +466,20 @@ function getGolonganBadge($gol) {
             <?php endif; ?>
         </div>
     </main>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+        <div class="lightbox-inner" onclick="event.stopPropagation()">
+            <div class="lightbox-header">
+                <span>📷 Dokumentasi Kendaraan</span>
+                <button onclick="closeLightbox()" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;padding:0;">✕</button>
+            </div>
+            <img id="lightbox-img" class="lightbox-img" src="" alt="Foto Kendaraan" />
+            <div class="lightbox-footer">
+                <span id="lightbox-meta" class="font-mono"></span>
+                <a id="lightbox-orig" href="#" target="_blank" class="text-blue-500 hover:underline" style="display:none">🔗 Buka Asli</a>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

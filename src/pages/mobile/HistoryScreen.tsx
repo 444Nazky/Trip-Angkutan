@@ -1,7 +1,63 @@
-import { useState } from 'react'
-import { Truck } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
 import { useApp } from '../store'
+import { getSyncQueue } from '../../services/sync'
 import type { MobileScreen } from '../types'
+
+// ─── Sync Badge Component ─────────────────────────────────────────────────────
+function SyncBadge({ tripId, isSynced }: { tripId: string; isSynced: boolean }) {
+  const queue = getSyncQueue()
+  const inQueue = queue.some(q => q.trip.id === tripId)
+
+  if (isSynced) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+        <Cloud size={10} /> Terkirim
+      </span>
+    )
+  }
+
+  if (inQueue) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+        <CloudOff size={10} /> Antri
+      </span>
+    )
+  }
+
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+      <CloudOff size={10} /> Lokal
+    </span>
+  )
+}
+
+// ─── Connection Indicator ──────────────────────────────────────────────────────
+function ConnectionIndicator() {
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  return (
+    <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all ${
+      isOnline
+        ? 'bg-emerald-50 text-emerald-600'
+        : 'bg-slate-100 text-slate-500'
+    }`}>
+      {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+      {isOnline ? 'Online' : 'Offline'}
+    </div>
+  )
+}
 
 // ─── History Screen ────────────────────────────────────────────────────────────
 interface HistoryScreenProps {
@@ -18,9 +74,28 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
+  // Count summary
+  const syncedCount = myTrips.filter(t => t.synced).length
+  const localCount = myTrips.filter(t => !t.synced).length
+
   return (
     <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
-      <h2 className="font-black text-slate-900 text-[20px]">Riwayat Trip</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="font-black text-slate-900 text-[20px]">Riwayat Trip</h2>
+        <ConnectionIndicator />
+      </div>
+
+      {/* Summary Stats */}
+      <div className="flex gap-2 text-[11px]">
+        <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-semibold">
+          <Cloud size={10} />
+          <span>{syncedCount} terkirim</span>
+        </div>
+        <div className="flex items-center gap-1 bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-semibold">
+          <CloudOff size={10} />
+          <span>{localCount} lokal</span>
+        </div>
+      </div>
 
       {/* Filter */}
       <div className="flex gap-2">
@@ -58,7 +133,10 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
               <Truck size={20} className={t.load === 'Ada Muatan' ? 'text-blue-500' : 'text-slate-400'} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-bold text-slate-900 mb-1">{t.route}</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
+                <SyncBadge tripId={t.id} isSynced={t.synced ?? false} />
+              </div>
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-[11px] text-slate-400">{t.date} · {t.time}</span>
