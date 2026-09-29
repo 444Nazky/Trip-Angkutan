@@ -7,19 +7,24 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
-const uploadDocumentation = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 50 },
-  fileFilter: (_req, file, cb) => {
-    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
-  },
-});
-
 const photoExtension = (mimetype) => ({
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
 }[mimetype]);
+
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadDocumentation = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => cb(null, `${uuidv4()}${photoExtension(file.mimetype) || '.jpg'}`),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024, files: 50 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+  },
+});
 
 const validPhotoIndex = (value, files) =>
   value === null || value === undefined
@@ -38,22 +43,28 @@ function generateTripNo() {
 
 // Create a trip with its complete photo manifest in one multipart request.
 router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), (req, res) => {
-  const writtenFiles = [];
+  const files = req.files || [];
+  const writtenFiles = files.map(file => file.path);
+  const cleanupFiles = () => writtenFiles.forEach(filePath => {
+    try { fs.unlinkSync(filePath); } catch { /* already removed */ }
+  });
   try {
     const payload = JSON.parse(req.body.payload || '{}');
-    const files = req.files || [];
     const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
     if (!payload.statusMuatan) {
+      cleanupFiles();
       return res.status(400).json({ error: 'statusMuatan wajib diisi' });
     }
 
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files);
     const vehiclePhotoIndexes = vehicles.map(vehicle => validPhotoIndex(vehicle.photoIndex, files));
     if (tripPhotoIndex === null || tripPhotoIndex === undefined || vehiclePhotoIndexes.some(index => index === null || index === undefined)) {
+      cleanupFiles();
       return res.status(400).json({ error: 'Semua foto dokumentasi wajib disertakan' });
     }
     const usedIndexes = [tripPhotoIndex, ...vehiclePhotoIndexes];
     if (new Set(usedIndexes).size !== files.length) {
+      cleanupFiles();
       return res.status(400).json({ error: 'Payload harus menyertakan seluruh foto dokumentasi tepat satu kali' });
     }
 
@@ -64,17 +75,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       (db.prepare(`SELECT id FROM dermagas WHERE region_id = ? LIMIT 1`).get(regionId)?.id) ||
       (db.prepare(`SELECT id FROM dermagas LIMIT 1`).get()?.id) || null;
 
-    const uploadsDir = path.join(__dirname, '..', 'uploads');
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    const photoPaths = files.map(file => {
-      const ext = photoExtension(file.mimetype);
-      if (!ext) throw new Error('Format foto tidak didukung');
-      const filename = `${uuidv4()}${ext}`;
-      const fullPath = path.join(uploadsDir, filename);
-      fs.writeFileSync(fullPath, file.buffer);
-      writtenFiles.push(fullPath);
-      return `/uploads/${filename}`;
-    });
+    const photoPaths = files.map(file => `/uploads/${file.filename}`);
 
     const tripId = uuidv4();
     const noTrip = generateTripNo();
@@ -118,7 +119,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
 
     return res.status(201).json({ id: tripId, noTrip });
   } catch (error) {
-    writtenFiles.forEach(filePath => { try { fs.unlinkSync(filePath); } catch { /* already removed */ } });
+    cleanupFiles();
     console.error('Complete trip submission error:', error);
     return res.status(500).json({ error: 'Failed to submit complete trip documentation' });
   }

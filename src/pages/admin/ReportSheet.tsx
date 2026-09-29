@@ -11,15 +11,6 @@ import {
 } from '../../services/trips'
 import { downloadXlsx } from '../../services/xlsx'
 
-/**
- * SPREADSHEET LIVE — pengganti unduhan .xlsx.
- *
- * Dibuka lewat tab baru (`/#/sheet`) oleh tombol "Ekspor Spreadsheet" di Laporan.
- * Alih-alih mengunduh berkas lalu mengimpornya manual, halaman ini menarik data
- * langsung dari database lewat API dan menyinkronkannya ulang setiap 15 detik,
- * sehingga tabel selalu menampilkan laporan terbaru tanpa file sementara.
- */
-
 type ViewMode = 'trip' | 'vehicle'
 type LoadState = 'loading' | 'ready' | 'offline'
 
@@ -93,7 +84,7 @@ export default function ReportSheet() {
   const buildSheets = () => {
     const now = new Date()
     const meta: (string | number | null)[][] = [
-      ['Laporan Trip Angkutan — Spreadsheet Live'],
+      ['Laporan Spreadsheet'],
       ['Dicetak', now.toLocaleString('id-ID')],
       ['Rentang Tanggal', filters.startDate || filters.endDate ? `${filters.startDate || 'Awal'} s/d ${filters.endDate || 'Akhir'}` : 'Semua tanggal'],
       ['Filter Golongan', filters.golongan || 'Semua'],
@@ -149,7 +140,7 @@ export default function ReportSheet() {
             <Table2 size={17} />
           </span>
           <div className="mr-auto">
-            <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Trip — Spreadsheet Live</h1>
+            <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
               Tersinkron langsung dari database · refresh otomatis tiap 15 detik
               {lastSync && <> · terakhir {lastSync} WIB</>}

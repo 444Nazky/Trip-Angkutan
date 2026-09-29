@@ -79,20 +79,29 @@ async function postTripToServer(trip: Trip): Promise<SyncResult> {
     return index
   }
 
-  const tripPhotoIndex = await toPhotoIndex(trip.photoUrl)
+  let tripPhotoIndex: number | null
   const vehicles = []
-  for (const vehicle of trip.vehicles || []) {
-    vehicles.push({
-      noPolisi: vehicle.plate,
-      vehicleType: vehicle.type,
-      golongan: vehicle.category,
-      hasLoad: trip.load === 'Ada Muatan',
-      tariffAmount: vehicle.tariff,
-      photoIndex: await toPhotoIndex(vehicle.photoUrl),
-      photoCapturedAt: vehicle.photoCapturedAt || null,
-      latitude: vehicle.photoLatitude ?? null,
-      longitude: vehicle.photoLongitude ?? null,
-    })
+  try {
+    tripPhotoIndex = await toPhotoIndex(trip.photoUrl)
+    for (const vehicle of trip.vehicles || []) {
+      vehicles.push({
+        noPolisi: vehicle.plate,
+        vehicleType: vehicle.type,
+        golongan: vehicle.category,
+        hasLoad: trip.load === 'Ada Muatan',
+        tariffAmount: vehicle.tariff,
+        photoIndex: await toPhotoIndex(vehicle.photoUrl),
+        photoCapturedAt: vehicle.photoCapturedAt || null,
+        latitude: vehicle.photoLatitude ?? null,
+        longitude: vehicle.photoLongitude ?? null,
+      })
+    }
+  } catch (error) {
+    return {
+      id: trip.id,
+      success: false,
+      error: error instanceof Error ? `Foto dokumentasi gagal dibaca: ${error.message}` : 'Foto dokumentasi gagal dibaca',
+    }
   }
 
   // One multipart request carries the full trip manifest and every image.

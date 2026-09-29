@@ -3,7 +3,6 @@ import { ChevronLeft, Lock, RefreshCw, LogOut } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// ─── Officer Switch Screen ─────────────────────────────────────────────────────
 interface OfficerSwitchScreenProps {
   go: (s: MobileScreen) => void
 }
@@ -17,23 +16,19 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
     try { await refreshOfficers(true) } finally { setSyncing(false) }
   }
 
-  // Tarik daftar petugas terbaru setiap layar dibuka (sinkron real-time dengan
-  // dashboard admin: status aktif/nonaktif & wilayah selalu yang terkini).
   useEffect(() => {
     void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Filter: region SAMA dan minimal 1 dermaga irisan dengan petugas aktif
+  // Region display
   const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
+  // Filter STRICT: hanya officer dg 1 dermaga irisan dg aktif
   const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
-  const regionOfficers = officers.filter(o => {
-    const regs = o.regions && o.regions.length > 0 ? o.regions : [o.region]
-    const sameRegion = regs.some(r => myRegions.includes(r))
-    if (!sameRegion) return false
-    const theirs = o.dermagaAccess || []
-    const shareDermaga = theirs.some(d => myDermagaIds.has(d.id))
-    return myDermagaIds.size > 0 ? shareDermaga : true
+  const filtered = officers.filter(o => {
+    if (o.id === officer.id) return false
+    if (myDermagaIds.size === 0) return (o.dermagaAccess || []).length === 0
+    return (o.dermagaAccess || []).some(d => myDermagaIds.has(d.id))
   })
 
   return (
@@ -45,11 +40,11 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-2">
           <Lock size={14} className="text-amber-400" />
-          <span className="text-amber-400 text-[11px] font-black tracking-widest uppercase">Region Lock Aktif</span>
+          <span className="text-amber-400 text-[11px] font-black tracking-widest uppercase">Ganti Petugas</span>
         </div>
-        <h2 className="text-white font-black text-[18px] mb-0.5">Ganti Petugas</h2>
+        <h2 className="text-white font-black text-[18px] mb-0.5">Daftar Rekan Kerja</h2>
         <p className="text-slate-400 text-[12px]">
-          Hanya petugas wilayah <span className="text-emerald-400 font-black">{myRegions.join(', ')}</span> yang ditampilkan
+          Hanya rekan dg dermaga sama: <span className="text-emerald-400 font-black">{myRegions.join(', ')}</span>
         </p>
         <button
           onClick={() => void pull()}
@@ -57,18 +52,18 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
           className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-300 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-60"
         >
           <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Menyinkronkan...' : 'Sinkronkan daftar petugas'}
+          {syncing ? 'Menyinkronkan...' : 'Sinkronkan'}
         </button>
       </div>
 
       <div className="space-y-3">
-        {regionOfficers.length === 0 && (
+        {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
-            <p className="text-[13px] font-bold text-slate-700 mb-1">Tidak ada petugas aktif</p>
-            <p className="text-[11px] text-slate-400">Petugas wilayah {officer.region} belum terdaftar</p>
+            <p className="text-[13px] font-bold text-slate-700 mb-1">Tidak ada rekan dg dermaga sama</p>
+            <p className="text-[11px] text-slate-400">Petugas lain tidak memiliki akses dermaga yang bersinggungan</p>
           </div>
         )}
-        {regionOfficers.map(o => (
+        {filtered.map(o => (
           <button
             key={o.id}
             onClick={() => {

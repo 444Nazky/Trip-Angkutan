@@ -98,6 +98,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
     const capturedAt = new Date().toISOString()
+    setBusy(true)
     let latitude: number | null = null
     let longitude: number | null = null
     try {
@@ -119,6 +120,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       photoLongitude: longitude,
     })
     go(returnTo)
+    setBusy(false)
   }
 
   const handleCapture = async () => {
@@ -136,8 +138,8 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           source: CameraSource.Camera, // HANYA kamera — tanpa opsi galeri
         })
         if (image?.dataUrl) {
-          setBusy(false)
           await deliver(image.dataUrl)
+          setBusy(false)
           return
         }
         setBusy(false) // dibatalkan pengguna → diam, tidak ada jalur impor
