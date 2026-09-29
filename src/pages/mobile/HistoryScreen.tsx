@@ -17,17 +17,9 @@ function SyncBadge({ tripId, isSynced }: { tripId: string; isSynced: boolean }) 
     )
   }
 
-  if (inQueue) {
-    return (
-      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-        <CloudOff size={10} /> Antri
-      </span>
-    )
-  }
-
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-      <CloudOff size={10} /> Lokal
+      <CloudOff size={10} /> Tersimpan di lokal
     </span>
   )
 }

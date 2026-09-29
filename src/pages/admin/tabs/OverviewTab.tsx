@@ -33,7 +33,7 @@ export function OverviewTab({
       {/* Header */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Ringkasan Cepat</h3>
+          <h3 className="font-black text-slate-900 text-lg"> overview</h3>
           <p className="text-slate-500 text-[12px]">
             Info at-a-glance
             {dashAt && <> · diperbarui {dashAt} WIB</>}

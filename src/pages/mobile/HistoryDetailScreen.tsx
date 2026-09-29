@@ -155,7 +155,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <p className="text-[10px] text-slate-400">
               {navigator.onLine
                 ? 'Data trip akan otomatis dikirim ke admin'
-                : 'Data trip disimpan lokal, akan dikirim saat online'}
+                : 'Data trip tersimpan di lokal, otomatis terkirim saat online'}
             </p>
           </div>
         </div>
