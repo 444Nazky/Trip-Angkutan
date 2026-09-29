@@ -19,29 +19,28 @@ import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
 
-// ─── Variasi transisi antar halaman ──────────────────────────────────────────
-// push  → maju (geser dari kanan)     pop → kembali (geser dari kiri)
-// zoom  → halaman detail              sheet → form/modal (dari bawah)
-// tab   → pindah tab bawah
+// Variasi transisi antar halaman
+// push → maju (geser dari kanan)  pop → kembali (geser dari kiri)
+// zoom → halaman detail              sheet → form/modal (dari bawah)
+// tab  → pindah tab bawah
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
 
-// ─── Mobile App Container ─────────────────────────────────────────────────────
 export default function MobileApp() {
   const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
+  // pendingDermagas = popup pilihan dermaga (saat Mulai Trip dual-access).
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
+  // selectedDockId = dermaga yang dipilih petugas di popup Mulai Trip.
+  // Dipakai RouteSelectScreen untuk filter rute.
+  const [selectedDockId, setSelectedDockId] = useState<string | null>(null)
   const stack = useRef<MobileScreen[]>(['home'])
 
   const noNavScreens: MobileScreen[] = [
-    'camera',
-    'officer-switch',
-    'pin-verify',
-    'trip-active',
-    'trip-complete',
+    'camera', 'officer-switch', 'pin-verify', 'trip-active', 'trip-complete',
   ]
 
   const activeNav = ['history', 'history-detail'].includes(screen)
@@ -52,7 +51,7 @@ export default function MobileApp() {
 
   const screenMap: Record<MobileScreen, React.ReactNode> = {
     home: <HomeScreen go={go} onStartTrip={handleStartTrip} />,
-    'route-select': <RouteSelectScreen go={go} />,
+    'route-select': <RouteSelectScreen go={go} selectedDockId={selectedDockId} />,
     'trip-condition': <TripConditionScreen go={go} />,
     'vehicle-form': <VehicleFormScreen go={go} />,
     camera: <CameraScreen go={go} />,
@@ -62,41 +61,47 @@ export default function MobileApp() {
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} />,
     'officer-switch': <OfficerSwitchScreen go={go} />,
-    'pin-verify': <PinVerifyScreen go={go} onDermagaSelect={(d) => setPendingDermagas(d)} />,
+    // PinVerifyScreen tanpa onDermagaSelect — popup dermaga TIDAK muncul di login/switch
+    'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     settings: <SettingsScreen go={go} />,
   }
 
-  /** Navigasi dengan animasi sesuai konteks (bukan fade berulang). */
+  /** Navigasi dengan animasi sesuai konteks. */
   function go(next: MobileScreen) {
     if (next === screen) return
     const path = stack.current
     const at = path.lastIndexOf(next)
     let kind: AnimKind
-
-    if (at >= 0) kind = 'pop' // kembali ke layar sebelumnya
+    if (at >= 0) kind = 'pop'
     else if (ZOOM_SCREENS.includes(next)) kind = 'zoom'
     else if (SHEET_SCREENS.includes(next)) kind = 'sheet'
     else kind = 'push'
-
     stack.current = at >= 0 ? path.slice(0, at + 1) : [...path, next]
-
     setAnim(kind)
     setScreen(next)
   }
 
   /**
    * Dipanggil saat petugas menekan "Mulai Trip" di HomeScreen.
-   * Petugas dual-access melihat gabungan rute dari semua dermaga yang ditugaskan.
-   * Petugas single-access tetap terkunci ke dermaga satu-satunya.
+   *
+   * Single-access (1 dermaga): langung kunci dermaga, lanjut ke trip-condition.
+   * Dual-access (>1 dermaga): simpan daftar dermaga, tampilkan popup pilih dermaga.
+   * Setelah petugas pilih, route filter otomatis sesuai pilihan.
    */
   function handleStartTrip() {
     const accesses = officer.dermagaAccess || []
-    setActiveDermaga(accesses.length === 1 ? accesses[0].id : null)
+    if (accesses.length > 1) {
+      setSelectedDockId(null) // belum pilih dock, popup tanggung jawab
+      setPendingDermagas(accesses as Dermaga[])
+      return
+    }
+    setPendingDermagas(null)
+    setSelectedDockId(accesses[0]?.id ?? null)
+    setActiveDermaga(accesses[0]?.id ?? null)
     go('trip-condition')
   }
 
-  /** Pindah lewat tab bawah — transisi khusus tab (bukan maju/kembali). */
   function goTab(next: MobileScreen) {
     if (next === screen) return
     const path = stack.current
@@ -106,20 +111,22 @@ export default function MobileApp() {
     setScreen(next)
   }
 
-  const handleDermagaSelected = (_dermaga: Dermaga) => {
+  const handleDermagaSelected = (dermaga: Dermaga) => {
     setPendingDermagas(null)
-    // Continue to profile/home after selecting dermaga
-    setScreen('profile')
+    setSelectedDockId(dermaga.id)
+    setActiveDermaga(dermaga.id)
+    go('trip-condition')
   }
 
   const handleDermagaCancel = () => {
     setPendingDermagas(null)
-    setScreen('profile')
+    setSelectedDockId(null)
+    go('home')
   }
 
   const framed = (content: React.ReactNode) => <div className="app-frame">{content}</div>
 
-  // Show dermaga selection if needed
+  // Popup pilih dermaga HANYA muncul saat Mulai Trip (bukan login/ganti petugas)
   if (pendingDermagas && pendingDermagas.length > 1) {
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
@@ -133,7 +140,6 @@ export default function MobileApp() {
     )
   }
 
-  // Screens without bottom nav
   if (noNavScreens.includes(screen)) {
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
@@ -143,10 +149,8 @@ export default function MobileApp() {
   }
 
   return (
-    <>
-      <MobileShell activeNav={activeNav} onNav={goTab}>
-        <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
-      </MobileShell>
-    </>
+    <MobileShell activeNav={activeNav} onNav={goTab}>
+      <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
+    </MobileShell>
   )
 }

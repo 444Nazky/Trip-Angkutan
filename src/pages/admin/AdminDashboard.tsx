@@ -176,7 +176,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'tariff' && (
-            <TariffTab
+            <TariffTabass
               tariffs={tariffs2.length > 0 ? tariffs2 : tariffs}
               serverState={serverState}
               onSaveTariffs={(t) => { setTariffs2(t); saveTariffs(t) }}
