@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Lock, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
 import { api } from '../../../services/api'
@@ -7,7 +7,7 @@ import { ensureAdminBackendSession } from '../../../services/auth'
 import type { Officer, BackendOfficerRow, Region, RouteRow, RouteDermaga } from '../components/types'
 
 interface OfficersTabProps {
-  officers: Officer[]   // dari store (mobile), hanya untuk sinkronisasi saat ada mutasi
+  officers: Officer[] 
   serverState: 'connecting' | 'online' | 'offline'
   onSaveOfficers: (o: Officer[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -15,10 +15,8 @@ interface OfficersTabProps {
 
 const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']
 
-/**
- * Merge data backend dengan data lama dari store (mobile).
- * Prioritas: data backend (dermagaAccess, regions) > fallback dari store > default D1.
- */
+
+
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
   return rows.map(b => {
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
@@ -28,7 +26,7 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
       ? b.dermagas
       : old?.dermagaAccess && old.dermagaAccess.length > 0
         ? old.dermagaAccess
-        : [{ id: '', name: 'Dermaga 1', code: 'D1' }]  // fallback D1 sementara
+        : [{ id: '', name: 'Dermaga 1', code: 'D1' }] 
     return {
       id: String(b.id),
       name: b.name,
@@ -46,10 +44,49 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
   })
 }
 
+// Settings dropdown component
+function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => void; onToggle: () => void; onDelete: () => void; isActive: boolean }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500">
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 min-w-[140px]">
+          <button onClick={() => { onEdit(); setOpen(false) }}
+            className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-50 text-slate-700">
+            <Pencil size={14} /> Edit
+          </button>
+          <button onClick={() => { onToggle(); setOpen(false) }}
+            className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-50 text-amber-600">
+            <UserX size={14} /> {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
+          <button onClick={() => { onDelete(); setOpen(false) }}
+            className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-red-50 text-red-500">
+            <Trash2 size={14} /> Hapus
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }: OfficersTabProps) {
-  // localOfficers = state untuk display; ambil dari backend, bukan dari store prop.
-  // Ini agar admin dashboard selalu tampil data terbaru dari database,
-  // tidak bergantung pada refreshOfficers mobile yang di-skip saat isAdminBuild().
+
+  
+
   const [localOfficers, setLocalOfficers] = useState<Officer[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [routeRows, setRouteRows] = useState<RouteRow[]>([])
@@ -93,8 +130,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     return () => { alive = false }
   }, [])
 
-  // Officer grouping: semua berdasarkan localOfficers (data backend), bukan store prop.
-  // Admin dashboard butuh grup wilayah aktual dari DB.
+
+
   const regionCodes = regions.map(r => r.code).filter(c => !HIDDEN_REGION_CODES.includes(c))
   const officerRegionCodes = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
@@ -108,12 +145,15 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     ...(localOfficers.some(o => !officerRegionCodes(o).some(c => regionCodes.includes(c))) ? ['LAINNYA'] : []),
   ]
 
+
   const regionCodeOfDermaga = (d: RouteDermaga) => d.region_code || regions.find(r => r.id === d.region_id)?.code || ''
   const dermagaOptionsFor = (codes: string[]) => routeDermagas.filter(d => codes.includes(regionCodeOfDermaga(d)))
   const routesForOfficer = (o: Officer) => {
     const ids = new Set((o.dermagaAccess ?? []).map(d => d.id))
     return ids.size > 0 ? routeRows.filter(r => ids.has(r.dermaga_id)) : []
   }
+
+
   const toggleId = (list: string[], id: string) => list.includes(id) ? list.filter(x => x !== id) : [...list, id]
   const findBackendOfficer = (o: { id?: string; name: string }) =>
     backendOfficers.find(b => String(b.id) === String(o.id)) ?? backendOfficers.find(b => b.name === o.name)
@@ -126,6 +166,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
       onSaveOfficers(merged)
     }
   }
+
+
 
   const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
@@ -161,6 +203,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     showToast('Petugas diupdate')
   }
 
+
+
   const handleDelOff = async (localIdx: number) => {
     if (!confirm('Hapus?')) return
     const officer = localOfficers[localIdx]
@@ -172,6 +216,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
     }
     showToast('Petugas dihapus')
   }
+
+
 
   const toggleOffStatus = async (localIdx: number) => {
     const officer = localOfficers[localIdx]
@@ -205,7 +251,9 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         </button>
       </div>
 
-      {/* Form Tambah */}
+
+
+
       {addOff && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Tambah Petugas</h3>
@@ -219,6 +267,9 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                 {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
               </select></div>
           </div>
+
+
+          
           <div className="mb-4">
             <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga</label>
             {dermagaOptionsFor([offForm.region]).length === 0 ? (
@@ -233,7 +284,10 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                   </label>
                 ))}
               </div>
-            )}
+            )}''
+
+
+
           </div>
           <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label>
             <input type="password" maxLength={6} value={offForm.pin} onChange={e => setOffForm({...offForm, pin: e.target.value})}
@@ -245,7 +299,9 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         </div>
       )}
 
-      {/* Form Edit */}
+
+
+
       {editOffIdx !== null && editOff && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Edit Petugas</h3>
@@ -262,6 +318,11 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                     {c}
                   </label>
                 ))}
+
+
+
+
+
               </div></div>
           </div>
           <div className="mb-4">
@@ -291,7 +352,9 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         </div>
       )}
 
-      {/* Empty state */}
+
+
+
       {localOfficers.length === 0 && !loading && (
         <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
           <p className="text-slate-500 font-semibold mb-1">Belum ada petugas</p>
@@ -299,7 +362,9 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         </div>
       )}
 
-      {/* Tabel per grup wilayah */}
+
+
+
       {officerGroups.map(region => {
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
@@ -318,7 +383,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                   const localIdx = localOfficers.indexOf(o)
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-bold">{o.name}</td>
+                      <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.id}</p></td>
                       <td className="p-4">
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
                           ? <span className="text-slate-300 text-xs">—</span>
@@ -328,6 +393,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                             ))}
                           </span>
                         }
+
+
                       </td>
                       <td className="p-4 text-[12px] text-slate-600">
                         {routesForOfficer(o).length === 0
@@ -340,19 +407,27 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                             ))}
                           </span>
                         }
+
+
+
+
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
                       </td>
                       <td className="p-4">
-                        <button onClick={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
-                          className="text-blue-600 font-bold text-sm mr-3">Edit</button>
-                        <button onClick={() => toggleOffStatus(localIdx)}
-                          className="text-amber-500 font-bold text-sm mr-3">{o.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
-                        <button onClick={() => handleDelOff(localIdx)} className="text-red-500 font-bold text-sm">Hapus</button>
+                        <ActionMenu
+                          onEdit={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
+                          onToggle={() => toggleOffStatus(localIdx)}
+                          isActive={o.status === 'Aktif'}
+                          onDelete={() => handleDelOff(localIdx)}
+                        />
                       </td>
                     </tr>
                   )
+
+
+
                 })}
               </tbody>
             </table>

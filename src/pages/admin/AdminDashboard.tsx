@@ -124,17 +124,17 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   return sheetMode ? <ReportSheet /> : (
     <CurrencyProvider>
       <div className="flex bg-slate-900 min-h-screen">
-        <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
   <div className="p-6 border-b border-slate-800">
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
 
-      <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center overflow-hidden">
-        <img src="/Assets/karyamasv.svg" alt="Logo" className="w-full h-full object-cover" />
+      <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
+        <img src="/Assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
       </div>
 
 
       <div>
-        <p className="text-white font-black text-[13px]">Dashboard Trip</p>
+        <p className="text-white font-black text-[14px]">Dashboard Trip</p>
         <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
       </div>
     </div>
@@ -159,7 +159,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {/* Content — latar off-white agar kartu putih punya kontras & batas jelas */}
-      <div className="flex-1 ml-60 bg-slate-50 min-h-screen">
+      <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
         <div className="p-8 max-w-[1400px]">
           {tab === 'overview' && (
             <OverviewTab
