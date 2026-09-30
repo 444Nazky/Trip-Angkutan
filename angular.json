@@ -68,6 +68,14 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 5173,
+            "host": "localhost",
+            "poll": 1000,
+            "hmr": true,
+            "liveReload": true,
+            "watch": true
+          },
           "configurations": {
             "production": {
               "buildTarget": "app:build:production"

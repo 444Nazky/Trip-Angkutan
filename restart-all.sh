@@ -16,8 +16,10 @@ cd /home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
 npm start > mobile.log 2>&1 &
 sleep 4
 
-echo "🟢 Starting Admin (8000)..."
-cd /home/nazky/RPL/Intern/Aplikasi-Trip-Ionic/admin-ci
+echo "🟢 Sync build admin (www → admin-ci)..."
+cd /home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
+npm run sync:admin
+cd admin-ci
 php -S localhost:8000 > admin.log 2>&1 &
 sleep 2
 

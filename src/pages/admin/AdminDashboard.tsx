@@ -123,9 +123,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   return sheetMode ? <ReportSheet /> : (
     <CurrencyProvider>
-
-
-<div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+      <div className="flex bg-slate-900 min-h-screen">
+        <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
   <div className="p-6 border-b border-slate-800">
     <div className="flex items-center gap-3">
       <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center overflow-hidden">
@@ -227,6 +226,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
     </div>
-    </CurrencyProvider>
+  </CurrencyProvider>
   )
 }
