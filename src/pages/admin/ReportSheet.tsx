@@ -10,14 +10,18 @@ import {
   type ReportFilterOptions,
 } from '../../services/trips'
 import { downloadXlsx } from '../../services/xlsx'
+import { getApiBaseUrl } from '../../services/api'
+import { resolvePhotoUrl } from './components/PhotoViewer'
 
-const BASE_URL = (import.meta as { env: { VITE_API_URL?: string } }).env.VITE_API_URL || 'http://localhost:3001'
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
 
+// Foto disajikan backend di `origin/uploads/...` (bukan di bawah /api), jadi
+// URL-nya disusun dari asal server API — sama dengan resolusi di Laporan.
+// Catatan: `import.meta.env` TIDAK ada di build Angular (esbuild), pemakaian
+// sebelumnya membuat dashboard blank saat runtime.
 const fotoUrl = (path: string | null | undefined) => {
   if (!path) return null
-  if (path.startsWith('http')) return path
-  return `${BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`
+  return resolvePhotoUrl(path, getApiBaseUrl())
 }
 
 const fmtCoords = (lat?: number | null, lng?: number | null) => {

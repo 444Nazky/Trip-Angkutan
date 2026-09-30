@@ -1,7 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
 const dbModule = require('./db');
 const authRoutes = require('./routes/auth');
 const tripRoutes = require('./routes/trips');
@@ -23,9 +21,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Serve uploaded photos publicly
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Serve uploaded photos publicly (folder yang sama dengan tujuan multer)
+const { UPLOADS_DIR } = require('./uploads-dir');
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Attach db to all requests

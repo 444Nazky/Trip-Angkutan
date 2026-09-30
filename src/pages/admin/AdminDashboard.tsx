@@ -127,8 +127,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
   <div className="p-6 border-b border-slate-800">
     <div className="flex items-center gap-3">
+
       <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center overflow-hidden">
-        <img src="/Assets/karyamas.jpeg" alt="Logo Karyamas" className="w-full h-full object-cover" />
+        <img src="/Assets/karyamas.jpeg" alt="Logo" className="w-full h-full object-cover" />
       </div>
 
       <div>

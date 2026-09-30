@@ -111,7 +111,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
       }),
     ]
 
-    // Sheet 2 — detail kendaraan per trip
+
     const vehRows: (string | number | null)[][] = [
       ['Detail Kendaraan per Trip'],
       ['Rentang Tanggal', rentang],
@@ -157,7 +157,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
@@ -174,7 +173,10 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
             Refresh
           </button>
-          {/* Buka Spreadsheet Live — redirect (andalan, tak terblokir popup blocker) */}
+          
+
+
+
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
             title="Buka spreadsheet live yang tersinkron langsung dari database"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">

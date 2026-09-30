@@ -38,6 +38,74 @@ const mode = process.argv.includes('--once')
 
 const log = (msg) => console.log(`[admin-watch] ${msg}`)
 
+/**
+ * Jaminan anti-cache untuk entry point admin.
+ *
+ * `admin-ci/index.php` kadang ter-overwrite oleh buffer editor lama sehingga
+ * header no-cache hilang dan refresh bisa menyajikan bundle basi. Fungsi ini
+ * menaruh blok header kembali secara otomatis setiap sinkronisasi.
+ */
+const NO_CACHE_BLOCK = `
+    // Hot-reload: index.html tidak boleh di-cache browser, supaya refresh
+    // selalu memuat bundle terbaru (nama file ber-hash berubah tiap build)
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');`
+
+function ensureNoCacheHeader() {
+  const entry = path.join(ADMIN, 'index.php')
+  if (!fs.existsSync(entry)) return
+  let src = fs.readFileSync(entry, 'utf8')
+  if (src.includes('Cache-Control: no-store')) return
+  const anchor = "header('Content-Type: text/html; charset=utf-8');"
+  if (!src.includes(anchor)) return
+  src = src.replace(anchor, anchor + NO_CACHE_BLOCK)
+  fs.writeFileSync(entry, src)
+  log('header no-cache index.php dipulihkan')
+}
+
+/**
+ * Auto-refresh: sisipkan klien kecil ke `admin-ci/index.html` yang menyalakan
+ * ulang halaman begitu build berubah (dicek tiap 2 detik terhadap bundle yang
+ * sedang tampil). Hanya dipasang di build admin — aplikasi mobile memakai
+ * HMR/live-reload bawaan `ng serve`.
+ * Kalau sedang mengetik di kolom form, refresh diganti tombol pengingat dulu.
+ */
+const LIVE_RELOAD_SNIPPET = (bundle) => `
+<script id="__ADMIN_LIVE_RELOAD__">/* auto-refresh admin saat build berubah */
+(function(){
+  if(!document.documentElement.hasAttribute('data-admin'))return;
+  var cur=${JSON.stringify(bundle)};
+  function busy(){var a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)}
+  function hint(){if(document.getElementById('__lr'))return;var b=document.createElement('button');b.id='__lr';b.textContent='Build baru — klik untuk refresh';b.style.cssText='position:fixed;right:16px;bottom:16px;z-index:9999;background:#0f172a;color:#fff;font:600 12px system-ui;padding:10px 14px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer;border:0';b.onclick=function(){location.reload()};document.body&&document.body.appendChild(b)}
+  setInterval(function(){
+    window.__AR_TICK=(window.__AR_TICK||0)+1;
+    fetch('/?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){
+      var m=t.match(/main-[A-Z0-9]+\.js/); if(!m||m[0]===cur)return;
+      window.__AR_SEEN=m[0];
+      if(document.getElementById('__lr'))return;
+      busy()?hint():location.reload();
+    }).catch(function(){});
+  },2000);
+})();
+</script>`
+
+function ensureLiveReload() {
+  // Disisipkan ke www/index.html (sumber salinan) supaya ikut terkopi ke
+  // admin-ci dalam satu langkah — tanpa jendela race antar tulis file.
+  const file = path.join(WWW, 'index.html')
+  if (!fs.existsSync(file)) return
+  let html = fs.readFileSync(file, 'utf8')
+  if (html.includes('__ADMIN_LIVE_RELOAD__')) return
+  const bundle = html.match(/main-[A-Z0-9]+\.js/)?.[0] || ''
+  if (!bundle) return
+  html = html.includes('</head>')
+    ? html.replace('</head>', `${LIVE_RELOAD_SNIPPET(bundle)}\n</head>`)
+    : html + LIVE_RELOAD_SNIPPET(bundle)
+  fs.writeFileSync(file, html)
+  log('klien auto-refresh dipasang')
+}
+
 /** Daftar semua file relatif di dalam dir (rekursif). */
 function listFiles(dir, base = dir, out = []) {
   if (!fs.existsSync(dir)) return out
@@ -69,7 +137,9 @@ function sync() {
   }
 
   const before = listFiles(ADMIN)
+  ensureLiveReload()
   fs.cpSync(WWW, ADMIN, { recursive: true, force: true })
+  ensureNoCacheHeader()
 
   const keep = new Set(listFiles(WWW))
   let removed = 0

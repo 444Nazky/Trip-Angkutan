@@ -174,7 +174,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <><Loader2 size={12} className="animate-spin" /> Memeriksa plat…</>
               ) : check ? (
                 <>
-                  <span className={`font-medium ${
+                /* <span className={`font-medium ${
                     check.status === 'internal' ? 'text-slate-700'
                     : check.status === 'lokal' ? 'text-blue-600'
                     : 'text-amber-600'

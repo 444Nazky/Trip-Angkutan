@@ -23,9 +23,9 @@ cd admin-ci
 php -S localhost:8000 > admin.log 2>&1 &
 sleep 2
 
-echo "✅ Verification..."
+echo "Verification..."
 curl -s http://localhost:3000/api/health | grep -q "ok" && echo "API: OK" || echo "API: FAIL"
 curl -s http://localhost:5173 | grep -q "Trip Angkutan" && echo "Mobile: OK" || echo "Mobile: FAIL"
 curl -s http://localhost:8000 | grep -q "Trip Angkutan" && echo "Admin: OK" || echo "Admin: FAIL"
 
-echo "📋 Logs: tail -f backend.log mobile.log admin.log"
+echo "Logs: tail -f backend.log mobile.log admin.log"

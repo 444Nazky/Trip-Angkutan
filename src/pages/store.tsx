@@ -210,7 +210,7 @@ export function nextTripId(trips: Trip[]): string {
   return `TRP-${new Date().getFullYear()}-${String(max + 1).padStart(4, '0')}`
 }
 
-const seedTrips: Trip[] = allTrips.map(t => ({
+const seedTrips: Trip[] = (allTrips as Trip[]).map(t => ({
   ...t,
   load: t.load as Trip['load'],
   revenueNum: parseRp(t.revenue),

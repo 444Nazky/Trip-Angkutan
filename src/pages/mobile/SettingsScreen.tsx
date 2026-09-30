@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, Database, Trash2, Shield, Globe, Check, AlertTriangle, Wifi, Server } from 'lucide-react'
+import { ChevronLeft, Database, Trash2, Shield, Globe, Check, AlertTriangle, Wifi, Server, RotateCcw } from 'lucide-react'
 import { useApp } from '../store'
 import { getPendingCount } from '../../services/sync'
 import { getApiBaseUrl, setApiBaseUrl } from '../../services/api'
@@ -36,6 +36,22 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
     setApiBaseUrl(url)
     setApiSaved(true)
     setTimeout(() => setApiSaved(false), 3000)
+  }
+
+  const handleResetData = () => {
+    if (!confirm('Yakin ingin menghapus SEMUA data trip lokal?\n\nAksi ini tidak bisa dibatalkan.')) return
+    const keys = [
+      'trip.trips.v1',
+      'trip.trips.v2',
+      'trip.pendingSync',
+      'trip.syncQueue.v1', // antrean sinkron offline — key asli dipakai services/sync.ts
+      'trip.tariffs.v1',
+      'trip.officers.v1',
+      'trip.officers.cache.v1',
+    ]
+    keys.forEach(k => localStorage.removeItem(k))
+    alert(`✓ ${keys.length} entri lokal dihapus.\n\nReload untuk melihat perubahan.`)
+    window.location.reload()
   }
 
   return (
@@ -156,6 +172,17 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           ) : (
             <span className="text-[11px] text-slate-400">Jalankan</span>
           )}
+        </button>
+
+        <button
+          onClick={handleResetData}
+          className="w-full py-3 px-4 rounded-xl border border-red-200 text-red-600 font-semibold text-[12px] flex items-center justify-between hover:bg-red-50 active:bg-red-100 transition-colors mt-2"
+        >
+          <span className="flex items-center gap-2">
+            <RotateCcw size={16} className="text-red-400" />
+            Reset Data Trip Lokal
+          </span>
+          <span className="text-[11px] text-red-400">Hapus semua trip, tarif, petugas lokal</span>
         </button>
       </div>
 

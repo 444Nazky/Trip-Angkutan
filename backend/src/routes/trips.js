@@ -13,11 +13,12 @@ const photoExtension = (mimetype) => ({
   'image/webp': '.webp',
 }[mimetype]);
 
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
+// Folder tujuan foto harus sama dengan yang disajikan static server
+// (satu konstanta di backend/src/uploads-dir.js)
+const { UPLOADS_DIR } = require('../uploads-dir');
 const uploadDocumentation = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
     filename: (_req, file, cb) => cb(null, `${uuidv4()}${photoExtension(file.mimetype) || '.jpg'}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024, files: 50 },
