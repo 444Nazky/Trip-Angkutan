@@ -1,6 +1,6 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, processSyncQueue } from '../../services/sync'
+import { getPendingCount, onSyncQueueChange, processSyncQueue } from '../../services/sync'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -21,13 +21,18 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     // Check on window focus
     const handleFocus = () => setPendingCount(getPendingCount())
     window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
+    // Perubahan antrean (mis. terkirim otomatis saat online) langsung tercermin
+    const unsubscribe = onSyncQueueChange(setPendingCount)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      unsubscribe()
+    }
   }, [])
   const handleSync = async () => {
     if (syncing || !navigator.onLine) return
     setSyncing(true)
     try {
-      await processSyncQueue()
+      await processSyncQueue({ retryAll: true })
       setPendingCount(getPendingCount())
     } finally {
       setSyncing(false)

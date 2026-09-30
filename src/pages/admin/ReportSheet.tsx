@@ -229,7 +229,7 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Tersinkron langsung dari database · refresh otomatis tiap 15 detik
+              Tersinkron otomatis · refresh tiap 15 detik
               {lastSync && <> · terakhir {lastSync} WIB</>}
             </p>
           </div>
