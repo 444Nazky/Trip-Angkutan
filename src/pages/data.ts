@@ -50,4 +50,4 @@ export const officerList = [
   { id: '8', name: 'Maya Sari', initials: 'MS', region: 'KELAPAKAMPIT', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'KELAPAKAMPIT-D2', code: 'D2', name: 'Dermaga 2' }] },
 ]
 
-// 5 local 4 3
+// 5 local 4 3 
