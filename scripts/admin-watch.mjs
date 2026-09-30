@@ -30,6 +30,9 @@ const ADMIN = path.join(ROOT, 'admin-ci')
 // File di admin-ci yang bukan hasil build dan tidak boleh tersentuh
 const KEEP = new Set(['index.php', 'admin.log', '.gitkeep'])
 
+// Assets yang perlu di-copy dari root project
+const ASSETS_TO_COPY = ['Assets/karyamasv.svg']
+
 const mode = process.argv.includes('--once')
   ? 'once'
   : process.argv.includes('--sync-only')
@@ -140,6 +143,17 @@ function sync() {
   ensureLiveReload()
   fs.cpSync(WWW, ADMIN, { recursive: true, force: true })
   ensureNoCacheHeader()
+
+  // Copy assets from root project
+  for (const asset of ASSETS_TO_COPY) {
+    const src = path.join(ROOT, asset)
+    const dst = path.join(ADMIN, asset)
+    if (fs.existsSync(src)) {
+      const dir = path.dirname(dst)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.copyFileSync(src, dst)
+    }
+  }
 
   const keep = new Set(listFiles(WWW))
   let removed = 0
