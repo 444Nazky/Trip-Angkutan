@@ -454,6 +454,7 @@ function initialize() {
       id TEXT PRIMARY KEY,
       region_id TEXT NOT NULL,
       name TEXT NOT NULL,
+      username TEXT NOT NULL,
       code TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (region_id) REFERENCES regions(id)
@@ -466,6 +467,7 @@ function initialize() {
       id TEXT PRIMARY KEY,
       dermaga_id TEXT NOT NULL,
       name TEXT NOT NULL,
+      username TEXT NOT NULL,
       route_from TEXT NOT NULL,
       route_to TEXT NOT NULL,
       distance TEXT,
@@ -480,6 +482,7 @@ function initialize() {
     CREATE TABLE IF NOT EXISTS officers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      username TEXT NOT NULL,
       pin TEXT NOT NULL,
       region_id TEXT NOT NULL,
       is_active INTEGER DEFAULT 1,
