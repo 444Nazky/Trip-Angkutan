@@ -123,17 +123,23 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   return sheetMode ? <ReportSheet /> : (
     <CurrencyProvider>
-      <div className="flex min-h-screen bg-slate-50">
-        {/* Sidebar */}
-        <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
-          <div className="p-6 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center overflow-hidden">
-                <img src="../Assets/karyamas.jpeg" alt="Logo Karyamas" className="w-full h-full object-cover" />
-              </div>
-              <div><p className="text-white font-black text-[13px]">Trip Angkutan</p><p className="text-slate-500 text-[10px]">Admin</p></div>
-            </div>
-          </div>
+
+
+<div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+  <div className="p-6 border-b border-slate-800">
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center overflow-hidden">
+        <img src="/Assets/karyamas.jpeg" alt="Logo Karyamas" className="w-full h-full object-cover" />
+      </div>
+
+      <div>
+        <p className="text-white font-black text-[13px]">Dashboard Trip</p>
+        <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
+      </div>
+    </div>
+  </div>
+
+
         <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
@@ -149,7 +155,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <LogOut size={14} />Logout
           </button>
         </div>
-        </div>
+      </div>
 
       {/* Content — latar off-white agar kartu putih punya kontras & batas jelas */}
       <div className="flex-1 ml-60 bg-slate-50 min-h-screen">
@@ -220,7 +226,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
         </div>
       </div>
-      </div>
+    </div>
     </CurrencyProvider>
   )
 }
