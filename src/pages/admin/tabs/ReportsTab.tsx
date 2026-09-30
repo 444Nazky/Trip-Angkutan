@@ -180,7 +180,7 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
             title="Buka spreadsheet live yang tersinkron langsung dari database"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
-            <Table2 size={15} /> Ekspor Spreadsheet
+            <Table2 size={15} /> Buka Spreadsheet
           </button>
           <button onClick={() => window.open(`${window.location.pathname}#/sheet`, '_blank')} disabled={reportState !== 'ready'}
             title="Buka spreadsheet di tab baru" aria-label="Buka spreadsheet di tab baru"

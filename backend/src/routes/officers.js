@@ -23,8 +23,17 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
       ORDER BY d.code
     `);
 
-    // Get region for each officer from their dermaga access
+    // Wilayah petugas: sumber kebenaran = junction officer_regions
+    // (tempat admin menyimpan hasil "pindah akses region"). Turunan dari dermaga
+    // dan kolom lama hanya dipakai sebagai fallback bila junction masih kosong.
     const officerRegionsStmt = db.prepare(`
+      SELECT DISTINCT reg.id, reg.name, reg.code
+      FROM officer_regions orr
+      JOIN regions reg ON orr.region_id = reg.id
+      WHERE orr.officer_id = ?
+      ORDER BY reg.name
+    `);
+    const dermagaRegionsStmt = db.prepare(`
       SELECT DISTINCT reg.id, reg.name, reg.code
       FROM officer_dermagas od
       JOIN dermagas d ON od.dermaga_id = d.id
@@ -33,7 +42,10 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
     `);
 
     for (const o of officers) {
-      o.regions = officerRegionsStmt.all(o.id);
+      let regions = officerRegionsStmt.all(String(o.id));
+      if (regions.length === 0) regions = dermagaRegionsStmt.all(String(o.id));
+      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      o.regions = regions;
       o.dermagas = dermagaStmt.all(String(o.id));
     }
 

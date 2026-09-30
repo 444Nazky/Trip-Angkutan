@@ -229,7 +229,7 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Tersinkron otomatis · refresh tiap 15 detik
+              Tersinkron langsung dari database · refresh otomatis tiap 15 detik
               {lastSync && <> · terakhir {lastSync} WIB</>}
             </p>
           </div>
@@ -250,7 +250,7 @@ export default function ReportSheet() {
             className={`px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 disabled:opacity-50 ${
               copied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}>
-            {copied ? <Check size={15} /> : <ClipboardCopy size={15} />} {copied ? 'Tersalin!' : 'Salin ke Sheets/Excel'}
+            {copied ? <Check size={15} /> : <ClipboardCopy size={15} />} {copied ? 'Copied!' : 'Export'}
           </button>
           <button onClick={() => downloadXlsx(`laporan-trip-${new Date().toISOString().slice(0, 10)}.xlsx`, buildSheets())}
             disabled={state !== 'ready' || matrix.length === 0}
