@@ -45,6 +45,8 @@ export interface ReportVehicle {
   foto_captured_at?: string | null
   latitude?: number | null
   longitude?: number | null
+  /** Alias for foto_path - used in some API responses */
+  photo_url?: string | null
 }
 
 export interface ReportTrip {
@@ -112,6 +114,32 @@ export interface ReportFilterOptions {
 
 export async function fetchReportFilters(): Promise<ReportFilterOptions | null> {
   const result = await api.get<ReportFilterOptions>('/reports/trips/filters')
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/**
+ * Rekap gabungan per region + dermaga (GET /reports/recap).
+ * Trip dari petugas berbeda dalam satu wilayah operasional dirangkum jadi satu
+ * baris; petugas yang menyumbang tetap tercatat sebagai metadata (`officers`).
+ */
+export interface ReportRecapRow {
+  region_id: string
+  region_name: string
+  region_code: string
+  dermaga_id: string | null
+  dermaga_name: string | null
+  dermaga_code: string | null
+  trip_count: number
+  vehicle_count: number
+  revenue: number
+  first_trip_at: string | null
+  last_trip_at: string | null
+  officers: { name: string; username: string | null }[]
+}
+
+export async function fetchReportRecap(filters?: ReportFilters): Promise<ReportRecapRow[] | null> {
+  const result = await api.get<ReportRecapRow[]>(`/reports/recap${toQuery(filters)}`)
   if (!result.ok || !result.data) return null
   return result.data
 }

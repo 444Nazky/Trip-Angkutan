@@ -7,6 +7,7 @@ import { ensureBackendSession } from './auth'
 export interface BackendOfficer {
   id: string
   name: string
+  username?: string | null
   region_id: string
   regions: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id: string }>
@@ -74,6 +75,7 @@ export function toMobileOfficer(bo: BackendOfficer) {
     // id tetap string agar cocok dengan id UUID maupun id lama "1".."5"
     id: String(bo.id),
     name: bo.name,
+    username: bo.username || undefined,
     initials: bo.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     region: primaryRegion,
     regions: bo.regions?.map(r => r.code) ?? [primaryRegion],

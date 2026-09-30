@@ -149,6 +149,61 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// Rekapitulasi terpusat per wilayah operasional (region + dermaga).
+// Trip dari petugas BERBEDA tetapi satu region/dermaga digabung jadi satu baris;
+// nama & username petugas tetap tercatat sebagai metadata (bukan pemecah baris).
+router.get('/recap', authenticate, requireAdmin, (req, res) => {
+  try {
+    const { sql: filterSql, params } = buildFilters(req.query);
+
+    const rows = db.prepare(`
+      SELECT t.region_id, r.name AS region_name, r.code AS region_code,
+        t.dermaga_id, d.name AS dermaga_name, d.code AS dermaga_code,
+        COUNT(*) AS trip_count,
+        COALESCE(SUM((SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id)), 0) AS vehicle_count,
+        COALESCE(SUM((SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id)), 0) AS revenue,
+        MIN(t.created_at) AS first_trip_at,
+        MAX(t.created_at) AS last_trip_at
+      FROM trips t
+      JOIN regions r ON t.region_id = r.id
+      LEFT JOIN dermagas d ON t.dermaga_id = d.id
+      WHERE 1=1
+      ${filterSql}
+      GROUP BY t.region_id, t.dermaga_id
+      ORDER BY r.name, d.code
+    `).all(...params);
+
+    // Metadata petugas per kelompok — siapa saja yang menyumbang trip,
+    // beserta username-nya (dicatat, bukan dipakai untuk memecah baris).
+    const offStmt = db.prepare(`
+      SELECT t.region_id, t.dermaga_id, o.name, o.username
+      FROM trips t
+      JOIN officers o ON t.officer_id = o.id
+      WHERE 1=1
+      ${filterSql}
+      GROUP BY t.region_id, t.dermaga_id, o.id
+      ORDER BY o.name
+    `);
+    const key = (regionId, dermagaId) => `${regionId}|${dermagaId || ''}`;
+    const officersByGroup = new Map();
+    for (const row of offStmt.all(...params)) {
+      const k = key(row.region_id, row.dermaga_id);
+      if (!officersByGroup.has(k)) officersByGroup.set(k, []);
+      officersByGroup.get(k).push({ name: row.name, username: row.username || null });
+    }
+
+    const recap = rows.map(row => ({
+      ...row,
+      officers: officersByGroup.get(key(row.region_id, row.dermaga_id)) || [],
+    }));
+
+    res.json(recap);
+  } catch (error) {
+    console.error('Recap error:', error);
+    res.status(500).json({ error: 'Failed to build recap' });
+  }
+});
+
 // Daftar opsi filter laporan (golongan + jenis kendaraan dari master tarif)
 router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
   try {

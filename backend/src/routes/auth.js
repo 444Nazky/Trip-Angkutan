@@ -89,7 +89,7 @@ router.post('/region-login', (req, res) => {
 });
 
 // Member/officer login with username/password
-// Maps username to officer name (officers table has name, not username field)
+// Now uses username from officers table (migrated from hardcoded map)
 const OFFICER_USERNAME_MAP = {
   'budi': 'Budi Santoso',
   'andi': 'Andi Pratama',
@@ -104,23 +104,33 @@ router.post('/member-login', (req, res) => {
     const normalizedUsername = username?.toLowerCase();
     const memberPass = process.env.MEMBER_PASSWORD || '123456';
 
-    // Check if username exists in map
-    const officerName = OFFICER_USERNAME_MAP[normalizedUsername];
-    if (!officerName) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Verify password (same for all seeded officers)
     if (password !== memberPass) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Get officer from database by name (only if active)
+    // First try DB username field, fallback to legacy map
+    let officerName = null;
+    let officerUsername = normalizedUsername;
+
+    const officerByUsername = db.prepare(`SELECT * FROM officers WHERE LOWER(username) = ? AND is_active = 1`).get(normalizedUsername);
+    if (officerByUsername) {
+      officerName = officerByUsername.name;
+      officerUsername = officerByUsername.username?.toLowerCase() || normalizedUsername;
+    } else {
+      // Fallback to legacy map
+      officerName = OFFICER_USERNAME_MAP[normalizedUsername];
+    }
+
+    if (!officerName) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Get full officer from database
     const officer = db.prepare(`
       SELECT o.*, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
-      WHERE o.name = ? AND o.is_active = 1
+      WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
     `).get(officerName);
 
     if (!officer) {
@@ -136,9 +146,9 @@ router.post('/member-login', (req, res) => {
     res.json({
       token,
       officer: {
-        // Selalu string — id petugas di DB bisa UUID (bukan hanya angka)
         id: String(officer.id),
         name: officer.name,
+        username: officer.username || officerUsername,
         regionId: officer.region_id,
         regionName: officer.region_name,
         regionCode: officer.region_code
@@ -209,6 +219,7 @@ router.post('/login', (req, res) => {
       officer: {
         id: String(officer.id),
         name: officer.name,
+        username: officer.username,
         regionId: officer.region_id,
         regionName: officer.region_name,
         regionCode: officer.region_code
@@ -272,7 +283,7 @@ router.get('/officers/:regionCode', (req, res) => {
     const { regionCode } = req.params;
 
     const officers = db.prepare(`
-      SELECT o.id, o.name, r.code as region_code
+      SELECT o.id, o.name, o.username, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
       WHERE r.code = ? AND o.is_active = 1

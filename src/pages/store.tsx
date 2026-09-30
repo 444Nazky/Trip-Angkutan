@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
@@ -260,6 +260,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
   const [activeDermagaId, setActiveDermagaId] = useState<string | null>(null)
 
+  // Prefetch daftar petugas dipanggil dari `login()` (didefinisikan sebelum
+  // refreshOfficers) — ref memutus urutan deklarasi tanpa TDZ.
+  const refreshOfficersRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
+
   useEffect(() => {
     try { localStorage.setItem(LS.trips, JSON.stringify(trips)) } catch { /* quota */ }
   }, [trips])
@@ -299,8 +303,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const id = authenticatedOfficerId ? String(authenticatedOfficerId) : officerId
       if (authenticatedOfficerId) setOfficerIdState(id)
 
-        
+      
       void ensureBackendSession(id)
+      // PREFETCH saat login online: unduh daftar rekan sekawasan ke penyimpanan
+      // lokal SEBELUM dipakai — supaya saat offline layar Ganti Petugas tetap
+      // menampilkan petugas yang sah (filter region + dermaga irisan).
+      void refreshOfficersRef.current?.(true)
     }
   }, [officerId])
   const logout = useCallback(() => {
@@ -396,6 +404,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isAdminBuild()) return
     void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshOfficers])
+
+  useEffect(() => {
+    refreshOfficersRef.current = refreshOfficers
+  }, [refreshOfficers])
+
+  // Pantau koneksi: begitu perangkat ONLINE lagi, selain antrean trip otomatis
+  // terkirim (services/sync), daftar petugas juga ditarik ulang — aktif/nonaktif
+  // & pemindahan region dari dashboard admin langsung sinkron real-time.
+  useEffect(() => {
+    if (isAdminBuild()) return
+    const onOnline = () => { void refreshOfficers(true) }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
   }, [refreshOfficers])
 
   const value = useMemo<StoreValue>(() => ({

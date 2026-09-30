@@ -27,6 +27,11 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets"
+              },
+              {
+                "glob": "karyamasv.svg",
+                "input": "Assets",
+                "output": "Assets"
               }
             ],
             "styles": ["src/global.scss", "src/theme/variables.scss", "src/index.css"],

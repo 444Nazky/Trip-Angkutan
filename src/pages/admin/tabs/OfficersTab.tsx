@@ -30,6 +30,7 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
     return {
       id: String(b.id),
       name: b.name,
+      username: b.username || b.name?.toLowerCase().replace(/\s+/g, '') || b.id,
       initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
       region,
       regions,
@@ -100,9 +101,8 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
 
-  // Fetch data backend saat tab dimuat — independen dari refreshOfficers mobile.
-  // Admin dashboard perlu data terkini dari DB (dermagaAccess, regions) yang mungkin
-  // tidak ada di localStorage mobile store.
+
+  
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -383,7 +383,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
                   const localIdx = localOfficers.indexOf(o)
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.id}</p></td>
+                      <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
                       <td className="p-4">
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
                           ? <span className="text-slate-300 text-xs">—</span>

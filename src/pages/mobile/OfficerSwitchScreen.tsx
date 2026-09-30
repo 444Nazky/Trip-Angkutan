@@ -11,6 +11,20 @@ interface OfficerSwitchScreenProps {
 export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
   const { officer, beginVerify, officers, refreshOfficers, logout } = useApp()
   const [syncing, setSyncing] = useState(false)
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
+
+  // Pantau koneksi — saat offline daftar berasal dari prefetch lokal,
+  // saat kembali online layar ini otomatis menarik data terbaru.
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
 
   const pull = async () => {
     setSyncing(true)
@@ -66,6 +80,11 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         <p className="text-slate-400 text-[12px]">
           Hanya rekan dg dermaga sama: <span className="text-emerald-400 font-black">{myRegions.join(', ')}</span>
         </p>
+        {!online && (
+          <p className="text-[11px] font-bold text-amber-400 mt-1.5">
+            Mode offline — menampilkan data hasil prefetch saat terakhir tersambung
+          </p>
+        )}
         <button
           onClick={() => void pull()}
           disabled={syncing}
@@ -101,7 +120,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-900 text-[13px]">{o.name}</p>
-              <p className="text-[11px] text-slate-400">{o.device} · {o.trips} trip</p>
+              <p className="text-[11px] text-slate-400">{o.username ? `@${o.username}` : o.device} · {o.trips} trip</p>
               <p className="text-[10px] text-slate-300">Terakhir aktif: {o.lastActive}</p>
             </div>
             <span className={`text-[10px] font-black px-2.5 py-1 rounded-full shrink-0 ${

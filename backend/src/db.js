@@ -87,6 +87,29 @@ function migrate() {
     // column already exists — nothing to do
   }
 
+  // Kolom login petugas. DB lama (dibuat sebelum revisi login per-username)
+  // tidak punya kolom ini → query /auth/member-login gagal dengan
+  // "no such column: username". Ditambahkan otomatis lalu di-backfill dari
+  // nama petugas (huruf kecil, tanpa spasi) agar login langsung bisa dipakai.
+  try {
+    db.run(`ALTER TABLE officers ADD COLUMN username TEXT`);
+    console.log('Migrated: officers.username column added');
+  } catch (e) {
+    // kolom sudah ada — lanjut backfill baris yang masih kosong
+  }
+  // Kolom username di master dermaga & rute (nullable) — agar skema DB lama
+  // selaras dengan initialize() tanpa memecahkan INSERT yang tidak mengisinya.
+  for (const t of ['dermagas', 'routes']) {
+    try { db.run(`ALTER TABLE ${t} ADD COLUMN username TEXT`); } catch (e) { /* sudah ada */ }
+  }
+  try {
+    db.run(`
+      UPDATE officers
+         SET username = LOWER(REPLACE(name, ' ', ''))
+       WHERE username IS NULL OR username = ''
+    `);
+  } catch (e) { /* tidak fatal */ }
+
   // ── Registrasi & penarifan nomor plat ──────────────────────────────────────
   // Semua CREATE bersifat idempotent agar DB lama ikut termigrasi.
   db.run(`
@@ -454,7 +477,7 @@ function initialize() {
       id TEXT PRIMARY KEY,
       region_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      username TEXT NOT NULL,
+      username TEXT,
       code TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (region_id) REFERENCES regions(id)
@@ -467,7 +490,7 @@ function initialize() {
       id TEXT PRIMARY KEY,
       dermaga_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      username TEXT NOT NULL,
+      username TEXT,
       route_from TEXT NOT NULL,
       route_to TEXT NOT NULL,
       distance TEXT,
@@ -482,7 +505,7 @@ function initialize() {
     CREATE TABLE IF NOT EXISTS officers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      username TEXT NOT NULL,
+      username TEXT,
       pin TEXT NOT NULL,
       region_id TEXT NOT NULL,
       is_active INTEGER DEFAULT 1,

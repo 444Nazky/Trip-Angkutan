@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect } from 'react'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportSummary, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportSummary } from '../../../services/trips'
+import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportRecap, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportRecapRow } from '../../../services/trips'
 import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay, useCurrencyReveal } from '../components/CurrencyDisplay'
@@ -26,6 +26,7 @@ interface ReportsTabProps {
 export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast, baseUrl = '' }: ReportsTabProps) {
   const { revealed, toggle } = useCurrencyReveal()
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
+  const [recap, setRecap] = useState<ReportRecapRow[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [openTripId, setOpenTripId] = useState<string | null>(null)
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
@@ -36,9 +37,11 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
     setReportState('loading')
     const ok = await ensureAdminBackendSession()
     if (!ok) { setReportState('offline'); return }
-    const rows = await fetchTripReports(filters ?? reportFilters)
+    const f = filters ?? reportFilters
+    const [rows, recapRows] = await Promise.all([fetchTripReports(f), fetchReportRecap(f)])
     if (rows === null) { setReportState('offline'); return }
     setReportTrips(rows)
+    setRecap(recapRows ?? [])
     setReportState('ready')
   }
 
@@ -302,6 +305,64 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
                 <p className="text-[11px] text-slate-400 pt-1">{Math.round(muatanPct)}% trip bermuatan</p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rekap wilayah — trip dari petugas berbeda dalam satu region+dermaga
+          digabung jadi satu baris operasional (petugas tetap tercatat sbg metadata) */}
+      {reportState === 'ready' && recap.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm">Rekap Wilayah</h4>
+              <p className="text-[11px] text-slate-400">trip lintas petugas dirangkum per region & dermaga</p>
+            </div>
+            <span className="text-[11px] font-bold text-slate-400">{recap.length} wilayah</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-2.5 text-left font-bold border-b border-slate-200">Tempat</th>
+                  <th className="px-4 py-2.5 text-left font-bold border-b border-slate-200">Dermaga</th>
+                  <th className="px-4 py-2.5 text-right font-bold border-b border-slate-200">Trip</th>
+                  <th className="px-4 py-2.5 text-right font-bold border-b border-slate-200">Unit</th>
+                  <th className="px-4 py-2.5 text-right font-bold border-b border-slate-200">Pendapatan</th>
+                  <th className="px-4 py-2.5 text-left font-bold border-b border-slate-200">Petugas (metadata)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recap.map(r => (
+                  <tr key={`${r.region_id}-${r.dermaga_id || 'none'}`} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 border-b border-slate-100">
+                      <p className="font-bold text-slate-900 text-[13px]">{r.region_name}</p>
+                      <p className="text-[10px] text-slate-400">{r.region_code}{r.first_trip_at ? ` · ${formatReportDateTime(r.first_trip_at).date}` : ''}</p>
+                    </td>
+                    <td className="px-4 py-3 border-b border-slate-100">
+                      <span className="inline-block bg-slate-100 border border-slate-200 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                        {r.dermaga_name || '—'}{r.dermaga_code ? ` (${r.dermaga_code})` : ''}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 border-b border-slate-100 text-right font-black text-slate-900 tabular-nums">{r.trip_count}</td>
+                    <td className="px-4 py-3 border-b border-slate-100 text-right font-bold text-slate-700 tabular-nums">{r.vehicle_count}</td>
+                    <td className="px-4 py-3 border-b border-slate-100 text-right">
+                      <CurrencyDisplay amount={r.revenue} className="font-bold text-slate-900" />
+                    </td>
+                    <td className="px-4 py-3 border-b border-slate-100">
+                      <div className="flex flex-wrap gap-1.5">
+                        {r.officers.map(o => (
+                          <span key={`${r.region_id}-${o.name}`}
+                            className="inline-block bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5 text-[11px] text-slate-600">
+                            {o.name}{o.username ? <span className="text-slate-400"> · @{o.username}</span> : null}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

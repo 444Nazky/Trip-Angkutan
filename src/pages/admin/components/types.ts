@@ -73,6 +73,7 @@ export interface DermagaAccess {
 export interface Officer {
   id: string
   name: string
+  username?: string
   initials: string
   region: string
   regions?: string[]
@@ -88,6 +89,7 @@ export interface Officer {
 export interface BackendOfficerRow {
   id: string
   name: string
+  username: string
   region_id: string
   region_code?: string
   is_active: number
