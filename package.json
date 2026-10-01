@@ -45,8 +45,8 @@
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router": "^8.4.0",
-    "react-router-dom": "^7.18.4",
+    "react-router": "^6.30.0",
+    "react-router-dom": "^6.30.0",
     "rxjs": "~7.8.0",
     "tesseract.js": "^7.0.0",
     "tslib": "^2.3.0"
@@ -75,3 +75,4 @@
     "@parcel/watcher@2.6.0": true
   }
 }
+
