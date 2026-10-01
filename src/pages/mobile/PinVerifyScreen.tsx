@@ -35,7 +35,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setLoading(true)
     setError(false)
     try {
-      const result = await loginWithPin(String(target.id), pin)
+      const result = await loginWithPin(String(target?.id ?? ''), pin)
       if (result.success) {
         finishAuth()
       } else {
@@ -50,7 +50,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   }
 
   const finishAuth = () => {
-    if (verifyIntent === 'switch') setOfficerId(String(target.id))
+    if (verifyIntent === 'switch') setOfficerId(String(target?.id ?? ''))
     clearVerify()
     go('profile')
   }
@@ -68,12 +68,12 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         <Lock size={28} className="text-amber-400" />
       </div>
       <h2 className="font-black text-slate-900 text-[22px] mb-1">Verifikasi PIN</h2>
-      <p className="text-slate-500 text-[13px] text-center mb-1">
+      <p className="text-slate-500 text-[13px] text-center mb-7">
         {verifyIntent === 'switch'
-          ? `Login Sebagai : ${target.name}`
+          ? `Login Sebagai : ${target?.name ?? ''}`
           : 'Masukkan 6-digit PIN Anda'}
       </p>
-      <div className="flex gap-3 mb-7">
+
       {/* Dot indicators */}
       <div className="flex gap-3 mb-7">
         {Array.from({ length: 6 }).map((_, i) => (
