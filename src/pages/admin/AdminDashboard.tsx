@@ -1,123 +1,71 @@
-import { useEffect, useState } from 'react'
-import { Truck, Lock, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Plus, Pencil, Trash2, Download, ChevronLeft, ChevronDown, Check, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Truck, LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, Check, X } from 'lucide-react'
 import { useApp } from '../store'
-import { tariffData } from '../data'
+import { fetchTariffs, fetchRegionTariffs } from '../../services/tariffs'
+import { fetchRegions } from '../../services/regions'
+import { fetchPlates } from '../../services/plates'
+import { fetchTrips, fetchReportFilters, fetchReportSummary, dayKeyWib } from '../../services/trips'
 import { ensureAdminBackendSession } from '../../services/auth'
-import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../services/tariffs'
-import {
-  fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime,
-  type BackendTrip, type ReportTrip, type ReportFilters,
-} from '../../services/trips'
-import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../services/plates'
-import { fetchRegions, type Region } from '../../services/regions'
-import { downloadXlsx } from '../../services/xlsx'
-import { loadTheme, saveTheme, applyTheme, ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, type AdminTheme } from '../../services/theme'
 import { api } from '../../services/api'
-import type { AdminTab } from '../types'
+import type { AdminTab } from './components/types'
+import type { TariffRow, RegionTariffRow, BackendOfficerRow, Region } from './components/types'
+import type { BackendTrip } from '../../services/trips'
+import type { PlateRecord } from '../../services/plates'
+import type { Officer } from './components/types'
+import { CurrencyProvider } from './components/CurrencyDisplay'
+import { getApiBaseUrl } from '../../services/api'
+import { loadTheme, applyTheme } from '../../services/theme'
+import ReportSheet from './ReportSheet'
 
-interface TariffRow { id?: string; golongan: string; type: string; loaded: string; loadedNum: number; empty: string; emptyNum: number; desc: string }
-interface Officer { id: string; name: string; initials: string; region: string; regions?: string[]; pin: string; status: string; device: string; trips: number; lastActive: string; joined: string; dermagaAccess?: Array<{ id: string; name: string }> }
-interface BackendOfficerRow { id: string; name: string; region_id: string; region_code?: string; is_active: number; regions: Region[] }
-interface Toast { msg: string; type: 'success' | 'error' }
-
-/**
- * Gabung baris petugas dari server dengan daftar lokal.
- * Server menentukan nama/wilayah/status; data tampilan lama (perangkat,
- * jumlah trip, terakhir aktif, PIN lokal) dipertahankan agar tidak hilang.
- */
-function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
-  return rows.map(b => {
-    const old = prev.find(o => String(o.id) === String(b.id))
-      ?? prev.find(o => o.name === b.name)
-    const region = b.regions?.[0]?.code ?? b.region_code ?? b.region_id
-    return {
-      id: String(b.id),
-      name: b.name,
-      initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-      region,
-      regions: b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region],
-      pin: old?.pin ?? '',
-      status: b.is_active ? 'Aktif' : 'Nonaktif',
-      device: old?.device ?? '-',
-      trips: old?.trips ?? 0,
-      lastActive: old?.lastActive ?? '-',
-      joined: old?.joined ?? '-',
-      dermagaAccess: old?.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }],
-    }
-  })
-}
+// Tabs
+import { OverviewTab, TariffTab, PlatesTab, RoutesTab, OfficersTab, ReportsTab, SettingsTab } from './tabs'
 
 export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<AdminTab>('overview')
-  const [toast, setToast] = useState<Toast | null>(null)
-
   const { trips: localTrips, tariffs, saveTariffs, officers, saveOfficers } = useApp()
-  // Server trips fetched from backend (these are the "real" trips)
-  const [serverTrips, setServerTrips] = useState<BackendTrip[]>([])
-  // Tariff backend connectivity: 'connecting' until the first attempt finishes
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [tab, setTab] = useState<AdminTab>('overview')
   const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline'>('connecting')
-  // Laporan (trip + vehicle detail from /reports/trips)
-  const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
-  const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
-  const [openTripId, setOpenTripId] = useState<string | null>(null)
-  // Lightbox photo viewer
-  const [lightbox, setLightbox] = useState<{ src: string; caption?: string } | null>(null)
-  // Filter laporan (golongan & jenis kendaraan dari master tarif)
-  const [reportFilters, setReportFilters] = useState<ReportFilters>({})
-  const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[] }>({ golongan: [], vehicleTypes: [] })
-  // Registrasi plat & konfigurasi tarif region
+  const [serverTrips, setServerTrips] = useState<BackendTrip[]>([])
+  const [tariffs2, setTariffs2] = useState<TariffRow[]>([])
   const [regions, setRegions] = useState<Region[]>([])
-  const [regionTariffs, setRegionTariffs] = useState<RegionTariffRow[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
-  const [plateState, setPlateState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
-  const [plateForm, setPlateForm] = useState({ plate: '', owner: '', originRegionId: '', status: 'internal' as PlateStatus })
-  const [editPlateId, setEditPlateId] = useState<string | null>(null)
   const [backendOfficers, setBackendOfficers] = useState<BackendOfficerRow[]>([])
-  const [editRegions, setEditRegions] = useState<string[]>([])
-  const [editTarIdx, setEditTarIdx] = useState<number | null>(null)
-  const [addTar, setAddTar] = useState(false)
-  const [tarForm, setTarForm] = useState({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
-  const [editTar, setEditTar] = useState({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
+  const [dashSummary, setDashSummary] = useState<{ totalTrips: number; totalRevenue: number; totalVehicles: number } | null>(null)
+  const [dashAt, setDashAt] = useState('')
 
-  const [addOff, setAddOff] = useState(false)
-  const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
-  const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '' })
-  const [editOff, setEditOff] = useState<Officer | null>(null)
+  // Mode Spreadsheet Live (tab baru dibuka dari tombol "Ekspor Spreadsheet" — `#/sheet`)
+  const [sheetMode, setSheetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/sheet')
+  useEffect(() => {
+    const onHash = () => setSheetMode(window.location.hash === '#/sheet')
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
-  // Preferensi tampilan (tab Pengaturan) — dipulihkan dari localStorage
-  const [theme, setTheme] = useState<AdminTheme>(() => loadTheme())
-  useEffect(() => { applyTheme(theme) }, [theme])
-  const updateTheme = (patch: Partial<AdminTheme>) => {
-    const next = { ...theme, ...patch }
-    setTheme(next)
-    saveTheme(next)
-  }
-
-  const showToast = (msg: string, type: Toast['type'] = 'success') => {
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
-  const regionCodes = regions.length > 0 ? regions.map(r => r.code) : ['BADAU', 'ENTIKONG']
+  // Merge backend officers
+  function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
+    return rows.map(b => {
+      const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
+      const region = b.regions?.[0]?.code ?? b.region_code ?? b.region_id
+      return {
+        id: String(b.id), name: b.name,
+        initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+        region,
+        regions: b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region],
+        pin: old?.pin ?? '', status: b.is_active ? 'Aktif' : 'Nonaktif',
+        device: old?.device ?? '-', trips: old?.trips ?? 0,
+        lastActive: old?.lastActive ?? '-', joined: old?.joined ?? '-',
+        dermagaAccess: b.dermagas && b.dermagas.length > 0 ? b.dermagas : old?.dermagaAccess,
+      }
+    })
+  }
+  
+  useEffect(() => { applyTheme(loadTheme()) }, [])
 
-  // Cari pasangan petugas di backend: cocokkan id dulu, fallback nama
-  // (petugas lama sebelum id berubah menjadi UUID).
-  const findBackendOfficer = (o: { id?: string; name: string }) =>
-    backendOfficers.find(b => String(b.id) === String(o.id))
-    ?? backendOfficers.find(b => b.name === o.name)
-
-  // Opsi filter laporan — prioritaskan endpoint /reports/trips/filters,
-  // fallback ke master tarif yang sudah dimuat.
-  const golonganOptions = filterOptions.golongan.length > 0
-    ? filterOptions.golongan
-    : Array.from(new Set(tariffs.map(t => t.golongan).filter(Boolean)))
-  const jenisOptions = filterOptions.vehicleTypes.length > 0
-    ? filterOptions.vehicleTypes
-    : tariffs.map(t => t.type)
-
-  // On mount: get an admin JWT and load Master Tarif + Trips from server.
-  // Server data wins; localStorage stays as the offline fallback/cache.
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -125,1203 +73,161 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (!alive) return
       if (!ok) { setServerState('offline'); return }
 
-      // Fetch tariffs
-      const rows = await fetchTariffs()
+      const [tarr, regn, tri] = await Promise.all([fetchTariffs(), fetchRegions(), fetchTrips()])
       if (!alive) return
-      if (rows === null) { setServerState('offline'); return }
-      if (rows.length > 0) saveTariffs(rows)
+      if (tarr !== null && tarr.length > 0) { setTariffs2(tarr); saveTariffs(tarr) }
+      if (regn) setRegions(regn)
+      if (tri !== null) setServerTrips(tri)
 
-      // Fetch trips from backend
-      const tripsData = await fetchTrips()
-      if (!alive) return
-      if (tripsData !== null) {
-        setServerTrips(tripsData)
-      }
-
-      // Registrasi plat + tarif region + daftar region + petugas (backend)
-      const regs = await fetchRegions()
-      if (!alive) return
-      if (regs) setRegions(regs)
-
-      const rts = await fetchRegionTariffs()
-      if (!alive) return
-      if (rts) setRegionTariffs(rts)
-
-      const pls = await fetchPlates()
-      if (!alive) return
-      if (pls) { setPlates(pls); setPlateState('ready') } else setPlateState('offline')
-
-      const offs = await api.get<BackendOfficerRow[]>('/officers')
+      const [offs, filts] = await Promise.all([api.get<BackendOfficerRow[]>('/officers'), fetchReportFilters()])
       if (alive && offs.ok && offs.data) {
         setBackendOfficers(offs.data)
-        // Tampilkan data server sejak awal (bukan cache localStorage yang bisa
-        // beda dengan database) — status & wilayah petugas langsung sinkron.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        saveOfficers(mergeBackendOfficers(offs.data, officers) as any)
+        saveOfficers(mergeBackendOfficers(offs.data, officers))
       }
-
-      // Opsi filter laporan (golongan + jenis kendaraan dari master tarif)
-      const opts = await fetchReportFilters()
-      if (alive && opts) setFilterOptions(opts)
 
       setServerState('online')
     })()
     return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Laporan: load lazily on first open of the tab
-  const loadReports = async (filters?: ReportFilters) => {
-    setReportState('loading')
+  const activeOfficerCount = officers.filter(o => o.status === 'Aktif').length
+
+  const loadOverview = async () => {
     const ok = await ensureAdminBackendSession()
-    if (!ok) { setReportState('offline'); return }
-    const rows = await fetchTripReports(filters ?? reportFilters)
-    if (rows === null) { setReportState('offline'); return }
-    setReportTrips(rows)
-    setReportState('ready')
-  }
-
-  const applyReportFilter = (patch: Partial<ReportFilters>) => {
-    const next = { ...reportFilters, ...patch }
-    setReportFilters(next)
-    setOpenTripId(null)
-    void loadReports(next)
-  }
-
-  const clearReportFilters = () => {
-    setReportFilters({})
-    setOpenTripId(null)
-    void loadReports({})
-  }
-
-  // Ekspor laporan ke Excel (.xlsx) — 2 sheet: ringkasan trip + detail kendaraan
-  const handleExportReport = () => {
-    if (reportState !== 'ready') return showToast('Laporan belum dimuat', 'error')
-    if (reportTrips.length === 0) return showToast('Tidak ada data untuk diekspor', 'error')
-
-    const now = new Date()
-    const stamped = formatReportDateTime(now.toISOString().slice(0, 19).replace('T', ' '), { withSeconds: true })
-    const dateSlug = now.toISOString().slice(0, 10)
-
-    const header = [
-      'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan',
-      'Rute', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)',
-    ]
-
-    const tripRows: (string | number | null)[][] = [
-      ['Laporan Trip Angkutan'],
-      ['Dicetak', stamped.full],
-      ['Filter Golongan', reportFilters.golongan || 'Semua'],
-      ['Filter Jenis Kendaraan', reportFilters.vehicleType || 'Semua'],
-      ['Jumlah Trip', reportTrips.length],
-      [],
-      header,
-      ...reportTrips.map(t => {
-        const d = formatReportDateTime(t.created_at)
-        const place = t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
-        const from = t.route_from
-          ? `${t.route_from_name ? `${t.route_from_name} (` : ''}${t.route_from}${t.route_from_name ? ')' : ''}`
-          : '-'
-        const to = t.route_to
-          ? `${t.route_to_name ? `${t.route_to_name} (` : ''}${t.route_to}${t.route_to_name ? ')' : ''}`
-          : '-'
-        return [
-          t.no_trip,
-          d.date,
-          d.time,
-          place,
-          from,
-          to,
-          `${t.route_from || '-'} → ${t.route_to || '-'}`,
-          t.officer_name || '-',
-          t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
-          t.keterangan && t.keterangan !== '-' ? t.keterangan : '-',
-          t.vehicle_count || 0,
-          t.trip_revenue || 0,
-        ]
-      }),
-    ]
-
-    const vehRows: (string | number | null)[][] = [
-      ['Detail Kendaraan per Trip'],
-      [],
-      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Kategori', 'Beban', 'Tarif (Rp)'],
-      ...reportTrips.flatMap(t => {
-        const d = formatReportDateTime(t.created_at)
-        const place = t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
-        return t.vehicles.map(v => [
-          t.no_trip,
-          d.date,
-          d.time,
-          place,
-          v.no_polisi,
-          v.vehicle_type,
-          v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'),
-          v.golongan,
-          v.has_load ? 'Ada Muatan' : 'Kosong',
-          v.tariff_amount || 0,
-        ])
-      }),
-    ]
-
-    downloadXlsx(`laporan-trip-${dateSlug}.xlsx`, [
-      { name: 'Laporan Trip', rows: tripRows },
-      { name: 'Detail Kendaraan', rows: vehRows },
-    ])
-    showToast('Laporan Excel (.xlsx) diunduh')
+    if (!ok) { setServerState('offline'); return }
+    // Ringkasan khusus HARI INI (WIB) — dipakai kartu "Trip/Pendapatan/Unit Hari Ini"
+    const today = dayKeyWib(new Date().toISOString())
+    const [trips, summ] = await Promise.all([fetchTrips(), fetchReportSummary(today, today)])
+    if (trips) setServerTrips(trips)
+    setServerState('online')
+    setDashSummary(summ)
+    setDashAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))
   }
 
   useEffect(() => {
-    if (tab === 'reports' && reportState === 'idle') void loadReports()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, reportState])
-
-  // Master Plat: lazy-load saat tab dibuka (fallback kalau mount tadi offline)
-  const loadPlates = async () => {
-    setPlateState('loading')
-    const ok = await ensureAdminBackendSession()
-    if (!ok) { setPlateState('offline'); return }
-    const [pls, regs] = await Promise.all([fetchPlates(), fetchRegions()])
-    if (pls === null) { setPlateState('offline'); return }
-    setPlates(pls)
-    if (regs) setRegions(regs)
-    setPlateState('ready')
-  }
-
-  useEffect(() => {
-    if (tab === 'plates' && plateState === 'idle') void loadPlates()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, plateState])
-
-  // Tarif region: ambil konfigurasi saat tab Master Tarif dibuka (kalau belum ada)
-  useEffect(() => {
-    if (tab === 'tariff' && regionTariffs.length === 0) {
-      void (async () => {
-        if (await ensureAdminBackendSession()) {
-          const rt = await fetchRegionTariffs()
-          if (rt) setRegionTariffs(rt)
-        }
-      })()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, regionTariffs.length])
-
-  // Tariff CRUD — local state always updates (works offline), server is
-  // pushed to best-effort when connected; failure flips us to 'offline'.
-  const handleAddTar = async () => {
-    if (!tarForm.type || !tarForm.golongan) return showToast('Lengkapi form!', 'error')
-    const row: TariffRow = { ...tarForm, loaded: fmtRp(tarForm.loadedNum), empty: fmtRp(tarForm.emptyNum) }
-
-    if (serverState === 'online') {
-      const id = await createTariff(row)
-      if (id) {
-        row.id = id
-      } else {
-        setServerState('offline')
-        showToast('Server gagal — tarif disimpan lokal', 'error')
-      }
-    }
-
-    saveTariffs([...tariffs, row])
-    setTarForm({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
-    setAddTar(false)
-    showToast('Tarif ditambahkan')
-  }
-
-  const handleUpdTar = async () => {
-    const row: TariffRow = { ...editTar, loaded: fmtRp(editTar.loadedNum), empty: fmtRp(editTar.emptyNum) }
-    const ns = [...tariffs]
-    if (editTarIdx !== null) { ns[editTarIdx] = row; saveTariffs(ns) }
-
-    if (serverState === 'online') {
-      let ok = false
-      if (row.id) {
-        ok = await updateTariff(row)
-      } else {
-        const newId = await createTariff(row)
-        ok = newId !== null
-        if (newId) row.id = newId
-        else row.id = undefined
-      }
-      if (!ok) {
-        setServerState('offline')
-        showToast('Server gagal — perubahan tersimpan lokal', 'error')
-      }
-    }
-
-    setEditTarIdx(null)
-    showToast('Tarif diupdate')
-  }
-
-  const handleDelTar = async (i: number) => {
-    if (!confirm('Hapus?')) return
-    const row = tariffs[i]
-    saveTariffs(tariffs.filter((_, idx) => idx !== i))
-    // Keep the open edit form pointing at the right row after deletion
-    if (editTarIdx === i) setEditTarIdx(null)
-    else if (editTarIdx !== null && editTarIdx > i) setEditTarIdx(editTarIdx - 1)
-
-    if (serverState === 'online' && row?.id) {
-      const ok = await deleteTariff(row)
-      if (!ok) {
-        setServerState('offline')
-        showToast('Server gagal — hapus lokal saja', 'error')
-        return
-      }
-    }
-    showToast('Tarif dihapus')
-  }
-
-  // Registrasi plat — local state selalu ikut, server best-effort
-  const resetPlateForm = () => {
-    setPlateForm({ plate: '', owner: '', originRegionId: '', status: 'internal' })
-    setEditPlateId(null)
-  }
-
-  const handleSavePlate = async () => {
-    if (!plateForm.plate.trim()) return showToast('Nomor plat wajib diisi!', 'error')
-    const input = {
-      plate: plateForm.plate.trim().toUpperCase(),
-      owner: plateForm.owner.trim() || undefined,
-      originRegionId: plateForm.originRegionId || null,
-      status: plateForm.status,
-    }
-
-    const okEdit = editPlateId ? await updatePlate(editPlateId, input) : null
-    if (editPlateId) {
-      if (!okEdit) return showToast('Server gagal — plat tidak terupdate', 'error')
-    } else {
-      const id = await createPlate(input)
-      if (!id) return showToast('Server gagal daftar plat (duplikat/offline?)', 'error')
-    }
-
-    const fresh = await fetchPlates()
-    if (fresh) setPlates(fresh)
-    resetPlateForm()
-    showToast(editPlateId ? 'Plat diupdate' : 'Plat terdaftar')
-  }
-
-  const handleDelPlate = async (id: string) => {
-    if (!confirm('Hapus plat ini?')) return
-    const ok = await deletePlate(id)
-    if (!ok) return showToast('Server gagal — plat tidak terhapus', 'error')
-    setPlates(plates.filter(p => p.id !== id))
-    if (editPlateId === id) resetPlateForm()
-    showToast('Plat dihapus')
-  }
-
-  // Tarif region — simpan konfigurasi (lokal + eksternal) ke server
-  const handleSaveRegionTariff = async (rt: RegionTariffRow) => {
-    const [a, b] = await Promise.all([
-      upsertRegionTariff({ regionId: rt.id, tariffType: 'lokal', nominalTariff: rt.lokal_tariff ?? 0, isActive: !!rt.lokal_active }),
-      upsertRegionTariff({ regionId: rt.id, tariffType: 'eksternal', nominalTariff: rt.eksternal_tariff ?? 0, isActive: !!rt.eksternal_active }),
-    ])
-    if (!a || !b) return showToast('Server gagal — tarif region tidak tersimpan', 'error')
-
-    // Tarik ulang agar nilai tersimpan benar-benar terkonfirmasi server
-    const fresh = await fetchRegionTariffs()
-    if (fresh) setRegionTariffs(fresh)
-    showToast(`Tarif region ${rt.code} diupdate`)
-  }
-
-  // Refresh officers from backend — server adalah sumber kebenaran, daftar
-  // lokal digabung ulang supaya status aktif/nonaktif & wilayah selalu
-  // konsisten dengan yang dibaca aplikasi mobile.
-  const syncOfficersFromServer = async (): Promise<boolean> => {
-    const offs = await api.get<BackendOfficerRow[]>('/officers')
-    if (!offs.ok || !offs.data || offs.data.length === 0) return false
-    setBackendOfficers(offs.data)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    saveOfficers(mergeBackendOfficers(offs.data, officers) as any)
-    return true
-  }
-
-  // Back-compat alias (dipakai di beberapa tempat)
-  const refreshOfficers = syncOfficersFromServer
-
-  // Officer CRUD
-  const handleAddOff = async () => {
-    if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
-    const region = regions.find(r => r.code === offForm.region)
-
-    // Create on backend (regionIds agar ikut junction many-to-many)
-    const res = await api.post<{ id: string }>('/officers', {
-      name: offForm.name,
-      pin: offForm.pin,
-      regionId: region?.id,
-      regionIds: region ? [region.id] : undefined,
-    })
-
-    if (!res.ok || !res.data) return showToast('Gagal tambah petugas ke server', 'error')
-
-    // Refresh dari server — id UUID dari backend kini dipakai apa adanya
-    if (!(await syncOfficersFromServer())) {
-      const initials = offForm.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-      const row: Officer = {
-        id: String(res.data.id), name: offForm.name, initials, region: offForm.region,
-        regions: [offForm.region], pin: offForm.pin, status: 'Aktif', device: offForm.device || '-',
-        trips: 0, lastActive: '-', joined: new Date().toLocaleDateString('id-ID'),
-        dermagaAccess: [{ id: 'd1', name: 'Dermaga 1' }],
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      saveOfficers([...officers.map(o => ({ ...o, dermagaAccess: o.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }] })), row as any])
-    }
-
-    setOffForm({ name: '', region: 'BADAU', pin: '', device: '' })
-    setAddOff(false)
-    showToast('Petugas ditambahkan')
-  }
-
-  const handleUpdOff = async () => {
-    if (!editOff) return
-    const initials = editOff.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
-    const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
-
-    const be = findBackendOfficer(editOff)
-    let synced = false
-
-    if (be) {
-      // Many-to-many: pindahkan/atur akses wilayah petugas
-      if (ids.length > 0) {
-        const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
-        if (!res.ok) showToast('Wilayah gagal sync ke server', 'error')
-      }
-      // PIN baru (hanya dikirim kalau diisi ulang 6 digit)
-      if (editOff.pin && editOff.pin.length === 6) {
-        const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
-        if (!pinRes.ok) showToast('PIN gagal sync ke server', 'error')
-      }
-      synced = await syncOfficersFromServer()
-    }
-
-    if (!synced) {
-      // Offline / petugas lokal — perubahan tetap disimpan di perangkat
-      const ns = [...officers]
-      const idx = editOffIdx !== null ? editOffIdx : officers.findIndex(o => String(o.id) === String(editOff.id))
-      if (idx >= 0) ns[idx] = { ...editOff, region: chosen[0], regions: chosen, initials, dermagaAccess: editOff.dermagaAccess || [{ id: 'd1', name: 'Dermaga 1' }] }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      saveOfficers(ns as any)
-    }
-
-    setEditOffIdx(null)
-    setEditOff(null)
-    showToast('Petugas diupdate')
-  }
-
-  const handleDelOff = async (i: number) => {
-    if (!confirm('Hapus?')) return
-    const officer = officers[i]
-    const be = findBackendOfficer(officer)
-
-    if (be) {
-      // Delete from backend
-      const res = await api.delete(`/officers/${be.id}`)
-      if (!res.ok) return showToast('Gagal hapus petugas dari server', 'error')
-      await syncOfficersFromServer()
-    } else {
-      saveOfficers(officers.filter((_, idx) => idx !== i))
-    }
-
-    if (editOffIdx === i) { setEditOffIdx(null); setEditOff(null) }
-    else if (editOffIdx !== null && editOffIdx > i) setEditOffIdx(editOffIdx - 1)
-    showToast('Petugas dihapus')
-  }
-
-  const toggleOffStatus = async (i: number) => {
-    const officer = officers[i]
-    const newStatus = officer.status === 'Aktif' ? 'Nonaktif' : 'Aktif'
-    const be = findBackendOfficer(officer)
-
-    if (be) {
-      // Sync to backend — mobile menolak login petugas Nonaktif
-      const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
-      if (!res.ok) return showToast('Gagal sync status ke server', 'error')
-      await syncOfficersFromServer()
-    } else {
-      const ns = [...officers]
-      ns[i] = { ...ns[i], status: newStatus }
-      saveOfficers(ns)
-    }
-    showToast(`Status diubah ke ${newStatus}`)
-  }
+    if (tab !== 'overview') return
+    void loadOverview()
+    const id = setInterval(() => void loadOverview(), 15000)
+    return () => clearInterval(id)
+  }, [tab])
 
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
+    { key: 'routes', label: 'Master Rute', Icon: Hash },
     { key: 'officers', label: 'Petugas', Icon: Users },
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
 
-  return (
-    <div className="flex min-h-screen">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${toast.type === 'success' ? 'bg-blue-600 text-white' : 'bg-red-500 text-white'}`}>
-          {toast.type === 'success' ? <Check size={16} /> : <X size={16} />}
-          {toast.msg}
-          {/* Lightbox foto dokumentasi */}
-          {lightbox && (
-            <div
-              className="fixed inset-0 z-[99] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
-              onClick={() => setLightbox(null)}
-            >
-              <div className="relative max-w-2xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl">
-                <button
-                  onClick={() => setLightbox(null)}
-                  className="absolute top-3 right-3 z-10 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                >
-                  ✕
-                </button>
-                {lightbox.src ? (
-                  <img
-                    src={lightbox.src}
-                    alt={lightbox.caption || 'Dokumentasi'}
-                    className="w-full max-h-[80vh] object-contain"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
-                    Gambar tidak tersedia
-                  </div>
-                )}
-                {lightbox.caption && (
-                  <div className="px-5 py-3 text-center text-slate-400 text-xs">
-                    {lightbox.caption}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+  return sheetMode ? <ReportSheet /> : (
+    <CurrencyProvider>
+      <div className="flex bg-slate-900 min-h-screen">
+        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+  <div className="p-6 border-b border-slate-800">
+    <div className="flex items-center gap-4">
 
-      <div className="w-60 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
-        <div className="p-6 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center"><Truck size={18} className="text-white" /></div>
-            <div><p className="text-white font-black text-[13px]">Trip Angkutan</p><p className="text-slate-500 text-[10px]">Admin</p></div>
-          </div>
-        </div>
+      <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
+        <img src="/Assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
+      </div>
+
+
+      <div>
+        <p className="text-white font-black text-[14px]">Dashboard Trip</p>
+        <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
+      </div>
+    </div>
+  </div>
+
+
         <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map(({ key, label, Icon }) => (
-            <button key={key} onClick={() => { setTab(key); setEditTarIdx(null); setAddTar(false); setEditOffIdx(null); setAddOff(false); setEditPlateId(null) }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] ${tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+            <button key={key} onClick={() => setTab(key)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] ${
+                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}>
               <Icon size={16} />{label}
             </button>
           ))}
         </nav>
         <div className="p-4 border-t border-slate-800">
-          <button onClick={onLogout} className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 text-[12px] font-semibold transition-colors">
+          <button onClick={onLogout} className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 text-[12px] font-semibold">
             <LogOut size={14} />Logout
           </button>
         </div>
       </div>
 
-      <div className="flex-1 ml-60 bg-slate-100 min-h-screen">
-        <div className="p-8">
+      {/* Content — latar off-white agar kartu putih punya kontras & batas jelas */}
+      <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
+        <div className="p-8 max-w-[1400px]">
           {tab === 'overview' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 font-bold text-slate-800 flex justify-between items-center">
-                  <span>Trip Terbaru dari Server</span>
-                  <button
-                    onClick={() => {
-                      ensureAdminBackendSession().then(() => fetchTrips().then(t => t && setServerTrips(t)))
-                    }}
-                    className="text-blue-600 text-sm font-bold hover:underline"
-                  >
-                    Refresh
-                  </button>
-                </div>
-                <table className="w-full text-[13px]">
-                  <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr><th className="text-left p-4">No Trip</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Petugas</th><th className="text-left p-4">Status</th><th className="text-left p-4">Tanggal</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {serverTrips.length === 0 ? (
-                      <tr><td colSpan={5} className="p-8 text-center text-slate-400">Belum ada trip dari server</td></tr>
-                    ) : serverTrips.slice(0, 10).map(t => (
-                      <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-mono text-slate-600">{t.no_trip}</td>
-                        <td className="p-4 font-bold">{t.route_from} → {t.route_to}</td>
-                        <td className="p-4">{t.officer_name || t.officer_id}</td>
-                        <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.status_muatan}</span></td>
-                        <td className="p-4 text-slate-500">{t.created_at}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <OverviewTab
+              serverTrips={serverTrips}
+              dashSummary={dashSummary}
+              dashAt={dashAt}
+              activeOfficerCount={activeOfficerCount}
+              officers={officers}
+              serverState={serverState}
+              onRefresh={() => void loadOverview()}
+              onOpenReports={() => setTab('reports')}
+            />
           )}
 
           {tab === 'tariff' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
-                  serverState === 'online' ? 'bg-emerald-50 text-emerald-600'
-                  : serverState === 'offline' ? 'bg-amber-50 text-amber-600'
-                  : 'bg-slate-100 text-slate-500'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    serverState === 'online' ? 'bg-emerald-500'
-                    : serverState === 'offline' ? 'bg-amber-500'
-                    : 'bg-slate-400 animate-pulse'
-                  }`} />
-                  {serverState === 'online' ? 'Server: Tersambung'
-                  : serverState === 'offline' ? 'Server: Offline (lokal)'
-                  : 'Memeriksa server...'}
-                </span>
-                <button onClick={() => setAddTar(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700">
-                  <Plus size={14} />Tambah Golongan
-                </button>
-              </div>
-
-              {addTar && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
-                  <h3 className="font-bold mb-4">Tambah Golongan</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Golongan</label><input value={tarForm.golongan} onChange={e => setTarForm({...tarForm, golongan: e.target.value})} placeholder="I, II, III" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Jenis</label><input value={tarForm.type} onChange={e => setTarForm({...tarForm, type: e.target.value})} placeholder="Truck Besar" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  </div>
-                  <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">Deskripsi</label><input value={tarForm.desc} onChange={e => setTarForm({...tarForm, desc: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Muatan (Rp)</label><input type="number" value={tarForm.loadedNum || ''} onChange={e => setTarForm({...tarForm, loadedNum: parseInt(e.target.value) || 0})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Kosong (Rp)</label><input type="number" value={tarForm.emptyNum || ''} onChange={e => setTarForm({...tarForm, emptyNum: parseInt(e.target.value) || 0})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setAddTar(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-                    <button onClick={handleAddTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Simpan</button>
-                  </div>
-                </div>
-              )}
-
-              {editTarIdx !== null && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
-                  <h3 className="font-bold mb-4">Edit Golongan</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Golongan</label><input value={editTar.golongan} onChange={e => setEditTar({...editTar, golongan: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Jenis</label><input value={editTar.type} onChange={e => setEditTar({...editTar, type: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  </div>
-                  <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">Deskripsi</label><input value={editTar.desc} onChange={e => setEditTar({...editTar, desc: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Muatan</label><input type="number" value={editTar.loadedNum || ''} onChange={e => setEditTar({...editTar, loadedNum: parseInt(e.target.value) || 0})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Kosong</label><input type="number" value={editTar.emptyNum || ''} onChange={e => setEditTar({...editTar, emptyNum: parseInt(e.target.value) || 0})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setEditTarIdx(null)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-                    <button onClick={handleUpdTar} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Update</button>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr><th className="text-left p-4">Gol</th><th className="text-left p-4">Jenis</th><th className="text-left p-4">Muatan</th><th className="text-left p-4">Kosong</th><th className="text-left p-4">Aksi</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {tariffs.map((t, i) => (
-                      <tr key={`${t.golongan}-${i}`} className="hover:bg-slate-50">
-                        <td className="p-4 font-mono font-bold">{t.golongan}</td>
-                        <td className="p-4 font-bold">{t.type}</td>
-                        <td className="p-4 text-blue-700 font-bold">{t.loaded}</td>
-                        <td className="p-4 text-slate-500">{t.empty}</td>
-                        <td className="p-4">
-                          <button onClick={() => { setEditTarIdx(i); setEditTar(t) }} className="text-blue-600 font-bold text-sm mr-4">Edit</button>
-                          <button onClick={() => handleDelTar(i)} className="text-red-500 font-bold text-sm">Hapus</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <TariffTab
+              tariffs={tariffs2.length > 0 ? tariffs2 : tariffs}
+              serverState={serverState}
+              onSaveTariffs={(t) => { setTariffs2(t); saveTariffs(t) }}
+              showToast={showToast}
+            />
           )}
 
           {tab === 'plates' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-black text-slate-900 text-lg">Master Plat</h3>
-                  <p className="text-slate-500 text-[12px]">Registrasi nomor plat — plat terdaftar sebagai <b>internal</b> tidak dikenakan tarif saat discan petugas</p>
-                </div>
-                <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
-                  plateState === 'ready' ? 'bg-emerald-50 text-emerald-600'
-                  : plateState === 'offline' ? 'bg-amber-50 text-amber-600'
-                  : 'bg-slate-100 text-slate-500'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    plateState === 'ready' ? 'bg-emerald-500'
-                    : plateState === 'offline' ? 'bg-amber-500'
-                    : 'bg-slate-400 animate-pulse'
-                  }`} />
-                  {plateState === 'ready' ? 'Server: Tersambung'
-                  : plateState === 'offline' ? 'Server: Offline'
-                  : 'Memuat...'}
-                </span>
-              </div>
+            <PlatesTab
+              plates={plates}
+              serverState={serverState}
+              onPlatesChange={setPlates}
+              showToast={showToast}
+            />
+          )}
 
-              {/* Form tambah / edit plat */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm max-w-3xl">
-                <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
-                <div className="grid grid-cols-4 gap-4 mb-4">
-                  <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
-                    <input value={plateForm.plate} onChange={e => setPlateForm({...plateForm, plate: e.target.value.toUpperCase()})} placeholder="B 1234 XY"
-                      className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" /></div>
-                  <div><label className="text-[11px] text-slate-500 block mb-1">Pemilik (opsional)</label>
-                    <input value={plateForm.owner} onChange={e => setPlateForm({...plateForm, owner: e.target.value})} placeholder="Nama pemilik"
-                      className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  <div><label className="text-[11px] text-slate-500 block mb-1">Region Asal (opsional)</label>
-                    <select value={plateForm.originRegionId} onChange={e => setPlateForm({...plateForm, originRegionId: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
-                      <option value="">—</option>
-                      {regions.map(r => <option key={r.id} value={r.id}>{r.name} ({r.code})</option>)}
-                    </select></div>
-                  <div><label className="text-[11px] text-slate-500 block mb-1">Status</label>
-                    <select value={plateForm.status} onChange={e => setPlateForm({...plateForm, status: e.target.value as PlateStatus})} className="w-full border rounded-xl px-3 py-2 text-sm">
-                      <option value="internal">internal</option>
-                      <option value="lokal">lokal</option>
-                      <option value="eksternal">eksternal</option>
-                    </select></div>
-                </div>
-                <div className="flex gap-3">
-                  {editPlateId && <button onClick={resetPlateForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
-                  <button onClick={() => void handleSavePlate()} className={`${editPlateId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700`}>
-                    {editPlateId ? 'Update' : 'Daftarkan'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Tabel plat terdaftar */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr><th className="text-left p-4">No. Plat</th><th className="text-left p-4">Pemilik</th><th className="text-left p-4">Region Asal</th><th className="text-left p-4">Status</th><th className="text-right p-4">Aksi</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {plateState === 'loading' ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-400 animate-pulse">Memuat plat...</td></tr>
-                    ) : plates.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada plat terdaftar</td></tr>
-                    ) : plates.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-mono font-bold tracking-wide">{p.plate}</td>
-                        <td className="p-4">{p.owner || <span className="text-slate-300">—</span>}</td>
-                        <td className="p-4">{p.origin_region_code || <span className="text-slate-300">—</span>}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
-                            p.status === 'internal' ? 'bg-slate-800 text-white'
-                            : p.status === 'lokal' ? 'bg-blue-100 text-blue-700'
-                            : 'bg-amber-100 text-amber-700'
-                          }`}>{p.status}</span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <button onClick={() => { setEditPlateId(p.id); setPlateForm({ plate: p.plate, owner: p.owner || '', originRegionId: p.origin_region_id || '', status: p.status }) }}
-                            className="text-blue-600 font-bold text-sm mr-4">Edit</button>
-                          <button onClick={() => void handleDelPlate(p.id)} className="text-red-500 font-bold text-sm">Hapus</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Konfigurasi tarif terpusat: Internal = 0, Lokal = cadangan, Eksternal = tarif region */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100">
-                  <p className="font-bold text-slate-800">Konfigurasi Tarif Terpusat (Penarifan Plat)</p>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    <p><b className="text-slate-700">Internal</b> = <b>selalu Rp 0</b> (dikunci, tidak dapat diubah).</p>
-                    <p><b className="text-slate-700">Lokal</b> = tarif cadangan kebijakan — <b>bisa diubah</b> per region dan dapat diaktifkan/nonaktifkan.</p>
-                    <p><b className="text-slate-700">Eksternal</b> = tarif region pos pemeriksaan (menyesuaikan region).</p>
-                  </div>
-                </div>
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                    <tr>
-                      <th className="text-left p-4">Region</th>
-                      <th className="text-left p-4">Internal</th>
-                      <th className="text-left p-4">Tarif Lokal (Rp)</th>
-                      <th className="text-left p-4">Tarif Eksternal (Rp)</th>
-                      <th className="text-right p-4">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {/* Baris aturan Internal — selalu Rp 0, tidak bisa diubah */}
-                    <tr className="bg-slate-50/60">
-                      <td className="p-4 font-bold text-slate-600">Semua region</td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 bg-slate-800 text-white text-[11px] font-black px-2.5 py-1 rounded-full">
-                          Rp 0 · Dikunci
-                        </span>
-                      </td>
-                      <td className="p-4 text-[11px] text-slate-400" colSpan={2}>Plat berstatus <b>internal</b> tidak dikenakan tarif di semua pos.</td>
-                      <td className="p-4 text-right text-[11px] text-slate-300">—</td>
-                    </tr>
-                    {regionTariffs.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada data region dari server</td></tr>
-                    ) : regionTariffs.map((rt, i) => (
-                      <tr key={rt.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-bold">{rt.name} <span className="text-slate-400 font-mono text-[11px] font-normal">{rt.code}</span></td>
-                        <td className="p-4">
-                          <span className="bg-slate-100 text-slate-500 text-[11px] font-bold px-2.5 py-1 rounded-full">Rp 0 (dikunci)</span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <input type="number" min={0} value={rt.lokal_tariff ?? 0}
-                              onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, lokal_tariff: parseInt(e.target.value) || 0 }; setRegionTariffs(v) }}
-                              className="w-28 border rounded-lg px-2 py-1.5 text-[13px]" />
-                            <label className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
-                              <input type="checkbox" checked={!!rt.lokal_active}
-                                onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, lokal_active: e.target.checked ? 1 : 0 }; setRegionTariffs(v) }} />Aktif
-                            </label>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <input type="number" min={0} value={rt.eksternal_tariff ?? 0}
-                              onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, eksternal_tariff: parseInt(e.target.value) || 0 }; setRegionTariffs(v) }}
-                              className="w-28 border rounded-lg px-2 py-1.5 text-[13px]" />
-                            <label className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
-                              <input type="checkbox" checked={!!rt.eksternal_active}
-                                onChange={e => { const v = [...regionTariffs]; v[i] = { ...rt, eksternal_active: e.target.checked ? 1 : 0 }; setRegionTariffs(v) }} />Aktif
-                            </label>
-                          </div>
-                        </td>
-                        <td className="p-4 text-right">
-                          <button onClick={() => void handleSaveRegionTariff(rt)} className="text-blue-600 font-bold text-sm">Simpan</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {tab === 'routes' && (
+            <RoutesTab serverState={serverState} showToast={showToast} />
           )}
 
           {tab === 'officers' && (
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <button onClick={() => setAddOff(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2">
-                  <Plus size={14} />Tambah Petugas
-                </button>
-              </div>
-
-              {addOff && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
-                  <h3 className="font-bold mb-4">Tambah Petugas</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label><input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
-                      <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
-                        {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label><input type="password" maxLength={6} value={offForm.pin} onChange={e => setOffForm({...offForm, pin: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setAddOff(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-                    <button onClick={handleAddOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Simpan</button>
-                  </div>
-                </div>
-              )}
-
-              {editOffIdx !== null && editOff && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm max-w-lg">
-                  <h3 className="font-bold mb-4">Edit Petugas</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label><input value={editOff.name} onChange={e => setEditOff({...editOff, name: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1.5">
-                        {regionCodes.map(c => (
-                          <label key={c} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
-                            <input type="checkbox" checked={editRegions.includes(c)}
-                              onChange={e => setEditRegions(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))} />
-                            {c}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN Baru</label><input type="password" maxLength={6} value={editOff.pin} onChange={e => setEditOff({...editOff, pin: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-                  <div className="flex gap-3">
-                    <button onClick={() => { setEditOffIdx(null); setEditOff(null) }} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-                    <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Update</button>
-                  </div>
-                </div>
-              )}
-
-              {regionCodes.map(region => (
-                <div key={region} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2"><Lock size={14} className="text-blue-400" />{region} ({officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).length} petugas)</div>
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                      <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {officers.filter(o => (o.regions && o.regions.length > 0 ? o.regions : [o.region]).includes(region)).map((o, _, arr) => {
-                        const i = officers.indexOf(o)
-                        return (
-                          <tr key={o.id} className="hover:bg-slate-50">
-                            <td className="p-4 font-bold">{o.name}</td>
-                            <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span></td>
-                            <td className="p-4">
-                              <button onClick={() => { setEditOffIdx(i); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]) }} className="text-blue-600 font-bold text-sm mr-3">Edit</button>
-                              <button onClick={() => toggleOffStatus(i)} className="text-amber-500 font-bold text-sm mr-3">{o.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}</button>
-                              <button onClick={() => handleDelOff(i)} className="text-red-500 font-bold text-sm">Hapus</button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
+            <OfficersTab
+              officers={officers}
+              serverState={serverState}
+              onSaveOfficers={saveOfficers}
+              showToast={showToast}
+            />
           )}
 
           {tab === 'reports' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
-                  <p className="text-slate-500 text-[12px]">Detail tempat, tanggal, kendaraan, kategori, dan tarif per trip</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
-                    reportState === 'ready' ? 'bg-emerald-50 text-emerald-600'
-                    : reportState === 'offline' ? 'bg-amber-50 text-amber-600'
-                    : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      reportState === 'ready' ? 'bg-emerald-500'
-                      : reportState === 'offline' ? 'bg-amber-500'
-                      : 'bg-slate-400 animate-pulse'
-                    }`} />
-                    {reportState === 'ready' ? 'Server: Tersambung'
-                    : reportState === 'offline' ? 'Server: Offline'
-                    : 'Memuat laporan...'}
-                  </span>
-                  <button onClick={() => void loadReports()} disabled={reportState === 'loading'}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50">
-                    {reportState === 'loading' ? 'Memuat...' : 'Refresh'}
-                  </button>
-                  <button onClick={handleExportReport} disabled={reportState !== 'ready'}
-                    title="Ekspor laporan ke Excel (.xlsx)"
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
-                    <Download size={15} /> Ekspor Excel
-                  </button>
-                </div>
-              </div>
-
-              {/* Filter laporan: golongan & jenis kendaraan */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-wrap items-end gap-4">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Golongan</label>
-                  <select
-                    value={reportFilters.golongan || ''}
-                    onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
-                    className="border rounded-xl px-3 py-2 text-sm min-w-[140px] bg-white"
-                  >
-                    <option value="">Semua Golongan</option>
-                    {golonganOptions.map(g => <option key={g} value={g}>Golongan {g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wide">Jenis Kendaraan</label>
-                  <select
-                    value={reportFilters.vehicleType || ''}
-                    onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
-                    className="border rounded-xl px-3 py-2 text-sm min-w-[170px] bg-white"
-                  >
-                    <option value="">Semua Jenis</option>
-                    {jenisOptions.map(j => <option key={j} value={j}>{j}</option>)}
-                  </select>
-                </div>
-                <button
-                  onClick={clearReportFilters}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50"
-                >
-                  Reset Filter
-                </button>
-                <span className="ml-auto text-[12px] text-slate-400 font-semibold">
-                  {reportTrips.length} trip ditampilkan
-                </span>
-              </div>
-
-              {reportState === 'ready' && (
-                <div className="grid grid-cols-4 gap-4">
-                  {[
-                    { label: 'Total Trip', val: reportTrips.length, color: 'bg-blue-100 text-blue-600' },
-                    { label: 'Trip Muatan', val: reportTrips.filter(t => t.status_muatan === 'muatan').length, color: 'bg-sky-100 text-sky-600' },
-                    { label: 'Total Unit Kendaraan', val: reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0), color: 'bg-amber-100 text-amber-600' },
-                    { label: 'Total Pendapatan', val: fmtRp(reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)), color: 'bg-emerald-100 text-emerald-600' },
-                  ].map(({ label, val, color }) => (
-                    <div key={label} className="bg-white rounded-2xl p-5 shadow-sm">
-                      <p className="text-slate-500 text-[11px] mb-1">{label}</p>
-                      <p className={`text-2xl font-black ${color.split(' ')[1]}`}>{val}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="bg-white rounded-2xl shadow-sm divide-y divide-slate-100 overflow-hidden">
-                {reportState === 'offline' ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">Tidak dapat terhubung ke server. Pastikan backend berjalan.</div>
-                ) : reportState !== 'ready' ? (
-                  <div className="p-8 text-center text-slate-400 text-sm animate-pulse">Memuat laporan dari server...</div>
-                ) : reportTrips.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-sm">Belum ada trip di server</div>
-                ) : reportTrips.map(t => {
-                  const open = openTripId === t.id
-                  const d = formatReportDateTime(t.created_at)
-                  const place = t.region_name
-                    ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}`
-                    : '-'
-                  return (
-                    <div key={t.id}>
-                      <button onClick={() => setOpenTripId(open ? null : t.id)}
-                        className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 text-left">
-                        <div className="w-40 shrink-0">
-                          <p className="font-mono text-[12px] text-slate-500">{t.no_trip}</p>
-                          <p className="font-bold text-slate-800 text-[13px]">{t.route_from} → {t.route_to}</p>
-                        </div>
-                        <div className="w-44 shrink-0">
-                          <p className="text-[13px] text-slate-700 font-semibold">{d.date}</p>
-                          <p className="text-[11px] text-slate-400">{d.time} WIB · {place}</p>
-                        </div>
-                        <span className="text-slate-600 text-[13px] w-32 shrink-0">{t.officer_name || '-'}</span>
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${t.status_muatan === 'muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                          {t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong'}
-                        </span>
-                        <span className="text-slate-400 text-[12px] w-14 shrink-0">{t.vehicle_count} unit</span>
-                        <span className="ml-auto font-black text-slate-900">{fmtRp(t.trip_revenue || 0)}</span>
-                        <ChevronDown size={16} className={`text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {open && (
-                        <div className="px-6 pb-5 pt-1 bg-slate-50/60 border-t border-slate-100">
-                          <div className="flex flex-wrap gap-x-8 gap-y-1 py-3 text-[12px]">
-                            <span><span className="text-slate-400">Tempat:</span> <span className="font-semibold text-slate-700">{place}</span></span>
-                            <span><span className="text-slate-400">Rute:</span> <span className="font-semibold text-slate-700">{t.route_from_name || t.route_from || '-'} → {t.route_to_name || t.route_to || '-'}</span></span>
-                            <span><span className="text-slate-400">Tanggal:</span> <span className="font-semibold text-slate-700">{d.full}</span></span>
-                            <span><span className="text-slate-400">Kategori:</span> <span className="font-semibold text-slate-700">{t.keterangan && t.keterangan !== '-' ? t.keterangan : '-'}</span></span>
-                            <span><span className="text-slate-400">Petugas:</span> <span className="font-semibold text-slate-700">{t.officer_name || '-'}</span></span>
-                          </div>
-
-                          {t.vehicles.length === 0 ? (
-                            <p className="text-slate-400 text-[13px] py-3">Tidak ada kendaraan — trip dalam kondisi kosong.</p>
-                          ) : (
-                            <div className="bg-white rounded-xl overflow-hidden border border-slate-100">
-                              <table className="w-full text-[13px]">
-                                <thead className="bg-slate-100 text-slate-400 text-[10px] uppercase">
-                                  <tr>
-                                    <th className="text-left p-3">No. Plat</th>
-                                    <th className="text-left p-3">Jenis</th>
-                                    <th className="text-left p-3">Kategori</th>
-                                    <th className="text-left p-3">Beban</th>
-                                    <th className="text-left p-3">Tarif</th>
-                                    <th className="text-left p-3">Foto</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                  {t.vehicles.map((v, i) => {
-                                    const cat = v.golongan
-                                    const catColor = cat === 'Internal' ? 'bg-slate-800 text-white'
-                                      : cat === 'Eksternal' ? 'bg-amber-500 text-white'
-                                      : cat === 'Eksternal Bebas' ? 'bg-rose-500 text-white'
-                                      : 'bg-blue-100 text-blue-700'
-                                    return (
-                                      <tr key={`${v.no_polisi}-${i}`} className="hover:bg-slate-50">
-                                        <td className="p-3 font-mono font-bold text-slate-700">{v.no_polisi}</td>
-                                        <td className="p-3">{v.vehicle_type}</td>
-                                        <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${catColor}`}>{cat}</span></td>
-                                        <td className="p-3">
-                                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${v.has_load ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {v.has_load ? 'Ada Muatan' : 'Kosong'}
-                                          </span>
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-slate-900">{fmtRp(v.tariff_amount || 0)}</td>
-                                        <td className="p-3">
-                                          {v.photo_url ? (
-                                            <button
-                                              onClick={e => { e.stopPropagation(); setLightbox({ src: v.photo_url ?? '', caption: `${v.no_polisi ?? ''} — ${v.vehicle_type ?? ''}` }) }}
-                                              className="block"
-                                            >
-                                              <img
-                                                src={v.photo_url}
-                                                alt={`Foto ${v.no_polisi}`}
-                                                className="w-10 h-10 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity"
-                                              />
-                                            </button>
-                                          ) : (
-                                            <span className="block w-10 h-10 rounded-lg bg-slate-100 border border-slate-200" />
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                  <tr className="bg-slate-50">
-                                    <td colSpan={4} className="p-3 text-right font-bold text-slate-600 text-[12px]">Total Tarif Trip ({t.vehicles.length} unit)</td>
-                                    <td className="p-3 text-right font-black text-emerald-600">{fmtRp(t.trip_revenue || 0)}</td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            <ReportsTab
+              serverState={serverState}
+              serverTrips={serverTrips}
+              onServerTripsChange={setServerTrips}
+              showToast={showToast}
+              baseUrl={getApiBaseUrl()}
+            />
           )}
 
           {tab === 'settings' && (
-            <div className="space-y-6">
-              {/* ── Tema & Tampilan ── */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Tema & Tampilan</h3>
-                <p className="text-xs text-slate-500 mb-6">Sesuaikan tema situs, ukuran font, dan warna aksen — tersimpan otomatis di perangkat ini</p>
-
-                <div className="space-y-5">
-                  {/* Tema situs */}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-bold text-slate-700">Tema Situs</p>
-                      <p className="text-[11px] text-slate-400">Terang untuk siang hari, gelap lebih nyaman untuk mata</p>
-                    </div>
-                    <div className="flex rounded-xl border border-slate-200 p-1 gap-1 bg-slate-50">
-                      {([['light', 'Terang', '☀️'], ['dark', 'Gelap', '🌙']] as const).map(([m, label, icon]) => (
-                        <button
-                          key={m}
-                          onClick={() => updateTheme({ mode: m })}
-                          className={`px-4 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.mode === m ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
-                        >
-                          {icon} {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Ukuran font */}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-bold text-slate-700">Ukuran Font</p>
-                      <p className="text-[11px] text-slate-400">Skala teks & tampilan seluruh halaman dashboard</p>
-                    </div>
-                    <div className="flex rounded-xl border border-slate-200 p-1 gap-1 bg-slate-50">
-                      {ZOOM_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => updateTheme({ zoom: opt.value })}
-                          className={`px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${theme.zoom === opt.value ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Warna aksen */}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-bold text-slate-700">Warna Aksen</p>
-                      <p className="text-[11px] text-slate-400">Warna tombol utama, tab aktif, dan elemen terpilih</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {ACCENT_OPTIONS.map(a => (
-                        <button
-                          key={a.key}
-                          onClick={() => updateTheme({ accent: a.key })}
-                          title={a.label}
-                          aria-label={`Aksen ${a.label}`}
-                          className={`w-9 h-9 rounded-xl transition-all flex items-center justify-center ${theme.accent === a.key ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'}`}
-                          style={{ backgroundColor: a.swatch }}
-                        >
-                          {theme.accent === a.key && <Check size={15} className="text-white" strokeWidth={3} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
-                    <p className="text-[11px] text-slate-400">
-                      Tema: {theme.mode === 'dark' ? 'Gelap' : 'Terang'} · Font: {ZOOM_OPTIONS.find(z => z.value === theme.zoom)?.label ?? 'Sedang'} · Aksen: {ACCENT_OPTIONS.find(a => a.key === theme.accent)?.label}
-                    </p>
-                    <button
-                      onClick={() => { setTheme({ ...DEFAULT_THEME }); saveTheme({ ...DEFAULT_THEME }); showToast('Pengaturan tampilan direset') }}
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
-                    >
-                      Reset Tampilan
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan & Konfigurasi Sistem</h3>
-                <p className="text-xs text-slate-500 mb-6">Kelola preferensi sesi, database backend, dan diagnostik aplikasi admin</p>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-                    <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">Status Koneksi API</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${serverState === 'online' ? 'bg-emerald-500' : serverState === 'offline' ? 'bg-amber-500' : 'bg-slate-400'}`} />
-                      <span className="text-sm font-semibold text-slate-800">
-                        {serverState === 'online' ? 'Backend Online (JWT Terverifikasi)' : serverState === 'offline' ? 'Backend Offline (Mode Lokal)' : 'Menghubungkan...'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">Endpoint: http://localhost:3000/api</p>
-                    <button
-                      onClick={async () => {
-                        const ok = await ensureAdminBackendSession()
-                        setServerState(ok ? 'online' : 'offline')
-                        showToast(ok ? 'Koneksi backend aktif' : 'Gagal terhubung ke backend', ok ? 'success' : 'error')
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors"
-                    >
-                      Tes Ulang Koneksi
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-                    <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">Penyimpanan & Cache Lokal</p>
-                    <p className="text-xs text-slate-600">
-                      {tariffs.length} tarif tersimpan · {officers.length} petugas · {localTrips.length} trip lokal
-                    </p>
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={() => {
-                          if (confirm('Reset tarif lokal ke data bawaan?')) {
-                            saveTariffs(tariffData)
-                            showToast('Tarif lokal telah direset')
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-bold text-xs hover:bg-white transition-colors"
-                      >
-                        Reset Default Tarif
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm('Hapus seluruh sesi cache aplikasi? Anda akan logout.')) {
-                            onLogout()
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-bold text-xs hover:bg-red-100 transition-colors"
-                      >
-                        Hapus Sesi & Keluar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SettingsTab
+              onLogout={onLogout}
+              serverState={serverState}
+              tariffs={tariffs2.length > 0 ? tariffs2 : tariffs}
+              officers={officers}
+              localTrips={localTrips}
+              showToast={showToast}
+            />
           )}
         </div>
       </div>
     </div>
+  </CurrencyProvider>
   )
 }

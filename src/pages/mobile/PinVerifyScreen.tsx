@@ -70,13 +70,10 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       <h2 className="font-black text-slate-900 text-[22px] mb-1">Verifikasi PIN</h2>
       <p className="text-slate-500 text-[13px] text-center mb-1">
         {verifyIntent === 'switch'
-          ? `Verifikasi PIN ${target.name}`
+          ? `Login Sebagai : ${target.name}`
           : 'Masukkan 6-digit PIN Anda'}
       </p>
-      <p className="text-slate-400 text-[11px] mb-7">
-        Demo: PIN <span className="font-mono font-black text-blue-600">123456</span>
-      </p>
-
+      <div className="flex gap-3 mb-7">
       {/* Dot indicators */}
       <div className="flex gap-3 mb-7">
         {Array.from({ length: 6 }).map((_, i) => (
