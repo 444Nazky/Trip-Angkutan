@@ -27,12 +27,11 @@ RUN npm install -g serve
 COPY --from=builder /app/www ./www
 
 # Expose port 3000
-EXPOSE 8080
+EXPOSE 3000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
 # Start the server
-CMD ["node", "-e", "const http=require('http');http.createServer((_,r)=>{r.writeHead(200);r.end()}).listen(8080)"]
-
+CMD ["serve", "-s", "www", "-l", "3000"]

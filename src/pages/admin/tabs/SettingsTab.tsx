@@ -109,8 +109,9 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
       </div>
 
       {/* Sistem */}
+      <ChangePasswordSection onLogout={onLogout} showToast={showToast} />
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Sistem</h3>
+        <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Lainnya</h3>
         <p className="text-xs text-slate-500 mb-6">Status koneksi dan data lokal</p>
 
         <div className="grid grid-cols-2 gap-6">
