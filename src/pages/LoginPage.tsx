@@ -53,15 +53,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
             <Truck size={16} className="text-white" strokeWidth={1.5} />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-900 leading-none">Trip Angkutan</p>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Kalimantan Barat</p>
-          </div>
+
         </div>
 
         {/* Form card */}
         <div className="bg-white rounded-2xl border border-zinc-200 p-8">
           <div className="mb-6">
+                      <div>
+            <p className="text-sm font-semibold text-zinc-900 leading-none">Trip Angkutan</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Kalimantan Barat</p>
+          </div>
+          
             <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">Masuk</h2>
             <p className="text-sm text-zinc-500 mt-1">Gunakan akun petugas Anda.</p>
           </div>
