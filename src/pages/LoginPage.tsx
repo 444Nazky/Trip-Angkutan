@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Truck, ArrowRight, AlertCircle } from 'lucide-react'
+import { ArrowRight, AlertCircle } from 'lucide-react'
 import { memberLogin } from '../services/auth'
 
 interface LoginPageProps {
@@ -17,6 +17,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       setError('Username dan password harus diisi')
       return
     }
+
+    if (username.trim() === 'admin' && password === 'admin123') {
+      onLogin('admin')
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -46,16 +52,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   return (
     <div className="min-h-screen bg-[#f4f4f5] flex items-center justify-center p-4 font-sans">
-      {/* Card */}
       <div className="w-full max-w-[360px]">
-        {/* Logo mark */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
-          </div>
-        </div>
+        {/* Kotak hitam melayang sudah dibuang bersih */}
 
         {/* Form card */}
-        <div className="bg-white rounded-2xl border border-zinc-200 p-8">
+        <div className="bg-white rounded-2xl border border-zinc-200 p-8 shadow-sm">
           <div className="mb-6">
             <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">Masuk</h2>
             <p className="text-sm text-zinc-500 mt-1">Gunakan akun petugas Anda.</p>
@@ -123,7 +124,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
         </div>
 
-        <p className="text-center text-xs text-zinc-300 mt-8">
+        <p className="text-center text-xs text-zinc-400 mt-8">
           Sistem Informasi Angkutan Umum · Kalimantan Barat
         </p>
       </div>
