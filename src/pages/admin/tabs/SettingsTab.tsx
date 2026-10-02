@@ -3,6 +3,7 @@ import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, appl
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { ensureAdminBackendSession } from '../../../services/auth'
+import { ChangePasswordSection } from '../ChangePassword'
 
 interface SettingsTabProps {
   onLogout: () => void

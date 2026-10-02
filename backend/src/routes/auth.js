@@ -371,4 +371,70 @@ router.get('/verify', (req, res) => {
   }
 });
 
+// ── Admin credentials store (SQLite, tidak perlu migrasi manual) ──────────────
+// Menyimpan hashed password admin di SQLite, bukan environment variable.
+// Ini memungkinkan perubahan password tanpa restart server.
+try {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_credentials (
+      id       INTEGER PRIMARY KEY,
+      username TEXT,
+      password TEXT
+    )
+  `)
+} catch (_) { /* idempotent */ }
+
+function adminGetCredentials() {
+  const stmt = db.prepare(`SELECT id, username, password FROM admin_credentials LIMIT 1`)
+  const row = stmt.get()
+  return row ?? null
+}
+
+function adminSetCredentials(username, passwordHash) {
+  try {
+    db.run(`DELETE FROM admin_credentials`)
+    db.run(`INSERT INTO admin_credentials (username, password) VALUES (?, ?)`, [username, passwordHash])
+    db.saveDb?.()
+  } catch (_) { /* jika db.saveDb tidak tersedia */
+  }
+}
+
+// ── POST /auth/change-admin-password ────────────────────────────────────────────
+// Body: { currentPassword, newPassword }
+// Menyimpan password hash baru di SQLite, validasi password lama terhadap entry di tabel ini
+// atau terhadap default admin/admin123 di environment.
+router.post(`/change-admin-password`, async (req, res) => {
+  const { currentPassword, newPassword } = req.body ?? {}
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: `Password lama dan baru wajib diisi` })
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: `Password baru minimal 6 karakter` })
+  }
+
+  const row = adminGetCredentials()
+  const storedHash = row?.password ?? null
+
+  // Kalau tidak ada di SQLite, fallback ke env / hardcoded default (admin/admin123)
+  let valid = false
+  if (storedHash) {
+    try { valid = bcrypt.compareSync(currentPassword, storedHash) } catch (_) { valid = false }
+  } else {
+    // credential default admin/admin123, atau ADMIN_PASSWORD di env
+    const defAdminPass = process.env.ADMIN_PASSWORD ?? `admin123`
+    valid = currentPassword === defAdminPass
+  }
+
+  if (!valid) {
+    return res.status(401).json({ error: `Password lama salah` })
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 10)
+  const username = row?.username ?? (process.env.ADMIN_USERNAME ?? `admin`)
+  adminSetCredentials(username, hashed)
+
+  res.json({ success: true, username })
+})
+
 module.exports = router;
