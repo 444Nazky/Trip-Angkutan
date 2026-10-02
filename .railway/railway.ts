@@ -1,4 +1,4 @@
-import { defineRailway, github, project, service } from "railway/iac";
+import { defineRailway, github, service } from "railway/iac";
 
 export default defineRailway(() => {
   const aplikasiTrip = service("aplikasi-trip", {
@@ -6,7 +6,8 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
   });
 
-  return project("aplikasi-trip", {
-    resources: [aplikasiTrip],
-  });
+  return {
+    name: "aplikasi-trip",
+    services: [aplikasiTrip],
+  };
 });
