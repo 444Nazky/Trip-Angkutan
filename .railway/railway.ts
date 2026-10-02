@@ -8,10 +8,10 @@ export default defineRailway(() => {
 
   const aplikasiTripApi = service("aplikasi-trip-api", {
     source: github("444Nazky/Aplikasi-Trip-Ionic", { checkSuites: true }),
-    rootDirectory: "/backend",
-    dockerfilePath: "/Dockerfile",
+    dockerfilePath: "/backend/Dockerfile",
     volumes: [{ mountPath: "/data" }],
     variables: { DB_PATH: "/data/trip.db", UPLOADS_DIR: "/data/uploads" },
+    domains: [{ domain: "aplikasi-trip-api-production.up.railway.app", port: 8080 }],
     replicas: { "sfo": 1 },
   });
 

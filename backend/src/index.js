@@ -15,7 +15,7 @@ const reportRoutes = require('./routes/reports');
 const uploadRoutes = require('./routes/upload');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Middleware
 app.use(cors());
@@ -62,9 +62,9 @@ async function start() {
     await dbModule.loadDb();
     console.log('Database loaded');
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/api/health`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server listening on 0.0.0.0:${PORT}`);
+      console.log(`Health check: /api/health`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
