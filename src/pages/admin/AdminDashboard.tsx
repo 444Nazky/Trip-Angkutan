@@ -15,6 +15,7 @@ import type { Officer } from './components/types'
 import { CurrencyProvider } from './components/CurrencyDisplay'
 import { getApiBaseUrl } from '../../services/api'
 import { loadTheme, applyTheme } from '../../services/theme'
+import LoginPage from '../LoginPage'
 import ReportSheet from './ReportSheet'
 
 // Tabs
@@ -32,6 +33,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [backendOfficers, setBackendOfficers] = useState<BackendOfficerRow[]>([])
   const [dashSummary, setDashSummary] = useState<{ totalTrips: number; totalRevenue: number; totalVehicles: number } | null>(null)
   const [dashAt, setDashAt] = useState('')
+
+  // Gerbang login admin — muncul HANYA saat server menolak kredensial
+  // (mis. password sudah diganti lewat menu Pengaturan), bukan saat offline.
+  const [authDenied, setAuthDenied] = useState(false)
+  const [authRetry, setAuthRetry] = useState(0)
 
   // Mode Spreadsheet Live (tab baru dibuka dari tombol "Ekspor Spreadsheet" — `#/sheet`)
   const [sheetMode, setSheetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/sheet')
@@ -69,9 +75,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const ok = await ensureAdminBackendSession()
+      const sess = await ensureAdminBackendSession()
       if (!alive) return
-      if (!ok) { setServerState('offline'); return }
+      if (!sess.ok) {
+        if (sess.authDenied) { setAuthDenied(true); return }
+        setServerState('offline'); return
+      }
+      setAuthDenied(false)
 
       const [tarr, regn, tri] = await Promise.all([fetchTariffs(), fetchRegions(), fetchTrips()])
       if (!alive) return
@@ -88,13 +98,16 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setServerState('online')
     })()
     return () => { alive = false }
-  }, [])
+  }, [authRetry])
 
   const activeOfficerCount = officers.filter(o => o.status === 'Aktif').length
 
   const loadOverview = async () => {
-    const ok = await ensureAdminBackendSession()
-    if (!ok) { setServerState('offline'); return }
+    const sess = await ensureAdminBackendSession()
+    if (!sess.ok) {
+      if (sess.authDenied) { setAuthDenied(true); return }
+      setServerState('offline'); return
+    }
     // Ringkasan khusus HARI INI (WIB) — dipakai kartu "Trip/Pendapatan/Unit Hari Ini"
     const today = dayKeyWib(new Date().toISOString())
     const [trips, summ] = await Promise.all([fetchTrips(), fetchReportSummary(today, today)])
@@ -105,11 +118,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   useEffect(() => {
-    if (tab !== 'overview') return
+    if (tab !== 'overview' || authDenied) return
     void loadOverview()
     const id = setInterval(() => void loadOverview(), 15000)
     return () => clearInterval(id)
-  }, [tab])
+  }, [tab, authDenied])
 
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
@@ -120,6 +133,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
+
+  // Kredensial ditolak (password diganti) → form login seragam, tanpa form terpisah
+  if (authDenied) return (
+    <LoginPage
+      
+      onLogin={() => { setAuthDenied(false); setAuthRetry(k => k + 1) }}
+    />
+  )
 
   return sheetMode ? <ReportSheet /> : (
     <CurrencyProvider>

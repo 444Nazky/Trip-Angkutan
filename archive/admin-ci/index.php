@@ -7,11 +7,11 @@ if (file_exists($static_path)) {
     $html = file_get_contents($static_path);
     $html = str_replace('<html', '<html data-admin', $html);
 
-    // Dashboard memakai ikon lucide-react — ganti tag ikon/favicon bawaan build Ionic
-    // dengan ikon kosong eksplisit supaya browser tidak lagi minta /favicon.ico
+    // Ikon situs: pakai brand karyamasv.svg (aset lokal admin-ci/assets) —
+    // menggantikan tag ikon bawaan build Ionic sekaligus mencegah 404 /favicon.ico
     $html = preg_replace(
         '/<link\s+rel="(?:icon|apple-touch-icon|apple-touch-icon-precomposed|mask-icon)"[^>]*>\s*/i',
-        '<link rel="icon" href="data:,">',
+        '<link rel="icon" type="image/svg+xml" href="assets/karyamasv.svg">',
         $html
     );
 

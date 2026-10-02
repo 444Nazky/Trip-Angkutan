@@ -6,8 +6,11 @@ const config: CapacitorConfig = {
   webDir: 'www',
   server: {
     androidScheme: 'https',
-    url: 'http://10.0.2.2:8100',
-    cleartext: true,
+    // Live-reload ke dev server (hanya untuk pengembangan).
+    // Dibiarkan aktif → APK selalu menyalin konten dari :8100 dan TIDAK jalan
+    // mandiri di perangkat. Aktifkan hanya saat `ng serve` berjalan:
+    // url: 'http://10.0.2.2:8100',
+    // cleartext: true,
   },
 };
 

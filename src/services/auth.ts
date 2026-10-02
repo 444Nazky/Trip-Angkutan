@@ -308,20 +308,88 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   }
 }
 
-/**
- * Fetch an admin JWT for the dashboard.
- */
-export async function ensureAdminBackendSession(): Promise<boolean> {
-  const result = await api.post<{ token: string }>('/auth/admin-login', {
-    username: 'admin',
-    password: 'admin123',
-  })
+// ── Kredensial admin ───────────────────────────────────────────────────────────
+const ADMIN_CREDS_KEY = 'trip.auth.admin.v1'
 
+export interface AdminCreds { username: string; password: string }
+
+/**
+ * Simpan kredensial admin setelah login sukses. Dipakai ulang oleh
+ * ensureAdminBackendSession supaya dashboard tetap bisa autentikasi setelah
+ * admin mengganti password (tanpa hardcode admin123 yang sudah mati).
+ */
+export function saveAdminCredentials(username: string, password: string) {
+  try { localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username, password })) } catch { /* quota */ }
+}
+
+export function getAdminCredentials(): AdminCreds | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_CREDS_KEY)
+    if (!raw) return null
+    const c = JSON.parse(raw)
+    return c && typeof c.username === 'string' && typeof c.password === 'string'
+      ? { username: c.username, password: c.password }
+      : null
+  } catch { return null }
+}
+
+export function clearAdminCredentials() {
+  try { localStorage.removeItem(ADMIN_CREDS_KEY) } catch { /* quota */ }
+}
+
+/**
+ * Login admin lewat backend (`POST /auth/admin-login`) — SATU-JALUR dipakai
+ * oleh form login maupun gerbang dashboard. Sukses → kredensial tersimpan
+ * + JWT diset. `error: 'invalid'` = server menolak (401), `'network'` =
+ * backend tidak terjangkau.
+ */
+export async function adminLogin(username: string, password: string): Promise<{
+  success: boolean
+  error?: 'invalid' | 'network'
+}> {
+  const result = await api.post<{ token: string }>('/auth/admin-login', { username, password })
   if (result.ok && result.data) {
     api.setToken(result.data.token)
-    return true
+    saveAdminCredentials(username, password)
+    return { success: true }
   }
-  return false
+  if (result.error?.code === '401') return { success: false, error: 'invalid' }
+  return { success: false, error: 'network' }
+}
+
+export interface AdminSessionResult {
+  ok: boolean
+  /** true bila server menjawab 401 (kredensial salah) — bukan jaringan mati. */
+  authDenied: boolean
+}
+
+/**
+ * Fetch an admin JWT for the dashboard.
+ * Urutan: kredensial tersimpan (hasil login/ganti password) → default admin/admin123.
+ * Berbeda dengan jaringan mati (ok:false, authDenied:false → mode offline),
+ * authDenied:true berarti password perlu dimasukkan ulang lewat form login.
+ */
+export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
+  const attempts: AdminCreds[] = []
+  const stored = getAdminCredentials()
+  if (stored) attempts.push(stored)
+  const fallback: AdminCreds = { username: 'admin', password: 'admin123' }
+  if (!attempts.some(c => c.username === fallback.username && c.password === fallback.password)) {
+    attempts.push(fallback)
+  }
+
+  let authDenied = false
+  for (const creds of attempts) {
+    const result = await api.post<{ token: string }>('/auth/admin-login', creds)
+    if (result.ok && result.data) {
+      api.setToken(result.data.token)
+      // Selaraskan penyimpanan dengan kredensial yang terbukti valid
+      saveAdminCredentials(creds.username, creds.password)
+      return { ok: true, authDenied: false }
+    }
+    if (result.error?.code === '401') authDenied = true
+  }
+  return { ok: false, authDenied }
 }
 
 /**

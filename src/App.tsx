@@ -18,22 +18,23 @@ function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
   useEffect(() => { initializeSync() }, [])
 
-  // Halaman login hanya untuk aplikasi mobile. Dashboard admin dibuka
-  // langsung tanpa opsi "Login Administrator" (sesi backend diambil sendiri
-  // oleh dashboard lewat /auth/admin-login).
-  if (isAdminHost()) return <AdminDashboard onLogout={logout} />
+  // Satu form login untuk semua peran. Kredensial khusus admin
+  // (admin/admin123 atau password hasil ganti) langsung diarahkan ke
+  // dashboard admin yang utuh — di aplikasi yang sama, tanpa form login
+  // terpisah dan tanpa redirect ke app lain.
+  if (!isAdminHost() && !loggedIn) return <LoginPage onLogin={login} />
 
-  if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
+  // Host admin (:8000) atau sesi admin → dashboard (gerbang login internal
+  // muncul otomatis hanya bila kredensial ditolak / password sudah diganti).
+  if (isAdminHost() || (loggedIn && userType === 'admin')) {
+    return <AdminDashboard onLogout={logout} />
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      {userType === 'admin' ? (
-        <AdminDashboard onLogout={logout} />
-      ) : (
-        <div className="flex items-center justify-center h-dvh w-full overflow-hidden p-0 sm:p-6">
-          <MobileApp />
-        </div>
-      )}
+      <div className="flex items-center justify-center h-dvh w-full overflow-hidden p-0 sm:p-6">
+        <MobileApp />
+      </div>
     </div>
   )
 }

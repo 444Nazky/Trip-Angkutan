@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Lock, Check, X } from 'lucide-react'
+import { api } from '../../services/api'
+import { saveAdminCredentials, clearAdminCredentials, logout as endSession } from '../../services/auth'
 
 interface ChangePasswordProps {
   onLogout?: () => void
@@ -13,25 +15,33 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
   const [err, setErr] = useState<string | null>(null)
 
   const logout = () => {
-    sessionStorage.removeItem('trip.auth.token.v1')
+    clearAdminCredentials()
+    endSession()
     onLogout?.()
     window.location.href = '/'
   }
 
   const handle = async () => {
     setErr(null)
+    if (next !== confirm) {
+      setErr('Konfirmasi password baru tidak sama.')
+      return
+    }
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/change-admin-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: cur, newPassword: next }),
-      })
-      const data = await res.json().catch(() => ({ error: 'Tidak terhubung' }))
-      if (!res.ok) {
-        setErr(data?.error || 'Gagal.')
+      // Lewat api service (base URL absolut) — fetch('/api/...') relatif tidak
+      // terjangkau di host admin :8000 (tanpa proxy) dan bisa "sukses" palsu.
+      const result = await api.post<{ success: boolean; username?: string }>(
+        '/auth/change-admin-password',
+        { currentPassword: cur, newPassword: next },
+      )
+      if (!result.ok) {
+        setErr(result.error?.message || 'Gagal menyimpan password.')
         return
       }
+      // Selaraskan kredensial tersimpan → sesi dashboard otomatis memakai
+      // password baru pada muat ulang berikutnya (tanpa hardcode admin123).
+      saveAdminCredentials(result.data?.username ?? 'admin', next)
       setDone(true)
       showToast?.('Password admin diganti.', 'success')
       setCur(''); setNext(''); setConfirm('')
@@ -42,7 +52,8 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
 
-  const ready = cur.length > 0 && next.length >= 6 && confirm.length > 0
+  const mismatch = confirm.length > 0 && next !== confirm
+  const ready = cur.length > 0 && next.length >= 6 && confirm.length > 0 && next === confirm
 
   if (done) return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
@@ -106,6 +117,11 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
             <X size={12} />{err}
           </p>
         )}
+        {mismatch && !err && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            Konfirmasi password baru tidak sama.
+          </p>
+        )}
         <div className="flex gap-2 pt-1">
           <button
             onClick={() => void handle()}
@@ -113,20 +129,13 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
             className="px-5 py-2 rounded-xl font-semibold bg-zinc-900 text-white disabled:bg-zinc-300 cursor-pointer hover:bg-zinc-800 transition-colors"
           >
             {loading ? (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-transparent rounded-full animate-spin />
-                Menyimpan…
-              </span>
-            ) : (
-              'Simpan Password'
-            )}
+            <span className="flex items-center gap-1.5">
+              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
+              Menyimpan…
+            </span>
+          ) : <span>Simpan Password</span>}
           </button>
-          {onLogout && (
-            <button onClick={onLogout}
-              className="px-4 py-2 rounded-xl text-slate-500 border border-slate-200 hover:border-slate-300 transition-colors">
-              Batal
-            </button>
-          )}
+          {onLogout && <button onClick={onLogout} className="px-4 py-2 rounded-xl text-slate-500 border border-slate-200 hover:border-slate-300 transition-colors">Batal</button>}
         </div>
       </div>
     </div>
