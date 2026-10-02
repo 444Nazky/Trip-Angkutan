@@ -12,9 +12,9 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-# The database module resolves ../../data/trip.db to /data/trip.db in this image.
-# Mount a Railway volume at /data to persist the SQLite database across deploys.
-VOLUME ["/data"]
+# With Railway's /backend root directory, db.js resolves ../../data/trip.db to
+# /data/trip.db. Keep database and uploads on persistent Railway volumes.
+VOLUME ["/data", "/app/uploads"]
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
