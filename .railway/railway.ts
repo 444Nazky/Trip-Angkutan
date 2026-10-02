@@ -9,7 +9,9 @@ export default defineRailway(() => {
   const aplikasiTripApi = service("aplikasi-trip-api", {
     source: github("444Nazky/Aplikasi-Trip-Ionic", { checkSuites: true }),
     rootDirectory: "/backend",
-    dockerfilePath: "/backend/Dockerfile",
+    dockerfilePath: "/Dockerfile",
+    volumes: [{ mountPath: "/data" }],
+    variables: { DB_PATH: "/data/trip.db", UPLOADS_DIR: "/data/uploads" },
     replicas: { "sfo": 1 },
   });
 

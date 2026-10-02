@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '../../data/trip.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/trip.db');
 
 // Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);

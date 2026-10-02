@@ -9,7 +9,7 @@ const path = require('path');
  * menghitung path sendiri sehingga multer menulis ke `backend/src/uploads`
  * sedangkan server menyajikan `backend/uploads` → semua foto 404 di dashboard.
  */
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
 
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
