@@ -1,0 +1,11 @@
+{
+  "name": "trip-angkut-admin",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npx serve src -l 4200",
+    "start": "npx serve src -l 4200"
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}
