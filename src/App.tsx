@@ -31,11 +31,11 @@ function Shell() {
     setChecked(true)
   }, [])
 
-  const isAdminBuild = isAdminBuild()
+  const adminBuildDetected = isAdminBuild()
   const isAdmin = userType === 'admin'
 
   // ── Admin build tanpa sesi yang valid ──────────────────────────────────────
-  if (isAdminBuild && !checked) {
+  if (adminBuildDetected && !checked) {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -48,7 +48,7 @@ function Shell() {
   }
 
   // ── Admin build: petugas non-admin ─────────────────────────────────────────
-  if (isAdminBuild && !isAdmin) {
+  if (adminBuildDetected && !isAdmin) {
     logout()
     return (
       <div style={{
@@ -70,7 +70,7 @@ function Shell() {
   }
 
   // ── Admin build: admin yang valid ─────────────────────────────────────────
-  if (isAdminBuild && isAdmin) {
+  if (adminBuildDetected && isAdmin) {
     return <AdminDashboard onLogout={logout} />
   }
 

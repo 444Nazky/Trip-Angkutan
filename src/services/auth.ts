@@ -72,7 +72,7 @@ export async function regionLogin(
     return { success: false, error: result.error?.message || 'Backend tidak terjangkau' }
   }
 
-  return { success: true, region: result.data, officers: result.data.officers }
+  return { success: true, region: result.data.region, officers: result.data.officers }
 }
 
 // ── Officer routes (dari PIN login / dermaga selection) ───────────────────────
