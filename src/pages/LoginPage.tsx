@@ -6,6 +6,11 @@ interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
 }
 
+/**
+ * Halaman login petugas.
+ * Hanya menerima kredensial PETUGAS — admin login dipisah di halaman dedicated admin.
+ * Guard ini mencegah kode non-admin memasuki endpoint admin.
+ */
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -18,21 +23,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       return
     }
 
-    if (username.trim() === 'admin' && password === 'admin123') {
-      onLogin('admin')
-      return
-    }
-
     setLoading(true)
     setError(null)
+
     try {
       const result = await memberLogin(username.trim(), password)
+
       if (result.success) {
         onLogin('member')
         return
       }
+
       const msg = result.error || ''
-      if (/timeout|network|failed|fetch|merespon|terjangkau/i.test(msg)) {
+      if (/timeout|network|failed|fetch|respon|jangkauan/i.test(msg)) {
         setError('Tidak bisa terhubung ke server.')
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
@@ -51,15 +54,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f4f5] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-slate-100 font-sans flex items-center justify-center p-4">
       <div className="w-full max-w-[360px]">
-        {/* Kotak hitam melayang sudah dibuang bersih */}
-
-        {/* Form card */}
         <div className="bg-white rounded-2xl border border-zinc-200 p-8 shadow-sm">
           <div className="mb-6">
-            <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">Masuk</h2>
-            <p className="text-sm text-zinc-500 mt-1">Gunakan akun petugas Anda.</p>
+            <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">
+              Masuk
+            </h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Gunakan akun petugas Anda.
+            </p>
           </div>
 
           <div className="space-y-4">
@@ -74,8 +78,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 onChange={e => { setError(null); setUsername(e.target.value) }}
                 onKeyDown={handleKey}
                 placeholder="ID petugas"
+                autoComplete="username"
                 autoCapitalize="none"
-                autoCorrect="off"
                 className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
               />
             </div>
@@ -91,6 +95,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 onChange={e => { setError(null); setPassword(e.target.value) }}
                 onKeyDown={handleKey}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
               />
             </div>
@@ -112,7 +117,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Memverifikasi...
+                  Memverifikasi…
                 </>
               ) : (
                 <>

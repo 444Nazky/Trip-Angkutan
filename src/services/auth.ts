@@ -46,13 +46,13 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// ── Revisi #4: login wilayah (langkah 1) ───────────────────────────────────
+// ── Region login (step 1) ─────────────────────────────────────────────────────
 export interface RegionInfo { id: string; name: string; code: string }
 export interface RegionOfficer { id: string; name: string }
 
 /**
- * Login wilayah: kode region + password region (contoh BADAU / badau123).
- * Berhasil → daftar petugas wilayah tsb (tanpa PIN) untuk langkah berikutnya.
+ * Region login: region code + password.
+ * Success → daftar officer wilayah (tanpa PIN) untuk langkah berikutnya.
  */
 export async function regionLogin(
   regionCode: string,
@@ -72,10 +72,10 @@ export async function regionLogin(
     return { success: false, error: result.error?.message || 'Backend tidak terjangkau' }
   }
 
-  return { success: true, region: result.data.region, officers: result.data.officers }
+  return { success: true, region: result.data, officers: result.data.officers }
 }
 
-// ── Rute petugas (dari login PIN / pilih dermaga) ─────────────────────────────
+// ── Officer routes (dari PIN login / dermaga selection) ───────────────────────
 export interface UiRoute {
   code: string
   from: string
@@ -83,7 +83,7 @@ export interface UiRoute {
   label: string
   distance?: string
   duration?: string
-  /** ID dermaga asal rute — dipakai filter per dermaga di RouteSelectScreen */
+  /** Dermaga ID route ini milik */
   dermagaId?: string
 }
 
@@ -94,8 +94,8 @@ function saveRoutesMap(map: Record<string, Route[]>) {
 }
 
 /**
- * Rute milik petugas yang sedang login (dari backend, per dermaga).
- * Kembalikan bentuk UI — kosong bila belum pernah login (caller fallback data statis).
+ * Simpan route yang terkait dengan officer (dari backend, per dermaga).
+ * Dikembalikan dalam bentuk UI — kosong bila belum ada login.
  */
 export function getStoredRoutes(): UiRoute[] {
   try {
@@ -113,8 +113,8 @@ export function getStoredRoutes(): UiRoute[] {
           from: route.route_from,
           to: route.route_to,
           label: route.name || `${route.route_from} → ${route.route_to}`,
-          distance: route.distance || undefined,
-          duration: route.duration || undefined,
+          distance: route.distance,
+          duration: route.duration,
           dermagaId,
         })
       }
@@ -126,19 +126,16 @@ export function getStoredRoutes(): UiRoute[] {
 }
 
 /**
- * Muat ulang rute petugas dari backend (`GET /routes/mine`) — dipanggil saat
- * layar Pilih Rute dibuka supaya hasil edit Master Rute admin langsung
- * terlihat tanpa harus logout/login ulang.
- * Kembalikan daftar rute terbaru, atau null bila gagal (pakai cache).
+ * Refresh routes dari backend (`GET /routes/mine`) — dipakai saat layar Route dibuka
+ * agar hasil edit Admin Route langsung terlihat tanpa logout/login ulang.
  */
 export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
-  const result = await api.get<(Route & { dermaga_id: string })[]>('/routes/mine')
+  const result = await api.get<(Route & { dermaga_id: string })[]>(`/routes/mine`)
   if (!result.ok || !result.data) return null
 
   const map: Record<string, Route[]> = {}
   for (const r of result.data) {
     if (!map[r.dermaga_id]) map[r.dermaga_id] = []
-    // Simpan route_from/route_to terpisah dari dermaga_id agar map tetap bersih
     map[r.dermaga_id].push({
       id: r.id,
       name: r.name,
@@ -149,11 +146,11 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
     })
   }
   saveRoutesMap(map)
-  // getStoredRoutes() sudah menyertakan dermagaId dari key map
+  // Kembalikan routes yang baru saja disimpan.
   return getStoredRoutes()
 }
 
-/** True when backend route data or a dock selection must prevent static fallback. */
+/** Apakah backend route data atau dock selection harus mencegah fallback statis. */
 export function hasDockScopedRoutes(): boolean {
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
@@ -202,24 +199,17 @@ function clearOfficer() {
   } catch { /* quota */ }
 }
 
-// Login with username/password (member login) and obtain backend JWT
-export async function memberLogin(
-  username: string,
-  password: string
-): Promise<{ success: boolean; error?: string; officer?: StoredOfficer }> {
-  const result = await api.post<LoginResponse>('/auth/member-login', { username, password })
-
-  if (!result.ok || !result.data) {
-    return { success: false, error: result.error?.message || 'Backend unreachable' }
-  }
-
-  api.setToken(result.data.token)
-  saveOfficer(result.data.officer)
-
-  return { success: true, officer: result.data.officer }
+function clearRoutes() {
+  try {
+    localStorage.removeItem(ROUTES_KEY)
+  } catch { /* quota */ }
 }
 
-// Login with PIN (for officer switching).
+// ── Officer login (PIN) ────────────────────────────────────────────────────
+/**
+ * Login dengan PIN officer.
+ * Otomatis memilih dermaga tunggal.
+ */
 export async function loginWithPin(
   officerId: string,
   pin: string,
@@ -232,19 +222,18 @@ export async function loginWithPin(
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-
-  // Simpan rute per dermaga agar layar Pilih Rute memakai data master terbaru
+  // Simpan route per dermaga.
   if (result.data.routes) saveRoutesMap(result.data.routes)
 
-  // For single-dermaga officers, save the dermaga automatically
-  if (result.data.dermagas && result.data.dermagas.length === 1) {
+  // Single-dermaga officers: pilih otomatis.
+  if (result.data.dermagas?.length === 1) {
     saveDermaga(result.data.dermagas[0])
   }
 
   return { success: true, data: result.data }
 }
 
-// Select dermaga for dual-access officers
+// ── Dermaga selection (dual-access officers) ────────────────────────────────
 export async function selectDermaga(dermagaId: string): Promise<{ success: boolean; error?: string }> {
   const result = await api.post<{ dermaga: Dermaga; routes: Route[] }>('/auth/select-dermaga', { dermagaId })
 
@@ -252,32 +241,35 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
     return { success: false, error: result.error?.message }
   }
 
+  // Simpan dermaga & route yang dipilih.
   saveDermaga(result.data.dermaga)
-  // Gabungkan rute dermaga terpilih dengan rute dermaga lain yang sudah tersimpan
-  try {
-    const raw = localStorage.getItem(ROUTES_KEY)
-    const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
-    map[result.data.dermaga.id] = result.data.routes || []
-    saveRoutesMap(map)
-  } catch { /* quota */ }
-  return { success: true, error: undefined }
+  // Timpa route di dermaga ini dengan data terbaru.
+  const raw = localStorage.getItem(ROUTES_KEY)
+  const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
+  map[dermagaId] = result.data.routes
+  saveRoutesMap(map)
+
+  return { success: true }
 }
 
+// ── Logout ──────────────────────────────────────────────────────────────
 export function logout() {
   api.setToken(null)
   clearOfficer()
+  clearRoutes()
 }
 
 /**
- * Refresh JWT with latest claims from database.
+ * Refresh JWT session dengan claims terbaru dari database.
  */
 export async function refreshBackendSession(officerId?: string): Promise<boolean> {
   const id = officerId ?? activeOfficerId ?? getStoredOfficer()?.id
-  if (id == null || id === '') return false
+  if (id == null) return false
 
   activeOfficerId = String(id)
 
   if (!api.isAuthenticated) {
+    // Offline: login ulang otomatis.
     const result = await loginWithPin(String(id), DEMO_PIN)
     return result.success
   }
@@ -296,7 +288,7 @@ export function isLoggedIn(): boolean {
   return api.isAuthenticated && !!getStoredOfficer()
 }
 
-// Decode the stored JWT payload without verification (UI-level checks only)
+// Decode JWT payload tanpa verifikasi (hanya untuk UI-level checks).
 function jwtPayload(): { role?: string; officerId?: string | number } | null {
   const token = api.token
   if (!token) return null
@@ -308,18 +300,20 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   }
 }
 
-// ── Kredensial admin ───────────────────────────────────────────────────────────
+// ── Admin credentials ──────────────────────────────────────────────────
 const ADMIN_CREDS_KEY = 'trip.auth.admin.v1'
 
 export interface AdminCreds { username: string; password: string }
 
 /**
- * Simpan kredensial admin setelah login sukses. Dipakai ulang oleh
- * ensureAdminBackendSession supaya dashboard tetap bisa autentikasi setelah
- * admin mengganti password (tanpa hardcode admin123 yang sudah mati).
+ * Simpan kredensial admin setelah login sukses.
+ * Dipakai ulang oleh ensureAdminBackendSession sehingga dashboard tetap autentikasi
+ * setelah password diubah (tanpa perlu hardcode admin123).
  */
 export function saveAdminCredentials(username: string, password: string) {
-  try { localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username, password })) } catch { /* quota */ }
+  try {
+    localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username, password }))
+  } catch { /* quota */ }
 }
 
 export function getAdminCredentials(): AdminCreds | null {
@@ -327,27 +321,33 @@ export function getAdminCredentials(): AdminCreds | null {
     const raw = localStorage.getItem(ADMIN_CREDS_KEY)
     if (!raw) return null
     const c = JSON.parse(raw)
-    return c && typeof c.username === 'string' && typeof c.password === 'string'
-      ? { username: c.username, password: c.password }
-      : null
-  } catch { return null }
+    return (
+      c && typeof c.username === 'string' && typeof c.password === 'string'
+        ? { username: c.username, password: c.password }
+        : null
+    )
+  } catch {
+    return null
+  }
 }
 
 export function clearAdminCredentials() {
-  try { localStorage.removeItem(ADMIN_CREDS_KEY) } catch { /* quota */ }
+  try {
+    localStorage.removeItem(ADMIN_CREDS_KEY)
+  } catch { /* quota */ }
 }
 
+// ── Admin login ───────────────────────────────────────────────────────
 /**
- * Login admin lewat backend (`POST /auth/admin-login`) — SATU-JALUR dipakai
- * oleh form login maupun gerbang dashboard. Sukses → kredensial tersimpan
- * + JWT diset. `error: 'invalid'` = server menolak (401), `'network'` =
- * backend tidak terjangkau.
+ * Login admin ke backend (`POST /auth/admin-login`).
+ * Error: 'invalid' = server tolak (401), 'network' = server mati.
  */
-export async function adminLogin(username: string, password: string): Promise<{
-  success: boolean
-  error?: 'invalid' | 'network'
-}> {
+export async function adminLogin(
+  username: string,
+  password: string,
+): Promise<{ success: boolean; error?: 'invalid' | 'network' }> {
   const result = await api.post<{ token: string }>('/auth/admin-login', { username, password })
+
   if (result.ok && result.data) {
     api.setToken(result.data.token)
     saveAdminCredentials(username, password)
@@ -359,20 +359,20 @@ export async function adminLogin(username: string, password: string): Promise<{
 
 export interface AdminSessionResult {
   ok: boolean
-  /** true bila server menjawab 401 (kredensial salah) — bukan jaringan mati. */
+  /** true bila server menjawab 401 (kredensial salah) — buka form login, bukan offline mode. */
   authDenied: boolean
 }
 
 /**
- * Fetch an admin JWT for the dashboard.
- * Urutan: kredensial tersimpan (hasil login/ganti password) → default admin/admin123.
- * Berbeda dengan jaringan mati (ok:false, authDenied:false → mode offline),
- * authDenied:true berarti password perlu dimasukkan ulang lewat form login.
+ * Ambil JWT admin dari storage atau cache kredensial.
+ * Percobaan beruntun: stored → fallback admin/admin123.
  */
 export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
   const attempts: AdminCreds[] = []
+
   const stored = getAdminCredentials()
   if (stored) attempts.push(stored)
+
   const fallback: AdminCreds = { username: 'admin', password: 'admin123' }
   if (!attempts.some(c => c.username === fallback.username && c.password === fallback.password)) {
     attempts.push(fallback)
@@ -383,8 +383,8 @@ export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
     const result = await api.post<{ token: string }>('/auth/admin-login', creds)
     if (result.ok && result.data) {
       api.setToken(result.data.token)
-      // Selaraskan penyimpanan dengan kredensial yang terbukti valid
-      saveAdminCredentials(creds.username, creds.password)
+      // Samakan storage dengan kredensial yang valid.
+      if (creds !== fallback) saveAdminCredentials(creds.username, creds.password)
       return { ok: true, authDenied: false }
     }
     if (result.error?.code === '401') authDenied = true
@@ -393,19 +393,19 @@ export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
 }
 
 /**
- * Ensure we have a valid backend JWT for the given officer.
+ * Pastikan sesi valid untuk officer tertentu.
  */
 export async function ensureBackendSession(officerId?: string): Promise<boolean> {
   if (officerId != null && officerId !== '') {
     activeOfficerId = officerId
     const stored = getStoredOfficer()
-    if (stored && String(stored.id) !== String(officerId)) {
+    if (stored && String(stored.id) !== officerId) {
       api.setToken(null)
     }
   }
 
   const payload = jwtPayload()
-  if (payload && (payload.role === 'admin' || payload.officerId == null)) {
+  if (payload?.role === 'admin' || payload?.officerId == null) {
     api.setToken(null)
   }
 
