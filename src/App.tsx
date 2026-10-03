@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
-import MobileApp from './pages/mobile/MobileApp'
+import { useEffect, lazy, Suspense } from 'react'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import LoginPage from './pages/LoginPage'
 import { AppProvider, useApp } from './pages/store'
 import { initializeSync } from './services/sync'
+
+// Lazy load MobileApp agar tidak masuk bundle admin Netlify. MobileApp hanya
+// di-load saat serving mobile user (non-admin host & non-admin session).
+const MobileApp = lazy(() => import('./pages/mobile/MobileApp'))
 
 /** Build admin (CodeIgniter di :8000) ditandai atribut data-admin di <html>. */
 function isAdminHost() {
@@ -33,7 +36,9 @@ function Shell() {
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
       <div className="flex items-center justify-center h-dvh w-full overflow-hidden p-0 sm:p-6">
-        <MobileApp />
+        <Suspense fallback={null}>
+          <MobileApp />
+        </Suspense>
       </div>
     </div>
   )
