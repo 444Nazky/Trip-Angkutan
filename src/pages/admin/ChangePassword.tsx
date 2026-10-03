@@ -13,10 +13,13 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [cur, setCur] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
 
   const logout = () => {
     clearAdminCredentials()
-    endSession()
+    endSession?.()
     onLogout?.()
     window.location.href = '/'
   }
@@ -29,8 +32,6 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
     }
     setLoading(true)
     try {
-      // Lewat api service (base URL absolut) — fetch('/api/...') relatif tidak
-      // terjangkau di host admin :8000 (tanpa proxy) dan bisa "sukses" palsu.
       const result = await api.post<{ success: boolean; username?: string }>(
         '/auth/change-admin-password',
         { currentPassword: cur, newPassword: next },
@@ -39,18 +40,12 @@ export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordPro
         setErr(result.error?.message || 'Gagal menyimpan password.')
         return
       }
-      // Selaraskan kredensial tersimpan → sesi dashboard otomatis memakai
-      // password baru pada muat ulang berikutnya (tanpa hardcode admin123).
       saveAdminCredentials(result.data?.username ?? 'admin', next)
       setDone(true)
       showToast?.('Password admin diganti.', 'success')
       setCur(''); setNext(''); setConfirm('')
     } catch { setErr('Tidak terhubung.') } finally { setLoading(false) }
   }
-
-  const [cur, setCur] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
 
   const mismatch = confirm.length > 0 && next !== confirm
   const ready = cur.length > 0 && next.length >= 6 && confirm.length > 0 && next === confirm

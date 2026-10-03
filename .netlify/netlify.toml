@@ -7,10 +7,10 @@ headers = []
 [functions."*"]
 
 [build]
-publish = "/home/nazky/RPL/Intern/Aplikasi-Trip-Ionic/www"
+publish = "/home/nazky/RPL/Intern/Aplikasi-Trip-Ionic/admin-ci"
 publishOrigin = "config"
 commandOrigin = "config"
-command = "npm run build"
+command = "npm run build:admin"
 
 [build.environment]
 
