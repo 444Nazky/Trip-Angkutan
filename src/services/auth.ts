@@ -88,9 +88,8 @@ export interface UiRoute {
 }
 
 function saveRoutesMap(map: Record<string, Route[]>) {
-  try {
-    localStorage.setItem(ROUTES_KEY, JSON.stringify(map))
-  } catch { /* quota */ }
+  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(map)) }
+  catch { /* quota */ }
 }
 
 /**
