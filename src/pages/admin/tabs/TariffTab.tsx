@@ -67,8 +67,8 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   const handleSaveRegionTariff = async (rt: RegionTariffRow) => {
     const [a, b] = await Promise.all([
-      upsertRegionTariff({ regionId: rt.id, tariffType: 'lokal', nominalTariff: rt.lokal_tariff ?? 0, isActive: !!rt.lokal_active }),
-      upsertRegionTariff({ regionId: rt.id, tariffType: 'eksternal', nominalTariff: rt.eksternal_tariff ?? 0, isActive: !!rt.eksternal_active }),
+      upsertRegionTariff({ regionId: rt.id, tariffType: 'lokal', nominal: rt.lokal_tariff ?? 0, aktif: !!rt.lokal_active }),
+      upsertRegionTariff({ regionId: rt.id, tariffType: 'eksternal', nominal: rt.eksternal_tariff ?? 0, aktif: !!rt.eksternal_active }),
     ])
     if (!a || !b) return showToast('Server gagal', 'error')
     const fresh = await fetchRegionTariffs()

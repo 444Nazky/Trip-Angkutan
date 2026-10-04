@@ -2,7 +2,7 @@
 // Syncs officers between mobile app and backend
 
 import { api } from './api'
-import { ensureBackendSession } from './auth'
+import { ensureAdminBackendSession } from './auth'
 
 export interface BackendOfficer {
   id: string
@@ -57,7 +57,7 @@ export async function fetchBackendOfficers(force = false): Promise<BackendOffice
     }
   }
 
-  const ok = await ensureBackendSession()
+  const ok = await ensureAdminBackendSession()
   if (!ok) return null
 
   const result = await api.get<BackendOfficer[]>('/officers/my-region')

@@ -3,8 +3,9 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import { AppProvider, useApp } from './pages/store'
 import { initializeSync } from './services/sync'
 
-// Lazy load MobileApp agar tidak masuk bundle admin.
-const MobileApp = lazy(() => import('./pages/mobile/MobileApp'))
+/**
+ * Shell: guard utama untuk src/App.tsx (root entry).
+ * Admin build ditandai atribut data-admin di <html>. MobileApp di-stub saja karena admin bundle tidak butuh mobile screens. */
 
 // ── Build detection ────────────────────────────────────────────────────────────────
 
@@ -99,9 +100,8 @@ function Shell() {
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
       <div className="flex items-center justify-center h-dvh w-full overflow-hidden p-0 sm:p-6">
-        <Suspense fallback={null}>
-          <MobileApp />
-        </Suspense>
+      {/* Mobile build: Admin tidak menyediakan MobileApp di shell ini */}
+      <Suspense fallback={null} />
       </div>
     </div>
   )
