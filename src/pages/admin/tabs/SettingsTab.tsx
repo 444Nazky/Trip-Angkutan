@@ -3,6 +3,7 @@ import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, appl
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { ensureAdminBackendSession } from '../../../services/auth'
+import { environment } from '../../../environments/environment'
 import { ChangePasswordSection } from '../ChangePassword'
 
 interface SettingsTabProps {
@@ -123,7 +124,8 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 {serverState === 'online' ? 'Backend Online' : serverState === 'offline' ? 'Offline (Lokal)' : 'Menghubungi...'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">http://localhost:3000/api</p>
+            {/* URL API dinamis dari environment — jangan hardcode localhost (dev) di bundle admin */}
+            <p className="text-[11px] text-slate-400 break-all">{environment.apiBaseUrl}</p>
             <button
               onClick={async () => {
                 const ok = await ensureAdminBackendSession()
