@@ -4,6 +4,11 @@ $static_path = __DIR__ . '/index.html';
 if (file_exists($static_path)) {
     header('Access-Control-Allow-Origin: *');
     header('Content-Type: text/html; charset=utf-8');
+    // Hot-reload: index.html tidak boleh di-cache browser, supaya refresh
+    // selalu memuat bundle terbaru (nama file ber-hash berubah tiap build)
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     $html = file_get_contents($static_path);
     // Build admin kini sudah membawa atribut data-admin dari src/index.html
     // (wajib untuk deploy statis/Netlify). Sisipkan hanya bila belum ada,
