@@ -20,21 +20,23 @@ pkill -f "ng serve" 2>/dev/null
 pkill -f "vite" 2>/dev/null
 sleep 2
 
+# setsid: proses lahir di sesi sendiri supaya tetap hidup setelah shell
+# pemanggil (terminal/agent) menutup.
 echo "🟢 Starting Backend API (3000)..."
 cd "$MOBILE_ROOT/backend" || exit 1
-npm start > backend.log 2>&1 &
+setsid nohup npm start > backend.log 2>&1 &
 sleep 3
 
 echo "🟢 Starting Mobile (5173)..."
 cd "$MOBILE_ROOT" || exit 1
-npm start > mobile.log 2>&1 &
+setsid nohup npm start > mobile.log 2>&1 &
 sleep 4
 
 echo "🟢 Sync build admin (www → admin-ci)..."
 cd "$ADMIN_ROOT" || exit 1
 npm run sync:admin || npm run build:admin
 cd "$ADMIN_ROOT/admin-ci" || exit 1
-php -S localhost:8000 > admin.log 2>&1 &
+setsid nohup php -S localhost:8000 > admin.log 2>&1 &
 sleep 2
 
 echo "Verification..."
@@ -42,4 +44,4 @@ curl -s http://localhost:3000/api/health | grep -q "ok" && echo "API: OK" || ech
 curl -s http://localhost:5173 | grep -q "Trip Angkutan" && echo "Mobile: OK" || echo "Mobile: FAIL"
 curl -s http://localhost:8000 | grep -q "Trip Angkutan" && echo "Admin: OK" || echo "Admin: FAIL"
 
-echo "Logs: tail -f $MOBILE_ROOT/backend.log $MOBILE_ROOT/mobile.log $ADMIN_ROOT/admin-ci/admin.log"
+echo "Logs: tail -f $MOBILE_ROOT/backend/backend.log $MOBILE_ROOT/mobile.log $ADMIN_ROOT/admin-ci/admin.log"
