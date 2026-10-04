@@ -45,3 +45,28 @@ export interface Route {
   distance?: string | null
   duration?: string | null
 }
+
+/** Akses petugas ke dermaga (dipakai filter Ganti Petugas & pilih rute). */
+export interface DermagaAccess {
+  id: string
+  code?: string
+  name: string
+  region_id?: string
+}
+
+/** Profil petugas — dipakai store mobile & layar Ganti Petugas. */
+export interface Officer {
+  id: string
+  name: string
+  username?: string
+  initials: string
+  region: string
+  regions?: string[]
+  pin: string
+  status: string
+  device: string
+  trips: number
+  lastActive: string
+  joined: string
+  dermagaAccess?: DermagaAccess[]
+}

@@ -5,7 +5,7 @@ import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, re
 import { api } from '../services/api'
 import { syncOfficersToLocal } from '../services/officers'
 import type { MobileScreen } from './types'
-import type { Officer } from './admin/components/types'
+import type { Officer } from './types'
 
 export interface VehicleEntry {
   plate: string
@@ -235,21 +235,8 @@ function normalizeTrips(list: Trip[]): Trip[] {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-
-  
-  const isAdminPage = typeof document !== 'undefined'
-    && (document.title === 'Trip Angkutan' || document.querySelector('[data-admin]') !== null)
-  const isAdminBuild = () => {
-    try {
-      return document.querySelector('[data-admin]') !== null
-    } catch { return false }
-  }
-
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
-  const [userType, setUserType] = useState<'admin' | 'member'>(() => {
-    if (isAdminBuild()) return 'admin'
-    return load('trip.userType', 'member')
-  })
+  const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
@@ -361,7 +348,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
 
   const refreshOfficers = useCallback(async (force = false) => {
-    if (isAdminBuild()) return
     const synced = await syncOfficersToLocal(force)
     if (synced.length === 0) return
 
@@ -401,7 +387,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Sync officers from backend on app start (mobile only) — tarik paksa agar
   // status/wilayah terbaru dari admin langsung terbaca saat aplikasi dibuka.
   useEffect(() => {
-    if (isAdminBuild()) return
     void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshOfficers])
@@ -414,7 +399,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // terkirim (services/sync), daftar petugas juga ditarik ulang — aktif/nonaktif
   // & pemindahan region dari dashboard admin langsung sinkron real-time.
   useEffect(() => {
-    if (isAdminBuild()) return
     const onOnline = () => { void refreshOfficers(true) }
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
