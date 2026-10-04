@@ -31,6 +31,16 @@ export function clearAdminCredentials() {
   try { localStorage.removeItem(ADMIN_CREDS_KEY) } catch { /* quota */ }
 }
 
+/** Simpan kredensial admin baru setelah ganti password sukses. */
+export function saveAdminCredentials(username: string, password: string) {
+  try { localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username, password })) } catch { /* quota */ }
+}
+
+/** Akhiri sesi backend & bersihkan kredensial tersimpan (dipakai ChangePassword). */
+export function logout() {
+  adminLogout()
+}
+
 export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
   const attempts: AdminCreds[] = []
 

@@ -1,19 +1,212 @@
-/**
- * Stub services/trips.ts untuk admin build. Admin tabs mengimpor tipe dan fungsi dari module ini,
- * tapi admin build tidak butuh fungsi di TS strict mode.
- * Semua fungsi ini stub agar TypeScript tetap happy. */
-export interface BackendTrip { id: string }
-export interface ReportFilterOptions { label: string; value: string }[]
-export interface ReportFilters { regions: string[]; vessels: string[] }
-export interface ReportRecapRow { [key: string]: unknown }
-export interface ReportSummary { label: string; value: unknown }
-export interface ReportTrip { id: string; date: string; time: string }
-export function dayKeyWib(date: Date): string {
-  return date.toISOString().slice(0, 10)
+// ─── Trips API Service ─────────────────────────────────────────────────────────
+// Fetch trips from backend for admin dashboard
+
+import { api } from './api'
+
+export interface BackendTrip {
+  id: string
+  no_trip: string
+  officer_id: string
+  region_id: string
+  status_muatan: 'muatan' | 'kosong'
+  route_from: string
+  route_to: string
+  keterangan: string | null
+  foto_kosong_path: string | null
+  is_synced: number
+  created_at: string
+  vehicle_count: number
+  /** Joined from officers table (present on GET /trips) */
+  officer_name?: string | null
+  region_code?: string | null
 }
-export async function fetchTrips(): Promise<unknown[]> { return [] }
-export async function fetchReportFilters(): Promise<ReportFilterOptions[]> { return [] }
-export async function fetchReportSummary(): Promise<ReportSummary[]> { return [] }
-export async function fetchTripReports(): Promise<unknown[]> { return [] }
-export async function fetchReportRecap(): Promise<ReportRecapRow[]> { return [] }
-export function formatReportDateTime(d: unknown): string { return String(d) }
+
+export async function fetchTrips(): Promise<BackendTrip[] | null> {
+  const result = await api.get<BackendTrip[]>('/trips')
+  if (!result.ok || !result.data) {
+    return null
+  }
+  return result.data
+}
+
+// ─── Admin report: trips with full vehicle detail ─────────────────────────────
+
+export interface ReportVehicle {
+  id: string
+  no_polisi: string
+  vehicle_type: string
+  /** Kategori: 'Internal' | 'Eksternal' | 'Eksternal Bebas' (baris lama bisa berisi golongan romawi) */
+  golongan: string
+  /** Golongan master tarif (I..V) bila tersedia */
+  master_golongan?: string | null
+  has_load: number
+  tariff_amount: number
+  foto_path: string | null
+  foto_captured_at?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  /** Alias for foto_path - used in some API responses */
+  photo_url?: string | null
+}
+
+export interface ReportTrip {
+  id: string
+  no_trip: string
+  route_from: string | null
+  route_to: string | null
+  status_muatan: 'muatan' | 'kosong'
+  keterangan: string | null
+  foto_kosong_path: string | null
+  foto_captured_at?: string | null
+  foto_latitude?: number | null
+  foto_longitude?: number | null
+  started_at?: string | null
+  completed_at?: string | null
+  created_at: string
+  officer_name?: string | null
+  region_name?: string | null
+  region_code?: string | null
+  /** Nama wilayah asal/tujuan (join regions on code) — untuk detail tempat */
+  route_from_name?: string | null
+  route_to_name?: string | null
+  vehicle_count: number
+  trip_revenue: number | null
+  vehicles: ReportVehicle[]
+}
+
+/** Filter laporan (golongan & jenis kendaraan dari master tarif). */
+export interface ReportFilters {
+  golongan?: string
+  vehicleType?: string
+  route?: string
+  status?: string
+  /** Rentang tanggal laporan (YYYY-MM-DD). Backend menerapkan filter hanya
+   *  bila startDate & endDate sama-sama ada, jadi keduanya dikirim berpasangan. */
+  startDate?: string
+  endDate?: string
+}
+
+function toQuery(f?: ReportFilters): string {
+  if (!f) return ''
+  const params = new URLSearchParams()
+  if (f.golongan) params.set('golongan', f.golongan)
+  if (f.vehicleType) params.set('vehicleType', f.vehicleType)
+  if (f.route) params.set('route', f.route)
+  if (f.status) params.set('status', f.status)
+  if (f.startDate) params.set('startDate', f.startDate)
+  if (f.endDate) params.set('endDate', f.endDate)
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
+/** Admin-only (GET /reports/trips). Returns null on failure. */
+export async function fetchTripReports(filters?: ReportFilters): Promise<ReportTrip[] | null> {
+  const result = await api.get<ReportTrip[]>(`/reports/trips${toQuery(filters)}`)
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/** Opsi filter laporan (golongan + jenis kendaraan) dari master tarif. */
+export interface ReportFilterOptions {
+  golongan: string[]
+  vehicleTypes: string[]
+}
+
+export async function fetchReportFilters(): Promise<ReportFilterOptions | null> {
+  const result = await api.get<ReportFilterOptions>('/reports/trips/filters')
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/**
+ * Rekap gabungan per region + dermaga (GET /reports/recap).
+ * Trip dari petugas berbeda dalam satu wilayah operasional dirangkum jadi satu
+ * baris; petugas yang menyumbang tetap tercatat sebagai metadata (`officers`).
+ */
+export interface ReportRecapRow {
+  region_id: string
+  region_name: string
+  region_code: string
+  dermaga_id: string | null
+  dermaga_name: string | null
+  dermaga_code: string | null
+  trip_count: number
+  vehicle_count: number
+  revenue: number
+  first_trip_at: string | null
+  last_trip_at: string | null
+  officers: { name: string; username: string | null }[]
+}
+
+export async function fetchReportRecap(filters?: ReportFilters): Promise<ReportRecapRow[] | null> {
+  const result = await api.get<ReportRecapRow[]>(`/reports/recap${toQuery(filters)}`)
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/** Ringkasan angka (trip, unit, pendapatan) untuk kartu metrik dashboard. */
+export interface ReportSummary {
+  totalTrips: number
+  totalVehicles: number
+  totalRevenue: number
+}
+
+export async function fetchReportSummary(
+  startDate?: string,
+  endDate?: string,
+): Promise<ReportSummary | null> {
+  const params = new URLSearchParams()
+  if (startDate) params.set('startDate', startDate)
+  if (endDate) params.set('endDate', endDate)
+  const qs = params.toString()
+  const result = await api.get<ReportSummary>(`/reports/summary${qs ? `?${qs}` : ''}`)
+  if (!result.ok || !result.data) return null
+  return result.data
+}
+
+/** Kunci hari (YYYY-MM-DD) dalam zona waktu WIB — dipakai grafik & metrik harian. */
+export function dayKeyWib(raw: string | null | undefined): string {
+  if (!raw) return '-'
+  const iso = /Z|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d)
+}
+
+/**
+ * Format timestamp UTC dari SQLite (`YYYY-MM-DD HH:MM:SS`) ke waktu Indonesia
+ * Barat (Asia/Jakarta, UTC+7) agar tanggal & jam di laporan akurat.
+ */
+export function formatReportDateTime(
+  raw: string | null | undefined,
+  opts: { withSeconds?: boolean } = {},
+): { date: string; time: string; full: string } {
+  if (!raw) return { date: '-', time: '-', full: '-' }
+  // SQLite CURRENT_TIMESTAMP disimpan dalam UTC
+  const iso = /Z|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return { date: raw, time: '', full: raw }
+
+  const date = d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+  const time = d.toLocaleTimeString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(opts.withSeconds ? { second: '2-digit' } : {}),
+    hour12: false,
+  }).replace(/\./g, ':')
+  return { date, time, full: `${date} · ${time} WIB` }
+}
+
+export async function fetchTripDetail(id: string): Promise<BackendTrip | null> {
+  const result = await api.get<BackendTrip>(`/trips/${id}`)
+  if (!result.ok || !result.data) {
+    return null
+  }
+  return result.data
+}

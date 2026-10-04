@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fetchRoutes, createRoute, updateRoute, deleteRoute } from '../../../services/Dermagas'
+import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
 import { ensureAdminBackendSession } from '../../../services/auth'
 import type { RouteRow, RouteDermaga, RouteFormState } from '../components/types'
 import { emptyRouteForm } from '../components/types'
@@ -38,7 +38,7 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
   const startEdit = (r: RouteRow) => {
     setEditRouteId(r.id)
     setRouteForm({
-      Dermaga_id: r.dermaga_id,
+      dermaga_id: r.dermaga_id,
       name: r.name,
       route_from: r.route_from,
       route_to: r.route_to,
@@ -51,9 +51,9 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
   const handleSave = async () => {
     const f = routeForm
     if (!f.name.trim() || !f.route_from.trim() || !f.route_to.trim()) return showToast('Nama, asal, tujuan wajib!', 'error')
-    if (!editRouteId && !f.Dermaga_id) return showToast('Pilih dermaga!', 'error')
+    if (!editRouteId && !f.dermaga_id) return showToast('Pilih dermaga!', 'error')
     const payload = {
-      Dermaga_id: f.dermaga_id,
+      dermaga_id: f.dermaga_id,
       name: f.name.trim(),
       route_from: f.route_from.trim().toUpperCase(),
       route_to: f.route_to.trim().toUpperCase(),
@@ -102,7 +102,7 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
         <div className="grid grid-cols-6 gap-4 mb-4">
           <div className="col-span-2">
             <label className="text-[11px] text-slate-500 block mb-1">Dermaga *</label>
-            <select value={routeForm.Dermaga_id} onChange={e => setRouteForm({ ...routeForm, dermaga_id: e.target.value })}
+            <select value={routeForm.dermaga_id} onChange={e => setRouteForm({ ...routeForm, dermaga_id: e.target.value })}
               disabled={!!editRouteId} className="w-full border rounded-xl px-3 py-2 text-sm disabled:bg-slate-100">
               <option value="">— Pilih Dermaga —</option>
               {routeDermagas.map(d => (
@@ -163,7 +163,7 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
             {routeRows.map(r => (
               <tr key={r.id} className={editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}>
                 <td className="p-4 font-semibold text-slate-700">{r.region_name || '—'}</td>
-                <td className="p-4 text-slate-500">{r.Dermaga_name || '—'} <span className="text-[10px] text-slate-400">({r.dermaga_code || ''})</span></td>
+                <td className="p-4 text-slate-500">{r.dermaga_name || '—'} <span className="text-[10px] text-slate-400">({r.dermaga_code || ''})</span></td>
                 <td className="p-4 font-semibold text-slate-800">{r.name}</td>
                 <td className="p-4 font-mono text-slate-600">{r.route_from}</td>
                 <td className="p-4 font-mono text-slate-600">{r.route_to}</td>

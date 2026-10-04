@@ -9,7 +9,10 @@ export interface TariffRow {
   id?: string
   golongan: string
   type: string
+  /** Tampilan "Rp x" — selaras dengan TariffRow di admin/components/types */
+  loaded: string
   loadedNum: number
+  empty: string
   emptyNum: number
   desc: string
 }
@@ -43,7 +46,9 @@ function toRow(s: ServerTariff): TariffRow {
     id: s.id,
     golongan: s.golongan,
     type: s.vehicle_type,
+    loaded: fmtRp(s.loaded_tariff),
     loadedNum: s.loaded_tariff,
+    empty: fmtRp(s.empty_tariff),
     emptyNum: s.empty_tariff,
     desc: s.description ?? '',
   }

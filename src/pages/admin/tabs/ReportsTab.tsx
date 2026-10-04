@@ -334,14 +334,14 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
               </thead>
               <tbody>
                 {recap.map(r => (
-                  <tr key={`${r.region_id}-${r.Dermaga_id || 'none'}`} className="hover:bg-slate-50">
+                  <tr key={`${r.region_id}-${r.dermaga_id || 'none'}`} className="hover:bg-slate-50">
                     <td className="px-4 py-3 border-b border-slate-100">
                       <p className="font-bold text-slate-900 text-[13px]">{r.region_name}</p>
                       <p className="text-[10px] text-slate-400">{r.region_code}{r.first_trip_at ? ` · ${formatReportDateTime(r.first_trip_at).date}` : ''}</p>
                     </td>
                     <td className="px-4 py-3 border-b border-slate-100">
                       <span className="inline-block bg-slate-100 border border-slate-200 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                        {r.Dermaga_name || '—'}{r.dermaga_code ? ` (${r.dermaga_code})` : ''}
+                        {r.dermaga_name || '—'}{r.dermaga_code ? ` (${r.dermaga_code})` : ''}
                       </span>
                     </td>
                     <td className="px-4 py-3 border-b border-slate-100 text-right font-black text-slate-900 tabular-nums">{r.trip_count}</td>
