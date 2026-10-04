@@ -20,21 +20,24 @@ pkill -f "vite" 2>/dev/null
 
 sleep 2
 
+# setsid: proses lahir di sesi sendiri supaya tetap hidup setelah shell
+# pemanggil (terminal/agent) menutup — nohup+disown saja masih bisa ikut
+# terbunuh saat process-group dibersihkan.
 echo "🟢 Starting Backend API (3000)..."
 cd "$MOBILE_ROOT/backend" || exit 1
-nohup npm start > backend.log 2>&1 &
+setsid nohup npm start > backend.log 2>&1 &
 disown
 
 echo "🟢 Starting Mobile (5173)..."
 cd "$MOBILE_ROOT" || exit 1
-nohup npm start > mobile.log 2>&1 &
+setsid nohup npm start > mobile.log 2>&1 &
 disown
 
 echo "🟢 Starting Admin (8000)..."
 cd "$ADMIN_ROOT/admin-ci" || exit 1
 # index.php cadangan ikut disalin (handle fallback bila build belum ada)
 cp "$ADMIN_ROOT/archive/admin-ci/index.php" ./index.php 2>/dev/null
-nohup php -S localhost:8000 > admin.log 2>&1 &
+setsid nohup php -S localhost:8000 > admin.log 2>&1 &
 disown
 
 echo ""
@@ -63,4 +66,4 @@ echo "  Mobile (5173): $(ok "$MOBILE_RESP")"
 echo "  Admin (8000):  $(ok "$ADMIN_RESP")"
 echo "═════════════════════════════════"
 echo ""
-echo "📝 Logs: tail -f $MOBILE_ROOT/backend.log $MOBILE_ROOT/mobile.log $ADMIN_ROOT/admin-ci/admin.log"
+echo "📝 Logs: tail -f $MOBILE_ROOT/backend/backend.log $MOBILE_ROOT/mobile.log $ADMIN_ROOT/admin-ci/admin.log"
