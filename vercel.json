@@ -1,11 +1,27 @@
 {
-  "builds": [
-    {
-      "src": "www/**",
-      "use": "@vercel/static"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "ionic-angular"
+    },
+    "backend": {
+      "root": "backend",
+      "framework": "express"
     }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "www/$1" }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
   ]
 }
