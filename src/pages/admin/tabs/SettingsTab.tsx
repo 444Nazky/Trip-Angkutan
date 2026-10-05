@@ -2,7 +2,6 @@ import { Settings, LogOut, Sun, Moon } from 'lucide-react'
 import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, applyTheme, type AdminTheme } from '../../../services/theme'
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import { ensureAdminBackendSession } from '../../../services/auth'
 import { environment } from '../../../environments/environment'
 import { ChangePasswordSection } from '../ChangePassword'
 
@@ -128,8 +127,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
             <p className="text-[11px] text-slate-400 break-all">{environment.apiBaseUrl}</p>
             <button
               onClick={async () => {
-                const ok = await ensureAdminBackendSession()
-                showToast(ok ? 'Backend aktif' : 'Gagal', ok ? 'success' : 'error')
+                try { await fetch(environment.apiBaseUrl); showToast('Backend aktif', 'success') } catch { showToast('Gagal', 'error') }
               }}
               className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700"
             >

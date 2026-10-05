@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../../services/plates'
 import { fetchRegions } from '../../../services/regions'
-import { ensureAdminBackendSession } from '../../../services/auth'
 import type { Region } from '../components/types'
 
 interface PlatesTabProps {
@@ -20,14 +19,11 @@ export function PlatesTab({ plates, serverState, onPlatesChange, showToast }: Pl
   useEffect(() => {
     if (plateState !== 'idle') return
     setPlateState('loading')
-    ensureAdminBackendSession().then(ok => {
-      if (!ok) { setPlateState('offline'); return }
-      Promise.all([fetchPlates(), fetchRegions()]).then(([pls, regs]) => {
-        if (pls === null) { setPlateState('offline'); return }
-        onPlatesChange(pls)
-        if (regs) setRegions(regs)
-        setPlateState('ready')
-      })
+    Promise.all([fetchPlates(), fetchRegions()]).then(([pls, regs]) => {
+      if (pls === null) { setPlateState('offline'); return }
+      onPlatesChange(pls)
+      if (regs) setRegions(regs)
+      setPlateState('ready')
     })
   }, [plateState])
 

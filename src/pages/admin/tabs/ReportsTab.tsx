@@ -1,7 +1,6 @@
 import { Fragment, useState, useEffect } from 'react'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchReportRecap, formatReportDateTime, dayKeyWib, type BackendTrip, type ReportTrip, type ReportFilters, type ReportRecapRow } from '../../../services/trips'
-import { ensureAdminBackendSession } from '../../../services/auth'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay, useCurrencyReveal } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -35,8 +34,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
 
   const loadReports = async (filters?: ReportFilters) => {
     setReportState('loading')
-    const ok = await ensureAdminBackendSession()
-    if (!ok) { setReportState('offline'); return }
     const f = filters ?? reportFilters
     const [rows, recapRows] = await Promise.all([fetchTripReports(f), fetchReportRecap(f)])
     if (rows === null) { setReportState('offline'); return }

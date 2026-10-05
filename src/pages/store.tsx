@@ -1,34 +1,35 @@
 /**
  * Admin-only context (no offline-sync, no mobile screens).
  *
- * Dashboard memakai context ini untuk sesi admin + data referensi yang
- * diedit lewat tab Master (tarif & petugas) dan ditampilkan di Pengaturan.
- * Semua anggota diberi tipe eksplisit supaya kontrak dengan komponen admin
- * jelas (tipe konteks TIDAK boleh diturunkan dari nilai default — itu sumber
- * bug "Property does not exist" sebelumnya).
+ * Dashboard memakai konteks ini untuk sesi admin + data master (tarif & petugas)
+ * yang diedit lewat tab Pengaturan. Semua anggota berdampingan jelas.
  */
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react'
 import type { TariffRow, Officer } from './admin/components/types'
+import { logout as auth_logout } from '../services/auth'
 
-const ADMIN_KEY = 'trip.auth.admin.v1'
+export const AUTH_EVENT = 'admin-login'
 
-/** Kunci localStorage sama dengan era hybrid — data lama tetap terbaca. */
-const LS = {
+const LS_KEYS = {
   trips: 'trip.trips.v1',
   tariffs: 'trip.tariffs.v1',
   officers: 'trip.officers.v1',
 } as const
 
+/** Kunci sesi token (ADMIN_KEY) agar LoginPage sinkron dengan Shell. */
+const ADMIN_KEY = 'trip.auth.admin.v1'
+
 function loadStoredSession(): { token: string; username: string } | null {
   try {
     const raw = localStorage.getItem(ADMIN_KEY)
-    if (!raw) return null
-    const s = JSON.parse(raw) as { token: string; username: string }
-    if (!s?.token) return null
-    return s
-  } catch { return null }
+    if (raw) {
+      const s = JSON.parse(raw)
+      if (s?.token) return s
+    }
+  } catch { /* quota */ }
+  return null
 }
 
 function load<T>(key: string, fallback: T): T {
@@ -38,19 +39,17 @@ function load<T>(key: string, fallback: T): T {
   } catch { return fallback }
 }
 
-/** Ringkas trip lokal (Pengaturan hanya butuh jumlah & id). */
 export interface Trip {
   id: string
   date?: string
   status?: string
-  [key: string]: unknown
+  [k: string]: unknown
 }
 
 interface StoreValue {
   userType: 'admin' | 'guest'
   token: string
   logout: () => void
-  /** Trip yang tersimpan di browser (ukuran: tab Pengaturan). */
   trips: Trip[]
   tariffs: TariffRow[]
   saveTariffs: (rows: TariffRow[]) => void
@@ -58,50 +57,44 @@ interface StoreValue {
   saveOfficers: (rows: Officer[]) => void
 }
 
-const defaultCtx: StoreValue = {
+const defaultCtx = {
   userType: 'guest',
   token: '',
-  logout: () => { /* overridden by provider */ },
-  trips: [],
-  tariffs: [],
-  saveTariffs: () => { /* overridden by provider */ },
-  officers: [],
-  saveOfficers: () => { /* overridden by provider */ },
-}
+  logout: () => { /* override by provider */ },
+  trips: [] as Trip[],
+  tariffs: [] as TariffRow[],
+  saveTariffs: (_r: TariffRow[]) => { /* override */ },
+  officers: [] as Officer[],
+  saveOfficers: (_r: Officer[]) => { /* override */ },
+} satisfies StoreValue
 
 const AppContext = createContext<StoreValue>(defaultCtx)
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sess, setSess] = useState(loadStoredSession)
-  const [trips, setTrips] = useState<Trip[]>(() => load<Trip[]>(LS.trips, []))
-  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load<TariffRow[]>(LS.tariffs, []))
-  const [officers, setOfficers] = useState<Officer[]>(() => load<Officer[]>(LS.officers, []))
-
-  const userType = sess ? 'admin' : 'guest'
+  const [trips, setTrips] = useState<Trip[]>(() => load(LS_KEYS.trips, []))
+  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS_KEYS.tariffs, []))
+  const [officers, setOfficers] = useState<Officer[]>(() => load(LS_KEYS.officers, []))
   const token = sess?.token ?? ''
+  const userType = sess ? 'admin' : 'guest'
 
+  // Hapus semua jejak admin + sync logout + bersihkan UI.
   const logout = useCallback(() => {
-    localStorage.removeItem(ADMIN_KEY)
+    auth_logout()          // bersihkan token API + localStorage
     setSess(null)
   }, [])
 
   const saveTariffs = useCallback((rows: TariffRow[]) => setTariffs(rows), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
-  // Persist referensi master agar tab Pengaturan & guard data tetap sinkron
-  useEffect(() => {
-    try { localStorage.setItem(LS.trips, JSON.stringify(trips)) } catch { /* quota */ }
-  }, [trips])
-  useEffect(() => {
-    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
-  }, [tariffs])
-  useEffect(() => {
-    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
-  }, [officers])
+  // Simpan data master agar tetap ada saat browser ditutup.
+  useEffect(() => { try { localStorage.setItem(LS_KEYS.trips, JSON.stringify(trips)) } catch { /* quota */ } }, [trips])
+  useEffect(() => { try { localStorage.setItem(LS_KEYS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ } }, [tariffs])
+  useEffect(() => { try { localStorage.setItem(LS_KEYS.officers, JSON.stringify(officers)) } catch { /* quota */ } }, [officers])
 
   const ctx = useMemo<StoreValue>(
-    () => ({ userType, token, logout, trips, tariffs, saveTariffs, officers, saveOfficers }),
-    [userType, token, logout, trips, tariffs, saveTariffs, officers, saveOfficers],
+    () => ({ userType, token, logout, trips, tariffs: [], saveTariffs, officers: [], saveOfficers }),
+    [userType, token, logout],
   )
 
   return <AppContext.Provider value={ctx}>{children}</AppContext.Provider>

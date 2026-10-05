@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
-import { saveAdminCredentials } from '../services/auth'
+import { saveAdminCredentials, AUTH_EVENT } from '../services/auth'
 
 interface Props {
   onLogin?: () => void
@@ -28,14 +28,12 @@ export default function LoginPage({ onLogin }: Props) {
     }
     setBusy(true)
     setErr(null)
-    // Simpan kredensial baru → AdminDashboard retry ensureAdminBackendSession
+    // Simpan kredensial baru → AdminDashboard langsung fetch data
     saveAdminCredentials(username.trim(), password)
-    // Beri tahu parent; jika ternyata ditolak lagi, parent menampilkan form ini
-    // lagi dengan pesan kesalahan lewat render ulang.
-    setTimeout(() => {
-      setBusy(false)
-      onLogin?.()
-    }, 150)
+    // Sinkronisasi App.tsx Shell (penting saat parent & child hidup di luar render cycle).
+    window.dispatchEvent(new CustomEvent(AUTH_EVENT))
+    // Beri tahu parent; Shell validasi backend bukan parent ini. Sinkronisasi App.tsx duluan.
+    setTimeout(() => { setBusy(false); onLogin?.() }, 150)
   }
 
   return (

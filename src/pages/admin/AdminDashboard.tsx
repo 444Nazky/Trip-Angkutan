@@ -5,7 +5,7 @@ import { fetchTariffs, fetchRegionTariffs } from '../../services/tariffs'
 import { fetchRegions } from '../../services/regions'
 import { fetchPlates } from '../../services/plates'
 import { fetchTrips, fetchReportFilters, fetchReportSummary, dayKeyWib } from '../../services/trips'
-import { ensureAdminBackendSession } from '../../services/auth'
+import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
 import type { AdminTab } from './components/types'
 import type { TariffRow, RegionTariffRow, BackendOfficerRow, Region } from './components/types'
@@ -75,7 +75,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const sess = await ensureAdminBackendSession()
+      const sess = await ensureAdminSession()
       if (!alive) return
       if (!sess.ok) {
         if (sess.authDenied) { setAuthDenied(true); return }
@@ -103,7 +103,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const activeOfficerCount = officers.filter(o => o.status === 'Aktif').length
 
   const loadOverview = async () => {
-    const sess = await ensureAdminBackendSession()
+    const sess = await ensureAdminSession()
     if (!sess.ok) {
       if (sess.authDenied) { setAuthDenied(true); return }
       setServerState('offline'); return

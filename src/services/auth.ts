@@ -1,11 +1,17 @@
 /**
- * Admin Auth Service — admin-only.
- * Tidak mengimpor pages/ atau komponen mobile.
+ * Admin Auth Service — admin-only. Tidak mengimpor pages/ atau komponen mobile.
+ *
+ * AUTH_EVENT dipakai juga oleh App.tsx, LoginPage.tsx.
  */
 
 import { api } from './api'
 
-const ADMIN_CREDS_KEY = 'trip.admin.creds.v1'
+export const AUTH_EVENT = 'admin-login'
+
+/** Kunci sesi token (baca/tulis dari Shell). */
+export const ADMIN_KEY = 'trip.auth.admin.v1'
+/** Kunci kredensial (tulis dari LoginPage, baca dari LoginPage). */
+export const ADMIN_CREDS_KEY = 'trip.admin.creds.v1'
 
 export interface AdminCreds {
   username: string
@@ -27,23 +33,28 @@ export function getAdminCredentials(): AdminCreds | null {
   } catch { return null }
 }
 
+/** Hapus kredensial tersimpan — dipakai ChangePassword.tsx. */
 export function clearAdminCredentials() {
   try { localStorage.removeItem(ADMIN_CREDS_KEY) } catch { /* quota */ }
 }
 
-/** Simpan kredensial admin baru setelah ganti password sukses. */
+/** Simpan kredensial admin setelah login, dipakai LoginPage.tsx. */
 export function saveAdminCredentials(username: string, password: string) {
   try { localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username, password })) } catch { /* quota */ }
 }
 
-/** Akhiri sesi backend & bersihkan kredensial tersimpan (dipakai ChangePassword). */
+/** Akhiri sesi & bersihkan semua data auth (logout tombol). */
 export function logout() {
-  adminLogout()
+  try {
+    localStorage.removeItem(ADMIN_KEY)
+    localStorage.removeItem(ADMIN_CREDS_KEY)
+  } catch { /* quota */ }
+  api.setToken(null)
 }
 
-export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
+/** Kirim kredensial ke backend & simpan token sesi. */
+export async function ensureAdminSession(): Promise<AdminSessionResult> {
   const attempts: AdminCreds[] = []
-
   const stored = getAdminCredentials()
   if (stored) attempts.push(stored)
 
@@ -52,22 +63,20 @@ export async function ensureAdminBackendSession(): Promise<AdminSessionResult> {
     attempts.push(fallback)
   }
 
-  let authDenied = false
   for (const creds of attempts) {
     const result = await api.post<{ token: string }>('/auth/admin-login', creds)
     if (result.ok && result.data) {
       api.setToken(result.data.token)
-      if (creds !== fallback) {
-        try { localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify(creds)) } catch { /* quota */ }
-      }
+      try {
+        localStorage.setItem(ADMIN_KEY, JSON.stringify({ token: result.data.token, username: creds.username }))
+        if (creds.username !== fallback.username || creds.password !== fallback.password) {
+          // Simpan kredensial non-bawaan agar retry tanpa ketik ulang.
+          saveAdminCredentials(creds.username, creds.password)
+        }
+      } catch { /* quota */ }
       return { ok: true, authDenied: false }
     }
-    if (result.error?.code === '401') authDenied = true
+    if (result.error?.code === '401') { /* tolak kredensial */ }
   }
-  return { ok: false, authDenied }
-}
-
-export function adminLogout() {
-  api.setToken(null)
-  clearAdminCredentials()
+  return { ok: false, authDenied: true }
 }

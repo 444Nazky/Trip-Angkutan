@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ClipboardCopy, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Table2, X } from 'lucide-react'
-import { ensureAdminBackendSession } from '../../services/auth'
+import { ensureAdminSession } from '../../services/auth'
 import {
   fetchTripReports,
   fetchReportFilters,
@@ -102,7 +102,7 @@ export default function ReportSheet() {
 
   const load = useCallback(async (f: ReportFilters) => {
     setState(s => (s === 'ready' ? s : 'loading'))
-    const ok = await ensureAdminBackendSession()
+    const ok = await ensureAdminSession()
     if (!alive.current) return
     if (!ok) { setState('offline'); return }
     const [data, opts] = await Promise.all([fetchTripReports(f), fetchReportFilters()])

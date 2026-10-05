@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
-import { ensureAdminBackendSession } from '../../../services/auth'
 import type { RouteRow, RouteDermaga, RouteFormState } from '../components/types'
 import { emptyRouteForm } from '../components/types'
 
@@ -19,8 +18,6 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
   const loadRoutes = async () => {
     if (routeState !== 'idle') return
     setRouteState('loading')
-    const ok = await ensureAdminBackendSession()
-    if (!ok) { setRouteState('offline'); return }
     const [rts, dms] = await Promise.all([fetchRoutes(), fetchDermagas()])
     if (rts === null) { setRouteState('offline'); return }
     setRouteRows(rts as RouteRow[])

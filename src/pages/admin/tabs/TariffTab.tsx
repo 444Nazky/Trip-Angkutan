@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../../services/tariffs'
-import { ensureAdminBackendSession } from '../../../services/auth'
 
 interface TariffTabProps {
   tariffs: TariffRow[]
@@ -23,9 +22,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   // Load region tariffs on mount
   if (!loaded) {
-    ensureAdminBackendSession().then(ok => {
-      if (ok) fetchRegionTariffs().then(rt => { if (rt) setRegionTariffs(rt) })
-    })
+    fetchRegionTariffs().then(rt => { if (rt) setRegionTariffs(rt) })
     setLoaded(true)
   }
 

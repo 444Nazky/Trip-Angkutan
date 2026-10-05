@@ -3,7 +3,6 @@ import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
 import { api } from '../../../services/api'
-import { ensureAdminBackendSession } from '../../../services/auth'
 import type { Officer, BackendOfficerRow, Region, RouteRow, RouteDermaga } from '../components/types'
 
 interface OfficersTabProps {
@@ -106,9 +105,7 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
   useEffect(() => {
     let alive = true
     setLoading(true)
-    ensureAdminBackendSession().then(ok => {
-      if (!ok || !alive) { if (alive) setLoading(false); return }
-      return Promise.all([
+    Promise.all([
         fetchRegions(),
         fetchRoutes(),
         fetchDermagas(),
@@ -126,7 +123,6 @@ export function OfficersTab({ officers, serverState, onSaveOfficers, showToast }
         }
         setLoading(false)
       })
-    })
     return () => { alive = false }
   }, [])
 
