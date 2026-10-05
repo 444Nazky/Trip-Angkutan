@@ -28,7 +28,7 @@ type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
 
-export default function MobileApp() {
+export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
   const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')

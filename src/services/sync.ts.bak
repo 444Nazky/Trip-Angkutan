@@ -1,0 +1,156 @@
+import { Network, getCurrentPosition, Geolocation, type Position } from '@capacitor/geolocation'
+import type { Trip } from '../pages/store'
+
+const SYNC_QUEUE_KEY = 'trip.syncQueue.v1'
+const MAX_RETRIES = 3
+const RETRY_BACKOFF_MS = 60_000
+const RETRY_INTERVAL_MS = 15_000
+const KEEP_ALIVE_MS = 50_000
+
+interface SyncItem {
+  trip: Trip
+  attempts: number
+  lastError?: string
+  createdAt: number
+  lastAttemptAt?: number
+}
+
+interface SyncResult {
+  id: string
+  success: boolean
+  error?: string
+  code?: string
+}
+
+function loadQueue(): SyncItem[] {
+  try {
+    const raw = localStorage.getItem(SYNC_QUEUE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveQueue(queue: SyncItem[]) {
+  try {
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
+  } catch { /* quota */
+  }
+}
+
+export function addToSyncQueue(trip: Trip) {
+  const queue = loadQueue()
+  if (queue.some(q => q.trip.id === trip.id)) return
+  queue.push({ trip, attempts: 0, createdAt: Date.now() })
+  saveQueue(queue)
+  notifyListeners()
+  if (navigator.onLine) scheduleFlush(400)
+}
+
+export function removeFromSyncQueue(tripId: string) {
+  saveQueue(loadQueue().filter(q => q.trip.id !== tripId))
+  notifyListeners()
+}
+
+export function getSyncQueue(): SyncItem[] {
+  return loadQueue()
+}
+
+export function getPendingCount(): number {
+  return loadQueue().length
+}
+
+async function postTripToServer(trip: Trip): Promise<SyncResult> {
+  const photos: Blob[] = []
+  const toPhotoIndex = async (dataUrl?: string) => {
+    if (!dataUrl) return null
+    const idx = photos.length
+    const res = await fetch(dataUrl)
+    photos.push(await res.blob())
+    return idx
+  }
+
+  let tripPhotoIndex: number | null
+  const vehicles = []
+  try {
+    tripPhotoIndex = await toPhotoIndex(trip.photoUrl)
+    for (const v of trip.vehicles ?? []) {
+      const vi = await toPhotoIndex(v.photoUrl)
+      let lat: number | null = null
+      let lon: number | null = null
+      try {
+        const pos: Position = await Geolocation.getCurrentPosition()
+        lat = pos.coords.latitude
+        lon = pos.coords.longitude
+      } catch { /* lokasi tidak tersedia */
+      }
+      vehicles.push({
+        plate: v.plate,
+        type: v.type,
+        tariff: v.tariff,
+        hasLoad: trip.load === 'Ada Muatan',
+        photoIndex: vi,
+        capturedAt: v.capturedAt ?? null,
+        latitude: lat,
+        longitude: lon,
+      })
+    }
+  } catch (e) {
+    return { id: trip.id, success: false, error: e instanceof Error ? e.message : 'Gagal baca foto' }
+  }
+
+  const base: Record<string, unknown> = {
+    status: trip.status === 'active' ? 'ACTIVE' : 'COMPLETE',
+    loadType: trip.load ?? 'EMPTY',
+    route: trip.route,
+    startTime: trip.startedAt ?? null,
+    endTime: trip.completedAt ?? null,
+    photoIndex: tripPhotoIndex,
+    capturedAt: trip.capturedAt ?? null,
+    capturedLatitude: trip.latitude ?? null,
+    capturedLongitude: trip.longitude ?? null,
+    vehicles,
+  }
+
+  const form = new FormData()
+  form.append('data', JSON.stringify(base))
+  photos.forEach((blob, i) => form.append('photos', blob, `photo-${i}.jpg`)
+  const res = await fetch(`${getApiBaseUrl()}/trips/sync`, { method: 'POST', body: form })
+  const json = await res.json()
+  if (!res.ok) return { id: trip.id, success: false, code: String(res.status) }
+  return { id: trip.id, success: true }
+}
+
+let syncInProgress = false
+let syncListeners: ((count: number) => void = () => {}
+
+// ─── Read-only display ─────────────────────────────
+export function getApiBaseUrl(): string {
+  try {
+    const r = localStorage.getItem('trip.apiBase.v1')
+    if (r) return r
+  } catch { /* */ }
+  return 'http://localhost:3000/api'
+}
+
+export function setApiBaseUrl(url: string) {
+  try {
+    if (url) localStorage.setItem('trip.apiUrl', url)
+    else localStorage.removeItem('trip.apiUrl.v1')
+  } catch { /* quota */
+  }
+}
+
+export function getMaskedApiUrl(): string {
+  const url = getApiBaseUrl()
+  try {
+    const u = new URL(url)
+    const p = u.pathname + u.search
+    const hidden = u.hostname.length > 4
+      ? `${u.hostname.slice(0, 3)}…${u.hostname.slice(-4)}`
+      : u.host
+    return `${u.protocol}//${hidden}${p}`
+  } catch { return url }
+}
+
+export function getBaseUrl(): string {
+  return getApiBaseUrl()
+}

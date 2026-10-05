@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { Truck, ArrowRight, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Truck, ArrowRight, AlertCircle, Wifi, WifiOff } from 'lucide-react'
 import { memberLogin } from '../services/auth'
+import { initializeSync } from '../services/sync'
+import { getStoredOfficers } from '../services/officers'
 
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
@@ -11,127 +13,183 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [showPw, setShowPw] = useState(false)
+
+  // ── Listener online/offline ────────────────────────────────────────
+  useEffect(() => {
+    const on  = () => setIsOnline(true)
+    const off  = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
-      setError('Username dan password harus diisi')
+      setError('Username & password harus diisi.')
       return
     }
     setLoading(true)
     setError(null)
+    if (!navigator.onLine) {
+      const ok = tryOfflineLogin(username.trim(), password)
+      if (ok) return
+      setError('Akun tidak ditemukan di perangkat ini.')
+      setLoading(false)
+      return
+    }
     try {
       const result = await memberLogin(username.trim(), password)
       if (result.success) {
+        void initializeSync()
         onLogin('member')
         return
       }
       const msg = result.error || ''
-      if (/timeout|network|failed|fetch|merespon|terjangkau/i.test(msg)) {
-        setError('Tidak bisa terhubung ke server.')
+      if (/timeout|network|failed|fetch|terjangkau/i.test(msg)) {
+        setError('Server tidak terjangkau — cek jaringan.')
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
       } else {
         setError(msg || 'Login gagal.')
       }
     } catch {
-      setError('Terjadi kesalahan.')
+      setError('Terjadi kesalahan sistem.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleKey = (e: React.KeyboardEvent) => {
+  // ── Offline login ────────────────────────────────────────────────
+  function tryOfflineLogin(u: string, p: string): boolean {
+    let officers: ReturnType<typeof getStoredOfficers> = []
+    try { officers = getStoredOfficers() } catch { /* no-op */ }
+    const match = officers.find(o => o.id === u || o.name === u)
+    if (!match) return false
+    // PIN fallback only — if officer record has no PIN hash stored, deny offline login
+    if (!('pin' in match) || !match.pin) return false
+    // Simple equality — hash stored locally is plain-text PIN for officer seed data
+    if (match.pin !== p) return false
+    try {
+      localStorage.setItem('trip.auth.officer.v1', JSON.stringify({ ...match, offlineMode: true }))
+      onLogin('member')
+      return true
+    } catch { return false }
+  }
+
+  const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void handleLogin()
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f4f5] flex items-center justify-center p-4 font-sans">
-      {/* Card */}
-      <div className="w-full max-w-[360px]">
-        {/* Logo mark */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
-            <Truck size={16} className="text-white" strokeWidth={1.5} />
+    <div className="min-h-screen flex flex-col">
+      {/* ── Header gradient biru ── */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-6 pt-12 pb-16 rounded-b-[2.5rem] shadow-2xl">
+        {/* decorative circles */}
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
+        <div className="absolute -bottom-10 -left-6 w-32 h-32 rounded-full bg-white/5" />
+
+        <div className="relative flex flex-col items-center gap-3">
+          {/* Logo */}
+          <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center shadow-xl ring-2 ring-white/30">
+            <Truck size={28} className="text-white" strokeWidth={2} />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-zinc-900 leading-none">Trip Angkutan</p>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Kalimantan Barat</p>
+          <div className="text-center">
+            <h1 className="text-xl font-black text-white tracking-tight">Trip Angkutan</h1>
+            <p className="text-blue-200 text-[11px] font-medium">Kalimantan Barat</p>
+          </div>
+          {/* Online/Offline badge */}
+          <div className={`flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full mt-1 ${isOnline ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30' : 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30'}`}>
+            {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+            {isOnline ? 'Online' : 'Offline'}
           </div>
         </div>
+      </div>
 
-        {/* Form card */}
-        <div className="bg-white rounded-2xl border border-zinc-200 p-8">
-          <div className="mb-6">
-            <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">Masuk</h2>
-            <p className="text-sm text-zinc-500 mt-1">Gunakan akun petugas Anda.</p>
-          </div>
+      {/* ── Card form ── */}
+      <div className="flex-1 -mt-6 mx-4 bg-white rounded-t-3xl shadow-xl px-6 py-8 space-y-6">
+        {/* Judul */}
+        <div>
+          <h2 className="text-[22px] font-black text-slate-900">Masuk</h2>
+          <p className="text-[12px] text-slate-400 mt-0.5">Pakai akun petugas Anda.</p>
+        </div>
 
-          <div className="space-y-4">
-            {/* Username */}
-            <div>
-              <label className="text-xs font-medium text-zinc-700 mb-1.5 block uppercase tracking-wider">
-                Username
-              </label>
+        {/* Fields */}
+        <div className="space-y-4">
+          {/* Username */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">ID Petugas</label>
+            <div className="relative mt-1">
               <input
                 type="text"
                 value={username}
                 onChange={e => { setError(null); setUsername(e.target.value) }}
-                onKeyDown={handleKey}
-                placeholder="ID petugas"
+                onKeyDown={onKey}
+                placeholder="cth: p001"
                 autoCapitalize="none"
-                autoCorrect="off"
-                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+                autoCorrect={false}
+                className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[14px] placeholder:text-slate-300 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:bg-white transition"
               />
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[13px]">@</span>
             </div>
+          </div>
 
-            {/* Password */}
-            <div>
-              <label className="text-xs font-medium text-zinc-700 mb-1.5 block uppercase tracking-wider">
-                Password
-              </label>
+          {/* Password */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Kata Sandi</label>
+            <div className="relative mt-1">
               <input
-                type="password"
+                type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={e => { setError(null); setPassword(e.target.value) }}
-                onKeyDown={handleKey}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+                onKeyDown={onKey}
+                placeholder="PIN atau password"
+                className="w-full pl-4 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[14px] placeholder:text-slate-300 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:bg-white transition"
               />
+              <button
+                type="button"
+                onClick={() => setShowPw(v => !v)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[13px] font-medium"
+              >
+                {showPw ? 'Sembunyikan' : 'Lihat'}
+              </button>
             </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
-                <AlertCircle size={14} className="shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              onClick={() => void handleLogin()}
-              disabled={loading}
-              className="w-full mt-1 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-300 text-white text-sm font-medium py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Memverifikasi...
-                </>
-              ) : (
-                <>
-                  Lanjutkan
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </button>
           </div>
-        </div>
 
-        <p className="text-center text-xs text-zinc-300 mt-8">
-          Sistem Informasi Angkutan Umum · Kalimantan Barat
-        </p>
+          {/* Error */}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+              <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-[12px] text-red-600 leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            onClick={() => void handleLogin()}
+            disabled={loading}
+            className="w-full py-4 rounded-2xl font-black text-[14px] text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/30 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-transform"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                Memproses…
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                Lanjut
+                <ArrowRight size={14} />
+              </span>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* ── Footer ── */}
+      <p className="text-center text-[10px] text-slate-300 pb-6 mt-2">
+        Trip Angkutan Kalimantan Barat · v1.0
+      </p>
     </div>
   )
 }

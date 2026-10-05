@@ -198,6 +198,8 @@ function clearOfficer() {
   try {
     localStorage.removeItem(OFFICER_KEY)
     localStorage.removeItem(DERMAGA_KEY)
+  evictPinCache()
+    clearPinHash()
   } catch { /* quota */ }
 }
 
@@ -347,4 +349,41 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
 
   const result = await loginWithPin(String(id), DEMO_PIN)
   return result.success
+}
+
+// ── PIN Hash Cache (offline-first auth) ────────────────────────────────
+const PIN_KEY = 'trip.auth.pin.v1'
+type PinMap = Record<string, string>   // officerId → plain PIN
+
+function loadPinMap(): PinMap {
+  try { return JSON.parse(localStorage.getItem(PIN_KEY) ?? '{}') }
+  catch { return {} }
+}
+function persistPinMap(m: PinMap) { try { localStorage.setItem(PIN_KEY, JSON.stringify(m)) } catch { /* */ }
+
+/** Simpan PIN petugas setelah login online berhasil. */
+export function cachePin(officerId: string, pin: string) {
+  const map = loadPinMap(); map[officerId] = pin; persistPinMap(map)
+}
+/** Ambil PIN tersimpan. */
+export function getCachedPin(officerId: string) { return loadPinMap()[officerId] ?? null }
+/** Hapus cache PIN (logout). */
+export function evictPinCache() { localStorage.removeItem(PIN_KEY) }
+
+/** Sinkronisasi data petugas satu dermaga ke lokal (background, tidak memblokir UI. */
+async function syncDermagaOfficers(dermagaId?: string) {
+  if (!dermagaId) return
+  try {
+    const r = await api.get<{ officers?: StoredOfficer[] }>(`/dermaga/${dermagaId}/officers`)
+    if (r.ok && r.data?.officers) {
+      const key = 'trip.dermaga.officers.v1'
+      const prev: StoredOfficer[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+      const merged = [...prev]
+      for (const o of r.data.officers ?? []) {
+        const i = merged.findIndex(x => x.id === o.id)
+        if (i >= 0) merged[i] = o; else merged.push(o)
+      }
+      localStorage.setItem(key, JSON.stringify(merged))
+    }
+  } catch { /* offline — gagal async */ }
 }
