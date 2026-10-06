@@ -280,22 +280,23 @@ export function initializeSync(): void {
   if (initialized) return
   initialized = true
 
-  // Jaringan pulih → langsung kirim antrean
-  void Network.addListener('networkStatusChange', ({ connected }) => {
-    if (connected) void processSyncQueue()
-  }).catch(() => {
-    // Plugin tidak tersedia (web) → pakai event browser
-    window.addEventListener('online', () => void processSyncQueue())
-  })
-  window.addEventListener('online', () => void processSyncQueue())
-
-  // Polling berkala selama app terbuka
+  // polling setiap RETRY_INTERVAL_MS saat online
   window.setInterval(() => { if (navigator.onLine) void processSyncQueue() }, RETRY_INTERVAL_MS)
 
-  // Keep-alive: sentuh status jaringan agar deteksi online di WebView akurat
-  window.setInterval(() => { void Network.getStatus().catch(() => undefined) }, KEEP_ALIVE_MS)
+  // browser/ionic online event
+  window.addEventListener('online', () => void processSyncQueue())
 
-  void processSyncQueue()
+  // coba sinkronisasi sekali di background
+  window.setTimeout(() => void processSyncQueue(), 2000)
+}
+
+/** Paksa sinkronisasi manual — tunggu hasil. */
+export async function syncNow(): Promise<{ synced: number; failed: number }> {
+  if (syncInProgress) return { synced: 0, failed: getPendingCount() }
+  const before = getPendingCount()
+  await processSyncQueue({ retryAll: true })
+  const after = getPendingCount()
+  return { synced: Math.max(0, before - after), failed: after }
 }
 
 // ── Base URL server (read-only untuk petugas lapangan) ───────────────────────

@@ -1,6 +1,6 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, onSyncQueueChange, processSyncQueue } from '../../services/sync'
+import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -13,30 +13,26 @@ interface HomeScreenProps {
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
-  const [syncing, setSyncing] = useState(false)
+  const [syncState, setSyncState] = useState<null | { synced: number; failed: number }>(null)
+  const syncing = syncState === null && pendingCount > 0
 
   useEffect(() => {
-    // Check pending count on mount
+    // Refresh count saat focus window
+    const h = () => setPendingCount(getPendingCount())
+    window.addEventListener('focus', h)
+    const unsub = onSyncQueueChange(setPendingCount)
     setPendingCount(getPendingCount())
-    // Check on window focus
-    const handleFocus = () => setPendingCount(getPendingCount())
-    window.addEventListener('focus', handleFocus)
-    // Perubahan antrean (mis. terkirim otomatis saat online) langsung tercermin
-    const unsubscribe = onSyncQueueChange(setPendingCount)
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      unsubscribe()
-    }
+    return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
+
   const handleSync = async () => {
     if (syncing || !navigator.onLine) return
-    setSyncing(true)
-    try {
-      await processSyncQueue({ retryAll: true })
-      setPendingCount(getPendingCount())
-    } finally {
-      setSyncing(false)
-    }
+    setSyncState(null)
+    const r = await syncNow()
+    setSyncState(r)
+    setPendingCount(getPendingCount())
+    // auto-hide result setelah 3 detik
+    if (r.failed === 0) setTimeout(() => setSyncState(null), 3000)
   }
 
   const myTrips = trips.filter(t => t.officer === officer.name)
@@ -63,18 +59,34 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Sync Status */}
-      {pendingCount > 0 && (
+      {/* Sinkronisasi */}
+      {(pendingCount > 0 || !!syncState) && (
         <button
           onClick={handleSync}
-          disabled={syncing}
-          className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 hover:bg-amber-100 transition-colors disabled:opacity-50"
+          disabled={!!syncState || !navigator.onLine}
+          className={`w-full border rounded-2xl p-4 flex items-center gap-3 transition-colors ${
+            syncState
+              ? syncState.failed === 0
+                ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+              : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+          } disabled:cursor-default`}
         >
-          <RefreshCw size={18} className={syncing ? 'animate-spin text-amber-500' : 'text-amber-500'} />
-          <span className="text-[13px] font-semibold text-amber-700">
-            {syncing ? 'Menyinkronkan...' : `${pendingCount} trip menunggu sinkronisasi`}
+          <RefreshCw size={18} className={!syncState ? 'animate-spin text-amber-500' : ''} />
+          <span className={`text-[13px] font-semibold flex-1 text-left ${
+            syncState
+              ? syncState.failed === 0 ? 'text-green-700' : 'text-amber-700'
+              : 'text-amber-700'
+          }`}>
+            {syncState
+              ? syncState.failed === 0
+                ? `${syncState.synced} trip tersinkron`
+                : `${syncState.failed} gagal — ketuk untuk ulangi`
+              : 'Sinkronisasi…'}
           </span>
-          {!syncing && <span className="ml-auto text-[11px] text-amber-500 font-bold">Tap untuk sync</span>}
+          {!syncState && (
+            <span className="text-[11px] font-bold text-amber-500">Sinkronkan</span>
+          )}
         </button>
       )}
 
