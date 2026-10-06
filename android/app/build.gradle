@@ -1,8 +1,28 @@
 apply plugin: 'com.android.application'
 
+// ── Signing release ──────────────────────────────────────────────────────────
+// Kredensial dibaca dari android/keystore.properties (tidak di-commit).
+// Bila file/keystore tidak ada, build release tetap jalan (unsigned).
+def ksProps = new Properties()
+def ksPropsFile = rootProject.file('keystore.properties')
+if (ksPropsFile.exists()) {
+    ksPropsFile.withInputStream { stream -> ksProps.load(stream) }
+}
+def releaseKeystore = file(ksProps.getProperty('trip.storeFile', 'tripangkut.keystore'))
+
 android {
     namespace = "com.plantation.tripangkut"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        release {
+            if (releaseKeystore.exists()) {
+                storeFile releaseKeystore
+                storePassword ksProps.getProperty('trip.storePassword')
+                keyAlias ksProps.getProperty('trip.keyAlias', 'tripangkut')
+                keyPassword ksProps.getProperty('trip.keyPassword')
+            }
+        }
+    }
     defaultConfig {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -21,6 +41,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseKeystore.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {

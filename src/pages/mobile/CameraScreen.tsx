@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, RefreshCw, Camera, AlertCircle, Loader2, MapPin, Clock } from 'lucide-react'
+import { ChevronLeft, Loader2, AlertCircle, MapPin, Clock } from 'lucide-react'
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
@@ -7,31 +7,47 @@ import { useApp } from '../store'
 import { readPlateFromImage } from '../../services/ocr'
 import type { MobileScreen } from '../types'
 
-// ─── Camera Screen ───────────────────────────────────────────────
-// Sumber FOTO SATU-SEGALANYA: kamera perangkat.
-//   Android/iOS → plugin native (CameraSource.Camera)
-//   Web/desktop  → getUserMedia → canvas
-// TIDAK ADA pilihan galeri / penyimpanan — semua foto bukti HARUS dari kamera langsung.
-// ────────────────────────────────────────────────────────────────
+// ─── Camera Screen ───────────────────────────────────────────────────────────
+// Preview kamera full-screen (murni), tanpa kotak panduan / teks bantu.
+//   Android/iOS → plugin native (CameraSource.Camera) untuk jepretan
+//   Web         → getUserMedia → canvas
+// Setiap foto otomatis diberi watermark: koordinat GPS/wilayah + stempel waktu.
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface CameraScreenProps {
   go: (s: MobileScreen) => void
 }
 
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('gambar gagal dimuat'))
+    img.src = src
+  })
+}
+
 export default function CameraScreen({ go }: CameraScreenProps) {
-  const { draft, patchDraft } = useApp()
+  const { draft, patchDraft, officer } = useApp()
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [liveState, setLiveState] = useState<'off' | 'starting' | 'ready' | 'denied'>('off')
-  const [useNative] = useState(() => Capacitor.isNativePlatform())
+  const [, setTick] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const isOcr = draft.cameraMode === 'ocr'
   const returnTo: MobileScreen = isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form')
   const title = isOcr ? 'Scan Plat Nomor' : (returnTo === 'trip-summary' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
+  const regionLabel = officer?.region || ''
 
-  // ── Helpers ──────────────────────────────────────────────────
+  // Jam berjalan untuk pratinjau watermark (timestamp real-time)
+  useEffect(() => {
+    const id = window.setInterval(() => setTick(v => v + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const stopStream = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
@@ -42,7 +58,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     setLiveState('starting')
     setErrorMsg('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, audio: false })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      })
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
@@ -51,17 +70,18 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       setLiveState('ready')
     } catch {
       setLiveState('denied')
-      setErrorMsg('Kamera tidak tersedia')
+      // Di native, jepretan tetap lewat plugin kamera bawaan → jangan tampil error
+      if (!Capacitor.isNativePlatform()) setErrorMsg('Kamera tidak tersedia')
     }
   }
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) void startStream()
+    void startStream()
     return () => stopStream()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Snapshot dari canvas ───────────────────────────────────
+  // ── Snapshot dari canvas (web) ─────────────────────────────────────────────
   const snapshotFromCanvas = (): string | null => {
     const v = videoRef.current
     if (!v || !v.videoWidth) return null
@@ -71,83 +91,125 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     return cv.toDataURL('image/jpeg', 0.92)
   }
 
-  // ── Watermark helper ──────────────────────────────────────
-  // Ditrigger oleh deliver() sebelum patchDraft
-  function addWatermark(
+  // ── Watermark: GPS/wilayah + timestamp ─────────────────────────────────────
+  // Dijalankan sebelum patchDraft. Gagal watermark tidak memblokir penyimpanan.
+  async function addWatermark(
     dataUrl: string,
     lat: number | null,
     lon: number | null,
-    timestamp: string,
-  ): string {
-    const img = new Image()
-    img.src = dataUrl
-    const w = img.width || 800, h = img.height || 600
-    const cv = document.createElement('canvas')
-    cv.width = w; cv.height = h
-    const ctx = cv.getContext('2d')!
-    ctx.drawImage(img, 0, 0, w, h)
+    region: string,
+    capturedAt: Date,
+  ): Promise<string> {
+    try {
+      const img = await loadImage(dataUrl)
+      const w = img.naturalWidth || img.width || 800
+      const h = img.naturalHeight || img.height || 600
+      const cv = document.createElement('canvas')
+      cv.width = w; cv.height = h
+      const ctx = cv.getContext('2d')
+      if (!ctx) return dataUrl
+      ctx.drawImage(img, 0, 0, w, h)
 
-    // Shadow untuk teks
-    ctx.shadowColor = 'rgba(0,0,0,0.7)'
-    ctx.shadowBlur = 4
-    ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1
+      const lines: Array<{ text: string; color: string; font: string }> = [
+        {
+          text: capturedAt.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }),
+          color: '#ffffff',
+          font: 'bold 13px monospace',
+        },
+        {
+          text: (lat != null && lon != null)
+            ? `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+            : 'Lokasi tidak tersedia',
+          color: '#93c5fd',
+          font: '12px monospace',
+        },
+      ]
+      if (region) lines.push({ text: region.toUpperCase(), color: '#fde68a', font: '11px monospace' })
 
-    // Background box di kanan-bawah
-    const padX = 10, padY = 6, boxH = 46, boxW = 240
-    const bx = w - boxW - padX, by = h - boxH - padY
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'
-    ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0
-    ctx.beginPath()
-    ctx.roundRect(bx, by, boxW, boxH, 6)
-    ctx.fill()
+      const padX = 12, padY = 8, lineH = 17
+      ctx.font = 'bold 13px monospace'
+      const textW = Math.max(...lines.map(l => {
+        ctx.font = l.font
+        return ctx.measureText(l.text).width
+      }), 0)
+      const boxW = Math.min(w - 2 * padX, textW + padX * 2)
+      const boxH = lines.length * lineH + padY * 2
+      const bx = w - boxW - padX
+      const by = h - boxH - padY
 
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 11px monospace'
-    ctx.textAlign = 'left'
-    ctx.fillText(timestamp, bx + 8, by + 18)
+      // Latar semi-transparan agar teks terbaca di kondisi apapun
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      ctx.beginPath()
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(bx, by, boxW, boxH, 8)
+      else ctx.rect(bx, by, boxW, boxH)
+      ctx.fill()
+      ctx.restore()
 
-    // Koordinat GPS
-    const geo = (lat != null && lon != null)
-      ? `${lat.toFixed(5)}, ${lon.toFixed(5)}`
-      : 'Lokasi tidak tersedia'
-    ctx.font = '10px monospace'
-    ctx.fillStyle = '#93c5fd'
-    ctx.fillText(geo, bx + 8, by + 32)
-
-    return cv.toDataURL('image/jpeg', 0.92)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      let ty = by + padY + lineH / 2
+      for (const l of lines) {
+        ctx.font = l.font
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'
+        ctx.shadowBlur = 3
+        ctx.shadowOffsetX = 1
+        ctx.shadowOffsetY = 1
+        ctx.fillStyle = l.color
+        ctx.fillText(l.text, bx + padX, ty)
+        ty += lineH
+      }
+      return cv.toDataURL('image/jpeg', 0.92)
+    } catch {
+      return dataUrl // fallback: foto tetap tersimpan tanpa watermark
+    }
   }
 
-  // ── Simpan foto ───────────────────────────────────────────
+  // ── Simpan foto ────────────────────────────────────────────────────────────
   const deliver = async (rawDataUrl: string) => {
-    const capturedAt = new Date().toISOString()
+    const capturedAt = new Date()
     setBusy(true)
 
-    let lat: number | null = null, lon: number | null = null
+    let lat: number | null = null
+    let lon: number | null = null
     try {
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 })
-      lat = pos.coords.latitude; lon = pos.coords.longitude
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true, timeout: 5000, maximumAge: 30000,
+      })
+      lat = pos.coords.latitude
+      lon = pos.coords.longitude
     } catch { /* lokasi gagal — tetap lanjut */ }
 
-    // Tambah watermark
-    const watermarked = addWatermark(rawDataUrl, lat, lon, new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }))
+    const watermarked = await addWatermark(rawDataUrl, lat, lon, regionLabel, capturedAt)
+
+    if (isOcr) {
+      // OCR plat: pakai gambar mentah (tanpa watermark) agar akurasi terjaga
+      try {
+        const plate = await readPlateFromImage(rawDataUrl)
+        if (plate) patchDraft({ ocrResult: plate })
+      } catch { /* OCR gagal — biarkan petugas isi manual */ }
+      setBusy(false)
+      go('vehicle-form')
+      return
+    }
 
     patchDraft({
       photo: true,
       photoUrl: watermarked,
-      photoCapturedAt: capturedAt,
+      photoCapturedAt: capturedAt.toISOString(),
       photoLatitude: lat,
       photoLongitude: lon,
     })
-    go(returnTo)
     setBusy(false)
+    go(returnTo)
   }
 
-  // ── Handle capture ───────────────────────────────────────
+  // ── Handle capture ─────────────────────────────────────────────────────────
   const handleCapture = async () => {
     if (busy) return
     setErrorMsg('')
 
-    // ① native plugin → langsung foto dari canvas
+    // ① native plugin → kamera layar penuh bawaan Android/iOS
     if (Capacitor.isNativePlatform()) {
       setBusy(true)
       try {
@@ -157,83 +219,91 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           resultType: CameraResultType.DataUrl,
           source: CameraSource.Camera,
         })
-        if (image?.dataUrl) { await deliver(image.dataUrl); return }
+        if (image?.dataUrl) {
+          await deliver(image.dataUrl)
+          return
+        }
       } catch (err) {
-        // Batal atau gagal → fallback web
+        // Batal oleh pengguna → keluar tanpa pesan; gagal → fallback web
         console.warn('[camera] native failed', err)
       }
       setBusy(false)
-      // Lanjut ke web preview
     }
 
-    // ② Web: pastikan stream live
-    if (liveState !== 'ready') { await startStream(); return }
+    // ② Web: pastikan stream live lalu jepret dari canvas
+    if (!streamRef.current) await startStream()
     const dataUrl = snapshotFromCanvas()
-    if (!dataUrl) { setErrorMsg('Kamera belum siap — coba lagi'); return }
+    if (!dataUrl) {
+      setErrorMsg('Kamera belum siap — coba lagi')
+      return
+    }
     await deliver(dataUrl)
   }
 
+  const now = new Date()
+
   return (
-    <div className="flex flex-col h-full bg-black">
+    <div className="absolute inset-0 z-30 flex flex-col bg-black overflow-hidden">
+      {/* ── Preview kamera layar penuh ── */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="absolute inset-0 w-full h-full object-cover bg-black"
+      />
+
       {/* ── Header overlay ── */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-5 py-4">
+      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <button
           onClick={() => go(returnTo)}
-          className="w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center text-white active:scale-95 transition"
+          className="pointer-events-auto w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center text-white active:scale-95 transition"
         >
           <ChevronLeft size={20} />
         </button>
-        <div className="bg-black/40 backdrop-blur px-4 py-1.5 rounded-full">
-          <span className="text-white text-[11px] font-black tracking-wide uppercase">{title}</span>
-        </div>
+        <span className="text-white text-[11px] font-black tracking-wide uppercase drop-shadow">
+          {title}
+        </span>
         <div className="w-10" />
       </div>
 
-      {/* ── Video/Preview ── */}
-      <div className="flex-1 relative overflow-hidden">
-        {!Capacitor.isNativePlatform() && liveState === 'ready' && (
-          <video
-            ref={videoRef}
-            autoPlay playsInline muted
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
-        {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30 pointer-events-none" />
-      </div>
-
-      {/* ── Info bar overlay ── */}
-      {Capacitor.isNativePlatform() && (
-        <div className="absolute top-16 left-5 right-5 z-10 flex items-center gap-2">
-          <span className="bg-black/50 backdrop-blur text-white text-[10px] px-3 py-1 rounded-full font-medium">
-            Native Camera
+      {/* ── Pratinjau watermark (GPS + waktu berjalan) ── */}
+      <div className="absolute right-4 bottom-32 z-20 flex flex-col items-end gap-1 text-right pointer-events-none">
+        <div className="flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1.5 backdrop-blur">
+          <Clock size={11} className="text-white/80" />
+          <span className="text-white text-[10px] font-mono tabular-nums">
+            {now.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' })}
           </span>
         </div>
-      )}
+        <div className="flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1.5 backdrop-blur">
+          <MapPin size={11} className="text-blue-300" />
+          <span className="text-blue-200 text-[10px] font-mono">
+            {regionLabel ? `${regionLabel} · ` : ''}GPS aktif saat jepret
+          </span>
+        </div>
+      </div>
 
-      {/* ── Bottom controls ── */}
-      <div className="relative z-10 bg-black/90 backdrop-blur-sm pt-6 pb-10 px-6 flex flex-col items-center gap-3">
-        {/* Error */}
+      {/* ── Kontrol bawah ── */}
+      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-10 pb-9 px-6 flex flex-col items-center gap-3">
         {errorMsg && (
           <div className="flex items-center gap-1.5 text-red-400 text-[11px] font-medium">
             <AlertCircle size={12} /> {errorMsg}
           </div>
         )}
-        {/* Tombol jepret */}
         <button
           onClick={() => void handleCapture()}
           disabled={busy}
-          className="w-20 h-20 rounded-full bg-white active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-transform"
+          aria-label="Ambil foto"
+          className="w-[74px] h-[74px] rounded-full bg-white/95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-transform flex items-center justify-center shadow-[0_0_0_4px_rgba(255,255,255,0.25)]"
         >
           {busy
-            ? <Loader2 size={28} className="animate-spin text-slate-400 mx-auto" />
-            : <div className="w-16 h-16 rounded-full ring-4 ring-white/30 mx-auto" />
+            ? <Loader2 size={28} className="animate-spin text-slate-500" />
+            : <span className="w-14 h-14 rounded-full ring-4 ring-black/10" />
           }
         </button>
-        <span className="text-white/60 text-[10px] font-medium uppercase tracking-widest">
+        <span className="text-white/70 text-[10px] font-semibold uppercase tracking-[0.2em]">
           {busy ? 'Memproses…' : 'Tap untuk memotret'}
         </span>
-        <span className="text-white/30 text-[9px]">Kamera saja — tanpa galeri</span>
       </div>
     </div>
   )

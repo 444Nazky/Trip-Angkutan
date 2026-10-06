@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ChevronLeft, Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount } from '../../services/sync'
+import { getPendingCount, getMaskedApiUrl } from '../../services/sync'
+import { getBackend } from '../../services/offlineDb'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -11,20 +12,12 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ go }: SettingsScreenProps) {
   const { trips } = useApp()
   const [cleared, setCleared] = useState(false)
-  const [showUrl, setShowUrl] = useState(false)
   const pendingCount = getPendingCount()
   const isOnline = navigator.onLine
 
-  // URL masking
-  function maskUrl(raw: string): string {
-    try {
-      const u = new URL(raw)
-      const h = u.host
-      return h.length > 8 ? `${u.protocol}//${h.slice(0, 4)}…${h.slice(-5)}` : raw
-    } catch { return raw }
-  }
-  const currentUrl = localStorage.getItem('trip.api.url') ?? 'http://localhost:3000/api'
-  const masked = maskUrl(currentUrl)
+  // URL server: hanya sebagian tengah hostname yang disensor (read-only)
+  const masked = getMaskedApiUrl()
+  const storageBackend = getBackend() === 'sqlite' ? 'SQLite (lokal)' : 'Penyimpanan lokal'
 
   // Cache clear
   function clearCache() {
@@ -40,8 +33,11 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
     const keys = [
       'trip.trips.v1', 'trip.trips.v2', 'trip.trips.v3',
       'trip.syncQueue.v1', 'trip.tariffs.v1',
-      'trip.officers.v1', 'trip.auth.officer', 'trip.auth.pin',
-      'trip.dermaga.access', 'trip.routes',
+      'trip.officers.v1', 'trip.officers.cache.v1',
+      'trip.officers.credentials.v1',
+      'trip.auth.officer.v1', 'trip.auth.dermaga.v1', 'trip.auth.routes.v1', 'trip.auth.pin.v1',
+      'trip.dermaga.officers.v1', 'trip.api.baseUrl.v1',
+      'trip.ota.state',
     ]
     keys.forEach(k => localStorage.removeItem(k))
     alert('✓ Data direset.\n\nMuat ulang aplikasi.')
@@ -91,7 +87,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-      {/* Server URL — READ-ONLY masked */}
+      {/* Server URL — READ-ONLY, sebagian tengah disensor */}
       <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-slate-100">
         <div className="flex items-center gap-2 mb-3">
           <Lock size={13} className="text-slate-400 shrink-0" />
@@ -99,18 +95,18 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3">
           <Server size={13} className="text-slate-400 shrink-0" />
-          <span className="flex-1 text-[11px] font-mono text-slate-600 truncate">{masked}</span>
-          {showUrl && (
-            <span className="text-[10px] font-mono text-slate-400 break-all">{currentUrl}</span>
-          )}
+          <span className="flex-1 text-[12px] font-mono text-slate-600 truncate select-none">{masked}</span>
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
+            Read-only
+          </span>
         </div>
-        {showUrl && (
-          <p className="text-[10px] font-mono text-slate-400 mt-1.5 break-all">{currentUrl}</p>
-        )}
-        <div className="flex items-center gap-2 mt-3 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          <Lock size={11} className="shrink-0" />
-          <span>Konfigurasi terkunci. Hubungi supervisor untuk perubahan server.
-        </span>
+        <div className="flex items-start gap-2 mt-3 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <Lock size={11} className="shrink-0 mt-0.5" />
+          <span>URL terkunci untuk petugas lapangan. Perubahan server hanya bisa dilakukan supervisor/admin.</span>
+        </div>
+        <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
+          <Database size={11} className="shrink-0" />
+          <span>Data offline: {storageBackend}</span>
         </div>
       </div>
 

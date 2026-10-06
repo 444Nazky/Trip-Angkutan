@@ -69,3 +69,8 @@ testem.log
 .DS_Store
 Thumbs.db
 .env
+
+# Android signing — jangan di-commit
+android/keystore.properties
+*.keystore
+*.jks

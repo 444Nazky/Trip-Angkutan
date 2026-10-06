@@ -3,6 +3,7 @@
 
 import { api } from './api'
 import { ensureBackendSession } from './auth'
+import { saveOfficers } from './offlineDb'
 
 export interface BackendOfficer {
   id: string
@@ -101,5 +102,28 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     localStorage.setItem('trip.officers.v1', JSON.stringify(mobileOfficers))
   } catch { /* quota */ }
 
+  // Dan ke database offline (SQLite di native / localStorage di web) supaya
+  // login & verifikasi PIN tetap berfungsi tanpa jaringan.
+  void saveOfficers(mobileOfficers.map(o => ({
+    id: String(o.id),
+    username: o.username,
+    name: o.name,
+    regionId: o.region,
+    regionCode: o.region,
+    isActive: o.status === 'Aktif',
+    payload: o,
+  })))
+
   return mobileOfficers
+}
+
+/** Daftar petugas tersimpan di perangkat (hasil prefetch terakhir). */
+export function getStoredOfficers(): ReturnType<typeof toMobileOfficer>[] {
+  try {
+    const raw = localStorage.getItem('trip.officers.v1')
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }

@@ -51,7 +51,7 @@ const api = (method, urlPath, body) =>
       { hostname: "api.github.com", path: urlPath, method, headers },
       (res) => {
         let data = ""
-        res.on("data", (c) => (data += c)
+        res.on("data", (c) => (data += c))
         res.on("end", () => {
           try { resolve(JSON.parse(data)) }
           catch { resolve({ _raw: data, statusCode: res.statusCode }) }
@@ -100,7 +100,7 @@ async function main() {
   // 5. Upsert to GitHub
   const commitMsg = existingBlob
     ? `chore(ota): bump version to ${headSha.slice(0, 7)}`
-    : `chore(ota): add ${MANIFEST_PATH`
+    : `chore(ota): add ${MANIFEST_PATH}`
   const payload = {
     message: commitMsg,
     content: contentB64,

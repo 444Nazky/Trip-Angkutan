@@ -2,6 +2,13 @@
 // Handles authentication with backend API
 
 import { api, type ApiError } from './api'
+import {
+  findOfficer as findOfflineOfficer,
+  hashPin,
+  saveOfficers,
+  setPinHash,
+  verifyPin as verifyStoredPin,
+} from './offlineDb'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
@@ -198,8 +205,7 @@ function clearOfficer() {
   try {
     localStorage.removeItem(OFFICER_KEY)
     localStorage.removeItem(DERMAGA_KEY)
-  evictPinCache()
-    clearPinHash()
+    evictPinCache()
   } catch { /* quota */ }
 }
 
@@ -211,28 +217,55 @@ export async function memberLogin(
   const result = await api.post<LoginResponse>('/auth/member-login', { username, password })
 
   if (!result.ok || !result.data) {
+    // Gagal karena jaringan → coba verifikasi lokal agar petugas tetap bisa masuk
+    if (isNetworkError(result.error)) {
+      const offline = await verifyPinOffline(username, password)
+      if (offline) return { success: true, officer: getStoredOfficer() ?? undefined }
+      return { success: false, error: 'Server tidak terjangkau dan data petugas belum tersimpan di perangkat.' }
+    }
     return { success: false, error: result.error?.message || 'Backend unreachable' }
   }
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
+  void cachePin(result.data.officer.id, password)
 
   return { success: true, officer: result.data.officer }
+}
+
+/** True bila error disebabkan jaringan (bukan kredensial salah). */
+function isNetworkError(err?: ApiError): boolean {
+  if (!err) return true
+  if (err.code && !/^5\d\d$/.test(err.code)) return false
+  return /timeout|network|failed to fetch|terjangkau|offline|merespon|unreachable/i.test(err.message)
 }
 
 // Login with PIN (for officer switching).
 export async function loginWithPin(
   officerId: string,
   pin: string,
-): Promise<{ success: boolean; error?: ApiError; data?: LoginResponse }> {
+): Promise<{ success: boolean; error?: ApiError; data?: LoginResponse; offline?: boolean }> {
   const result = await api.post<LoginResponse>('/auth/login', { officerId, pin })
 
   if (!result.ok || !result.data) {
+    // Server tidak terjangkau → verifikasi PIN terhadap hash tersimpan di perangkat
+    if (isNetworkError(result.error)) {
+      const ok = await verifyPinOffline(officerId, pin)
+      if (ok) {
+        const session = await buildOfflineSession(officerId)
+        if (session) return { success: true, offline: true, data: session }
+      }
+      return {
+        success: false,
+        error: { message: 'Server tidak terjangkau — PIN tidak dapat diverifikasi.' },
+      }
+    }
     return { success: false, error: result.error }
   }
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
+  void cachePin(officerId, pin)
 
   // Simpan rute per dermaga agar layar Pilih Rute memakai data master terbaru
   if (result.data.routes) saveRoutesMap(result.data.routes)
@@ -243,6 +276,38 @@ export async function loginWithPin(
   }
 
   return { success: true, data: result.data }
+}
+
+/** Bentuk petugas tersimpan di database offline (mobile format). */
+interface OfflineOfficerRecord {
+  id: string
+  name: string
+  username?: string
+  region?: string
+  regions?: string[]
+  regionId?: string
+  regionName?: string
+  regionCode?: string
+  status?: string
+}
+
+/** Susun sesi offline dari data petugas tersimpan di perangkat. */
+async function buildOfflineSession(officerId: string): Promise<LoginResponse | null> {
+  const row = await findOfflineOfficer<OfflineOfficerRecord>(officerId)
+  if (!row) return null
+
+  const region = String(row.region ?? row.regionCode ?? row.regionId ?? '')
+  const officer: StoredOfficer = {
+    id: String(row.id ?? officerId),
+    name: String(row.name ?? ''),
+    regionId: String(row.regionId ?? region),
+    regionName: String(row.regionName ?? region),
+    regionCode: String(row.regionCode ?? region),
+  }
+  activeOfficerId = officer.id
+  saveOfficer(officer)
+  api.setToken(null) // sesi offline — tidak ada JWT sampai kembali online
+  return { token: '', officer }
 }
 
 // Select dermaga for dual-access officers
@@ -351,26 +416,61 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   return result.success
 }
 
-// ── PIN Hash Cache (offline-first auth) ────────────────────────────────
-const PIN_KEY = 'trip.auth.pin.v1'
-type PinMap = Record<string, string>   // officerId → plain PIN
+// ── Kredensial offline (hash PIN) ──────────────────────────────────────────
+// Map legacy menyimpan PIN polos — dipertahankan hanya untuk migrasi.
+const LEGACY_PIN_KEY = 'trip.auth.pin.v1'
 
-function loadPinMap(): PinMap {
-  try { return JSON.parse(localStorage.getItem(PIN_KEY) ?? '{}') }
+function loadLegacyPinMap(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') }
   catch { return {} }
 }
-function persistPinMap(m: PinMap) { try { localStorage.setItem(PIN_KEY, JSON.stringify(m)) } catch { /* */ }
 
-/** Simpan PIN petugas setelah login online berhasil. */
-export function cachePin(officerId: string, pin: string) {
-  const map = loadPinMap(); map[officerId] = pin; persistPinMap(map)
+/** Simpan HASH PIN petugas setelah login online berhasil (tidak pernah PIN polos). */
+export async function cachePin(officerId: string, pin: string): Promise<void> {
+  if (!officerId || !pin) return
+  try {
+    await setPinHash(officerId, await hashPin(officerId, pin))
+    localStorage.removeItem(LEGACY_PIN_KEY)
+  } catch { /* quota */ }
 }
-/** Ambil PIN tersimpan. */
-export function getCachedPin(officerId: string) { return loadPinMap()[officerId] ?? null }
-/** Hapus cache PIN (logout). */
-export function evictPinCache() { localStorage.removeItem(PIN_KEY) }
 
-/** Sinkronisasi data petugas satu dermaga ke lokal (background, tidak memblokir UI. */
+/**
+ * Verifikasi PIN terhadap kredensial tersimpan di perangkat — dipakai saat
+ * server tidak terjangkau sehingga tidak memicu error jaringan.
+ */
+export async function verifyPinOffline(identifier: string, pin: string): Promise<boolean> {
+  if (!identifier || !pin) return false
+
+  // Petugas bisa dicari lewat id, username, maupun nama
+  let officerId = identifier
+  try {
+    const row = await findOfflineOfficer<OfflineOfficerRecord>(identifier)
+    if (row?.id) officerId = String(row.id)
+  } catch { /* database offline belum siap */ }
+
+  try {
+    if (await verifyStoredPin(officerId, pin)) return true
+  } catch { /* lanjut ke fallback legacy */ }
+
+  // Fallback data lama (PIN polos) → upgrade ke hash bila cocok
+  const legacy = loadLegacyPinMap()
+  const stored = legacy[officerId] ?? legacy[identifier]
+  if (stored && stored === pin) {
+    await cachePin(officerId, pin)
+    return true
+  }
+  return false
+}
+
+/**
+ * Hapus PIN polos legacy. Hash PIN tetap disimpan agar petugas tetap bisa
+ * verifikasi offline setelah logout/login (hash tidak sensitif).
+ */
+export function evictPinCache() {
+  try { localStorage.removeItem(LEGACY_PIN_KEY) } catch { /* quota */ }
+}
+
+/** Sinkronisasi data petugas satu dermaga ke lokal (background). */
 async function syncDermagaOfficers(dermagaId?: string) {
   if (!dermagaId) return
   try {
@@ -384,6 +484,15 @@ async function syncDermagaOfficers(dermagaId?: string) {
         if (i >= 0) merged[i] = o; else merged.push(o)
       }
       localStorage.setItem(key, JSON.stringify(merged))
+      // Masukkan ke database offline (SQLite di native / localStorage di web)
+      void saveOfficers(merged.map(o => ({
+        id: String(o.id),
+        name: o.name,
+        regionId: o.regionId,
+        regionName: o.regionName,
+        regionCode: o.regionCode,
+        payload: o,
+      })))
     }
   } catch { /* offline — gagal async */ }
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react"
-import { AppState } from "@capacitor/app"
+import { App as CapacitorApp } from "@capacitor/app"
 import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
-import { getCurrentVersion, checkForUpdate, applyUpdate, setCurrentVersion } from "./services/ota"
+import { initOfflineDb } from "./services/offlineDb"
+import { getCurrentVersion, checkForUpdate, applyUpdate, setCurrentVersion, registerOtaServiceWorker, restoreBundleFromStorage } from "./services/ota"
 import type { UpdateState } from "./services/ota"
 
 function UpdateHUD({
@@ -76,35 +77,51 @@ function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
   const latestVersionRef = useRef<string | null>(null)
 
-  useEffect(() => { initializeSync() }, [])
-
-  // Ambil versi tersimpan dan polling saat app aktif dari background
   useEffect(() => {
-    getCurrentVersion().then(v => { latestVersionRef.current = v })
+    initializeSync()
+    // Siapkan database offline (SQLite native / fallback localStorage)
+    void initOfflineDb()
+    // OTA: daftarkan service worker + pulihkan bundle dari penyimpanan internal
+    registerOtaServiceWorker()
+    void restoreBundleFromStorage()
+  }, [])
+
+  // Ambil versi tersimpan, cek update saat start & polling saat app aktif kembali
+  useEffect(() => {
+    let cancelled = false
+    getCurrentVersion().then(v => {
+      if (cancelled || !v) return
+      latestVersionRef.current = v
+      // Cek pertama beberapa detik setelah start (latar belakang)
+      window.setTimeout(() => { if (!cancelled) void checkForUpdate(v, setOta) }, 4000)
+    })
     let sub: { remove?: () => void } | undefined
-    AppState.addListener('change', (s) => {
-      if (s === 'active') {
+    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
         const v = latestVersionRef.current
-        if (v) checkForUpdate(v, setOta)
+        if (v) void checkForUpdate(v, setOta)
       }
     }).then(s => { sub = s })
-    return () => sub?.remove?.()
+    return () => {
+      cancelled = true
+      sub?.remove?.()
+    }
   }, [])
 
   // Polling berkala (30 menit) saat app di foreground
   useEffect(() => {
     const id = setInterval(() => {
       const v = latestVersionRef.current
-      if (v) checkForUpdate(v, setOta)
+      if (v) void checkForUpdate(v, setOta)
     }, 30 * 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
-  const apply = () => { if (applyUpdate()) window.location.reload() }
+  const apply = async () => { if (await applyUpdate()) window.location.reload() }
   const dismiss = () => setOta({ status: 'idle' })
 
   if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
-  if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} />
+  if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
@@ -113,9 +130,7 @@ function Shell() {
     </div>
   )
 }
-}
 
 export default function App() {
   return <AppProvider><Shell /></AppProvider>
 }
-</parameter>
