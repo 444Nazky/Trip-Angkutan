@@ -100,7 +100,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       {/* ── Minimalist Header ── */}
       <div className="px-6 pt-16 pb-8">
         <div className="flex items-center gap-4">
-          <img src={require('../assets/karyamas.png')} style={{ width: 56, height: 56 }} />
+          <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
           <div>
             <h1 className="text-lg font-semibold text-slate-800">Trip Angkutan</h1>
             <p className="text-xs text-slate-400">Kalimantan Barat</p>

@@ -44,6 +44,7 @@
     "@ionic/react": "^9.0.4",
     "@ionic/react-router": "^9.0.4",
     "@ionic/storage-angular": "^4.0.0",
+    "expo": "^57.0.26",
     "ionicons": "^8.1.0",
     "lucide-react": "^1.47.0",
     "railway": "^3.12.0",
