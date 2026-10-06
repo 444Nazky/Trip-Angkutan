@@ -124,7 +124,7 @@ function Shell() {
   if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
+    <div className="app-root bg-slate-100 font-sans">
       <UpdateHUD state={ota} onApply={apply} onDismiss={dismiss} />
       <MobileApp />
     </div>

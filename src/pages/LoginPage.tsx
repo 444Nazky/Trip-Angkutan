@@ -103,18 +103,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="min-h-screen flex flex-col bg-slate-100">
       {/* ── Header gradient biru ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 px-6 pt-12 pb-16 rounded-b-[2.5rem] shadow-2xl">
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 px-6 pt-14 pb-20 rounded-b-[2.5rem] shadow-2xl">
         {/* decorative circles */}
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
         <div className="absolute -bottom-10 -left-6 w-32 h-32 rounded-full bg-white/5" />
 
-        <div className="relative flex flex-col items-center gap-3">
-          {/* Logo */}
-          <div className="w-16 h-16 bg-white backdrop-blur rounded-2xl flex items-center justify-center shadow-xl ring-2 ring-white/60 overflow-hidden p-2.5">
+        <div className="relative flex flex-col items-center gap-4">
+          {/* Logo — SVG vektor, tanpa backdrop-filter agar tidak ada layer
+              kompisit tambahan (penyebab render buram di WebView Android) */}
+          <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl ring-2 ring-white/70 overflow-hidden">
+            {/* Kanvas SVG 640×640 punya banyak ruang putih (artwork 496×404).
+                Logo diperbesar 122% lalu dipotong container agar tampil besar
+                dan tajam — SVG tetap vektor sehingga tidak pernah pecah. */}
             <img
               src="Assets/karyamasv.svg"
-              alt="Trip Angkutan"
-              className="w-full h-full object-contain"
+              alt="Logo Trip Angkutan"
+              width={118}
+              height={118}
+              decoding="sync"
+              className="max-w-none w-[122%] h-[122%] object-contain select-none"
+              style={{ imageRendering: 'auto' }}
               onError={e => {
                 e.currentTarget.style.display = 'none'
               }}
@@ -122,7 +130,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
           <div className="text-center">
             <h1 className="text-xl font-black text-white tracking-tight">Trip Angkutan</h1>
-            <p className="text-blue-200 text-[11px] font-medium">Kalimantan Barat</p>
+            <p className="text-blue-200 text-[11px] font-medium mt-1">Kalimantan Barat</p>
           </div>
           {/* Online/Offline badge */}
           <div className={`flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full mt-1 ${isOnline ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30' : 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30'}`}>
@@ -133,19 +141,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       </div>
 
       {/* ── Card form ── */}
-      <div className="flex-1 -mt-6 mx-auto w-full max-w-md bg-white rounded-t-3xl shadow-xl px-6 py-8 space-y-6">
+      <div className="flex-1 -mt-6 mx-auto w-full max-w-md bg-white rounded-t-3xl shadow-xl px-6 pt-14 pb-10 space-y-7">
         {/* Judul */}
         <div>
           <h2 className="text-[22px] font-black text-slate-900">Masuk</h2>
-          <p className="text-[12px] text-slate-400 mt-0.5">Pakai akun petugas Anda.</p>
+          <p className="text-[12px] text-slate-400 mt-1.5">Pakai akun petugas Anda.</p>
         </div>
 
         {/* Fields */}
-        <div className="space-y-4">
+        <div className="space-y-5">
           {/* Username */}
           <div>
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">ID Petugas</label>
-            <div className="relative mt-1">
+            <div className="relative mt-2">
               <input
                 type="text"
                 value={username}
@@ -163,7 +171,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {/* Password */}
           <div>
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Kata Sandi</label>
-            <div className="relative mt-1">
+            <div className="relative mt-2">
               <input
                 type={showPw ? 'text' : 'password'}
                 value={password}
