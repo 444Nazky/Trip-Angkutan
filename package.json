@@ -13,6 +13,7 @@
     "status": "node scripts/dev-status.mjs",
     "cache:clean": "ng cache clean",
     "build": "ng build",
+    "ota:publish": "node scripts/publish-ota-version.js",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint"

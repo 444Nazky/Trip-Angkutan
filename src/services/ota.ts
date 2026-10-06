@@ -27,7 +27,12 @@ const CACHE_PREFIX = 'trip-ota-'
 /** Folder penyimpanan internal bundle (Capacitor Filesystem, direktori Cache). */
 const OTA_DIR = 'trip-ota'
 const MARKER = '.complete.json'
-const FETCH_TIMEOUT_MS = 20_000
+/** Timeout lebih panjang untuk mobile networks */
+const FETCH_TIMEOUT_MS = 45_000
+/** Jangan tampilkan error yang sama dalam 5 menit */
+const ERROR_DEDUP_MS = 5 * 60 * 1000
+/** Cooldown setelah error sebelum retry */
+const ERROR_COOLDOWN_MS = 2 * 60 * 1000
 
 export interface VersionManifest {
   version: string
@@ -47,6 +52,9 @@ const STATE_KEY = 'trip.ota.state'
 const CURRENT_VER_KEY = 'trip.ota.currentVersion'
 /** Versi awal perangkat yang belum pernah menerima update. */
 const BUNDLED_VERSION = '0.0.0'
+/** Timestamp error terakhir untuk deduplikasi */
+const LAST_ERROR_KEY = 'trip.ota.lastError'
+const LAST_CHECK_KEY = 'trip.ota.lastCheck'
 
 // ── Versi lokal ──────────────────────────────────────────────────────────────
 
@@ -104,17 +112,36 @@ function fromBase64(b64: string): Uint8Array {
 
 const isNative = () => Capacitor.isNativePlatform()
 
-async function fetchManifest(signal: AbortSignal): Promise<VersionManifest | null> {
+type ManifestResult =
+  | { ok: true; manifest: VersionManifest }
+  | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
+
+async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
+  let res: Response
   try {
-    const res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
       signal,
       cache: 'no-store',
     })
-    if (!res.ok) return null
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    // Gagal di level jaringan (offline, DNS, CORS, diblokir)
+    return { ok: false, reason: 'network' }
+  }
+
+  // 404/410 = manifest memang belum pernah dipublish → bukan kegagalan
+  if (res.status === 404 || res.status === 410) return { ok: false, reason: 'not-found' }
+  if (!res.ok) return { ok: false, reason: 'network' }
+
+  try {
     const data = await res.json()
-    if (!data || typeof data.version !== 'string' || !Array.isArray(data.assets)) return null
-    return data as VersionManifest
-  } catch { return null }
+    if (!data || typeof data.version !== 'string' || !Array.isArray(data.assets)) {
+      return { ok: false, reason: 'invalid' }
+    }
+    return { ok: true, manifest: data as VersionManifest }
+  } catch {
+    return { ok: false, reason: 'invalid' }
+  }
 }
 
 // Bandingkan versi semver ATAU commit-hash. Returns true bila remote lebih baru.
@@ -333,8 +360,8 @@ export interface CheckResult {
 let controller: AbortController | undefined
 
 /**
- * Cek update. Membatalkan request sebelumnya bila ada. Aman dipanggil berkali
- * kali (polling) — tidak pernah melempar exception.
+ * Cek update. Silent fail untuk network errors - tidak pernah tampilkan
+ * "manifest tidak terjangkau" yang membingungkan petugas lapanga
  */
 export async function checkForUpdate(
   currentVersion: string | undefined | null,
@@ -354,14 +381,24 @@ export async function checkForUpdate(
       return { available: false }
     }
 
-    emit({ status: 'checking', latestVersion: local })
-
-    const remote = await fetchManifest(sig)
-    if (!remote) {
-      // Manifest tidak terjangkau → bukan masalah fatal, coba lagi nanti
-      emit({ status: 'error', error: 'manifest tidak terjangkau', latestVersion: local })
+    // Skip cek jika baru saja gagal dalam 2 menit (cooldown)
+    const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
+    if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
       return { available: false }
     }
+
+    const result = await fetchManifest(sig)
+    if (!result.ok) {
+      // Silent fail: catat error tapi JANGAN emit status error
+      // Ini mencegah notifikasi "manifest tidak terjangkau" yang terus muncul
+      if (result.reason !== 'not-found') {
+        console.warn('[ota] cek gagal (silent):', result.reason)
+        localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+      }
+      emit({ status: 'idle', latestVersion: local })
+      return { available: false }
+    }
+    const remote = result.manifest
 
     if (!isNewer(remote.version, local)) {
       emit({ status: 'idle', latestVersion: local })
@@ -369,7 +406,8 @@ export async function checkForUpdate(
     }
 
     if (!remote.assets.length) {
-      emit({ status: 'error', error: 'manifest kosong', latestVersion: local })
+      // Manifest kosong - tidak perlu notifikasi
+      emit({ status: 'idle', latestVersion: local })
       return { available: false }
     }
 
@@ -400,14 +438,11 @@ export async function checkForUpdate(
           emit({ status: 'idle', latestVersion: local })
           return { available: false }
         }
-        console.warn('[ota] unduhan gagal:', asset, err)
-        // Bundle tidak utuh → buang unduhan parsial (aktif tetap dipakai)
+        // Silent fail: bundle tidak lengkap → abort tanpa notifikasi
+        console.warn('[ota] unduhan gagal (silent):', asset)
         await removeStorage(remote.version)
-        emit({
-          status: 'error',
-          error: `unduh terputus (${downloaded.length}/${total})`,
-          latestVersion: local,
-        })
+        localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+        emit({ status: 'idle', latestVersion: local })
         return { available: false }
       }
       emit({
@@ -424,7 +459,10 @@ export async function checkForUpdate(
     return { available: true, version: remote.version, assets: remote.assets }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return { available: false }
-    emit({ status: 'error', error: String(err), latestVersion: local })
+    // Silent fail total - tidak tampilkan notifikasi
+    console.warn('[ota] cek gagal total (silent):', err)
+    localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+    emit({ status: 'idle', latestVersion: local })
     return { available: false }
   }
 }

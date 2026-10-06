@@ -1,14 +1,18 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { App as CapacitorApp } from "@capacitor/app"
 import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { initOfflineDb } from "./services/offlineDb"
-import { getCurrentVersion, checkForUpdate, applyUpdate, setCurrentVersion, registerOtaServiceWorker, restoreBundleFromStorage } from "./services/ota"
+import { getCurrentVersion, checkForUpdate, applyUpdate, registerOtaServiceWorker, restoreBundleFromStorage } from "./services/ota"
 import type { UpdateState } from "./services/ota"
 
-function UpdateHUD({
+/**
+ * Notifikasi update minimalis - hanya tampil saat update SIAP diterapkan.
+ * Silent fail untuk semua error network, tidak mengganggu petugas lapangan.
+ */
+function UpdateBadge({
   state,
   onApply,
   onDismiss,
@@ -17,57 +21,26 @@ function UpdateHUD({
   onApply?: () => void
   onDismiss?: () => void
 }) {
-  if (state.status === "idle") return null
-  const p = state.progress ?? 0
-  const label: string | null =
-    state.status === "checking"
-      ? "Memeriksa update…"
-      : state.status === "downloading"
-        ? `Mengunduh ${state.latestVersion ?? "bundle baru"}`
-        : state.status === "ready"
-          ? `Update ${state.latestVersion ?? "siap"}`
-          : state.status === "offline"
-            ? "Offline — versi tersimpan"
-            : state.status === "error"
-              ? `Gagal: ${state.error}`
-              : null
-  if (!label) return null
-  const isReady = state.status === "ready"
+  // Hanya tampil saat ada update siap install
+  if (state.status !== "ready") return null
+
   return (
-    <div
-      className={`fixed bottom-4 right-4 z-50 flex flex-col gap-2 rounded-xl px-3 py-2.5 text-xs shadow-2xl ${
-        isReady ? "bg-slate-800 text-white" : "bg-slate-800/80 text-sky-200"
-      }`}
-    >
-      <span className="font-semibold leading-tight">{label}</span>
-      {state.status === "downloading" && (
-        <div className="h-1 overflow-hidden rounded-full bg-white/20">
-          <div className="h-full bg-blue-400 transition-all duration-200" style={{ width: `${p}%` }} />
-        </div>
-      )}
-      {isReady ? (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onApply}
-            className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold hover:bg-blue-500 active:bg-blue-700"
-          >
-            Terapkan &amp; mulai ulang
-          </button>
-          <button
-            onClick={onDismiss}
-            className="text-slate-400 text-[10px] underline underline-offset-2"
-          >
-            Nanti
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={onDismiss}
-          className="text-center text-[10px] text-slate-400 underline underline-offset-2"
-        >
-          Tutup
-        </button>
-      )}
+    <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-slate-800 px-4 py-2 shadow-lg">
+      <span className="text-sm font-medium text-white">
+        Update {state.latestVersion}
+      </span>
+      <button
+        onClick={onApply}
+        className="rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-400"
+      >
+        Install
+      </button>
+      <button
+        onClick={onDismiss}
+        className="text-xs text-slate-400 hover:text-white"
+      >
+        Nanti
+      </button>
     </div>
   )
 }
@@ -79,22 +52,20 @@ function Shell() {
 
   useEffect(() => {
     initializeSync()
-    // Siapkan database offline (SQLite native / fallback localStorage)
     void initOfflineDb()
-    // OTA: daftarkan service worker + pulihkan bundle dari penyimpanan internal
     registerOtaServiceWorker()
     void restoreBundleFromStorage()
   }, [])
 
-  // Ambil versi tersimpan, cek update saat start & polling saat app aktif kembali
+  // Cek update saat start (delay 5 detik untuk biarkan app load duluan)
   useEffect(() => {
     let cancelled = false
     getCurrentVersion().then(v => {
       if (cancelled || !v) return
       latestVersionRef.current = v
-      // Cek pertama beberapa detik setelah start (latar belakang)
-      window.setTimeout(() => { if (!cancelled) void checkForUpdate(v, setOta) }, 4000)
+      window.setTimeout(() => { if (!cancelled) void checkForUpdate(v, setOta) }, 5000)
     })
+    // Cek saat app aktif kembali
     let sub: { remove?: () => void } | undefined
     CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
@@ -108,7 +79,7 @@ function Shell() {
     }
   }, [])
 
-  // Polling berkala (30 menit) saat app di foreground
+  // Polling setiap 30 menit saat aktif
   useEffect(() => {
     const id = setInterval(() => {
       const v = latestVersionRef.current
@@ -124,8 +95,8 @@ function Shell() {
   if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
 
   return (
-    <div className="app-root bg-slate-100 font-sans">
-      <UpdateHUD state={ota} onApply={apply} onDismiss={dismiss} />
+    <div className="app-root bg-slate-50">
+      <UpdateBadge state={ota} onApply={apply} onDismiss={dismiss} />
       <MobileApp />
     </div>
   )
