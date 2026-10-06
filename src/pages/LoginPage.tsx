@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Eye, EyeOff, Wifi, WifiOff, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { memberLogin, verifyPinOffline } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers } from '../services/officers'
@@ -95,137 +95,96 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-slate-50">
 
-      {/* ── Header ── */}
-      <div className="relative overflow-hidden">
-        {/* Gradient Header */}
-        <div className="bg-gradient-to-br from-[#1B3D6D] via-[#1a4a8a] to-[#FFBD15] px-6 pb-20 pt-14">
-          {/* Logo Container */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-xl ring-4 ring-white/30">
-              <img
-                src="Assets/karyamas_clean.svg"
-                alt="Logo"
-                width={48}
-                height={48}
-                className="object-contain"
-                onError={e => {
-                  e.currentTarget.style.display = 'none'
-                }}
-              />
-            </div>
-            <span className="text-white/90 text-sm font-semibold tracking-widest uppercase">Trip Angkutan</span>
+      {/* ── Minimalist Header ── */}
+      <div className="px-6 pt-16 pb-8">
+        <div className="flex items-center gap-4">
+          <img src={require('../assets/karyamas.png')} style={{ width: 56, height: 56 }} />
+          <div>
+            <h1 className="text-lg font-semibold text-slate-800">Trip Angkutan</h1>
+            <p className="text-xs text-slate-400">Kalimantan Barat</p>
           </div>
-        </div>
-
-        {/* Wave Decoration */}
-        <div className="h-8 bg-gradient-to-b from-[#1B3D6D] to-transparent -mt-1" />
-      </div>
-
-      {/* ── Status Badge ── */}
-      <div className="flex justify-center -mt-4 relative z-10">
-        <div className={`flex items-center gap-1.5 text-[10px] font-bold px-4 py-1.5 rounded-full backdrop-blur-sm shadow-sm ${
-          isOnline
-            ? 'bg-emerald-50/90 text-emerald-700 ring-1 ring-emerald-200/50'
-            : 'bg-amber-50/90 text-amber-700 ring-1 ring-amber-200/50'
-        }`}>
-          {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
-          {isOnline ? 'Online' : 'Offline'}
         </div>
       </div>
 
-      {/* ── Form Card ── */}
-      <div className="flex-1 px-6 pt-10 pb-8">
-        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 space-y-5 border border-slate-100">
+      {/* ── Status & Form ── */}
+      <div className="flex-1 px-6">
+        {/* Online Status */}
+        <div className="flex items-center gap-2 mb-8">
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
+        </div>
 
-          {/* Judul */}
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-[#1B3D6D]">Selamat Datang</h2>
-            <p className="text-sm text-slate-400 mt-1">Masuk ke akun Anda</p>
+        {/* Welcome Text */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
+          <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-4">
+          {/* Username */}
+          <div>
+            <input
+              type="text"
+              value={username}
+              onChange={e => { setError(null); setUsername(e.target.value) }}
+              onKeyDown={onKey}
+              placeholder="ID Petugas"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
+            />
           </div>
 
-          {/* Fields */}
-          <div className="space-y-4">
-            {/* Username */}
-            <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID Petugas</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => { setError(null); setUsername(e.target.value) }}
-                onKeyDown={onKey}
-                placeholder="cth: p001"
-                autoCapitalize="none"
-                autoCorrect="off"
-                className="w-full mt-2 px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-slate-300 focus:outline-none focus:border-[#FFBD15] focus:ring-2 focus:ring-[#FFBD15]/20 transition-all"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Kata Sandi</label>
-              <div className="relative mt-2">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => { setError(null); setPassword(e.target.value) }}
-                  onKeyDown={onKey}
-                  placeholder="PIN atau password"
-                  className="w-full px-4 py-3.5 pr-12 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-slate-300 focus:outline-none focus:border-[#FFBD15] focus:ring-2 focus:ring-[#FFBD15]/20 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#1B3D6D] transition-colors"
-                >
-                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Lupa Password */}
-            <div className="flex justify-end">
-              <button type="button" className="text-xs text-[#1B3D6D] hover:text-[#FFBD15] font-medium transition-colors">
-                Lupa Password?
-              </button>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-                <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-500">{error}</p>
-              </div>
-            )}
-
-            {/* Submit */}
+          {/* Password */}
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={e => { setError(null); setPassword(e.target.value) }}
+              onKeyDown={onKey}
+              placeholder="PIN"
+              className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
+            />
             <button
-              onClick={() => void handleLogin()}
-              disabled={loading}
-              className="w-full py-4 rounded-xl font-bold text-sm text-white bg-[#1B3D6D] hover:bg-[#0f2847] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#1B3D6D]/20"
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Memproses…
-                </span>
-              ) : 'Masuk'}
+              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
-          {/* Petunjuk offline */}
-          {!isOnline && (
-            <p className="text-xs text-center text-amber-600 bg-amber-50 rounded-xl px-4 py-3">
-              Mode offline — gunakan ID & PIN yang pernah login di perangkat ini.
-            </p>
+          {/* Error */}
+          {error && (
+            <div className="px-4 py-3 bg-red-50 rounded-xl">
+              <p className="text-xs text-red-500">{error}</p>
+            </div>
           )}
+
+          {/* Submit */}
+          <button
+            onClick={() => void handleLogin()}
+            disabled={loading}
+            className="w-full py-3.5 rounded-xl font-medium text-sm text-white bg-[#1B3D6D] hover:bg-[#0f2847] disabled:opacity-50 transition-colors mt-2"
+          >
+            {loading ? 'Memproses…' : 'Masuk'}
+          </button>
         </div>
+
+        {/* Offline hint */}
+        {!isOnline && (
+          <p className="text-xs text-center text-slate-400 mt-6">
+            Gunakan ID & PIN yang pernah login di perangkat ini
+          </p>
+        )}
       </div>
 
       {/* ── Footer ── */}
-      <p className="text-center text-[10px] text-slate-300 pb-6">
-        Trip Angkutan Kalimantan Barat · v1.0
+      <p className="text-center text-[11px] text-slate-300 pb-8">
+        Trip Angkutan Kalimantan Barat
       </p>
     </div>
   )
