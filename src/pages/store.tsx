@@ -395,6 +395,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshOfficersRef.current = refreshOfficers
   }, [refreshOfficers])
 
+  // Trip berhasil di server - tandai synced:true di store.
+  useEffect(() => {
+    const unsub = onTripSynced(id => markTripSynced(id))
+    return unsub
+  }, [markTripSynced])
+
   // Pantau koneksi: begitu perangkat ONLINE lagi, selain antrean trip otomatis
   // terkirim (services/sync), daftar petugas juga ditarik ulang — aktif/nonaktif
   // & pemindahan region dari dashboard admin langsung sinkron real-time.
