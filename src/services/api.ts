@@ -127,6 +127,35 @@ class ApiService {
     this._baseUrl = getBaseUrl()
   }
 
+  /**
+   * PING AKTIF ke endpoint health backend.
+   *
+   * `navigator.onLine` sering menipu di dalam webview/Cordova (captive portal,
+   * DNS mati, sinyal lemah, WiFi tanpa akses internet) — statusnya tetap
+   * "online" padahal server tidak terjangkau. Karena itu sinkronisasi WAJIB
+   * memverifikasi koneksi dengan request ringan sungguhan ke `/api/health`
+   * sebelum menganggap antrean bisa dikirim.
+   */
+  async ping(timeoutMs = 5000): Promise<boolean> {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const res = await fetch(`${this.baseUrl}/health?_t=${Date.now()}`, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        })
+        return res.ok
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      return false
+    }
+  }
+
   private async request<T>(
     method: string,
     path: string,

@@ -267,13 +267,24 @@ export async function loginWithPin(
   saveOfficer(result.data.officer)
   void cachePin(officerId, pin)
 
+  // Simpan PIN hash (wajib, spy verifikasi offline berfungsi)
+  void cachePin(officerId, pin)
+
+  // Sinkronisasi daftar petugas dermaga ke IndexedDB + storage lokal
+  // Data ini dipakai untuk: login offline, layar Ganti Petugas, verifikasi PIN offline.
+  if (result.data.dermagas?.length) {
+    for (const d of result.data.dermagas) {
+      void syncDermagaOfficersToDb(d.id)
+    }
+  } else if (result.data.officer?.regionId) {
+    void syncDermagaOfficersToDb(result.data.officer.regionId)
+  }
+
   // Simpan rute per dermaga agar layar Pilih Rute memakai data master terbaru
   if (result.data.routes) saveRoutesMap(result.data.routes)
 
-  // For single-dermaga officers, save the dermaga automatically
-  if (result.data.dermagas && result.data.dermagas.length === 1) {
-    saveDermaga(result.data.dermagas[0])
-  }
+  // Single-dermaga: simpan otomatis
+  if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
 
   return { success: true, data: result.data }
 }
@@ -470,29 +481,44 @@ export function evictPinCache() {
   try { localStorage.removeItem(LEGACY_PIN_KEY) } catch { /* quota */ }
 }
 
-/** Sinkronisasi data petugas satu dermaga ke lokal (background). */
-async function syncDermagaOfficers(dermagaId?: string) {
+/** Sinkronisasi data petugas satu dermaga ke IndexedDB. Idempoten.
+ *  Dipanggil saat login BERHASIL (online), agar data tersedia SAAT offline. */
+export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void> {
   if (!dermagaId) return
   try {
     const r = await api.get<{ officers?: StoredOfficer[] }>(`/dermaga/${dermagaId}/officers`)
-    if (r.ok && r.data?.officers) {
-      const key = 'trip.dermaga.officers.v1'
-      const prev: StoredOfficer[] = JSON.parse(localStorage.getItem(key) ?? '[]')
-      const merged = [...prev]
-      for (const o of r.data.officers ?? []) {
-        const i = merged.findIndex(x => x.id === o.id)
-        if (i >= 0) merged[i] = o; else merged.push(o)
-      }
-      localStorage.setItem(key, JSON.stringify(merged))
-      // Masukkan ke database offline (SQLite di native / localStorage di web)
-      void saveOfficers(merged.map(o => ({
-        id: String(o.id),
-        name: o.name,
-        regionId: o.regionId,
-        regionName: o.regionName,
-        regionCode: o.regionCode,
-        payload: o,
-      })))
+    if (!r.ok || !r.data?.officers) return
+    // Simpan ke IndexedDB offlineDb (sudah menangani SQLite/localStorage)
+    await saveOfficers(r.data.officers.map(o => ({
+      id: String(o.id),
+      name: o.name,
+      username: o.username,
+      regionId: o.regionId,
+      regionName: o.regionName,
+      regionCode: o.regionCode,
+      isActive: true,
+      payload: o,
+    })))
+    // Legacy localStorage tetap sync (untuk layar officer-switch)
+    const key = `trip.dermaga.officers.${dermagaId}`
+    const prev: StoredOfficer[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+    const merged = [...prev]
+    for (const o of r.data.officers ?? []) {
+      const i = merged.findIndex(x => String(x.id) === String(o.id))
+      if (i >= 0) merged[i] = o; else merged.push(o)
     }
-  } catch { /* offline — gagal async */ }
+    localStorage.setItem(key, JSON.stringify(merged))
+  } catch { /* offline — gagal async, data sebelumnya tetap aman */ }
+}
+
+/** Hapus data petugas dermaga dari storage (logout/pergantian akun). */
+export async function clearDermagaOfficersFromDb(dermagaId?: string): Promise<void> {
+  if (!dermagaId) return
+  try { localStorage.removeItem(`trip.dermaga.officers.${dermagaId}`) } catch {}
+}
+
+/** Ambil daftar petugas satu dermaga dari localStorage (hasil sync terbaru). */
+export function getDermagaOfficersFromStorage(dermagaId: string): StoredOfficer[] {
+  try { return JSON.parse(localStorage.getItem(`trip.dermaga.officers.${dermagaId}`) ?? '[]') }
+  catch { return [] }
 }

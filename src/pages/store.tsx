@@ -333,9 +333,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)
-
-    
-    addToSyncQueue(tripWithSync)
+    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
+    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
+    void addToSyncQueue(tripWithSync, photos, tripPhoto)
   }, [])
   const beginVerify = useCallback((opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => {
     setPendingOfficerId(opts.pendingOfficerId)
