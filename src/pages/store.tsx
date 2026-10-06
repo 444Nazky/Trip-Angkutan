@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
-import { addToSyncQueue } from '../services/sync'
+import { addToSyncQueue, onTripSynced } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { api } from '../services/api'
 import { syncOfficersToLocal } from '../services/officers'

@@ -234,7 +234,7 @@ export async function hashPin(officerId: string, pin: string): Promise<string> {
     }
   } catch { /* fallback di bawah */ }
   // Fallback (WebView tanpa crypto) — tetap jangan simpan PIN polos
-  return `fnv:${fnv1a(payload)}`
+  return `fnv1a:${fnv1a(payload)}`
 }
 
 function fnv1a(str: string): string {
@@ -289,7 +289,7 @@ export async function getPinHash(officerId: string): Promise<string | null> {
 export async function verifyPin(officerId: string, pin: string): Promise<boolean> {
   const stored = await getPinHash(officerId)
   if (!stored) return false
-  if (stored.startsWith('sha256:') || stored.startsWith('fnv:')) {
+  if (stored.startsWith('sha256:') || stored.startsWith('fnv1a:')) {
     return stored === (await hashPin(officerId, pin))
   }
   // Legacy: nilai tersimpan belum berupa hash
