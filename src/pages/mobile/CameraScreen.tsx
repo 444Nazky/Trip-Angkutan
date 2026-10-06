@@ -35,6 +35,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const [, setTick] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  /** Cegah kamera native terbuka dua kali (mis. StrictMode / ketuk ganda). */
+  const launchedRef = useRef(false)
+  const busyRef = useRef(false)
 
   const isOcr = draft.cameraMode === 'ocr'
   const returnTo: MobileScreen = isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form')
@@ -76,10 +79,26 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   }
 
   useEffect(() => {
-    void startStream()
+    if (launchedRef.current) return
+    launchedRef.current = true
+    if (Capacitor.isNativePlatform()) {
+      // Native → langsung buka kamera bawaan. TANPA layar preview perantara.
+      void openNativeCamera()
+    } else {
+      void startStream()
+    }
     return () => stopStream()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Pasang stream ke <video> begitu elemennya dimount (render kondisional)
+  useEffect(() => {
+    const v = videoRef.current
+    if (liveState === 'ready' && v && streamRef.current && v.srcObject !== streamRef.current) {
+      v.srcObject = streamRef.current
+      void v.play().catch(() => { /* autoplay blocked */ })
+    }
+  }, [liveState])
 
   // ── Snapshot dari canvas (web) ─────────────────────────────────────────────
   const snapshotFromCanvas = (): string | null => {
@@ -204,6 +223,44 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     go(returnTo)
   }
 
+  // ── Kamera native (langsung dari tombol "Ambil Dokumentasi") ──────────
+  async function openNativeCamera() {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setErrorMsg('')
+    try {
+      const image = await CapCamera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+      })
+      if (image?.dataUrl) {
+        busyRef.current = false
+        await deliver(image.dataUrl)
+        return
+      }
+      // Tanpa gambar → dianggap batal
+      busyRef.current = false
+      setBusy(false)
+      go(returnTo)
+    } catch (err) {
+      busyRef.current = false
+      setBusy(false)
+      const msg = String((err as Error)?.message ?? err)
+      if (/cancel|batal/i.test(msg)) {
+        // Pengguna menutup kamera → kembali ke layar sebelumnya
+        go(returnTo)
+        return
+      }
+      // Izin ditolak / kamera gagal → fallback preview web, tombol tetap jalan
+      console.warn('[camera] native gagal', err)
+      await startStream()
+      setErrorMsg('Kamera tidak terbuka — ketuk tombol untuk mencoba lagi')
+    }
+  }
+
   // ── Handle capture ─────────────────────────────────────────────────────────
   const handleCapture = async () => {
     if (busy) return
@@ -211,23 +268,8 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
     // ① native plugin → kamera layar penuh bawaan Android/iOS
     if (Capacitor.isNativePlatform()) {
-      setBusy(true)
-      try {
-        const image = await CapCamera.getPhoto({
-          quality: 85,
-          allowEditing: false,
-          resultType: CameraResultType.DataUrl,
-          source: CameraSource.Camera,
-        })
-        if (image?.dataUrl) {
-          await deliver(image.dataUrl)
-          return
-        }
-      } catch (err) {
-        // Batal oleh pengguna → keluar tanpa pesan; gagal → fallback web
-        console.warn('[camera] native failed', err)
-      }
-      setBusy(false)
+      await openNativeCamera()
+      return
     }
 
     // ② Web: pastikan stream live lalu jepret dari canvas
@@ -244,14 +286,16 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black overflow-hidden">
-      {/* ── Preview kamera layar penuh ── */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover bg-black"
-      />
+      {/* ── Preview kamera layar penuh (hanya saat stream benar-benar siap) ── */}
+      {liveState === 'ready' && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 w-full h-full object-cover bg-black"
+        />
+      )}
 
       {/* ── Header overlay ── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
