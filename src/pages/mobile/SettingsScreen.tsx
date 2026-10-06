@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, getMaskedApiUrl } from '../../services/sync'
+import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
+import { dbClear } from '../../services/localDb'
 import { getBackend } from '../../services/offlineDb'
 import type { MobileScreen } from '../types'
 
@@ -12,8 +13,37 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ go }: SettingsScreenProps) {
   const { trips } = useApp()
   const [cleared, setCleared] = useState(false)
-  const pendingCount = getPendingCount()
-  const isOnline = navigator.onLine
+  const [pendingCount, setPendingCount] = useState(0)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [serverOk, setServerOk] = useState<boolean | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  // Antrean sinkron — berlangganan perubahan supaya angka selalu akurat
+  useEffect(() => onSyncQueueChange(setPendingCount), [])
+
+  // Verifikasi koneksi PAKTI (ping /api/health) — navigator.onLine sering menipu
+  useEffect(() => {
+    let alive = true
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    void probeServer(true).then(ok => { if (alive) setServerOk(ok) })
+    return () => {
+      alive = false
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+
+  const checkConnection = async () => {
+    setChecking(true)
+    try {
+      const ok = await probeServer(true)
+      setServerOk(ok)
+      setIsOnline(ok)
+    } finally { setChecking(false) }
+  }
 
   // URL server: hanya sebagian tengah hostname yang disensor (read-only)
   const masked = getMaskedApiUrl()
@@ -27,8 +57,8 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
     setTimeout(() => setCleared(false), 2500)
   }
 
-  // Reset data
-  function resetData() {
+  // Reset data — hapus localStorage DAN IndexedDB (antrean + daftar trip)
+  async function resetData() {
     if (!confirm('Yakin?\n\nSemua data trip & petugas lokal akan dihapus.')) return
     const keys = [
       'trip.trips.v1', 'trip.trips.v2', 'trip.trips.v3',
@@ -40,6 +70,17 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
       'trip.ota.state',
     ]
     keys.forEach(k => localStorage.removeItem(k))
+    // Kunci per-dermaga (roster petugas)
+    try {
+      const legacy: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && (k.startsWith('trip.dermaga.officers.') || k.startsWith('trip.localdb.v1.'))) legacy.push(k)
+      }
+      legacy.forEach(k => localStorage.removeItem(k))
+    } catch { /* ignore */ }
+    // Object store IndexedDB
+    await Promise.all([dbClear('trips'), dbClear('pending'), dbClear('meta')])
     alert('✓ Data direset.\n\nMuat ulang aplikasi.')
     window.location.reload()
   }
@@ -68,12 +109,31 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         <div className="flex-1">
           <p className="text-[12px] font-bold text-slate-800 leading-none">Jaringan</p>
           <p className="text-[10px] text-slate-400 mt-0.5">
-            {isOnline ? 'Terhubung ke internet' : 'Offline — mode lokal aktif'}
+            {serverOk === null
+              ? 'Memeriksa koneksi ke server…'
+              : serverOk
+                ? 'Server terjangkau (ping aktif ✓)'
+                : 'Server belum terjangkau — mode lokal aktif'}
           </p>
         </div>
-        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full self-center ${isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-          {isOnline ? 'Online' : 'Offline'}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+            serverOk === true
+              ? 'bg-emerald-100 text-emerald-700'
+              : serverOk === false
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-slate-100 text-slate-500'
+          }`}>
+            {serverOk === true ? 'Terhubung' : serverOk === false ? 'Offline' : 'Cek…'}
+          </span>
+          <button
+            onClick={() => void checkConnection()}
+            disabled={checking}
+            className="text-[9px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded px-1.5 py-0.5 disabled:opacity-50"
+          >
+            {checking ? 'Memeriksa…' : 'Cek Koneksi'}
+          </button>
+        </div>
       </div>
 
       {/* Data count */}

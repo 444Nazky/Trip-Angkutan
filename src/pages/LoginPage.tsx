@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { memberLogin, verifyPinOffline } from '../services/auth'
+import { loginOffline, memberLogin } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers } from '../services/officers'
 
@@ -64,25 +64,40 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   // ── Offline login ────────────────────────────────────────────────
+  /**
+   * Login offline: verifikasi PIN terhadap hash lokal + bangun sesi offline
+   * untuk petugas yang dipilih (bukan sekadar petugas terakhir yang login),
+   * sehingga pergantian antar petugas satu dermaga tetap mulus tanpa jaringan.
+   */
   async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
     if (!u || !p) return false
 
-    let verified = false
     try {
-      verified = await verifyPinOffline(u, p)
+      const res = await loginOffline(u, p)
+      if (res.success) {
+        void initializeSync()
+        setLoading(false)
+        onLogin('member')
+        return true
+      }
     } catch {
-      verified = false
-    }
-    if (verified) {
-      onLogin('member')
-      return true
+      /* database offline belum siap — lanjut ke fallback roster */
     }
 
     try {
       const officers = getStoredOfficers()
-      const match = officers.find(o => o.id === u || o.name === u || o.username === u)
+      const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
       if (match && 'pin' in match && match.pin && match.pin === p) {
-        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({ ...match, offlineMode: true }))
+        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
+          id: String(match.id),
+          name: match.name,
+          regionId: match.region,
+          regionName: match.region,
+          regionCode: match.region,
+          offlineMode: true,
+        }))
+        void initializeSync()
+        setLoading(false)
         onLogin('member')
         return true
       }

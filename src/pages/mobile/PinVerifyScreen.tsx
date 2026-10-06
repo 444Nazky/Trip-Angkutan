@@ -1,23 +1,31 @@
 import { useState } from 'react'
 import { ChevronLeft, Lock, Delete } from 'lucide-react'
-import { loginWithPin } from '../../services/auth'
-import { verifyPin as verifyOfflinePin } from '../../services/offlineDb'
+import { loginOffline, loginWithPin } from '../../services/auth'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
 // PinVerifyScreen — verifikasi PIN petugas untuk mulai trip / ganti petugas.
-// BISA berfungsi offline karena hash PIN tersimpan di IndexedDB per device.
-// Proses: online-first → fallback offline bila jaringan gagal.
+// Berfungsi PULA saat offline: hash PIN tersimpan di penyimpanan lokal perangkat.
+// Alur: online-first → fallback verifikasi lokal bila jaringan gagal.
 
-interface PinVerifyScreenProps { go: (s: MobileScreen) => void }
+interface PinVerifyScreenProps {
+  go: (s: MobileScreen) => void
+}
+
+/** Error yang disebabkan jaringan (bukan PIN salah). */
+function isNetworkMessage(msg: string): boolean {
+  return /timeout|network|failed.to.fetch|terjangkau|unreachable|ECONNREFUSED|ENOTFOUND|merespon|offline/i.test(msg)
+}
 
 export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   const { officer, officers, pendingOfficerId, verifyIntent, setOfficerId, clearVerify } = useApp()
 
-  // Resolve target officer dari pendingOfficerId (ganti petugas) atau officer aktif
+  // Target: petugas yang dipilih (ganti petugas) atau petugas aktif
   const target = pendingOfficerId != null
-    ? (officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer
+    ? (officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer)
     : officer
+  const targetId = String(target?.id ?? '')
+  const targetName = target?.name ?? officer?.name ?? '…'
 
   const [digits, setDigits] = useState<string[]>([])
   const [error, setError] = useState(false)
@@ -36,60 +44,65 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   const rejectPin = (reason?: string) => {
     setError(true)
     setTimeout(() => { setDigits([]); setError(false) }, 700)
-    if (reason) console.warn('[pin-verify] PIN salah:', reason)
+    if (reason) console.warn('[pin-verify] verifikasi gagal:', reason)
   }
 
-  /** Konfirmasi: online duluan, fallback offline IndexedDB */
-  const confirm = async () => {
-    if (pressedPin.length < 6) return
-    setLoading(true)
-    setError(false)
-
-    // ── 1. Online attempt ──────────────────────────────
-    const isOnline = navigator.onLine
-    if (isOnline) {
-      try {
-        const result = await loginWithPin(String(target?.id ?? ''), pressedPin)
-        if (result.success) { finishAuth(); return }
-        // Server menolak → cek apakah jaringan atau kredensial
-        const msg = result.error?.message ?? ''
-        if (msg && /timeout|network|failed.to.fetch|terjangkau|unreachable|ECONNREFUSED/i.test(msg)) {
-          // Jaringan gagal → coba offline
-          const lokal = await verifyOffline(String(target?.id, pressedPin)
-          if (lokal) { finishAuth(); return }
-        }
-        // Kredensial salah, bukan jaringan
-        rejectPin(result.error?.message)
-        setLoading(false)
-        return
-      } catch (e) {
-        // Exception → offline fallback
-        console.warn('[pin-verify] online attempt exception:', e)
-      }
-    }
-
-    // ── 2. Offline fallback ──────────────────────────
-    const lokal = await verifyOffline(String(target?.id ?? ''), pressedPin)
-    if (lokal) {
-      // Offline session built → update app state
-      if (verifyIntent === 'switch') setOfficerId(String(target?.id ?? ''))
-      clearVerify()
-      go('profile')
-    } else {
-      rejectPin('Offline — hash PIN belum tersedia,login online dulu')
-    }
-    setLoading(false)
-  }
-
+  /** Selesai — terapkan sesi hasil verifikasi ke state aplikasi. */
   const finishAuth = () => {
-    if (verifyIntent === 'switch') setOfficerId(String(target?.id ?? ''))
+    if (verifyIntent === 'switch') setOfficerId(targetId)
     clearVerify()
     go('profile')
   }
 
+  /** Konfirmasi: online-first, fallback verifikasi lokal (offline). */
+  const confirm = async () => {
+    if (pressedPin.length < 6 || loading) return
+    setLoading(true)
+    setError(false)
+
+    // ── 1. Online attempt ──────────────────────────────────────────────
+    if (navigator.onLine) {
+      try {
+        const result = await loginWithPin(targetId, pressedPin)
+        if (result.success) {
+          setLoading(false)
+          finishAuth()
+          return
+        }
+        const msg = result.error?.message ?? ''
+        // Jaringan gagal (bukan PIN salah) → coba verifikasi lokal
+        if (isNetworkMessage(msg)) {
+          const lokal = await loginOffline(targetId, pressedPin)
+          if (lokal.success) {
+            setLoading(false)
+            finishAuth()
+            return
+          }
+          rejectPin(msg || 'Server tidak terjangkau dan hash PIN belum tersimpan')
+          setLoading(false)
+          return
+        }
+        rejectPin(msg)
+        setLoading(false)
+        return
+      } catch (e) {
+        // Exception tak terduga → lanjut ke fallback offline
+        console.warn('[pin-verify] online attempt exception:', e)
+      }
+    }
+
+    // ── 2. Offline fallback — verifikasi lokal ─────────────────────────
+    const lokal = await loginOffline(targetId, pressedPin)
+    setLoading(false)
+    if (lokal.success) {
+      finishAuth()
+      return
+    }
+    rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+  }
+
   return (
     <div className="px-4 pt-2 pb-4 flex flex-col items-center">
-
       <button
         onClick={() => go(verifyIntent === 'switch' ? 'officer-switch' : 'profile')}
         className="self-start flex items-center gap-1.5 text-slate-500 text-[13px] mb-8 hover:text-slate-700 font-medium"
@@ -104,11 +117,13 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       <h2 className="font-black text-slate-900 text-[22px] mb-1">Verifikasi PIN</h2>
       <p className="text-slate-500 text-[13px] text-center mb-1">
         {verifyIntent === 'switch'
-          ? `Login Sebagai ${target?.name ?? '…'}`
-          : `Petugas: ${target?.name ?? officer?.name ?? '…'}`}
+          ? `Login Sebagai ${targetName}`
+          : `Petugas: ${targetName}`}
       </p>
       {!navigator.onLine && (
-        <p className="text-amber-600 text-[11px] font-semibold mb-1">Offline — verifikasi lokal aktif</p>
+        <p className="text-amber-600 text-[11px] font-semibold mb-1">
+          Offline — verifikasi lokal aktif
+        </p>
       )}
 
       {/* Dot indicators */}
@@ -137,14 +152,14 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
 
       {/* Numpad */}
       <div className="grid grid-cols-3 gap-3 w-full max-w-[260px]">
-        {['1','2','3','4','5','6','7','8','9','','0','del'].map(k => (
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => (
           k === '' ? <div key="empty" />
             : (
               <button
                 key={k}
                 onClick={() => press(k)}
-                className="h-14 rounded-2xl font-bold text-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 bg-white shadow-sm border border-slate-100 text-slate-900 hover:bg-slate-50"
                 disabled={loading}
+                className="h-14 rounded-2xl font-bold text-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 bg-white shadow-sm border border-slate-100 text-slate-900 hover:bg-slate-50"
               >
                 {k === 'del' ? <Delete size={18} /> : k}
               </button>
@@ -154,7 +169,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
 
       {/* Konfirmasi */}
       <button
-        onClick={confirm}
+        onClick={() => void confirm()}
         disabled={pressedPin.length < 6 || loading}
         className="mt-6 w-full max-w-[260px] bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
       >
@@ -164,7 +179,9 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       </button>
 
       {!navigator.onLine && (
-        <p className="text-slate-400 text-[11px] mt-2">Offline — hash PIN tersimpan di perangkat</p>
+        <p className="text-slate-400 text-[11px] mt-2 text-center">
+          Offline — hash PIN tersimpan di perangkat ini
+        </p>
       )}
     </div>
   )

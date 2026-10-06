@@ -3,6 +3,7 @@ import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue, onTripSynced } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { api } from '../services/api'
+import { dbAll, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
@@ -27,6 +28,11 @@ export interface VehicleEntry {
 export interface Trip {
   id: string
   route: string
+  /** Kode rute asli ("SJRE-SBDZ") — sumber kebenaran utk payload backend */
+  routeCode?: string
+  /** Kode tempat asal/tujuan (terisi saat trip dibuat, dipakai sync) */
+  routeFrom?: string
+  routeTo?: string
   status: string
   time: string
   date: string
@@ -234,6 +240,22 @@ function normalizeTrips(list: Trip[]): Trip[] {
   }))
 }
 
+/** Gabung dua daftar trip tanpa duplikat (by id) — dipakai rekonsiliasi
+ *  localStorage ↔ IndexedDB agar tidak ada trip yang hilang. */
+function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
+  const longer = a.length >= b.length ? a : b
+  const shorter = longer === a ? b : a
+  const seen = new Set<string>()
+  const out: Trip[] = []
+  for (const t of [...longer, ...shorter]) {
+    const key = String(t.id)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(t)
+  }
+  return out
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
@@ -251,12 +273,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // refreshOfficers) — ref memutus urutan deklarasi tanpa TDZ.
   const refreshOfficersRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
 
+  // ── Persistensi trip (offline-first) ────────────────────────────────────────
+  // Trip ditulis ke DUA tempat: localStorage (render cepat) dan IndexedDB
+  // (tahan batas kuota 5 MB, tidak hilang saat app ditutup/direstart).
+  // Bila localStorage gagal (foto base64 membesar), IndexedDB tetap lengkap.
   useEffect(() => {
-    try { localStorage.setItem(LS.trips, JSON.stringify(trips)) } catch { /* quota */ }
+    void initLocalDb()
+    try {
+      localStorage.setItem(LS.trips, JSON.stringify(trips))
+    } catch (err) {
+      console.warn('[store] localStorage penuh — data aman di IndexedDB:', err)
+    }
+    void dbPutMany<Trip>('trips', trips)
   }, [trips])
+
+  // Rekonsiliasi dari IndexedDB saat aplikasi dibuka — memulihkan trip yang
+  // gagal tersimpan di localStorage (quota) sehingga tidak pernah hilang.
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const stored = await dbAll<Trip>('trips')
+      if (!alive || !stored.length) return
+      setTrips(prev => {
+        const merged = mergeTrips(normalizeTrips(stored), prev)
+        return merged.length === prev.length ? prev : merged
+      })
+    })()
+    return () => { alive = false }
+  }, [])
+
   useEffect(() => {
     const onStorage = () => {
-      setTrips(normalizeTrips(load(LS.trips, seedTrips)))
+      setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips))))
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)

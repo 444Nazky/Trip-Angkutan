@@ -14,7 +14,19 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
   const { draft, officer, trips, commitTrip, patchDraft } = useApp()
 
   const allRoutes = activeRoutes()
-  const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
+  // Pilih rute persis seperti yang ditetapkan di layar Pilih Rute.
+  // Bila cache rute berubah di tengah jalan, jangan jatuh ke rute sembarangan:
+  // pakai kode draft ("SJRE-SBDZ") agar payload rute ke backend tetap akurat.
+  const draftCode = draft.routeCode
+  const route = allRoutes.find(r => r.code === draftCode)
+    ?? (draftCode && draftCode.includes('-')
+      ? {
+        code: draftCode,
+        from: draftCode.slice(0, draftCode.lastIndexOf('-')),
+        to: draftCode.slice(draftCode.lastIndexOf('-') + 1),
+        label: draftCode.replace('-', ' → '),
+      }
+      : allRoutes[0])
   const [startedAt, setStartedAt] = useState<number>(() => draft.startedAt ?? Date.now())
   const finishingRef = useRef(false)
   const [elapsed, setElapsed] = useState(() =>
@@ -69,6 +81,11 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         return `TRP-${now.getFullYear()}-${String(max + 1).padStart(4, '0')}`
       })(),
       route: `${route.from} → ${route.to}`,
+      // Metadata rute mentah — dipakai sync utk payload routeFrom/routeTo
+      // sehingga dashboard admin tidak pernah menerima nilai kosong ("--").
+      routeCode: route.code,
+      routeFrom: route.from,
+      routeTo: route.to,
       status: 'Selesai',
       time: fmtTime(now),
       date: `${now.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][now.getMonth()]} ${now.getFullYear()}`,

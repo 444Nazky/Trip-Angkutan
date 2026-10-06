@@ -73,10 +73,6 @@ function openDB(): Promise<IDBDatabase | null> {
         _fallback = true
         resolve(null)
       }
-      req.ontermination = () => {
-        _fallback = true
-        resolve(null)
-      }
     } catch (err) {
       console.warn('[local-db] IndexedDB tidak tersedia, fallback localStorage:', err)
       _fallback = true

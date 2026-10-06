@@ -10,11 +10,13 @@ interface HomeScreenProps {
   onStartTrip: () => void
 }
 
+type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
+
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
-  const [syncState, setSyncState] = useState<null | { synced: number; failed: number }>(null)
-  const syncing = syncState === null && pendingCount > 0
+  const [syncState, setSyncState] = useState<SyncState>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     // Refresh count saat focus window
@@ -25,15 +27,41 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
 
+  /** TOMBOL MANUAL — "Paksa Sinkronisasi". Verifikasi koneksi memakai ping
+   *  aktif, jadi tetap bisa ditekan walau navigator.onLine salah baca. */
   const handleSync = async () => {
-    if (syncing || !navigator.onLine) return
+    if (busy) return
+    setBusy(true)
     setSyncState(null)
-    const r = await syncNow()
-    setSyncState(r)
-    setPendingCount(getPendingCount())
-    // auto-hide result setelah 3 detik
-    if (r.failed === 0) setTimeout(() => setSyncState(null), 3000)
+    try {
+      const r = await syncNow()
+      setSyncState(r)
+      setPendingCount(getPendingCount())
+      if (r.failed === 0) {
+        setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
+      }
+    } finally {
+      setBusy(false)
+      setPendingCount(getPendingCount())
+    }
   }
+
+  const syncLabel = (() => {
+    if (busy) return 'Menyinkronkan…'
+    if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
+    if (syncState && syncState.failed === 0) return `${syncState.synced} trip tersinkron ✓`
+    if (syncState && syncState.failed > 0) return `${syncState.failed} belum terkirim — ketuk untuk ulangi`
+    if (pendingCount > 0) return `${pendingCount} trip menunggu sinkronisasi`
+    return 'Semua data sudah tersinkron'
+  })()
+
+  const syncTone = (() => {
+    if (syncState && syncState.reachable === false) return 'amber'
+    if (syncState && syncState.failed === 0) return 'green'
+    if (syncState && syncState.failed > 0) return 'red'
+    if (busy || pendingCount > 0) return 'amber'
+    return 'slate'
+  })()
 
   const myTrips = trips.filter(t => t.officer === officer.name)
   const units = new Set(
@@ -59,34 +87,49 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Sinkronisasi */}
-      {(pendingCount > 0 || !!syncState) && (
+      {/* Sinkronisasi — tombol PAKSA SINKRONISASI manual petugas */}
+      {(busy || pendingCount > 0 || !!syncState) && (
         <button
-          onClick={handleSync}
-          disabled={!!syncState || !navigator.onLine}
+          onClick={() => { void handleSync() }}
+          disabled={busy}
           className={`w-full border rounded-2xl p-4 flex items-center gap-3 transition-colors ${
-            syncState
-              ? syncState.failed === 0
-                ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
-              : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+            syncTone === 'green'
+              ? 'bg-green-50 border-green-200 hover:bg-green-100'
+              : syncTone === 'red'
+                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                : syncTone === 'slate'
+                  ? 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
           } disabled:cursor-default`}
         >
-          <RefreshCw size={18} className={!syncState ? 'animate-spin text-amber-500' : ''} />
+          <RefreshCw
+            size={18}
+            className={`${busy || pendingCount > 0 ? 'animate-spin ' : ''}${
+              syncTone === 'green' ? 'text-emerald-500'
+                : syncTone === 'red' ? 'text-red-500'
+                : syncTone === 'slate' ? 'text-slate-400'
+                : 'text-amber-500'
+            }`}
+          />
           <span className={`text-[13px] font-semibold flex-1 text-left ${
-            syncState
-              ? syncState.failed === 0 ? 'text-green-700' : 'text-amber-700'
+            syncTone === 'green' ? 'text-green-700'
+              : syncTone === 'red' ? 'text-red-600'
+              : syncTone === 'slate' ? 'text-slate-500'
               : 'text-amber-700'
           }`}>
-            {syncState
-              ? syncState.failed === 0
-                ? `${syncState.synced} trip tersinkron`
-                : `${syncState.failed} gagal — ketuk untuk ulangi`
-              : 'Sinkronisasi…'}
+            {syncLabel}
           </span>
-          {!syncState && (
-            <span className="text-[11px] font-bold text-amber-500">Sinkronkan</span>
-          )}
+          <span className={`text-[11px] font-black px-2.5 py-1 rounded-full bg-white/80 border ${
+            syncTone === 'slate'
+              ? 'text-slate-500 border-slate-200'
+              : syncTone === 'green'
+                ? 'text-green-700 border-green-200'
+                : syncTone === 'red'
+                  ? 'text-red-600 border-red-200'
+                  : 'text-amber-700 border-amber-200'
+          }`}>
+            {busy ? 'Memproses…' : 'Paksa Sinkronisasi'}
+          </span>
         </button>
       )}
 
