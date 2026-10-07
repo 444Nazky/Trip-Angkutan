@@ -1,5 +1,5 @@
 {
-  "version": "1791347572517",
+  "version": "1791347792191",
   "assets": [
     "3rdpartylicenses.txt",
     "Assets/karyamasv.svg",
@@ -9,17 +9,18 @@
     "assets/karyamas_clean.svg",
     "assets/karyamasv.svg",
     "assets/shapes.svg",
-    "chunk-B8Cw9hy9.js",
-    "chunk-BHq8vTMf.js",
-    "chunk-BUHp4Nyu.js",
-    "chunk-BVzmo4Cg.js",
-    "chunk-BhH2XuJ9.js",
-    "chunk-Dud7D5uU.js",
+    "chunk-B9VkjHGh.js",
+    "chunk-BRfBcoHk.js",
+    "chunk-C5-b8tlB.js",
+    "chunk-CrOQftHW.js",
+    "chunk-D2XhiZPb.js",
+    "chunk-DvpTMWOs.js",
+    "chunk-aV0kr6n7.js",
     "index.html",
     "main-GQW2MHQQ.css",
-    "main-GYNWRUWN.js",
+    "main-ZUPTO2VU.js",
     "prerendered-routes.json",
-    "styles-SYHOH265.css",
+    "styles-5SOQVIWS.css",
     "sw.js"
   ]
 }
