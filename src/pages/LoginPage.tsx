@@ -35,7 +35,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     if (!navigator.onLine) {
       const ok = await tryOfflineLogin(username.trim(), password)
       if (ok) return
-      setError('Akun tidak ditemukan di perangkat ini. Hubungkan internet untuk login pertama kali.')
+      let nOfficers = 0
+      let nCreds = 0
+      try { nOfficers = JSON.parse(localStorage.getItem('trip.officers.v1') || '[]').length } catch { /* */ }
+      try { nCreds = Object.keys(JSON.parse(localStorage.getItem('trip.officers.credentials.v1') || '{}')).length } catch { /* */ }
+      setError(`Akun tidak ditemukan di perangkat ini (${nOfficers} petugas, ${nCreds} kredensial tersimpan). Hubungkan internet untuk login pertama kali.`)
       setLoading(false)
       return
     }
@@ -50,7 +54,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
         const ok = await tryOfflineLogin(username.trim(), password)
         if (ok) return
-        setError('Server tidak terjangkau — cek jaringan.')
+        setError('Server tidak terjangkau — cek jaringan.' +
+          ` (cache lokal: ${getStoredOfficers().length} petugas)`)
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
       } else {
