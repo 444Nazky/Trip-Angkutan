@@ -4,11 +4,13 @@
 import { api, type ApiError } from './api'
 import {
   findOfficer as findOfflineOfficer,
+  getPinHash,
   hashPin,
   saveOfficers,
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
+import bcrypt from 'bcryptjs'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
@@ -16,6 +18,9 @@ const ROUTES_KEY = 'trip.auth.routes.v1'
 
 // Demo PIN shared by all seeded officers
 export const DEMO_PIN = '123456'
+
+/** Kunci penyimpan hash password bersama member-login (offline verify). */
+const MEMBER_PASS_KEY = '__member__'
 
 // Officer the app *wants* to be authenticated as, even while offline
 let activeOfficerId: string | null = null
@@ -246,6 +251,9 @@ export async function memberLogin(
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
   void cachePin(result.data.officer.id, password)
+  // Password bersama (member-login) di-cache lokal supaya verifikasi offline
+  // untuk petugas mana pun bisa dilakukan tanpa pernah login online dulu.
+  void hashPin(MEMBER_PASS_KEY, password).then(h => setPinHash(MEMBER_PASS_KEY, h))
 
   // ── LOGIN PERTAMA KALI (ONLINE): tarik & simpan SEMUA petugas satu dermaga
   //    ke penyimpanan lokal, supaya pergantian akun tetap jalan saat offline.
@@ -610,6 +618,20 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
   if (storedRecord && storedRecord.status && /nonaktif/i.test(String(storedRecord.status))) inactive = true
   if (inactive) return false
+
+  // Password member bersama: cocokkan dulu dengan hash yang di-cache saat
+  // login online terakhir — mencakup SEMUA petugas, bukan hanya yang pernah
+  // login di perangkat ini.
+  try {
+    const memberHash = await getPinHash(MEMBER_PASS_KEY)
+    if (memberHash) {
+      if (memberHash.startsWith('$2')) {
+        try { if (bcrypt.compareSync(pin, memberHash)) return true } catch { /* lanjut */ }
+      } else if (memberHash === (await hashPin(MEMBER_PASS_KEY, pin))) {
+        return true
+      }
+    }
+  } catch { /* lanjut cek per-petugas */ }
 
   try {
     if (await verifyStoredPin(officerId, pin)) return true

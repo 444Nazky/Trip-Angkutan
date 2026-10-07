@@ -4,6 +4,7 @@ import { useApp } from '../store'
 import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
 import { dbClear } from '../../services/localDb'
 import { getBackend } from '../../services/offlineDb'
+import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -35,6 +36,40 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
       window.removeEventListener('offline', off)
     }
   }, [])
+
+  // ── Cek versi / update aplikasi ──────────────────────────────────────────
+  const [appVersion, setAppVersion] = useState('—')
+  const [versionState, setVersionState] = useState<'idle' | 'checking' | 'latest' | 'available' | 'error'>('idle')
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
+
+  useEffect(() => { void getCurrentVersion().then(v => setAppVersion(v ?? '—')) }, [])
+
+  const handleCheckVersion = async () => {
+    setVersionState('checking')
+    try {
+      const res = await checkForUpdate(await getCurrentVersion())
+      if (res.available) {
+        setLatestVersion(res.version ?? null)
+        setVersionState('available')
+      } else {
+        setVersionState('latest')
+      }
+    } catch {
+      setVersionState('error')
+    }
+  }
+
+  const handleApplyUpdate = async () => {
+    setApplying(true)
+    const ok = await applyUpdate()
+    if (ok) {
+      window.location.reload()
+    } else {
+      setApplying(false)
+      setVersionState('error')
+    }
+  }
 
   const checkConnection = async () => {
     setChecking(true)
@@ -133,6 +168,42 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           >
             {checking ? 'Memeriksa…' : 'Cek Koneksi'}
           </button>
+        </div>
+      </div>
+
+      {/* Versi Aplikasi / Update OTA */}
+      <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center shrink-0">
+            <RotateCcw size={18} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[12px] font-bold text-slate-800">Versi Aplikasi</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {versionState === 'checking' ? 'Memeriksa pembaruan…'
+                : versionState === 'latest' ? 'Aplikasi sudah versi terbaru'
+                : versionState === 'available' ? `Update tersedia: ${latestVersion ?? 'versi baru'}`
+                : versionState === 'error' ? 'Gagal memeriksa update'
+                : `Terpasang: ${appVersion}`}
+            </p>
+          </div>
+          {versionState === 'available' ? (
+            <button
+              onClick={() => void handleApplyUpdate()}
+              disabled={applying}
+              className="text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-3 py-1.5 disabled:opacity-50 shrink-0"
+            >
+              {applying ? 'Memperbarui…' : 'Update Sekarang'}
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleCheckVersion()}
+              disabled={versionState === 'checking'}
+              className="text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg px-3 py-1.5 disabled:opacity-50 shrink-0"
+            >
+              {versionState === 'checking' ? 'Memeriksa…' : 'Cek Versi'}
+            </button>
+          )}
         </div>
       </div>
 
