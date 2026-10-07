@@ -81,8 +81,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         {[
           { icon: Truck, label: 'Riwayat Trip', action: () => go('history') },
           { icon: Map, label: 'Rute Aktif', action: () => go('route-select') },
-          { icon: ShieldCheck, label: 'Keamanan & PIN', action: () => { beginVerify({ pendingOfficerId: null, intent: 'security' }); go('pin-verify') } },
           { icon: Settings, label: 'Pengaturan', action: () => go('settings') },
+          { icon: ShieldCheck, label: checkingCreds ? 'Memeriksa data…' : 'Cek Data Login Offline Petugas', action: () => void checkLocalOfficers() },
         ].map((item, i) => (
           <button
             key={item.label}
@@ -103,15 +103,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <ArrowLeftRight size={15} /> Ganti Petugas
       </button>
 
-      {/* Diagnostik data offline petugas */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-        <button
-          onClick={() => void checkLocalOfficers()}
-          disabled={checkingCreds}
-          className="w-full flex items-center justify-center gap-2 py-2.5 text-blue-600 font-bold text-[12px] rounded-xl border border-blue-200 hover:bg-blue-50 disabled:opacity-50 transition-colors"
-        >
-          {checkingCreds ? 'Memeriksa…' : 'Cek Data Login Offline Petugas'}
-        </button>
+      {/* Hasil cek data offline petugas */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4">
         {credRows && (
           <div className="mt-3">
             <p className="text-[10px] text-slate-400 mb-2">
