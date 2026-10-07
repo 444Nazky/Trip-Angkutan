@@ -4,6 +4,7 @@
 import { api } from './api'
 import { ensureBackendSession } from './auth'
 import { getPinHash, listOfficers, saveOfficers, setPinHash } from './offlineDb'
+import { seedRoster } from './seedData'
 
 export interface BackendOfficer {
   id: string
@@ -130,9 +131,21 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   if (mobileOfficers.some(o => !stored.some(row => String(row.id) === o.id))) {
     throw new Error('Gagal menyimpan daftar petugas di perangkat')
   }
-  localStorage.setItem('trip.officers.v1', JSON.stringify(mobileOfficers))
 
-  return mobileOfficers
+  // ── Gabungkan roster (UPSERT, bukan timpa) ──────────────────────────────
+  // Sinkron dari dashboard admin HANYA menambah/memperbarui. Petugas bawaan
+  // (seed) dan entri lama yang tidak ikut dikirim server harus tetap ada,
+  // sehingga data default tidak rusak oleh sinkronisasi/OTA.
+  const merged = new Map<string, ReturnType<typeof toMobileOfficer>>()
+  for (const o of mobileOfficers) merged.set(String(o.id), o)
+  for (const o of [...getStoredOfficers(), ...seedRoster()]) {
+    const id = String(o.id)
+    if (!merged.has(id)) merged.set(id, o)
+  }
+  const roster = [...merged.values()]
+  localStorage.setItem('trip.officers.v1', JSON.stringify(roster))
+
+  return roster
 }
 
 /** Daftar petugas tersimpan di perangkat (hasil prefetch terakhir). */

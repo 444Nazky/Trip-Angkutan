@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
-import { loginOffline, memberLogin, verifyPinOffline } from '../services/auth'
-import { initializeSync } from '../services/sync'
+import {
+  getStoredOfficer,
+  loginOffline,
+  loginWithPin,
+  memberLogin,
+  SESSION_READY_EVENT,
+  verifyPinOffline,
+} from '../services/auth'
+import { initializeSync, syncNow } from '../services/sync'
 import { getStoredOfficers } from '../services/officers'
 
 interface LoginPageProps {
@@ -34,13 +41,29 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     if (loading) return
     setLoading(true)
     setError(null)
+    const u = username.trim()
+    const p = password
     try {
+      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu ───────────────────────
+      // Membaca database offline + DATA BAWAAN (seed) secara instan:
+      // tanpa jeda network request, langsung bisa100% offline.
+      if (await tryOfflineLogin(u, p)) {
+        void initializeSync()
+        onLogin('member')
+        // ── 2. Ada internet → sesi backend + update petugas dari dashboard
+        //       admin ditarik di LATAR BELAKANG (tidak menunda login).
+        if (navigator.onLine) void establishOnlineSession(u, p)
+        return
+      }
+
       if (!navigator.onLine) {
-        if (await tryOfflineLogin(username.trim(), password)) return
         setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
         return
       }
-      const result = await memberLogin(username.trim(), password)
+
+      // ── 3. Gagal lokal & online → serahkan ke server ──────────────────
+      // Kasus: petugas baru dibuat admin / PIN baru yang belum tersinkron.
+      const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
         onLogin('member')
@@ -48,8 +71,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       }
       const msg = result.error || ''
       if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
-        const ok = await tryOfflineLogin(username.trim(), password)
-        if (ok) return
         setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
@@ -57,25 +78,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         setError(msg || 'Login gagal.')
       }
     } catch {
-      try {
-        if (await tryOfflineLogin(username.trim(), password)) return
-      } catch {}
-      setError('Server tidak terjangkau dan verifikasi lokal gagal.')
+      setError('Verifikasi gagal. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
   }
 
+  /**
+   * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
+   * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
+   * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
+   */
   async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
     if (!u || !p) return false
 
     try {
       const res = await loginOffline(u, p)
-      if (res.success) {
-        void initializeSync()
-        onLogin('member')
-        return true
-      }
+      if (res.success) return true
     } catch {
       /* database offline belum siap — lanjut ke roster */
     }
@@ -93,12 +112,34 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           regionCode: match.region,
           offlineMode: true,
         }))
-        void initializeSync()
-        onLogin('member')
         return true
       }
     } catch { /* no-op */ }
     return false
+  }
+
+  /**
+   * LATAR BELAKANG setelah login lokal sukses (saat ada internet):
+   *   1. Ambil JWT (member-login → fallback login PIN per petugas).
+   *   2. Tarik penambahan / penonaktifan petugas dari dashboard admin ke
+   *      penyimpanan lokal (sinkron otomatis, data bawaan tidak dirusak).
+   *   3. Proses antrean trip yang tertunda.
+   * Gagal total → aplikasi tetap berjalan normal dalam mode offline.
+   */
+  async function establishOnlineSession(u: string, p: string): Promise<void> {
+    try {
+      await memberLogin(u, p)
+      if (!api.isAuthenticated) {
+        // Kata sandi bukan password member → coba PIN petugas per akun
+        const id = getStoredOfficer()?.id
+        if (id) await loginWithPin(String(id), p)
+      }
+      if (api.isAuthenticated) {
+        void syncNow().catch(() => undefined)
+        // Beri tahu store: token siap → tarik roster admin terbaru.
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
+      }
+    } catch { /* tetap mode offline — sinkron menyusul saat koneksi ada */ }
   }
 
   const onKey = (e: React.KeyboardEvent) => {

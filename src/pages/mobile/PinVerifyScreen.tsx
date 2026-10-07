@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { ChevronLeft, Lock, Delete } from 'lucide-react'
-import { loginOffline, loginWithPin } from '../../services/auth'
+import { api } from '../../services/api'
+import { loginOffline, loginWithPin, SESSION_READY_EVENT } from '../../services/auth'
+import { syncNow } from '../../services/sync'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
 // PinVerifyScreen — verifikasi PIN petugas untuk mulai trip / ganti petugas.
 // Berfungsi PULA saat offline: hash PIN tersimpan di penyimpanan lokal perangkat.
-// Alur: online-first → fallback verifikasi lokal bila jaringan gagal.
+// Alur: LOKAL-LEBIH-DULU (instan, tanpa jeda jaringan) → sesi online + update
+// roster dari dashboard admin ditarik di latar belakang bila ada koneksi.
 
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
@@ -55,13 +58,23 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      if (!navigator.onLine) {
-        const local = await loginOffline(targetId, pressedPin)
-        if (local.success) finishAuth()
-        else rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu, instan tanpa jaringan ──
+      const local = await loginOffline(targetId, pressedPin)
+      if (local.success) {
+        // ── 2. Ada internet → JWT + roster terbaru dari dashboard admin
+        //       ditarik di LATAR BELAKANG (tidak menunda verifikasi).
+        if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
+        finishAuth()
         return
       }
 
+      if (!navigator.onLine) {
+        rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+        return
+      }
+
+      // ── 3. PIN belum tersimpan lokal → verifikasi ke server
+      //       (hasilnya disimpan agar berikutnya bisa offline) ──────────────
       const result = await loginWithPin(targetId, pressedPin)
       if (result.success) finishAuth()
       else rejectPin(result.error?.message ?? 'PIN tidak valid')
@@ -77,6 +90,17 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  /** LATAR BELAKANG: peroleh JWT + tarik perubahan petugas terbaru dari admin. */
+  const refreshSessionInBackground = async (id: string, pin: string) => {
+    try {
+      await loginWithPin(id, pin)
+      if (api.isAuthenticated) {
+        void syncNow().catch(() => undefined)
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
+      }
+    } catch { /* tetap mode offline — sinkron menyusul */ }
   }
 
   return (

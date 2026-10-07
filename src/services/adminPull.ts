@@ -35,10 +35,16 @@ export interface AdminOfficer {
 // ── Sync pull on resume ─────────────────────────────────────
 // Tarik ulang data petugas dari admin (petugas baru, ganti PIN,
 // penonaktifan) dan simpan hash PIN-nya untuk login offline.
+/** Dipasang OTA saat bundle baru diterapkan → roster ditarik paksa saat berikutnya sync. */
+export const FORCE_ROSTER_SYNC_KEY = 'trip.sync.forceRoster'
+
 export function syncOnResume(force = false): void {
+  let forced = false
   try {
+    forced = localStorage.getItem(FORCE_ROSTER_SYNC_KEY) === '1'
+    if (forced) localStorage.removeItem(FORCE_ROSTER_SYNC_KEY)
     const last = Number(localStorage.getItem(LAST_SYNC_KEY) || 0)
-    if (!force && Date.now() - last < LAST_SYNC_MS) return
+    if (!force && !forced && Date.now() - last < LAST_SYNC_MS) return
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
   } catch { /* quota */ }
 

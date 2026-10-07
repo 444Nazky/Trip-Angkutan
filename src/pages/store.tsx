@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
 import { addToSyncQueue, onTripSynced, retrySyncItem } from '../services/sync'
-import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
+import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
 import { dbAll, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
+import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
 
@@ -330,7 +331,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
-  const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, []))
+  const [officers, setOfficers] = useState<Officer[]>(() => {
+    const saved = load<Officer[]>(LS.officers, [])
+    // DATA BAWAAN (seed): layar Ganti Petugas langsung terisi sejak instalasi
+    // pertama — bahkan sebelum ada sinkronisasi / koneksi internet.
+    return saved.length ? saved : (seedRoster() as unknown as Officer[])
+  })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   /** Ref snapshot trips terbaru — dipakai aksi patch* agar tidak basi. */
   const tripsRef = useRef<Trip[]>(trips)
@@ -603,8 +609,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // & pemindahan region dari dashboard admin langsung sinkron real-time.
   useEffect(() => {
     const onOnline = () => { void refreshOfficers(true) }
+    // Sesi backend ditanam di LATAR BELAKANG setelah login lokal (offline-first)
+    // → begitu JWT siap, tarik roster admin (penambahan/penonaktifan petugas).
+    const onSessionReady = () => { void refreshOfficers(true) }
     window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
+    window.addEventListener(SESSION_READY_EVENT, onSessionReady)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener(SESSION_READY_EVENT, onSessionReady)
+    }
   }, [refreshOfficers])
 
   const value = useMemo<StoreValue>(() => ({

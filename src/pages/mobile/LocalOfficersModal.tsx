@@ -11,6 +11,8 @@ interface LocalOfficer {
   id: string
   username?: string
   name: string
+  /** Hanya baris data lama dengan PIN polos yang disembunyikan. */
+  pin?: string
   status?: string
   region?: string
   regionName?: string
@@ -35,7 +37,9 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
     setLoading(true)
     try {
       const data = await listOfficers<LocalOfficer>()
-      setOfficers(data.filter(o => !('pin' in o) && o.isActive !== false && !/^(nonaktif|non-aktif|inactive)$/i.test(o.status ?? '')))
+      // Sembunyikan hanya baris ber-PIN polos (data lama) — petugas dengan
+      // `pin: ''` (termasuk DATA BAWAAN/seed) tetap tampil untuk login offline.
+      setOfficers(data.filter(o => !o.pin && o.isActive !== false && !/^(nonaktif|non-aktif|inactive)$/i.test(o.status ?? '')))
       setLastSync(getLastCredentialsSync() || null)
     } catch (e) {
       console.error('[LocalOfficersModal] Gagal load officers:', e)

@@ -17,6 +17,7 @@
 import { Network } from '@capacitor/network'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
 const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
@@ -495,6 +496,10 @@ export async function applyUpdate(): Promise<boolean> {
 
     setCurrentVersion(version)
     saveState({ status: 'idle', latestVersion: version })
+    // Bundle OTA baru diterapkan → minta penarikan roster petugas SEGERA saat
+    // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin
+    // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
+    try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
     return true
   } catch (err) {
     console.warn('[ota] apply gagal:', err)

@@ -177,6 +177,22 @@ interface SyncQueueItem {
 }
 ```
 
+### 4.3 Seed Data Bawaan (Login Offline Sejak Instal Pertama)
+
+Sumber: `src/services/seedData.ts` — daftar petugas + hash PIN bcrypt + rute
+dermaga ditanam langsung di dalam kode aplikasi, sehingga login **100% offline
+bisa terjadi tanpa sinkronisasi awal dan tanpa menembak endpoint server**.
+
+| Aspek | Perilaku |
+|-------|----------|
+| Isi | 9 petugas (id, username, nama, region, akses dermaga) + hash bcrypt PIN + 8 dermaga rute dua arah |
+| Penanaman | `initOfflineDb()` → **insert-if-absent** (SQLite / fallback localStorage) + merge roster `trip.officers.v1` + merge cache rute `trip.auth.routes.v1` |
+| Anti-rusak | Baris/hash/rute yang sudah ada TIDAK pernah ditimpa → data hasil sync/OTA dari dashboard admin menang, data default tidak pernah terhapus |
+| Verifikasi | `verifyPinOffline()` → DB offline → roster → **fallback seed** (`verifySeedPin`) — semuanya lokal & instan, tanpa jeda jaringan |
+| Login | `LoginPage` & `PinVerifyScreen`: **verifikasi lokal lebih dulu** → bila online, sesi JWT + tarik roster admin berjalan di LATAR BELAKANG (`SESSION_READY_EVENT`) |
+| Update via OTA | Rilis OTA menambah petugas → naikkan `SEED_VERSION` → perangkat lama melengkapi daftar saat init tanpa kehilangan data |
+| Sync berkala | Event `online`, resume aplikasi (`syncOnResume`), & penanda `trip.sync.forceRoster` pasca-OTA menarik penambahan/penonaktifan petugas ke lokal (upsert, bukan timpa) |
+
 ---
 
 ## 5. Alur Trip Offline-First Detail
@@ -267,10 +283,12 @@ async function processItem(item: SyncQueueItem): Promise<void> {
 
 ```diff
 mobile-trip/src/
++ services/seedData.ts    # DATA BAWAAN: petugas + hash PIN + rute (seed)
++ services/offlineDb.ts   # SQLite lokal + seeding insert-if-absent
 + services/offline-first/
 +   offline-db.ts         # IndexedDB wrapper
 +   sync-queue.ts         # Upload antrean + retry
-+   admin-pull.ts         # Pull master data
++   admin-pull.ts         # Pull master data (+ force flag pasca-OTA)
 +   auth-offline.ts       # Login offline + PIN hash
 
 mobile-trip/src/pages/
