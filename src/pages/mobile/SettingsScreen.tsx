@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock } from 'lucide-react'
+import { ChevronLeft, Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
 import { dbClear } from '../../services/localDb'
 import { getBackend } from '../../services/offlineDb'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
+import {
+  syncCredentialsFromAdmin,
+  getLastCredentialsSync,
+  isCredentialSyncing,
+  startCredentialSync,
+  type SyncStatus as CredentialSyncStatus,
+} from '../../services/credentialSync'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -18,6 +25,34 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
+
+  // ── Credential Sync State ──────────────────────────────────────
+  const [lastCredSync, setLastCredSync] = useState(0)
+  const [credSyncing, setCredSyncing] = useState(false)
+  const [credSyncResult, setCredSyncResult] = useState<string | null>(null)
+
+  // ── Credential Sync Handler ───────────────────────────────────
+  const handleSyncCredentials = async () => {
+    setCredSyncing(true)
+    setCredSyncResult(null)
+    const result = await syncCredentialsFromAdmin(true)
+    setCredSyncing(false)
+    if (result.error) {
+      setCredSyncResult(result.error)
+    } else if (result.online) {
+      setCredSyncResult(`Tersinkron: ${result.synced} petugas${result.failed ? ` (${result.failed} gagal)` : ''}`)
+    } else {
+      setCredSyncResult('Offline — sinkronisasi dijadwalkan saat koneksi tersambung')
+    }
+    setLastCredSync(getLastCredentialsSync())
+  }
+
+  // ── Effect: Credential Sync Init ────────────────────────────────
+  useEffect(() => {
+    startCredentialSync()
+    setLastCredSync(getLastCredentialsSync())
+    setCredSyncing(isCredentialSyncing())
+  }, [])
 
   // Antrean sinkron — berlangganan perubahan supaya angka selalu akurat
   useEffect(() => onSyncQueueChange(setPendingCount), [])
@@ -239,6 +274,39 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           <Database size={11} className="shrink-0" />
           <span>Data offline: {storageBackend}</span>
         </div>
+      </div>
+
+      {/* Sinkronisasi Kredensial */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+            <Shield size={16} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[12px] font-bold text-slate-800 leading-tight">Kredensial Petugas</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              {lastCredSync
+                ? `Terakhir: ${new Date(lastCredSync).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}`
+                : 'Belum pernah sinkron'}
+            </p>
+            {credSyncResult && (
+              <p className={`text-[9px] mt-0.5 ${credSyncResult.includes('gagal') ? 'text-red-500' : 'text-emerald-600'}`}>
+                {credSyncResult}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => void handleSyncCredentials()}
+            disabled={credSyncing}
+            className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-200 hover:bg-amber-300 disabled:opacity-50 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <RefreshCw size={11} className={credSyncing ? 'animate-spin' : ''} />
+            {credSyncing ? 'Sinkron…' : 'Sinkron'}
+          </button>
+        </div>
+        <p className="text-[9px] text-slate-400 mt-2 pl-11">
+          Tarik username &amp; password petugas dari dashboard admin. Hash aman tersimpan di perangkat.
+        </p>
       </div>
 
       {/* Perawatan */}

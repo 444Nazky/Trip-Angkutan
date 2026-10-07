@@ -102,7 +102,8 @@ src/
 │   ├── sync.ts         # Queue-based background sync (offline/online)
 │   ├── tariffs.ts      # Tarif/biaya perjalanan (master + region)
 │   ├── trips.ts        # CRUD perjalanan (server + local)
-│   ├── officers.ts     # Sync petugas dari server ke lokal
+│   ├── officers.ts       # Sync petugas dari server ke lokal
+│   ├── credentialSync.ts  # Sinkronisasi kredensial dari admin dashboard (username/password hash → SQLite/localStorage)
 │   └── xlsx.ts         # Export Excel (SheetJS)
 ```
 
