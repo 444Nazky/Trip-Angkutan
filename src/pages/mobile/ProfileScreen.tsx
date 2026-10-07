@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Truck, Map, ShieldCheck, Settings, ChevronRight, ArrowLeftRight, Lock } from 'lucide-react'
 import { useApp } from '../store'
+import { listOfficers, getPinHash, type OfficerRow } from '../../services/offlineDb'
 import type { MobileScreen } from '../types'
 
 interface ProfileScreenProps {
@@ -16,6 +17,27 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   }, [])
 
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+
+  // ── Diagnostik: petugas yang datanya tersimpan lokal (untuk login offline) ──
+  const [credRows, setCredRows] = useState<Array<{ id: string; name: string; username?: string; hasCred: boolean }> | null>(null)
+  const [checkingCreds, setCheckingCreds] = useState(false)
+  const [credBackend, setCredBackend] = useState('')
+
+  const checkLocalOfficers = async () => {
+    setCheckingCreds(true)
+    try {
+      const { initOfflineDb, getBackend } = await import('../../services/offlineDb')
+      await initOfflineDb()
+      setCredBackend(getBackend())
+      const officers = await listOfficers<OfficerRow>()
+      const rows = await Promise.all(officers.map(async o => ({
+        id: String(o.id), name: String(o.name ?? ''), username: o.username,
+        hasCred: !!(await getPinHash(String(o.id))),
+      })))
+      setCredRows(rows)
+    } finally { setCheckingCreds(false) }
+  }
+
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -80,6 +102,39 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       >
         <ArrowLeftRight size={15} /> Ganti Petugas
       </button>
+
+      {/* Diagnostik data offline petugas */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+        <button
+          onClick={() => void checkLocalOfficers()}
+          disabled={checkingCreds}
+          className="w-full flex items-center justify-center gap-2 py-2.5 text-blue-600 font-bold text-[12px] rounded-xl border border-blue-200 hover:bg-blue-50 disabled:opacity-50 transition-colors"
+        >
+          {checkingCreds ? 'Memeriksa…' : 'Cek Data Login Offline Petugas'}
+        </button>
+        {credRows && (
+          <div className="mt-3">
+            <p className="text-[10px] text-slate-400 mb-2">
+              {credRows.length} petugas tersimpan lokal · backend: {credBackend || '—'} · {credRows.filter(r => r.hasCred).length} siap login offline
+            </p>
+            <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
+              {credRows.map(r => (
+                <div key={r.id} className="flex items-center gap-2 py-1.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${r.hasCred ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span className="flex-1 text-[11px] font-semibold text-slate-700 truncate">{r.name}</span>
+                  <span className="text-[10px] text-slate-400">{r.username ?? '-'}</span>
+                  <span className={`text-[9px] font-black ${r.hasCred ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {r.hasCred ? 'SIAP OFFLINE' : 'TANPA KREDENSIAL'}
+                  </span>
+                </div>
+              ))}
+              {credRows.length === 0 && (
+                <p className="text-[11px] text-slate-400 py-2 text-center">Belum ada data petugas di perangkat ini. Login online sekali dulu.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
