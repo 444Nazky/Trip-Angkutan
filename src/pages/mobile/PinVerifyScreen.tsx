@@ -12,11 +12,6 @@ interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
 }
 
-/** Error yang disebabkan jaringan (bukan PIN salah). */
-function isNetworkMessage(msg: string): boolean {
-  return /timeout|network|failed.to.fetch|terjangkau|unreachable|ECONNREFUSED|ENOTFOUND|merespon|offline/i.test(msg)
-}
-
 export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   const { officer, officers, pendingOfficerId, verifyIntent, setOfficerId, clearVerify } = useApp()
 
@@ -54,51 +49,34 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     go('profile')
   }
 
-  /** Konfirmasi: online-first, fallback verifikasi lokal (offline). */
   const confirm = async () => {
     if (pressedPin.length < 6 || loading) return
     setLoading(true)
     setError(false)
 
-    // ── 1. Online attempt ──────────────────────────────────────────────
-    if (navigator.onLine) {
+    try {
+      if (!navigator.onLine) {
+        const local = await loginOffline(targetId, pressedPin)
+        if (local.success) finishAuth()
+        else rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+        return
+      }
+
+      const result = await loginWithPin(targetId, pressedPin)
+      if (result.success) finishAuth()
+      else rejectPin(result.error?.message ?? 'PIN tidak valid')
+    } catch {
       try {
-        const result = await loginWithPin(targetId, pressedPin)
-        if (result.success) {
-          setLoading(false)
+        const local = await loginOffline(targetId, pressedPin)
+        if (local.success) {
           finishAuth()
           return
         }
-        const msg = result.error?.message ?? ''
-        // Jaringan gagal (bukan PIN salah) → coba verifikasi lokal
-        if (isNetworkMessage(msg)) {
-          const lokal = await loginOffline(targetId, pressedPin)
-          if (lokal.success) {
-            setLoading(false)
-            finishAuth()
-            return
-          }
-          rejectPin(msg || 'Server tidak terjangkau dan hash PIN belum tersimpan')
-          setLoading(false)
-          return
-        }
-        rejectPin(msg)
-        setLoading(false)
-        return
-      } catch (e) {
-        // Exception tak terduga → lanjut ke fallback offline
-        console.warn('[pin-verify] online attempt exception:', e)
-      }
+      } catch {}
+      rejectPin('Verifikasi lokal gagal — coba lagi')
+    } finally {
+      setLoading(false)
     }
-
-    // ── 2. Offline fallback — verifikasi lokal ─────────────────────────
-    const lokal = await loginOffline(targetId, pressedPin)
-    setLoading(false)
-    if (lokal.success) {
-      finishAuth()
-      return
-    }
-    rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
   }
 
   return (

@@ -5,9 +5,9 @@
  *
  * Langkah:
  *   1. git worktree add sementara ke origin/mobile
- *   2. hapus aset lama di root worktree yang berasal dari build sebelumnya
- *   3. salin isi www/ ke root worktree
- *   4. generate version.json (versi = short SHA origin/mobile + timestamp)
+ *   2. hapus chunk build lama di root worktree
+ *   3. salin www/ ke ota/ dan root untuk kompatibilitas aplikasi lama
+ *   4. generate version.json (versi = timestamp)
  *   5. commit & push origin HEAD:mobile
  */
 import { execSync } from 'node:child_process'
@@ -39,10 +39,13 @@ try {
   const assets = collectAssets(WEB_DIR)
   console.log(`Found ${assets.length} built assets in ${WEB_DIR}`)
 
-  // Bersihkan aset build lama di root worktree agar tidak menumpuk
-  for (const top of fs.readdirSync(WEB_DIR)) {
-    fs.rmSync(path.join(TMP, top), { recursive: true, force: true })
+  for (const name of fs.readdirSync(TMP)) {
+    if (/^(?:chunk|main|styles)-[\w-]+\.(?:js|css)$/.test(name)) {
+      fs.rmSync(path.join(TMP, name), { force: true })
+    }
   }
+  fs.rmSync(path.join(TMP, 'ota'), { recursive: true, force: true })
+  fs.cpSync(WEB_DIR, path.join(TMP, 'ota'), { recursive: true })
   fs.cpSync(WEB_DIR, TMP, { recursive: true })
 
   // Versi murni angka naik-terus — cocok dengan SEMUA versi isNewer

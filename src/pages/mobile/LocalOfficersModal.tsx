@@ -1,35 +1,23 @@
 import { useState, useEffect } from 'react'
 import { Users, X, Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import { listOfficers } from '../../services/offlineDb'
-import { syncNow } from '../../services/credentialSync'
+import { getLastCredentialsSync, syncOfficerCredentials } from '../../services/credentialSync'
 
 // ─── LocalOfficersModal ──────────────────────────────────────────────────
 // Modal untuk menampilkan daftar petugas yang tersimpan secara lokal.
 // Bisa digunakan untuk login offline.
 
-// Payload dasar dari credential sync
-interface LocalOfficerPayload {
-  id: string
-  username: string
-  name: string
-  region_id?: string
-  region_name?: string
-  region_code?: string
-  status?: string
-  synced_at?: number
-  password_hash?: string
-  pin_hash?: string
-}
-
 interface LocalOfficer {
   id: string
-  username: string
+  username?: string
   name: string
-  regionId?: string
+  status?: string
+  region?: string
   regionName?: string
+  region_name?: string
   regionCode?: string
+  region_code?: string
   isActive?: boolean
-  payload?: LocalOfficerPayload
 }
 
 interface LocalOfficersModalProps {
@@ -41,23 +29,14 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState<number | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const loadOfficers = async () => {
     setLoading(true)
     try {
       const data = await listOfficers<LocalOfficer>()
-      // Filter hanya petugas aktif
-      const activeOfficers = data.filter(o => o.isActive !== false)
-      setOfficers(activeOfficers)
-
-      // Ambil timestamp sync terakhir dari payload
-      const latestTs = Math.max(
-        ...activeOfficers
-          .map(o => o.payload?.synced_at ?? 0)
-          .filter(Boolean),
-        0,
-      )
-      setLastSync(latestTs || null)
+      setOfficers(data.filter(o => !('pin' in o) && o.isActive !== false && !/^(nonaktif|non-aktif|inactive)$/i.test(o.status ?? '')))
+      setLastSync(getLastCredentialsSync() || null)
     } catch (e) {
       console.error('[LocalOfficersModal] Gagal load officers:', e)
     } finally {
@@ -71,13 +50,13 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
 
   const handleSync = async () => {
     setSyncing(true)
+    setSyncError(null)
     try {
-      const result = await syncNow()
-      if (result.synced > 0) {
-        await loadOfficers()
-      }
-    } catch (e) {
-      console.error('[LocalOfficersModal] Sync gagal:', e)
+      const result = await syncOfficerCredentials()
+      if (result.synced > 0) await loadOfficers()
+      if (result.error) setSyncError(result.error)
+    } catch {
+      setSyncError('Sinkronisasi gagal. Coba lagi.')
     } finally {
       setSyncing(false)
     }
@@ -105,8 +84,8 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
 
   const formatStatus = (status?: string) => {
     if (!status) return 'Aktif'
-    if (/active|aktif/i.test(status)) return 'Aktif'
-    if (/inactive|nonaktif/i.test(status)) return 'Nonaktif'
+    if (/^(nonaktif|non-aktif|inactive)$/i.test(status)) return 'Nonaktif'
+    if (/^(active|aktif)$/i.test(status)) return 'Aktif'
     return status
   }
 
@@ -151,6 +130,8 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
             {syncing ? 'Sinkron...' : 'Sync'}
           </button>
         </div>
+
+        {syncError && <p className="text-red-600 text-[11px] mb-4" role="alert">{syncError}</p>}
 
         {/* Status info */}
         <div className="flex items-center gap-2 mb-4">
@@ -197,14 +178,14 @@ export default function LocalOfficersModal({ onClose }: LocalOfficersModalProps)
                           ? 'bg-emerald-50 text-emerald-600'
                           : 'bg-slate-100 text-slate-500'
                       }`}>
-                        {formatStatus(officer.payload?.status)}
+                        {formatStatus(officer.status)}
                       </span>
                     </div>
-                    <p className="text-slate-400 text-[11px]">@{officer.username}</p>
-                    {(officer.regionName || officer.payload?.region_name) && (
+                    <p className="text-slate-400 text-[11px]">@{officer.username || officer.id}</p>
+                    {(officer.regionName || officer.region_name || officer.region) && (
                       <p className="text-slate-400 text-[11px] mt-0.5">
-                        📍 {officer.regionName || officer.payload?.region_name}
-                        {officer.regionCode && ` (${officer.regionCode})`}
+                        {officer.regionName || officer.region_name || officer.region}
+                        {(officer.regionCode || officer.region_code) && ` (${officer.regionCode || officer.region_code})`}
                       </p>
                     )}
                   </div>

@@ -330,7 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
-  const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, officerList))
+  const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, []))
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   /** Ref snapshot trips terbaru — dipakai aksi patch* agar tidak basi. */
   const tripsRef = useRef<Trip[]>(trips)
@@ -539,7 +539,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
 
   const refreshOfficers = useCallback(async (force = false) => {
-    const synced = await syncOfficersToLocal(force)
+    let synced
+    try {
+      synced = await syncOfficersToLocal(force)
+    } catch (err) {
+      console.warn('[officers] Sinkronisasi gagal:', err)
+      return
+    }
     if (synced.length === 0) return
 
     const syncedWithDermaga = synced.map(o => ({ ...o, dermagaAccess: o.dermagaAccess || [] }))

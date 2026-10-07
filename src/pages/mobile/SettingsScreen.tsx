@@ -6,11 +6,8 @@ import { dbClear } from '../../services/localDb'
 import { getBackend } from '../../services/offlineDb'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
 import {
-  syncCredentialsFromAdmin,
+  syncOfficerCredentials,
   getLastCredentialsSync,
-  isCredentialSyncing,
-  startCredentialSync,
-  type SyncStatus as CredentialSyncStatus,
 } from '../../services/credentialSync'
 import type { MobileScreen } from '../types'
 
@@ -29,29 +26,27 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   // ── Credential Sync State ──────────────────────────────────────
   const [lastCredSync, setLastCredSync] = useState(0)
   const [credSyncing, setCredSyncing] = useState(false)
-  const [credSyncResult, setCredSyncResult] = useState<string | null>(null)
+  const [credSyncResult, setCredSyncResult] = useState<{ message: string; error: boolean } | null>(null)
 
-  // ── Credential Sync Handler ───────────────────────────────────
   const handleSyncCredentials = async () => {
     setCredSyncing(true)
     setCredSyncResult(null)
-    const result = await syncCredentialsFromAdmin(true)
-    setCredSyncing(false)
-    if (result.error) {
-      setCredSyncResult(result.error)
-    } else if (result.online) {
-      setCredSyncResult(`Tersinkron: ${result.synced} petugas${result.failed ? ` (${result.failed} gagal)` : ''}`)
-    } else {
-      setCredSyncResult('Offline — sinkronisasi dijadwalkan saat koneksi tersambung')
+    try {
+      const result = await syncOfficerCredentials()
+      setCredSyncResult({
+        message: result.error ?? `Tersinkron: ${result.synced} petugas dan rute`,
+        error: !!result.error,
+      })
+      setLastCredSync(getLastCredentialsSync())
+    } catch {
+      setCredSyncResult({ message: 'Sinkronisasi gagal. Coba lagi.', error: true })
+    } finally {
+      setCredSyncing(false)
     }
-    setLastCredSync(getLastCredentialsSync())
   }
 
-  // ── Effect: Credential Sync Init ────────────────────────────────
   useEffect(() => {
-    startCredentialSync()
     setLastCredSync(getLastCredentialsSync())
-    setCredSyncing(isCredentialSyncing())
   }, [])
 
   // Antrean sinkron — berlangganan perubahan supaya angka selalu akurat
@@ -283,15 +278,15 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
             <Shield size={16} />
           </div>
           <div className="flex-1">
-            <p className="text-[12px] font-bold text-slate-800 leading-tight">Kredensial Petugas</p>
+            <p className="text-[12px] font-bold text-slate-800 leading-tight">Data Petugas Offline</p>
             <p className="text-[10px] text-slate-500 mt-0.5">
               {lastCredSync
                 ? `Terakhir: ${new Date(lastCredSync).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}`
                 : 'Belum pernah sinkron'}
             </p>
             {credSyncResult && (
-              <p className={`text-[9px] mt-0.5 ${credSyncResult.includes('gagal') ? 'text-red-500' : 'text-emerald-600'}`}>
-                {credSyncResult}
+              <p className={`text-[9px] mt-0.5 ${credSyncResult.error ? 'text-red-500' : 'text-emerald-600'}`}>
+                {credSyncResult.message}
               </p>
             )}
           </div>
@@ -305,7 +300,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           </button>
         </div>
         <p className="text-[9px] text-slate-400 mt-2 pl-11">
-          Tarik username &amp; password petugas dari dashboard admin. Hash aman tersimpan di perangkat.
+          Tarik daftar petugas, hash PIN, dan rute wilayah dari server. Login online diperlukan.
         </p>
       </div>
 
