@@ -109,7 +109,10 @@ async function migrateFromLocalStorage(): Promise<void> {
 export function initOfflineDb(): Promise<LocalBackend> {
   if (!initPromise) {
     initPromise = (async () => {
-      const ok = await openSqlite()
+      // Timeout 5 dtk: bila plugin SQLite menggantung di perangkat tertentu,
+      // turunkan ke localStorage agar login offline tidak hang selamanya.
+      const timeout = new Promise<boolean>(res => setTimeout(() => { console.warn('[offline-db] init timeout — fallback localStorage'); res(false) }, 5000))
+      const ok = await Promise.race([openSqlite(), timeout])
       backend = ok ? 'sqlite' : 'localStorage'
       if (ok) await migrateFromLocalStorage()
       return backend
