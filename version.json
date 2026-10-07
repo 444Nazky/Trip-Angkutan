@@ -1,0 +1,25 @@
+{
+  "version": "495b47e",
+  "assets": [
+    "3rdpartylicenses.txt",
+    "Assets/karyamasv.svg",
+    "assets/guest-profile.jpeg",
+    "assets/icon/favicon.png",
+    "assets/karyamas_clean.png",
+    "assets/karyamas_clean.svg",
+    "assets/karyamasv.svg",
+    "assets/shapes.svg",
+    "chunk-BE4UDnnT.js",
+    "chunk-BTceDkYI.js",
+    "chunk-BuHww8AI.js",
+    "chunk-IDbC3XHC.js",
+    "chunk-MDFMrcFK.js",
+    "chunk-j8Vgj1dy.js",
+    "index.html",
+    "main-GQW2MHQQ.css",
+    "main-WEFOU7RJ.js",
+    "prerendered-routes.json",
+    "styles-ZKE7NMY7.css",
+    "sw.js"
+  ]
+}
