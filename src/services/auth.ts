@@ -22,6 +22,9 @@ export const DEMO_PIN = '123456'
 /** Kunci penyimpan hash password bersama member-login (offline verify). */
 const MEMBER_PASS_KEY = '__member__'
 
+/** Kunci penyimpanan password member bersama (planteks lokal). */
+const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
+
 // Officer the app *wants* to be authenticated as, even while offline
 let activeOfficerId: string | null = null
 
@@ -254,6 +257,10 @@ export async function memberLogin(
   // Password bersama (member-login) di-cache lokal supaya verifikasi offline
   // untuk petugas mana pun bisa dilakukan tanpa pernah login online dulu.
   void hashPin(MEMBER_PASS_KEY, password).then(h => setPinHash(MEMBER_PASS_KEY, h))
+  // Cache password member bersama (teks lokal) untuk validasi offline —
+  // backend memakai satu password yang sama untuk semua petugas, sehingga
+  // cukup disimpan sekali saat login online berhasil.
+  try { localStorage.setItem(MEMBER_CRED_KEY, password) } catch { /* quota */ }
 
   // ── LOGIN PERTAMA KALI (ONLINE): tarik & simpan SEMUA petugas satu dermaga
   //    ke penyimpanan lokal, supaya pergantian akun tetap jalan saat offline.
@@ -619,10 +626,10 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   if (storedRecord && storedRecord.status && /nonaktif/i.test(String(storedRecord.status))) inactive = true
   if (inactive) return false
 
-  // Password member bersama: cocokkan dulu dengan hash yang di-cache saat
-  // login online terakhir — mencakup SEMUA petugas, bukan hanya yang pernah
-  // login di perangkat ini.
+  // Password member bersama: cek versi teks yang di-cache + versi hash.
   try {
+    const cachedPass = localStorage.getItem(MEMBER_CRED_KEY)
+    if (cachedPass !== null && cachedPass === pin) return true
     const memberHash = await getPinHash(MEMBER_PASS_KEY)
     if (memberHash) {
       if (memberHash.startsWith('$2')) {
