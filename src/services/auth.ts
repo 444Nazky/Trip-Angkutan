@@ -599,7 +599,7 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   let resolved = false
   let inactive = false
   try {
-    const row = await findOfflineOfficer<any>(identifier)
+    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number; payload?: { status?: string } }>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
     const status = row?.status ?? row?.payload?.status
     if (status && /nonaktif/i.test(String(status))) inactive = true
@@ -608,7 +608,7 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
-  if (storedRecord && 'status' in storedRecord && /nonaktif/i.test(String((storedRecord as any).status))) inactive = true
+  if (storedRecord && storedRecord.status && /nonaktif/i.test(String(storedRecord.status))) inactive = true
   if (inactive) return false
 
   try {

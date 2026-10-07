@@ -61,7 +61,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
 
   // Officers only see their own trips (matches HomeScreen)
-  const myTrips = trips.filter(t => t.officer === officer.name)
+  const myTrips = trips.filter(t =>
+    t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
+  )
   const filtered = filter === 'all'
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')

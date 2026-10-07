@@ -326,6 +326,14 @@ export default function UpdateNotifier({
     return () => clearInterval(intervalId)
   }, [autoCheck, checkInterval, performCheck])
 
+  // Cek ulang segera saat perangkat kembali online
+  useEffect(() => {
+    if (!autoCheck) return
+    const onOnline = () => { void performCheck() }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [autoCheck, performCheck])
+
   // Apply update and reload
   const handleApply = useCallback(async () => {
     const success = await applyUpdate()
