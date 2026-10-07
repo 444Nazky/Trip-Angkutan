@@ -8,7 +8,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active, r.name as region_name, r.code as region_code
+      SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
       ORDER BY o.name
@@ -73,7 +73,7 @@ router.get('/my-region', authenticate, (req, res) => {
     if (myRegionIds.size === 0) return res.json([]);
 
     const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active, r.name as region_name, r.code as region_code
+      SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
       ORDER BY o.name

@@ -1,14 +1,11 @@
 import { useState } from 'react'
-import { ChevronLeft, Lock, Package, Truck } from 'lucide-react'
+import { ChevronLeft, Package, Truck } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
 interface TripConditionScreenProps {
   go: (s: MobileScreen) => void
 }
-
-// Kode rute yang dikunci untuk trip tanpa muatan (spesifikasi: hanya SJRE → SBDZ)
-export const EMPTY_ROUTE_CODE = 'SJRE-SBDZ'
 
 export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const { draft, patchDraft } = useApp()
@@ -53,10 +50,15 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               photoCapturedAt: undefined,
               photoLatitude: undefined,
               photoLongitude: undefined,
+              vPhoto: false,
+              vPhotoUrl: undefined,
+              vPhotoCapturedAt: undefined,
+              vPhotoLatitude: undefined,
+              vPhotoLongitude: undefined,
+              retakeTarget: undefined,
               cameraMode: 'photo',
               ocrResult: undefined,
               ocrError: undefined,
-              routeCode: EMPTY_ROUTE_CODE,
             })
           }}
           className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('kosong')}`}
@@ -67,12 +69,8 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             </div>
             <div className="flex-1">
               <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kosong / Tidak Ada Muatan</p>
-              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan berjalan tanpa muatan — rute dikunci SJRE → SBDZ</p>
-              {condition === 'kosong' && (
-                <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-black uppercase tracking-wide text-slate-600 bg-slate-200 rounded-full px-2 py-0.5">
-                  <Lock size={10} /> Rute terkunci SJRE → SBDZ
-                </span>
-              )}
+              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan berjalan tanpa muatan — pilih rute bebas</p>
+              
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('kosong')}`}>
               {condition === 'kosong' && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -108,7 +106,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
         disabled={!condition}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
-        {condition === 'muatan' ? 'Lanjut Pilih Rute' : condition === 'kosong' ? 'Lanjut (Rute Terkunci)' : 'Pilih Status Muatan'}
+        {condition === 'muatan' ? 'Lanjut Pilih Rute' : condition === 'kosong' ? 'Lanjut Pilih Rute' : 'Pilih Status Muatan'}
       </button>
     </div>
   )

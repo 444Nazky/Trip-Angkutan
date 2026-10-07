@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, Check, Clock3, Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
-import { useApp } from '../store'
-import { getSyncQueue } from '../../services/sync'
+import { ChevronLeft, Camera, ImageOff, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw } from 'lucide-react'
+import { unitLabel, useApp, type VehicleEntry } from '../store'
+import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 // ─── Connection Indicator ────────────────────────────────────────────────────────
@@ -36,17 +36,32 @@ interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
 }
 
+/** Satu item dokumentasi: foto trip ATAU foto satu kendaraan. */
+interface DocPhoto {
+  url: string
+  label: string
+  kind: 'trip' | 'vehicle'
+  index?: number
+}
+
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
-  const { trips, detailTripId, officer } = useApp()
+  const { trips, detailTripId, officer, patchDraft } = useApp()
   // Scope to this officer's trips — never leak another officer's trip detail
   const myTrips = trips.filter(x => x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
-  const vehicles = t.vehicles && t.vehicles.length > 0
-    ? t.vehicles
-    : [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
-  const isSynced = t.synced === true
+  const isSynced = t?.synced === true
+
+  // Re-render saat isi antrean berubah (mis. foto diperbaiki → status macet lepas)
+  const [, setQueueTick] = useState(0)
+  useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
+
   const queue = getSyncQueue()
-  const inQueue = queue.some(q => q.trip.id === t.id)
+  const queueItem = t ? queue.find(q => q.trip.id === t.id) : undefined
+  const inQueue = !!queueItem
+  const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
+
+  // Preview lightbox dokumentasi
+  const [preview, setPreview] = useState<DocPhoto | null>(null)
 
   if (!t) {
     return (
@@ -60,6 +75,33 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       </div>
     )
+  }
+
+  const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
+  const vehicles: VehicleEntry[] = realVehicles
+    ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
+
+  // ── SELURUH foto dokumentasi trip ini — 1 foto bukti trip + 1 foto PER kendaraan
+  const photos: DocPhoto[] = [
+    ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
+    ...vehicles.map((v, i) => ({
+      url: v.photoUrl ?? '',
+      label: unitLabel(vehicles, i),
+      kind: 'vehicle' as const,
+      index: i,
+    })).filter(p => !!p.url),
+  ]
+  const missingVehicles = vehicles
+    .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!v.photoUrl }))
+    .filter(x => !x.hasPhoto)
+
+  const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
+    patchDraft({
+      retakeTarget: { tripId: t.id, kind, index },
+      cameraMode: 'photo',
+      cameraFrom: 'vehicle-form',
+    })
+    go('camera')
   }
 
   return (
@@ -88,33 +130,120 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       </div>
 
-      {/* Kendaraan */}
+      {/* Kendaraan + foto per unit */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
         <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
-        {vehicles.map((v, i) => (
-          <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
-            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><Truck size={18} className="text-slate-400" /></div>
-            <div className="flex-1">
-              <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
-              <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+        {vehicles.map((v, i) => {
+          const label = unitLabel(vehicles, i)
+          const canRetake = !!realVehicles?.[i]
+          return (
+            <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
+              {v.photoUrl ? (
+                <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
+                  <img src={v.photoUrl} alt={`Foto ${label}`} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                </button>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
+                  <ImageOff size={16} className="text-amber-500" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
+                  <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
+                </div>
+                <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+              </div>
+              {!v.photoUrl && canRetake && (
+                <button
+                  onClick={() => retakePhoto('vehicle', i)}
+                  className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-2 shrink-0"
+                >
+                  <Camera size={11} /> Ambil Foto
+                </button>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {/* Foto */}
-      {t.photo && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
-          <p className="text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wide">Foto Bukti</p>
-          {t.photoUrl ? (
-            <div className="rounded-xl overflow-hidden border border-slate-200">
-              <img src={t.photoUrl} alt="Bukti Muatan" className="w-full h-48 object-cover" />
-            </div>
-          ) : (
-            <div className="bg-slate-100 rounded-xl h-32 flex items-center justify-center">
-              <div className="text-center"><Camera size={28} className="text-slate-300 mx-auto" /><p className="text-[10px] text-slate-400 mt-1">Foto tersimpan</p></div>
-            </div>
+      {/* Galeri dokumentasi — semua foto (trip + per kendaraan) */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            Foto Dokumentasi ({photos.length})
+          </p>
+          {t.photo && !t.photoUrl && (
+            <button
+              onClick={() => retakePhoto('trip')}
+              className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
+            >
+              <Camera size={11} /> Ambil Foto Trip
+            </button>
           )}
+        </div>
+
+        {photoStuck && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-800 leading-snug">
+              Foto dokumentasi belum lengkap{missingVehicles.length > 0 && (
+                <>: <b>{missingVehicles.map(x => x.label).join(', ')}</b></>
+              )} — ambil fotonya, antrean otomatis dikirim ulang.
+            </p>
+          </div>
+        )}
+
+        {photos.length === 0 ? (
+          <div className="rounded-xl bg-slate-50 py-8 text-center">
+            <Camera size={26} className="mx-auto text-slate-300 mb-2" />
+            <p className="text-[11px] text-slate-400">Belum ada foto dokumentasi tersimpan</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {photos.map((p, i) => (
+              <button
+                key={`${p.kind}-${p.index ?? 'trip'}-${i}`}
+                onClick={() => setPreview(p)}
+                className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 text-left active:scale-[0.98] transition-transform"
+              >
+                <img src={p.url} alt={p.label} className="w-full h-28 object-cover" />
+                <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5">
+                  <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
+                </span>
+              </button>
+            ))}
+            {/* Slot kosong: kendaraan tanpa foto → ajakan ambil */}
+            {missingVehicles.map(x => (
+              <button
+                key={`missing-${x.i}`}
+                onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
+                className="h-28 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 flex flex-col items-center justify-center gap-1.5"
+              >
+                <Camera size={18} className="text-amber-500" />
+                <span className="text-[10px] font-black text-amber-700 uppercase">{x.label} — Belum ada foto</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox dokumentasi */}
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white">
+            <X size={20} />
+          </button>
+          <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            <img src={preview.url} alt={preview.label} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
+            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} · {t.id}</p>
+            <button
+              onClick={() => { const p = preview; setPreview(null); retakePhoto(p.kind, p.index) }}
+              className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
+            >
+              <RefreshCcw size={12} /> Ambil Ulang
+            </button>
+          </div>
         </div>
       )}
 
@@ -132,9 +261,11 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className={`text-[10px] ${isSynced ? 'text-emerald-600' : 'text-amber-600'}`}>
             {isSynced
               ? `Data berhasil dikirim ke server · ${t.date}`
-              : inQueue
-                ? 'Menunggu koneksi untuk mengirim...'
-                : 'Data aman tersimpan di perangkat'}
+              : photoStuck
+                ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
+                : inQueue
+                  ? 'Menunggu koneksi untuk mengirim...'
+                  : 'Data aman tersimpan di perangkat'}
           </p>
         </div>
       </div>
@@ -146,7 +277,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${navigator.onLine ? 'bg-emerald-100' : 'bg-slate-200'}`}>
             {navigator.onLine
               ? <Wifi size={14} className="text-emerald-500" />
-              : <WifiOff size={14} className="text-slate-400" />}
+              : <WifiOff size={14} className="text-slate-500" />}
           </div>
           <div>
             <p className={`text-[12px] font-semibold ${navigator.onLine ? 'text-emerald-700' : 'text-slate-500'}`}>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Square, Truck } from 'lucide-react'
 import { activeRoutes } from '../data'
 import {
-  durationToSeconds, fmtElapsed, fmtTime, formatRp, kmNumber, useApp,
+  durationToSeconds, fmtElapsed, fmtTime, formatRp, kmNumber, unitLabel, useApp,
 } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -13,8 +13,21 @@ interface TripActiveScreenProps {
 export default function TripActiveScreen({ go }: TripActiveScreenProps) {
   const { draft, officer, trips, commitTrip, patchDraft } = useApp()
 
+  const isMuatan = draft.condition === 'muatan'
   const allRoutes = activeRoutes()
-  const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
+  // Pilih rute persis seperti yang ditetapkan di layar Pilih Rute.
+  // Bila cache rute berubah di tengah jalan, jangan jatuh ke rute sembarangan:
+  // pakai kode draft ("SJRE-SBDZ") agar payload rute ke backend tetap akurat.
+  const draftCode = draft.routeCode
+  const route = allRoutes.find(r => r.code === draftCode)
+    ?? (draftCode && draftCode.includes('-')
+      ? {
+        code: draftCode,
+        from: draftCode.slice(0, draftCode.lastIndexOf('-')),
+        to: draftCode.slice(draftCode.lastIndexOf('-') + 1),
+        label: draftCode.replace('-', ' → '),
+      }
+      : allRoutes[0])
   const [startedAt, setStartedAt] = useState<number>(() => draft.startedAt ?? Date.now())
   const finishingRef = useRef(false)
   const [elapsed, setElapsed] = useState(() =>
@@ -69,6 +82,11 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         return `TRP-${now.getFullYear()}-${String(max + 1).padStart(4, '0')}`
       })(),
       route: `${route.from} → ${route.to}`,
+      // Metadata rute mentah — dipakai sync utk payload routeFrom/routeTo
+      // sehingga dashboard admin tidak pernah menerima nilai kosong ("--").
+      routeCode: route.code,
+      routeFrom: route.from,
+      routeTo: route.to,
       status: 'Selesai',
       time: fmtTime(now),
       date: `${now.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][now.getMonth()]} ${now.getFullYear()}`,
@@ -79,7 +97,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
       revenue: formatRp(isMuatan ? total : 0),
       revenueNum: isMuatan ? total : 0,
       officer: officer.name,
-      duration: fmtElapsed(elapsed),
+      duration: isMuatan ? fmtElapsed(elapsed) : '-',
       photo: draft.photo,
       photoUrl: draft.photoUrl,
       photoCapturedAt: draft.photoCapturedAt,
@@ -89,6 +107,8 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
       completedAt: now.toISOString(),
       vehicles: isMuatan ? vehicles : [],
       synced: false,
+      selfieUrl: draft.selfieUrl,
+      selfieCapturedAt: draft.selfieCapturedAt,
     })
     go('trip-complete')
   }
@@ -102,6 +122,14 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         </span>
       </div>
 
+      {!isMuatan && (
+        <div className="bg-[#0F172A] rounded-3xl p-6 mb-4 text-center">
+          <Truck size={20} className="text-emerald-400 mx-auto mb-2" />
+          <p className="text-white font-bold text-[14px] mb-1">Trip Kosong</p>
+          <p className="text-slate-400 text-[11px]">Foto bukti tersimpan — tekan Selesaikan Trip saat tiba.</p>
+        </div>
+      )}
+      {isMuatan && (
       <div className="bg-[#0F172A] rounded-3xl p-6 mb-4 text-center">
         <p className="text-slate-400 text-[11px] mb-2 uppercase tracking-wide">Durasi Berjalan</p>
         <p className="text-white font-mono font-black text-[40px] tracking-widest mb-3">{hhmmss}</p>
@@ -110,7 +138,9 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         </div>
         <p className="text-slate-500 text-[11px]">Estimasi tiba: ±{etaMinutes} menit lagi</p>
       </div>
+      )}
 
+      {isMuatan && (
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center gap-1">
@@ -134,6 +164,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
           </div>
         </div>
       </div>
+      )}
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4">
         <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">
@@ -142,10 +173,17 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         {draft.vehicles.length > 0 ? (
           draft.vehicles.map((v, i) => (
             <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-2.5 border-t border-slate-100 mt-2.5' : ''}`}>
-              <Truck size={16} className="text-slate-400" />
-              <div>
+              {v.photoUrl ? (
+                <img src={v.photoUrl} alt={`Foto ${unitLabel(draft.vehicles, i)}`} className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
+              ) : (
+                <Truck size={16} className="text-slate-400 shrink-0" />
+              )}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded shrink-0">
+                  {unitLabel(draft.vehicles, i)}
+                </span>
                 <p className="font-mono text-[11px] font-black text-slate-800">{v.plate}</p>
-                <p className="text-[10px] text-slate-400">{v.type}</p>
+                <p className="text-[10px] text-slate-400 truncate">{v.type}</p>
               </div>
             </div>
           ))

@@ -29,6 +29,11 @@
                 "output": "assets"
               },
               {
+                "glob": "sw.js",
+                "input": "src",
+                "output": "."
+              },
+              {
                 "glob": "karyamasv.svg",
                 "input": "Assets",
                 "output": "Assets"

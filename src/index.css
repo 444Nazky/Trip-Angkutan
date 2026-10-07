@@ -37,10 +37,12 @@
 @keyframes scr-sheet { from { transform: translateY(52px);  opacity: 0.35 } to { transform: none; opacity: 1 } }
 @keyframes scr-tab   { from { transform: translateY(10px) scale(0.985); opacity: 0.3 } to { transform: none; opacity: 1 } }
 
+/* Catatan: jangan pakai `backface-visibility: hidden` / `preserve-3d` di sini.
+   Keduanya memaksa layer komposit tersendiri dan di WebView Android sering
+   membuat konten (teks/gambar) di-render buram/pecah. Animasi di bawah ini
+   semuanya transform 2D + opacity, jadi konteks 3D tidak diperlukan. */
 .scr-anim {
   will-change: transform, opacity;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
 }
 .scr-anim-push  { animation: scr-push  0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .scr-anim-pop   { animation: scr-pop   0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
@@ -55,6 +57,16 @@
    • border-radius + overflow:hidden selalu aktif di semua ukuran layar,
      sehingga isi dipotong rapi mengikuti lengkungan bingkai.
    ═════════════════════════════════════════════════════════════════════════ */
+/* Akar aplikasi (state login) — TINGGI DEFINITE.
+   Tanpa ini, .app-frame yang memakai height:100% akan jatuh ke auto (induk
+   min-h-screen tingginya auto) → frame kolaps setinggi konten dan navbar
+   bawah ikut melayang, bukan menempel di dasar layar. */
+.app-root {
+  height: 100vh;   /* fallback WebView lama */
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .app-frame {
   width: 100%;
   max-width: 430px;

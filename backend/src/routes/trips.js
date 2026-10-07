@@ -57,6 +57,23 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       return res.status(400).json({ error: 'statusMuatan wajib diisi' });
     }
 
+    // ── IDEMPOTENSI: klien mobile mengirim clientTripId (id trip lokal).
+    // Bila trip yang sama sudah pernah diterima (mis. request sebelumnya
+    // timeout SETELAH server menulis data), balas 200 tanpa insert ulang dan
+    // buang berkas duplikat — antrean offline boleh dikirim ulang dengan aman.
+    const clientTripId = typeof payload.clientTripId === 'string' && payload.clientTripId.trim()
+      ? payload.clientTripId.trim()
+      : null;
+    if (clientTripId) {
+      const existing = db.prepare(
+        `SELECT id, no_trip FROM trips WHERE client_trip_id = ? LIMIT 1`,
+      ).get(clientTripId);
+      if (existing) {
+        cleanupFiles();
+        return res.status(200).json({ id: existing.id, noTrip: existing.no_trip, duplicate: true });
+      }
+    }
+
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files);
     const vehiclePhotoIndexes = vehicles.map(vehicle => validPhotoIndex(vehicle.photoIndex, files));
     if (tripPhotoIndex === null || tripPhotoIndex === undefined || vehiclePhotoIndexes.some(index => index === null || index === undefined)) {
@@ -84,14 +101,14 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       INSERT INTO trips (
         id, no_trip, officer_id, region_id, dermaga_id, status_muatan,
         route_from, route_to, keterangan, foto_kosong_path, foto_captured_at,
-        foto_latitude, foto_longitude, started_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        foto_latitude, foto_longitude, started_at, completed_at, client_trip_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       tripId, noTrip, officerId, regionId, dermagaId, payload.statusMuatan,
       payload.routeFrom || null, payload.routeTo || null, payload.keterangan || null,
       photoPaths[tripPhotoIndex], payload.tripPhotoCapturedAt || null,
       numericCoordinate(payload.tripPhotoLatitude), numericCoordinate(payload.tripPhotoLongitude),
-      payload.startedAt || null, payload.completedAt || null
+      payload.startedAt || null, payload.completedAt || null, clientTripId
     );
 
     vehicles.forEach((vehicle, index) => {
