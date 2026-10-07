@@ -24,7 +24,7 @@ import { Geolocation, type Position } from '@capacitor/geolocation'
 import { api, getApiBaseUrl as readApiBaseUrl } from './api'
 import { ensureBackendSession, getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
 import {
-  initOfflineDb as initLocalDb,
+  initLocalDb as initLocalDb,
   dbAll,
   dbCount,
   dbDelete,
@@ -33,7 +33,7 @@ import {
   metaGet,
   metaSet,
   requestPersistentStorage,
-} from './offline-db'
+} from './localDb'
 import type { Trip } from '../pages/store'
 import { syncOnResume } from './adminPull'
 

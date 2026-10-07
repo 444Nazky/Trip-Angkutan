@@ -456,6 +456,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * Foto bukti WAJIB sudah tersimpan di draft.photoUrl sebelum fungsi ini dipanggil.
    * Pemanggil bertanggung jawab memastikan draft.condition === 'kosong' dan draft.photo === true.
    */
+  const commitTrip = useCallback((t: Trip) => {
+    const tripWithSync = { ...t, synced: false }
+    setTrips(prev => [tripWithSync, ...prev])
+    setDetailTripId(t.id)
+    setDraft(emptyDraft)
+    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
+    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
+    void addToSyncQueue(tripWithSync, photos, tripPhoto)
+  }, [])
   const finishEmptyTrip = useCallback(() => {
     if (!draft.photoUrl) {
       console.warn('[trip] finishEmptyTrip dipanggil tanpa foto bukti — dibatalkan')
@@ -518,15 +527,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const updated: Trip = { ...current, vehicles, synced: false }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
     void retrySyncItem(updated)
-  }, [])
-  const commitTrip = useCallback((t: Trip) => {
-    const tripWithSync = { ...t, synced: false }
-    setTrips(prev => [tripWithSync, ...prev])
-    setDetailTripId(t.id)
-    setDraft(emptyDraft)
-    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
-    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
-    void addToSyncQueue(tripWithSync, photos, tripPhoto)
   }, [])
   const beginVerify = useCallback((opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => {
     setPendingOfficerId(opts.pendingOfficerId)
