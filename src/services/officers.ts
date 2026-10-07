@@ -3,7 +3,7 @@
 
 import { api } from './api'
 import { ensureBackendSession } from './auth'
-import { saveOfficers } from './offlineDb'
+import { saveOfficers, setPinHash } from './offlineDb'
 
 export interface BackendOfficer {
   id: string
@@ -13,6 +13,8 @@ export interface BackendOfficer {
   regions: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id: string }>
   is_active: number
+  /** Hash bcrypt PIN — untuk verifikasi PIN/password offline */
+  pin_hash?: string | null
 }
 
 const OFFICER_CACHE_KEY = 'trip.officers.cache.v1'
@@ -96,6 +98,12 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   if (!backendOfficers) return []
 
   const mobileOfficers = backendOfficers.map(toMobileOfficer)
+
+  // Kredensial PIN (bcrypt dari server) disimpan lokal supaya petugas BARU
+  // hasil sync admin langsung bisa login offline tanpa pernah login online dulu.
+  for (const bo of backendOfficers) {
+    if (bo.pin_hash) void setPinHash(String(bo.id), bo.pin_hash)
+  }
 
   // Save to localStorage for offline access
   try {

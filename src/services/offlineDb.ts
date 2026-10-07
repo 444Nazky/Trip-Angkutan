@@ -109,7 +109,10 @@ async function migrateFromLocalStorage(): Promise<void> {
 export function initOfflineDb(): Promise<LocalBackend> {
   if (!initPromise) {
     initPromise = (async () => {
-      const ok = await openSqlite()
+      // Timeout 5 dtk: bila plugin SQLite menggantung di perangkat tertentu,
+      // turunkan ke localStorage agar login offline tidak hang selamanya.
+      const timeout = new Promise<boolean>(res => setTimeout(() => { console.warn('[offline-db] init timeout — fallback localStorage'); res(false) }, 5000))
+      const ok = await Promise.race([openSqlite(), timeout])
       backend = ok ? 'sqlite' : 'localStorage'
       if (ok) await migrateFromLocalStorage()
       return backend
@@ -188,10 +191,11 @@ export async function listOfficers<T = OfficerRow>(): Promise<T[]> {
   if (backend === 'sqlite' && conn) {
     try {
       const res = await conn.query('SELECT payload FROM officers ORDER BY name ASC')
-      const values = (res?.values ?? []) as unknown[][]
+      const values = (res?.values ?? []) as Array<Record<string, unknown> | unknown[]>
       return values
         .map(v => {
-          try { return JSON.parse(String(v[0])) as T } catch { return null }
+          const cell = Array.isArray(v) ? v[0] : v?.['payload']
+          try { return JSON.parse(String(cell)) as T } catch { return null }
         })
         .filter((v): v is T => v !== null)
     } catch (err) {
@@ -280,7 +284,8 @@ export async function getPinHash(officerId: string): Promise<string | null> {
         'SELECT pin_hash FROM credentials WHERE officer_id = ? LIMIT 1',
         [String(officerId)],
       )
-      const value = (res?.values as unknown[][] | undefined)?.[0]?.[0]
+      const row = (res?.values as Array<Record<string, unknown> | unknown[]> | undefined)?.[0]
+      const value = Array.isArray(row) ? row[0] : row?.['pin_hash']
       if (value) return String(value)
     } catch (err) {
       console.warn('[offline-db] gagal baca kredensial:', err)

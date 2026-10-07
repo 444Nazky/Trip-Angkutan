@@ -47,7 +47,7 @@ interface DocPhoto {
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const { trips, detailTripId, officer, patchDraft } = useApp()
   // Scope to this officer's trips — never leak another officer's trip detail
-  const myTrips = trips.filter(x => x.officer === officer.name)
+  const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const isSynced = t?.synced === true
 

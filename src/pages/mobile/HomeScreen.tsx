@@ -63,7 +63,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     return 'slate'
   })()
 
-  const myTrips = trips.filter(t => t.officer === officer.name)
+  const myTrips = trips.filter(t =>
+    t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
+  )
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))

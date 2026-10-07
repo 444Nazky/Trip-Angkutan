@@ -1,6 +1,6 @@
 {
   "name": "ionic-app-base",
-  "version": "0.0.0",
+  "version": "1.0.1",
   "author": "Ionic Framework",
   "homepage": "https://ionicframework.com/",
   "engines": {
@@ -13,7 +13,8 @@
     "status": "node scripts/dev-status.mjs",
     "cache:clean": "ng cache clean",
     "build": "ng build",
-    "ota:publish": "node scripts/publish-ota-version.js",
+    "ota:publish": "node scripts/publish-ota-git.mjs",
+    "ota:publish:api": "node scripts/publish-ota-version.js",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint"

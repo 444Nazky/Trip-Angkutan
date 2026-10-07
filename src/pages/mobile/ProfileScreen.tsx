@@ -1,21 +1,24 @@
-import { useEffect } from 'react'
-import { Truck, Map, ShieldCheck, Settings, ChevronRight, ArrowLeftRight, Lock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Truck, Map, Settings, ChevronRight, ArrowLeftRight, Lock, Users } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
+import LocalOfficersModal from './LocalOfficersModal'
 
 interface ProfileScreenProps {
   go: (s: MobileScreen) => void
 }
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
-  const { officer, trips, beginVerify, refreshOfficers } = useApp()
+  const { officer, trips, refreshOfficers } = useApp()
+  const [showLocalOfficers, setShowLocalOfficers] = useState(false)
 
   useEffect(() => {
     void refreshOfficers()
 
   }, [])
 
-  const myTrips = trips.filter(t => t.officer === officer.name)
+  const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -59,7 +62,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         {[
           { icon: Truck, label: 'Riwayat Trip', action: () => go('history') },
           { icon: Map, label: 'Rute Aktif', action: () => go('route-select') },
-          { icon: ShieldCheck, label: 'Keamanan & PIN', action: () => { beginVerify({ pendingOfficerId: null, intent: 'security' }); go('pin-verify') } },
+          { icon: Users, label: 'Daftar Petugas Lokal', action: () => setShowLocalOfficers(true), highlight: true },
           { icon: Settings, label: 'Pengaturan', action: () => go('settings') },
         ].map((item, i) => (
           <button
@@ -67,8 +70,11 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             onClick={item.action}
             className={`w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left ${i > 0 ? 'border-t border-slate-100' : ''}`}
           >
-            <item.icon size={18} className="text-slate-400" />
-            <span className="flex-1 text-[14px] font-semibold text-slate-700">{item.label}</span>
+            <item.icon size={18} className={item.highlight ? 'text-blue-500' : 'text-slate-400'} />
+            <span className={`flex-1 text-[14px] font-semibold ${item.highlight ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>{item.label}</span>
+            {item.highlight && (
+              <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">Offline</span>
+            )}
             <ChevronRight size={16} className="text-slate-300" />
           </button>
         ))}
@@ -80,6 +86,12 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       >
         <ArrowLeftRight size={15} /> Ganti Petugas
       </button>
+
+      {/* Modal Daftar Petugas Lokal */}
+      {showLocalOfficers && (
+        <LocalOfficersModal onClose={() => setShowLocalOfficers(false)} />
+      )}
+
     </div>
   )
 }

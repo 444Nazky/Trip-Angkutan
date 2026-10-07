@@ -155,16 +155,13 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
   if (status === 'idle' || status === 'checking') return null
 
   return (
-    <div
-      className={`fixed ${position} z-[${zIndex}] animate-in slide-in-from-bottom-4 fade-in duration-300`}
-      style={{ zIndex }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-w-sm mx-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200" style={{ zIndex: 100 }}>
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-white">
             <StatusIcon status={status} />
-            <span className="font-semibold">
+            <span className="font-bold text-lg">
               {status === 'downloading' ? 'Memperbarui...' :
                status === 'ready' ? 'Update Siap!' :
                status === 'offline' ? 'Offline' : 'Update Gagal'}
@@ -181,7 +178,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
         </div>
 
         {/* Content */}
-        <div className="p-4">
+        <div className="p-6">
           {/* Version info */}
           {latestVersion && (
             <div className="flex items-center gap-2 mb-3">
@@ -214,7 +211,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
 
           {/* Ready message */}
           {status === 'ready' && (
-            <p className="text-sm text-slate-600 mb-4">
+            <p className="text-base text-slate-600 mb-4">
               Update sudah siap diterapkan. Aplikasi akan memperbarui secara otomatis saat Anda menekan tombol di bawah.
             </p>
           )}
@@ -224,7 +221,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
             {status === 'error' && (
               <button
                 onClick={onRetry}
-                className="flex-1 py-2.5 px-4 bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <RefreshCw size={16} />
                 Coba Lagi
@@ -235,13 +232,13 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
               <>
                 <button
                   onClick={onDismiss}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
+                  className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
                 >
                   Nanti
                 </button>
                 <button
                   onClick={onApply}
-                  className="flex-1 py-2.5 px-4 bg-blue-500 hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
                 >
                   <Check size={16} />
                   Terapkan
@@ -252,7 +249,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
             {status === 'offline' && (
               <button
                 onClick={onDismiss}
-                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
+                className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
               >
                 Tutup
               </button>
@@ -325,6 +322,14 @@ export default function UpdateNotifier({
 
     return () => clearInterval(intervalId)
   }, [autoCheck, checkInterval, performCheck])
+
+  // Cek ulang segera saat perangkat kembali online
+  useEffect(() => {
+    if (!autoCheck) return
+    const onOnline = () => { void performCheck() }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [autoCheck, performCheck])
 
   // Apply update and reload
   const handleApply = useCallback(async () => {

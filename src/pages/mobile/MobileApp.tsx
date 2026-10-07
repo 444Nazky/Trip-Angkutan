@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import MobileShell from './MobileShell'
 import HomeScreen from './HomeScreen'
 import RouteSelectScreen from './RouteSelectScreen'
@@ -38,6 +38,9 @@ export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
   // Dipakai RouteSelectScreen untuk filter rute.
   const [selectedDockId, setSelectedDockId] = useState<string | null>(null)
   const stack = useRef<MobileScreen[]>(['home'])
+
+  // Ganti petugas → batalkan popup pilih dermaga yang tersisa
+  useEffect(() => { setPendingDermagas(null) }, [officer?.id])
 
   const noNavScreens: MobileScreen[] = [
     'camera', 'officer-switch', 'pin-verify', 'trip-active', 'trip-complete',
@@ -94,6 +97,10 @@ export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
     if (accesses.length > 1) {
       setSelectedDockId(null) // belum pilih dock, popup tanggung jawab
       setPendingDermagas(accesses as Dermaga[])
+      return
+    }
+    if (accesses.length === 0) {
+      console.warn('[trip] Petugas tanpa akses dermaga — tidak bisa mulai trip')
       return
     }
     setPendingDermagas(null)

@@ -136,29 +136,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ))}
       </div>
 
-      {selfieRequired && (
-        <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${selfieTaken ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selfieTaken ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-            <Camera size={16} className={selfieTaken ? 'text-emerald-500' : 'text-amber-500'} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className={`text-[12px] font-bold ${selfieTaken ? 'text-emerald-700' : 'text-amber-700'}`}>
-              {selfieTaken ? 'Swafoto siap' : 'Swafoto wajib sebelum End Trip'}
-            </p>
-          </div>
-          {!selfieTaken ? (
-            <button
-              onClick={() => { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera') }}
-              className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
-            >
-              Ambil Swafoto
-            </button>
-          ) : (
-            <img src={draft.selfieUrl} alt="Swafoto" className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0" />
-          )}
-        </div>
-      )}
-
       <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${photoTaken ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${photoTaken ? 'bg-emerald-100' : 'bg-amber-100'}`}>
           <Camera size={16} className={photoTaken ? 'text-emerald-500' : 'text-amber-500'} />
@@ -168,7 +145,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             {photoTaken ? 'Foto kamera siap' : 'Foto kamera belum diambil'}
           </p>
           <p className={`text-[10px] ${photoTaken ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {photoTaken ? 'Bukti trip tersimpan pada ringkasan ini' : 'Wajib ambil foto via kamera sebelum submit trip'}
+            {!photoTaken
+              ? 'Wajib ambil foto via kamera sebelum submit trip'
+              : selfieRequired && !selfieTaken
+                ? 'Foto siap — lanjut swafoto petugas sebelum End Trip'
+                : 'Bukti trip tersimpan pada ringkasan ini'}
           </p>
         </div>
         {!photoTaken && (
@@ -177,6 +158,14 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
           >
             Ambil Foto
+          </button>
+        )}
+        {photoTaken && selfieRequired && !selfieTaken && (
+          <button
+            onClick={() => { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera') }}
+            className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
+          >
+            Ambil Swafoto
           </button>
         )}
         {photoTaken && draft.photoUrl && (

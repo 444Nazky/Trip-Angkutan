@@ -176,9 +176,11 @@ export async function probeServer(force = false): Promise<boolean> {
   if (!force && now - _pingAt < PING_TTL_MS) return _pingOk
   const base = getApiBaseUrl()
   try {
-    const timer = setTimeout(() => {/* ping abort */}, PING_TIMEOUT_MS)
-    const res = await fetch(`${base}/api/health`, {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS)
+    const res = await fetch(`${base}/health`, {
       cache: 'no-store',
+      signal: controller.signal,
     })
     clearTimeout(timer)
     _pingOk = res.ok
@@ -241,7 +243,7 @@ async function processItem(item: SyncQueueItem, retryAll = false): Promise<void>
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), ITEM_TIMEOUT_MS)
 
-    response = await fetch(`${getApiBaseUrl()}/api/trips/complete`, {
+    response = await fetch(`${getApiBaseUrl()}/trips/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item.payload),
@@ -407,7 +409,7 @@ export async function pullMasterData(): Promise<{ officers?: number; tariffs?: n
   const results: { officers?: number; tariffs?: number } = {}
   // Pull tariffs
   try {
-    const res = await fetch(`${base}/api/tariffs`)
+    const res = await fetch(`${base}/tariffs`)
     if (res.ok) {
       const data = await res.json()
       for (const t of data) {
@@ -418,7 +420,7 @@ export async function pullMasterData(): Promise<{ officers?: number; tariffs?: n
   } catch { /* ignore */ }
   // Pull officers
   try {
-    const res = await fetch(`${base}/api/officers`)
+    const res = await fetch(`${base}/officers`)
     if (res.ok) {
       const data = await res.json()
       for (const o of data) {

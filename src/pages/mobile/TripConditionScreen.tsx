@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, Package, Truck } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -10,6 +10,7 @@ interface TripConditionScreenProps {
 export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const { draft, patchDraft } = useApp()
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
+  useEffect(() => { setCondition(draft.condition) }, [draft.condition])
 
   const bgForCondition = (key: string) => {
     if (condition !== key) return 'bg-slate-100'

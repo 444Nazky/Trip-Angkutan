@@ -4,11 +4,13 @@
 import { api, type ApiError } from './api'
 import {
   findOfficer as findOfflineOfficer,
+  getPinHash,
   hashPin,
   saveOfficers,
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
+import bcrypt from 'bcryptjs'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
@@ -16,6 +18,12 @@ const ROUTES_KEY = 'trip.auth.routes.v1'
 
 // Demo PIN shared by all seeded officers
 export const DEMO_PIN = '123456'
+
+/** Kunci penyimpan hash password bersama member-login (offline verify). */
+const MEMBER_PASS_KEY = '__member__'
+
+/** Kunci penyimpanan password member bersama (planteks lokal). */
+const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
 
 // Officer the app *wants* to be authenticated as, even while offline
 let activeOfficerId: string | null = null
@@ -246,6 +254,13 @@ export async function memberLogin(
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
   void cachePin(result.data.officer.id, password)
+  // Password bersama (member-login) di-cache lokal supaya verifikasi offline
+  // untuk petugas mana pun bisa dilakukan tanpa pernah login online dulu.
+  void hashPin(MEMBER_PASS_KEY, password).then(h => setPinHash(MEMBER_PASS_KEY, h))
+  // Cache password member bersama (teks lokal) untuk validasi offline —
+  // backend memakai satu password yang sama untuk semua petugas, sehingga
+  // cukup disimpan sekali saat login online berhasil.
+  try { localStorage.setItem(MEMBER_CRED_KEY, password) } catch { /* quota */ }
 
   // ── LOGIN PERTAMA KALI (ONLINE): tarik & simpan SEMUA petugas satu dermaga
   //    ke penyimpanan lokal, supaya pergantian akun tetap jalan saat offline.
@@ -599,7 +614,7 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   let resolved = false
   let inactive = false
   try {
-    const row = await findOfflineOfficer<any>(identifier)
+    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number; payload?: { status?: string } }>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
     const status = row?.status ?? row?.payload?.status
     if (status && /nonaktif/i.test(String(status))) inactive = true
@@ -608,8 +623,22 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
-  if (storedRecord && 'status' in storedRecord && /nonaktif/i.test(String((storedRecord as any).status))) inactive = true
+  if (storedRecord && storedRecord.status && /nonaktif/i.test(String(storedRecord.status))) inactive = true
   if (inactive) return false
+
+  // Password member bersama: cek versi teks yang di-cache + versi hash.
+  try {
+    const cachedPass = localStorage.getItem(MEMBER_CRED_KEY)
+    if (cachedPass !== null && cachedPass === pin) return true
+    const memberHash = await getPinHash(MEMBER_PASS_KEY)
+    if (memberHash) {
+      if (memberHash.startsWith('$2')) {
+        try { if (bcrypt.compareSync(pin, memberHash)) return true } catch { /* lanjut */ }
+      } else if (memberHash === (await hashPin(MEMBER_PASS_KEY, pin))) {
+        return true
+      }
+    }
+  } catch { /* lanjut cek per-petugas */ }
 
   try {
     if (await verifyStoredPin(officerId, pin)) return true

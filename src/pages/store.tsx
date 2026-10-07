@@ -53,6 +53,8 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
+  /** ID petugas pembuat — filter History yang tahan ganti nama petugas. */
+  officerId?: string
   /** Swafoto wajib petugas sebelum End Trip (trip muatan) — lokal saja. */
   selfieUrl?: string
   selfieCapturedAt?: string
@@ -305,17 +307,21 @@ function normalizeTrips(list: Trip[]): Trip[] {
 /** Gabung dua daftar trip tanpa duplikat (by id) — dipakai rekonsiliasi
  *  localStorage ↔ IndexedDB agar tidak ada trip yang hilang. */
 function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
-  const longer = a.length >= b.length ? a : b
-  const shorter = longer === a ? b : a
-  const seen = new Set<string>()
-  const out: Trip[] = []
-  for (const t of [...longer, ...shorter]) {
+  const byId = new Map<string, Trip>()
+  for (const t of [...a, ...b]) {
     const key = String(t.id)
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(t)
+    const prev = byId.get(key)
+    if (!prev) { byId.set(key, t); continue }
+    // Versi lebih baru menang; synced:true tidak pernah ditimpa synced:false
+    const prevTs = Date.parse(prev.completedAt ?? '') || 0
+    const nextTs = Date.parse(t.completedAt ?? '') || 0
+    const winner =
+      prev.synced === true && t.synced !== true ? prev :
+      t.synced === true && prev.synced !== true ? t :
+      nextTs >= prevTs ? t : prev
+    byId.set(key, winner)
   }
-  return out
+  return [...byId.values()]
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -450,7 +456,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * Foto bukti WAJIB sudah tersimpan di draft.photoUrl sebelum fungsi ini dipanggil.
    * Pemanggil bertanggung jawab memastikan draft.condition === 'kosong' dan draft.photo === true.
    */
+  const commitTrip = useCallback((t: Trip) => {
+    const tripWithSync = { ...t, synced: false }
+    setTrips(prev => [tripWithSync, ...prev])
+    setDetailTripId(t.id)
+    setDraft(emptyDraft)
+    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
+    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
+    void addToSyncQueue(tripWithSync, photos, tripPhoto)
+  }, [])
   const finishEmptyTrip = useCallback(() => {
+    if (!draft.photoUrl) {
+      console.warn('[trip] finishEmptyTrip dipanggil tanpa foto bukti — dibatalkan')
+      return
+    }
     const now = new Date()
     const id = nextTripId(tripsRef.current)
     const routeCode = draft.routeCode ?? ''
@@ -476,6 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       revenue: '-',
       revenueNum: 0,
       officer: officer.name,
+      officerId: String(officer.id),
       duration: '-',
       photo: !!draft.photoUrl,
       photoUrl: draft.photoUrl,
@@ -507,15 +527,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const updated: Trip = { ...current, vehicles, synced: false }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
     void retrySyncItem(updated)
-  }, [])
-  const commitTrip = useCallback((t: Trip) => {
-    const tripWithSync = { ...t, synced: false }
-    setTrips(prev => [tripWithSync, ...prev])
-    setDetailTripId(t.id)
-    setDraft(emptyDraft)
-    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
-    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
-    void addToSyncQueue(tripWithSync, photos, tripPhoto)
   }, [])
   const beginVerify = useCallback((opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => {
     setPendingOfficerId(opts.pendingOfficerId)

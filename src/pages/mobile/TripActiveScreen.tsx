@@ -97,6 +97,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
       revenue: formatRp(isMuatan ? total : 0),
       revenueNum: isMuatan ? total : 0,
       officer: officer.name,
+      officerId: String(officer.id),
       duration: isMuatan ? fmtElapsed(elapsed) : '-',
       photo: draft.photo,
       photoUrl: draft.photoUrl,

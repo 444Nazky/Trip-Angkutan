@@ -76,7 +76,7 @@ function collectAssets(dir, base) {
 
 async function main() {
   // 1. Resolve branch HEAD SHA
-  const refResp = await api("GET", `/repos/${OWNER}/${REPO}/git/ref/${BRANCH}`)
+  const refResp = await api("GET", `/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`)
   const headSha = refResp?.object?.sha
   if (!headSha) {
     console.error("❌  Could not resolve branch ref:", refResp)
@@ -107,6 +107,25 @@ async function main() {
     branch: BRANCH,
   }
   if (existingBlob?.sha) payload.sha = existingBlob.sha
+
+  // Upload every built asset so raw.githubusercontent can serve it
+  for (const asset of assets) {
+    const filePath = path.join(WEB_DIR, asset)
+    const b64 = fs.readFileSync(filePath).toString('base64')
+    let existing = null
+    try {
+      existing = await api("GET", `/repos/${OWNER}/${REPO}/contents/${asset}?ref=${BRANCH}`)
+    } catch { /* new file */ }
+    const assetPayload = {
+      message: `chore(ota): asset ${asset}`,
+      content: b64,
+      branch: BRANCH,
+    }
+    if (existing?.sha) assetPayload.sha = existing.sha
+    const r = await api("PUT", `/repos/${OWNER}/${REPO}/contents/${asset}`, assetPayload)
+    if (!r.content) console.error(`❌ asset failed: ${asset}`, JSON.stringify(r).slice(0, 120))
+  }
+  console.log(`✅ ${assets.length} assets pushed`)
 
   const resp = await api("PUT", `/repos/${OWNER}/${REPO}/contents/${MANIFEST_PATH}`, payload)
 
