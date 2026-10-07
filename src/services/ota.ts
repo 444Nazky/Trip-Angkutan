@@ -148,6 +148,10 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
 export function isNewer(remote: string, local: string): boolean {
   if (!local) return true
   if (remote === local) return false
+  // Format "x.y.z+<timestamp>": bandingkan timestamp build-nya dulu
+  const rt = /\+(\d+)/.exec(remote)?.[1]
+  const lt = /\+(\d+)/.exec(local)?.[1]
+  if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
   const rm = remote.match(/\d+/g)
   const lm = local.match(/\d+/g)
   if (rm && lm) {
