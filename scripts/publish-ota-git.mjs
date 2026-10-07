@@ -45,8 +45,9 @@ try {
   }
   fs.cpSync(WEB_DIR, TMP, { recursive: true })
 
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const version = `${pkg.version}+${Date.now()}`
+  // Versi murni angka naik-terus — cocok dengan SEMUA versi isNewer
+  // (lama maupun baru) yang membandingkan segmen numerik.
+  const version = String(Date.now())
   const manifest = JSON.stringify({ version, assets }, null, 2)
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
