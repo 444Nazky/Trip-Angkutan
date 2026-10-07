@@ -10,6 +10,7 @@
 //   credentials  — hash PIN petugas (tidak pernah menyimpan PIN polos)
 
 import { Capacitor } from '@capacitor/core'
+import bcrypt from 'bcryptjs'
 
 export type LocalBackend = 'sqlite' | 'localStorage'
 
@@ -46,6 +47,8 @@ export interface OfficerRow {
   regionName?: string
   regionCode?: string
   isActive?: boolean
+  /** Scope dermaga akses untuk dual-access officer */
+  dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
   payload: unknown
 }
 
@@ -140,7 +143,8 @@ export async function saveOfficers(rows: OfficerRow[]): Promise<void> {
     regionName: r.regionName,
     regionCode: r.regionCode,
     isActive: r.isActive ?? true,
-    payload: r.payload ?? r,
+    dermagaAccess: r.dermagaAccess,
+    payload: r.payload ?? { ...r, dermagaAccess: r.dermagaAccess },
   })
 
   if (backend === 'sqlite' && conn) {
@@ -289,6 +293,10 @@ export async function getPinHash(officerId: string): Promise<string | null> {
 export async function verifyPin(officerId: string, pin: string): Promise<boolean> {
   const stored = await getPinHash(officerId)
   if (!stored) return false
+  // Hash bcrypt dari server (sinkron offline) — verifikasi langsung via bcryptjs
+  if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+    try { return bcrypt.compareSync(pin, stored) } catch { return false }
+  }
   if (stored.startsWith('sha256:') || stored.startsWith('fnv1a:')) {
     return stored === (await hashPin(officerId, pin))
   }

@@ -11,7 +11,7 @@ router.get('/:id/officers', authenticate, (req, res) => {
   try {
     const dermagaId = String(req.params.id);
     const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active,
+      SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash,
              r.name AS region_name, r.code AS region_code
       FROM officer_dermagas od
       JOIN officers o ON o.id = od.officer_id

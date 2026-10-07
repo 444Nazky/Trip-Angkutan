@@ -28,7 +28,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 export default function CameraScreen({ go }: CameraScreenProps) {
-  const { draft, patchDraft, officer } = useApp()
+  const { draft, patchDraft, officer, patchTripPhoto, patchVehiclePhoto } = useApp()
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [liveState, setLiveState] = useState<'off' | 'starting' | 'ready' | 'denied'>('off')
@@ -40,8 +40,15 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const busyRef = useRef(false)
 
   const isOcr = draft.cameraMode === 'ocr'
-  const returnTo: MobileScreen = isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form')
-  const title = isOcr ? 'Scan Plat Nomor' : (returnTo === 'trip-summary' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
+  const retake = draft.retakeTarget
+  const returnTo: MobileScreen = retake
+    ? 'history-detail'
+    : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
+  const title = isOcr
+    ? 'Scan Plat Nomor'
+    : retake
+      ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
+      : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
   // Jam berjalan untuk pratinjau watermark (timestamp real-time)
@@ -208,17 +215,73 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         if (plate) patchDraft({ ocrResult: plate })
       } catch { /* OCR gagal — biarkan petugas isi manual */ }
       setBusy(false)
+      patchDraft({ cameraReturn: undefined })
       go('vehicle-form')
       return
     }
 
-    patchDraft({
-      photo: true,
-      photoUrl: watermarked,
-      photoCapturedAt: capturedAt.toISOString(),
-      photoLatitude: lat,
-      photoLongitude: lon,
-    })
+    const capturedIso = capturedAt.toISOString()
+
+    // ── Mode RETAKE dari Riwayat: tulis langsung ke trip yang sudah tersimpan
+    //    (perbaiki foto bukti trip ATAU foto satu kendaraan tertentu).
+    if (retake) {
+      if (retake.kind === 'vehicle') {
+        patchVehiclePhoto(retake.tripId, retake.index ?? 0, {
+          photoUrl: watermarked,
+          photoCapturedAt: capturedIso,
+          photoLatitude: lat,
+          photoLongitude: lon,
+        })
+      } else {
+        patchTripPhoto(retake.tripId, {
+          photo: true,
+          photoUrl: watermarked,
+          photoCapturedAt: capturedIso,
+          photoLatitude: lat,
+          photoLongitude: lon,
+        })
+      }
+      patchDraft({ retakeTarget: undefined })
+      setBusy(false)
+      go('history-detail')
+      return
+    }
+
+    // ── Mode SWAFOTO wajib (trip bermuatan) → slot sendiri, lokal saja.
+    if (draft.selfieMode) {
+      patchDraft({
+        selfieUrl: watermarked,
+        selfieCapturedAt: capturedIso,
+        cameraReturn: undefined,
+        selfieMode: undefined,
+      })
+      setBusy(false)
+      go(returnTo)
+      return
+    }
+
+    // ── Konteks form kendaraan → foto KENDARAAN (vPhoto*), BUKAN foto trip.
+    //    Dipisah agar menambah truk 2 / mobil 1 tidak pernah memakai ulang
+    //    foto trip (setiap kendaraan wajib punya foto dokumentasi sendiri).
+    if (draft.cameraFrom === 'vehicle-form') {
+      patchDraft({
+        vPhoto: true,
+        vPhotoUrl: watermarked,
+        vPhotoCapturedAt: capturedIso,
+        vPhotoLatitude: lat,
+        vPhotoLongitude: lon,
+        cameraReturn: undefined,
+      })
+    } else {
+      patchDraft({
+        photo: true,
+        photoUrl: watermarked,
+        photoCapturedAt: capturedIso,
+        photoLatitude: lat,
+        photoLongitude: lon,
+        cameraReturn: undefined,
+      })
+    }
     setBusy(false)
     go(returnTo)
   }

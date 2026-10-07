@@ -24,17 +24,18 @@ import { Geolocation, type Position } from '@capacitor/geolocation'
 import { api, getApiBaseUrl as readApiBaseUrl } from './api'
 import { ensureBackendSession, getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
 import {
+  initOfflineDb as initLocalDb,
   dbAll,
   dbCount,
   dbDelete,
   dbPut,
   dbPutMany,
-  initLocalDb,
   metaGet,
   metaSet,
   requestPersistentStorage,
-} from './localDb'
+} from './offline-db'
 import type { Trip } from '../pages/store'
+import { syncOnResume } from './adminPull'
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const BASE_BACKOFF_MS = 15_000        // backoff dasar 15 dtk, x2 per percobaan
@@ -273,6 +274,36 @@ export async function removeFromSyncQueue(syncIdOrTripId: string): Promise<void>
 
 /** Jumlah antrean tertunda (nilai ter-cache, diperbarui tiap perubahan). */
 export function getPendingCount(): number { return _pendingCount }
+
+/**
+ * Perbarui snapshot item antrean dengan data trip TERBARU (mis. setelah foto
+ * dokumentasi diambil ulang dari Riwayat), reset status gagal, lalu proses
+ * ulang. Dipakai untuk melepas item yang macet karena PHOTO_MISSING.
+ */
+export async function retrySyncItem(trip: Trip): Promise<void> {
+  try {
+    await initLocalDb()
+    const existing = await dbGetById(trip.id)
+    if (!existing) return
+    const item: SyncItem = {
+      ...existing,
+      trip,
+      photos: derivePhotos(trip),
+      tripPhoto: deriveTripPhoto(trip),
+      attempts: 0,
+      lastError: undefined,
+      lastErrorCode: undefined,
+      needsAttention: false,
+      lastAttemptAt: undefined,
+    }
+    await writeItem(item)
+    notifyQueueListeners()
+    // Kirim segera (150 ms) — sama seperti addToSyncQueue
+    window.setTimeout(() => void processSyncQueue(), 150)
+  } catch (err) {
+    console.warn('[sync] retrySyncItem gagal:', err)
+  }
+}
 
 /** Seluruh isi antrean (untuk debug/diagnostik UI). */
 export function getSyncQueue(): SyncItem[] { return _queueCache }
@@ -756,6 +787,8 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
 async function handleConnectionRestored(): Promise<void> {
   for (let i = 0; i < ONLINE_RETRY_ATTEMPTS; i++) {
     if (await probeServer(true)) {
+      // SINKRONISASI DUA ARAH: tarik master data terbaru + unggah antrean lokal
+      void syncOnResume(true)
       await processSyncQueue()
       return
     }
@@ -768,6 +801,9 @@ async function handleConnectionRestored(): Promise<void> {
 export function initializeSync(): void {
   if (_initialized) return
   _initialized = true
+
+  // Tarik master data sekali saat init (hanya jalan bila online & throttle 5 mnt)
+  void syncOnResume()
 
   void initLocalDb().then(async () => {
     // 1. Migrasi antrean lama agar data petugas yang sudah ada tidak hilang

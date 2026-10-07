@@ -4,6 +4,7 @@ import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
+import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { getCurrentVersion, checkForUpdate, applyUpdate, registerOtaServiceWorker, restoreBundleFromStorage } from "./services/ota"
 import type { UpdateState } from "./services/ota"
@@ -71,6 +72,7 @@ function Shell() {
       if (isActive) {
         const v = latestVersionRef.current
         if (v) void checkForUpdate(v, setOta)
+        syncOnResume()
       }
     }).then(s => { sub = s })
     return () => {

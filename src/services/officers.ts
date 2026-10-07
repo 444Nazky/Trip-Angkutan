@@ -111,7 +111,7 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     regionId: o.region,
     regionCode: o.region,
     isActive: o.status === 'Aktif',
-    payload: o,
+    payload: { ...o, username: o.username, dermagaAccess: o.dermagaAccess },
   })))
 
   return mobileOfficers

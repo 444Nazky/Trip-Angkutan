@@ -94,8 +94,25 @@ export interface UiRoute {
   dermagaId?: string
 }
 
-function saveRoutesMap(map: Record<string, Route[]>) {
-  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(map)) }
+function isValidRoute(r: unknown): r is Route {
+  return typeof r === 'object' && r !== null && !!(r as Route).id && !!(r as Route).name
+}
+
+function isNonEmptyString(s: unknown): s is string {
+  return typeof s === 'string' && s.length > 0
+}
+
+function saveRoutesMap(map: Record<string, Route[]>): void {
+  // Validasi & bersihkan data rute sebelum simpan — data corrupt/rusak diskard
+  const clean: Record<string, Route[]> = {}
+  if (map && typeof map === 'object') {
+    for (const [k, list] of Object.entries(map)) {
+      if (!k || !Array.isArray(list)) continue
+      const filtered = list.filter(isValidRoute)
+      if (filtered.length) clean[k] = filtered
+    }
+  }
+  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(clean)) }
   catch { /* quota */ }
 }
 
@@ -286,7 +303,7 @@ export async function loginWithPin(
 }
 
 /** Bentuk petugas tersimpan di database offline (mobile format). */
-interface OfflineOfficerRecord {
+export interface OfflineOfficerRecord {
   id: string
   name: string
   username?: string
@@ -297,6 +314,8 @@ interface OfflineOfficerRecord {
   regionCode?: string
   status?: string
   pin?: string
+  /** Scope dermaga akses — dipakai saat login offline untuk memilih dermaga */
+  dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
 /**
@@ -344,6 +363,8 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
   try { row = await findOfflineOfficer<OfflineOfficerRecord>(identifier) } catch { row = null }
   if (!row) row = findStoredOfficerRecord(identifier)
   if (!row) return null
+  // Petugas yang dinonaktifkan admin tidak boleh login (offline maupun online)
+  if (row.status && /nonaktif/i.test(String(row.status))) return null
 
   const region = String(row.region ?? row.regionCode ?? row.regionId ?? '')
   const officer: StoredOfficer = {
@@ -352,6 +373,7 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionId: String(row.regionId ?? region),
     regionName: String(row.regionName ?? region),
     regionCode: String(row.regionCode ?? region),
+    // dermagaAccess disimpan di payload officer agar route/dermaga scope aktif offline
   }
   activeOfficerId = officer.id
   saveOfficer(officer)
@@ -365,7 +387,7 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionName: officer.regionName,
     regionCode: officer.regionCode,
     isActive: true,
-    payload: { ...officer, username: row.username },
+    payload: { ...officer, username: row.username, dermagaAccess: row.dermagaAccess },
   }])
   return { token: '', officer }
 }
@@ -575,13 +597,19 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   // Petugas bisa dicari lewat id, username, maupun nama
   let officerId = String(identifier)
   let resolved = false
+  let inactive = false
   try {
-    const row = await findOfflineOfficer<OfflineOfficerRecord>(identifier)
+    const row = await findOfflineOfficer<any>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
+    const status = row?.status ?? row?.payload?.status
+    if (status && /nonaktif/i.test(String(status))) inactive = true
+    if (row?.isActive === false || row?.is_active === 0) inactive = true
   } catch { /* database offline belum siap */ }
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
+  if (storedRecord && 'status' in storedRecord && /nonaktif/i.test(String((storedRecord as any).status))) inactive = true
+  if (inactive) return false
 
   try {
     if (await verifyStoredPin(officerId, pin)) return true
@@ -623,9 +651,11 @@ interface RosterOfficer {
   regions?: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id?: string }>
   is_active?: number | boolean
+  /** Hash bcrypt PIN dari server — untuk verifikasi PIN offline */
+  pin_hash?: string
 }
 
-function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string } {
+function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string; status?: string } {
   const primary = o.regions?.[0]
   return {
     id: String(o.id),
@@ -634,7 +664,8 @@ function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string 
     regionId: String(o.region_id ?? primary?.id ?? ''),
     regionName: String(o.region_name ?? primary?.name ?? ''),
     regionCode: String(o.region_code ?? primary?.code ?? ''),
-  }
+    status: o.is_active === 0 || o.is_active === false ? 'Nonaktif' : 'Aktif',
+  } as StoredOfficer & { username?: string; status?: string }
 }
 
 /**
@@ -657,6 +688,11 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
       isActive: o.is_active === undefined ? true : Boolean(o.is_active),
       payload: shaped[i],
     })))
+    // Simpan hash PIN server supaya PIN bisa diverifikasi OFFLINE untuk
+    // semua petugas di wilayah, bukan hanya yang pernah login di perangkat ini.
+    for (const o of officers) {
+      if (o.pin_hash) void setPinHash(String(o.id), o.pin_hash)
+    }
   } catch { /* db belum siap — cache di bawah tetap jalan */ }
 
   // 2. Cache per-dermaga (localStorage)

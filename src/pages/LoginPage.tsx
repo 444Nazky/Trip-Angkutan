@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { loginOffline, memberLogin } from '../services/auth'
+import { loginOffline, memberLogin, verifyPinOffline } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers } from '../services/officers'
 
@@ -86,8 +86,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       const officers = getStoredOfficers()
+      // Verifikasi hash PIN offline agar konsisten dengan auth.ts
+      // findStoredOfficerRecord dipanggil langsung oleh verifyPinOffline
       const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
-      if (match && 'pin' in match && match.pin && match.pin === p) {
+      if (match && (await verifyPinOffline(String(match.id), p))) {
         localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
           id: String(match.id),
           name: match.name,

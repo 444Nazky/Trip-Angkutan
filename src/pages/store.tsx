@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
-import { addToSyncQueue, onTripSynced } from '../services/sync'
+import { addToSyncQueue, onTripSynced, retrySyncItem } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { api } from '../services/api'
 import { dbAll, dbPutMany, initLocalDb } from '../services/localDb'
@@ -53,6 +53,9 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
+  /** Swafoto wajib petugas sebelum End Trip (trip muatan) — lokal saja. */
+  selfieUrl?: string
+  selfieCapturedAt?: string
 }
 
 export interface Draft {
@@ -60,11 +63,32 @@ export interface Draft {
   condition: 'kosong' | 'muatan' | null
   vehicles: VehicleEntry[]
   vehicleForm: { plate: string; type: string; category: string }
+  /** Foto BUKTI TRIP (ringkasan) — terpisah dari foto kendaraan. */
   photo: boolean
   photoUrl?: string
   photoCapturedAt?: string
   photoLatitude?: number | null
   photoLongitude?: number | null
+  /**
+   * Foto KENDARAAN untuk form input — sengaja dipisah dari foto trip supaya
+   * menambah kendaraan kedua/ketiga tidak pernah memakai ulang foto trip
+   * (truk 1 = foto truk 1, truk 2 = foto truk 2, dst).
+   */
+  vPhoto: boolean
+  vPhotoUrl?: string
+  vPhotoCapturedAt?: string
+  vPhotoLatitude?: number | null
+  vPhotoLongitude?: number | null
+  /** Ambil-ulang foto dari Riwayat (trip atau salah satu kendaraan). */
+  retakeTarget?: { tripId: string; kind: 'trip' | 'vehicle'; index?: number }
+  /** Indeks kendaraan tujuan foto saat ambil dari layar Ringkasan. */
+  vehiclePhotoTarget?: number
+  /** Mode swafoto wajib (trip bermuatan) — kamera menulis ke selfie*. */
+  selfieMode?: boolean
+  selfieUrl?: string
+  selfieCapturedAt?: string
+  /** Layar tujuan setelah kamera (opsional — memisahkan KONTEKS foto dari layar kembali). */
+  cameraReturn?: MobileScreen
 
   cameraFrom: MobileScreen
 
@@ -97,8 +121,16 @@ interface StoreValue {
   resetDraft: () => void
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
+  /** Ubah satu kendaraan pada DRAFT (mis. melengkapi foto yang kurang). */
+  patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
   startTrip: () => void
+  /** Langsung selesaikan trip kosong ke antrean sync (tanpa layar aktif). */
+  finishEmptyTrip: () => void
   markTripSynced: (id: string) => void
+  /** Perbaiki foto bukti TRIP yang hilang/ambul-ulang dari Riwayat. */
+  patchTripPhoto: (tripId: string, fields: Partial<Trip>) => void
+  /** Perbaiki foto dokumentasi satu KENDARAAN tertentu dari Riwayat. */
+  patchVehiclePhoto: (tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => void
   detailTripId: string | null
   setDetailTripId: (id: string | null) => void
   pendingOfficerId: string | null
@@ -120,6 +152,17 @@ const emptyDraft: Draft = {
   photoCapturedAt: undefined,
   photoLatitude: undefined,
   photoLongitude: undefined,
+  vPhoto: false,
+  vPhotoUrl: undefined,
+  vPhotoCapturedAt: undefined,
+  vPhotoLatitude: undefined,
+  vPhotoLongitude: undefined,
+  retakeTarget: undefined,
+  vehiclePhotoTarget: undefined,
+  selfieMode: undefined,
+  selfieUrl: undefined,
+  selfieCapturedAt: undefined,
+  cameraReturn: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
   startedAt: null,
@@ -232,6 +275,25 @@ export function normalizeCategory(c?: string): string | undefined {
   return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
 }
 
+/**
+ * Label urutan dokumentasi PER JENIS kendaraan — contoh:
+ *   [Truck Besar, Truck Besar, Mobil, Motor] → "Truk 1", "Truk 2", "Mobil 1", "Motor 1"
+ * Dipakai di seluruh layar output dokumentasi (ringkasan, riwayat, foto)
+ * supaya foto truk 1 tidak tertukar dengan truk 2.
+ */
+export function unitLabel(list: VehicleEntry[] | undefined, index: number): string {
+  const arr = list ?? []
+  const v = arr[index]
+  if (!v) return `Kendaraan ${index + 1}`
+  const key = (v.type ?? '').trim().toLowerCase()
+  let n = 0
+  for (let i = 0; i <= index; i++) {
+    if ((arr[i]?.type ?? '').trim().toLowerCase() === key) n++
+  }
+  const name = (v.type || 'Kendaraan').replace(/^Truck/i, 'Truk')
+  return `${name} ${n}`
+}
+
 function normalizeTrips(list: Trip[]): Trip[] {
   return list.map(t => ({
     ...t,
@@ -264,6 +326,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => load(LS.officers, officerList))
   const [draft, setDraft] = useState<Draft>(emptyDraft)
+  /** Ref snapshot trips terbaru — dipakai aksi patch* agar tidak basi. */
+  const tripsRef = useRef<Trip[]>(trips)
+  useEffect(() => { tripsRef.current = trips }, [trips])
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
   const [pendingOfficerId, setPendingOfficerId] = useState<string | null>(null)
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
@@ -372,9 +437,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (v: VehicleEntry) => setDraft(d => ({ ...d, vehicles: [...d.vehicles, v] })),
     [],
   )
+  const patchDraftVehicle = useCallback(
+    (index: number, fields: Partial<VehicleEntry>) => setDraft(d => ({
+      ...d,
+      vehicles: d.vehicles.map((v, i) => (i === index ? { ...v, ...fields } : v)),
+    })),
+    [],
+  )
   const startTrip = useCallback(() => setDraft(d => ({ ...d, startedAt: d.startedAt ?? Date.now() })), [])
+  /**
+   * Langsung selesaikan trip kosong: buat payload & masukkan ke antrean sync TANPA layar aktif/timer/durasi.
+   * Foto bukti WAJIB sudah tersimpan di draft.photoUrl sebelum fungsi ini dipanggil.
+   * Pemanggil bertanggung jawab memastikan draft.condition === 'kosong' dan draft.photo === true.
+   */
+  const finishEmptyTrip = useCallback(() => {
+    const now = new Date()
+    const id = nextTripId(tripsRef.current)
+    const routeCode = draft.routeCode ?? ''
+    const sepIdx = routeCode.lastIndexOf('-')
+    const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
+    const routeTo = sepIdx > 0 ? routeCode.slice(sepIdx + 1).trim() : ''
+    const routeLabel = sepIdx > 0
+      ? `${routeFrom} → ${routeTo}`
+      : routeCode || 'Tidak Diketahui'
+    const trip: Trip = {
+      id,
+      route: routeLabel,
+      routeCode,
+      routeFrom,
+      routeTo,
+      status: 'Selesai',
+      time: fmtClock(now),
+      date: fmtDate(now),
+      load: 'Kosong',
+      vehicle: '-',
+      type: '-',
+      category: '-',
+      revenue: '-',
+      revenueNum: 0,
+      officer: officer.name,
+      duration: '-',
+      photo: !!draft.photoUrl,
+      photoUrl: draft.photoUrl,
+      photoCapturedAt: draft.photoCapturedAt,
+      photoLatitude: draft.photoLatitude ?? null,
+      photoLongitude: draft.photoLongitude ?? null,
+      startedAt: draft.startedAt ? new Date(draft.startedAt).toISOString() : now.toISOString(),
+      completedAt: now.toISOString(),
+      vehicles: [],
+      synced: false,
+    }
+    commitTrip(trip)
+  }, [draft, officer.name, commitTrip])
   const markTripSynced = useCallback((id: string) => {
     setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
+  }, [])
+  const patchTripPhoto = useCallback((tripId: string, fields: Partial<Trip>) => {
+    const current = tripsRef.current.find(t => t.id === tripId)
+    if (!current) return
+    const updated: Trip = { ...current, ...fields, synced: false }
+    setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
+    // Foto baru = payload baru → buka kembali antrean yg sblmnya macet (PHOTO_MISSING)
+    void retrySyncItem(updated)
+  }, [])
+  const patchVehiclePhoto = useCallback((tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => {
+    const current = tripsRef.current.find(t => t.id === tripId)
+    if (!current?.vehicles?.[vehicleIndex]) return
+    const vehicles = current.vehicles.map((v, i) => (i === vehicleIndex ? { ...v, ...fields } : v))
+    const updated: Trip = { ...current, vehicles, synced: false }
+    setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
+    void retrySyncItem(updated)
   }, [])
   const commitTrip = useCallback((t: Trip) => {
     const tripWithSync = { ...t, synced: false }
@@ -464,12 +596,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     trips, commitTrip,
     tariffs, saveTariffs,
     officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced,
+    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, startTrip, finishEmptyTrip, markTripSynced,
+    patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, startTrip, markTripSynced, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
+    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, startTrip, finishEmptyTrip, markTripSynced,
+    patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
