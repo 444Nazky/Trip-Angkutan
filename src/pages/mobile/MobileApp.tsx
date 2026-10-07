@@ -84,14 +84,8 @@ export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
     setAnim(kind)
     setScreen(next)
   }
+ /* */
 
-  /**
-   * Dipanggil saat petugas menekan "Mulai Trip" di HomeScreen.
-   *
-   * Single-access (1 dermaga): langung kunci dermaga, lanjut ke trip-condition.
-   * Dual-access (>1 dermaga): simpan daftar dermaga, tampilkan popup pilih dermaga.
-   * Setelah petugas pilih, route filter otomatis sesuai pilihan.
-   */
   function handleStartTrip() {
     const accesses = officer.dermagaAccess || []
     if (accesses.length > 1) {
