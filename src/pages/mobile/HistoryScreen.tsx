@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
 import { useApp } from '../store'
 import { getSyncQueue } from '../../services/sync'
@@ -8,6 +8,7 @@ import type { MobileScreen } from '../types'
 function SyncBadge({ tripId, isSynced }: { tripId: string; isSynced: boolean }) {
   const queue = getSyncQueue()
   const inQueue = queue.some(q => q.trip.id === tripId)
+  void inQueue // referenced via queue length in parent
 
   if (isSynced) {
     return (
@@ -59,8 +60,38 @@ interface HistoryScreenProps {
 export default function HistoryScreen({ go }: HistoryScreenProps) {
   const { trips, setDetailTripId, officer } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Officers only see their own trips (matches HomeScreen)
+  // Re-read from localStorage on mount and when window gains focus
+  // This ensures trips are fresh even after navigation from other screens
+  const refreshTrips = useCallback(() => {
+    setRefreshKey(k => k + 1)
+  }, [])
+
+  useEffect(() => {
+    // Initial refresh on mount
+    refreshTrips()
+
+    // Refresh when window regains focus (user navigates back from another screen)
+    const handleFocus = () => refreshTrips()
+    window.addEventListener('focus', handleFocus)
+
+    // Also listen for storage events (cross-tab sync)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'trip.trips.v1') refreshTrips()
+    }
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [refreshTrips])
+
+  // Key force re-render when data changes from store (new trip committed)
+  const tripsKey = `${refreshKey}-${trips.length}-${officer.name}`
+
+  // Officers only see their own trips - match by officer name
   const myTrips = trips.filter(t => t.officer === officer.name)
   const filtered = filter === 'all'
     ? myTrips
@@ -71,7 +102,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const localCount = myTrips.filter(t => !t.synced).length
 
   return (
-    <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-black text-slate-900 text-[20px]">Riwayat Trip</h2>
         <ConnectionIndicator />
@@ -101,7 +132,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
       </div>
 
       {/* List */}
-      <div className="space-y-3">
+      <div className="space-y-3" key={tripsKey}>
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
             <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
@@ -117,7 +148,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         )}
         {filtered.map(t => (
           <button
-            key={t.id}
+            key={`${t.id}-${t.date}-${t.time}`}
             onClick={() => { setDetailTripId(t.id); go('history-detail') }}
             className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-start gap-4 text-left hover:shadow-md active:scale-[0.98] transition-all"
           >

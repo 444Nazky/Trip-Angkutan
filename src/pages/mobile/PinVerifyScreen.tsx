@@ -93,7 +93,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       </div>
 
       {error && (
-        <p className="text-red-500 text-[12px] font-semibold mb-3 animate-fade-in">PIN salah. Coba lagi.</p>
+        <p className="text-red-500 text-[12px] font-semibold mb-3">PIN salah. Coba lagi.</p>
       )}
 
       {/* Numpad */}
