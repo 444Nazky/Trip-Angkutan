@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock, RefreshCw } from 'lucide-react'
+import { Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock } from 'lucide-react'
 import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
 import { dbClear } from '../../services/localDb'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
-import {
-  syncOfficerCredentials,
-  getLastCredentialsSync,
-} from '../../services/credentialSync'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -19,32 +15,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
-
-  // ── Credential Sync State ──────────────────────────────────────
-  const [lastCredSync, setLastCredSync] = useState(0)
-  const [credSyncing, setCredSyncing] = useState(false)
-  const [credSyncResult, setCredSyncResult] = useState<{ message: string; error: boolean } | null>(null)
-
-  const handleSyncCredentials = async () => {
-    setCredSyncing(true)
-    setCredSyncResult(null)
-    try {
-      const result = await syncOfficerCredentials()
-      setCredSyncResult({
-        message: result.error ?? `Tersinkron: ${result.synced} petugas dan rute`,
-        error: !!result.error,
-      })
-      setLastCredSync(getLastCredentialsSync())
-    } catch {
-      setCredSyncResult({ message: 'Sinkronisasi gagal. Coba lagi.', error: true })
-    } finally {
-      setCredSyncing(false)
-    }
-  }
-
-  useEffect(() => {
-    setLastCredSync(getLastCredentialsSync())
-  }, [])
 
   // Antrean sinkron — berlangganan perubahan supaya angka selalu akurat
   useEffect(() => onSyncQueueChange(setPendingCount), [])
@@ -250,36 +220,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           <Lock size={11} className="shrink-0 mt-0.5" />
           <span>Endpoint locked by default by admin</span>
         </div>
-      </div>
-
-      {/* Sinkronisasi Kredensial */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
-            <Shield size={16} />
-          </div>
-          <button
-            onClick={() => void handleSyncCredentials()}
-            disabled={credSyncing}
-            className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-200 hover:bg-amber-300 disabled:opacity-50 rounded-lg px-3 py-1.5 transition-colors"
-          >
-            <RefreshCw size={11} className={credSyncing ? 'animate-spin' : ''} />
-            {credSyncing ? 'Sinkron…' : 'Sinkron'}
-          </button>
-          {credSyncResult && (
-            <p className={`ml-auto text-[10px] font-medium ${credSyncResult.error ? 'text-red-600' : 'text-emerald-600'}`}>
-              {credSyncResult.message}
-            </p>
-          )}
-        </div>
-        {lastCredSync > 0 && (
-          <p className="text-[9px] text-slate-400 mt-1.5 pl-11">
-            Terakhir sinkron: {new Date(lastCredSync).toLocaleString('id-ID')}
-          </p>
-        )}
-        <p className="text-[9px] text-slate-400 mt-2 pl-11">
-          Tarik daftar petugas, hash PIN, dan rute wilayah dari server. Login online diperlukan.
-        </p>
       </div>
 
       {/* Perawatan */}

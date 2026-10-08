@@ -25,7 +25,7 @@ import { useApp } from '../store'
 // tab  → pindah tab bawah
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
-const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
+const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail', 'local-officers']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
 // Tab utama (Beranda/Riwayat/Profil) selalu berpindah TANPA animasi halaman —
 // animasi hanya untuk popup & tombol, agar UI tidak terasa ramai.
@@ -152,9 +152,14 @@ export default function MobileApp() {
   }
 
   if (fullscreenScreens.includes(screen)) {
+    // Daftar Petugas Lokal: beri animasi masuk/keluar (push/pop) seperti halaman
+    // biasa; layar kamera/pin tetap instan.
+    const animated = screen === 'local-officers'
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
-        {screenMap[screen]}
+        {animated
+          ? <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
+          : screenMap[screen]}
       </div>,
     )
   }
