@@ -18,6 +18,7 @@ export type MobileScreen =
   | 'pin-verify'
   | 'profile'
   | 'settings'
+  | 'local-officers'
 
 export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'reports' | 'settings'
 

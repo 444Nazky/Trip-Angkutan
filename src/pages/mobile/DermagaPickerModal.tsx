@@ -28,7 +28,7 @@ export default function DermagaPickerModal({ dermagas, onSelect, onCancel }: Der
   return (
     // Backdrop semi-transparan
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
       {/* Card dialog — muncul dari bawah */}

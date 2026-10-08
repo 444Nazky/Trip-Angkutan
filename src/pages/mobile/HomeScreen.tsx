@@ -75,7 +75,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       .filter(p => p && p !== '-'),
   )
   return (
-    <div className="flex flex-col px-4 pt-2 pb-4 animate-fade-in" style={{ gap: 16 }}>
+    <div className="flex flex-col px-4 pt-2 pb-4" style={{ gap: 16 }}>
       {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />

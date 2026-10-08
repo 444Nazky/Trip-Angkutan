@@ -25,7 +25,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       .filter(p => p && p !== '-'),
   )
   return (
-    <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4 space-y-4">
       <h2 className="font-black text-slate-900 text-[18px] mb-4">Profil</h2>
 
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">

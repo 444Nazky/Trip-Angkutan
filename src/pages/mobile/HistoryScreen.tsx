@@ -69,7 +69,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const localCount = myTrips.filter(t => !t.synced).length
 
   return (
-    <div className="px-4 pt-2 pb-4 space-y-4 animate-fade-in">
+    <div className="px-4 pt-2 pb-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-black text-slate-900 text-[20px]">Riwayat Trip</h2>
         <ConnectionIndicator />

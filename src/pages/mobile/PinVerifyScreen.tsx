@@ -147,7 +147,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       </div>
 
       {error && (
-        <p className="text-red-500 text-[12px] font-semibold mb-3 animate-fade-in">
+        <p className="text-red-500 text-[12px] font-semibold mb-3">
           PIN salah — coba lagi
         </p>
       )}

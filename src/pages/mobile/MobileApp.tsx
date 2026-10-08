@@ -42,8 +42,13 @@ export default function MobileApp() {
   // Ganti petugas → batalkan popup pilih dermaga yang tersisa
   useEffect(() => { setPendingDermagas(null) }, [officer?.id])
 
-  const noNavScreens: MobileScreen[] = [
-    'camera', 'officer-switch', 'pin-verify', 'trip-active', 'trip-complete',
+  // Fullscreen screens: no bottom nav, instant rendering
+  const fullscreenScreens: MobileScreen[] = [
+    'camera',
+    'officer-switch', // Daftar Petugas - fullscreen view, no nav overlap
+    'pin-verify',
+    'trip-active',
+    'trip-complete',
   ]
 
   const activeNav = ['history', 'history-detail'].includes(screen)
@@ -142,10 +147,10 @@ export default function MobileApp() {
     )
   }
 
-  if (noNavScreens.includes(screen)) {
+  if (fullscreenScreens.includes(screen)) {
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
-        <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
+        {screenMap[screen]}
       </div>,
     )
   }
