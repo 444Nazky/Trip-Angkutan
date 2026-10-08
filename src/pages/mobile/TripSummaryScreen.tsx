@@ -11,7 +11,7 @@ interface TripSummaryScreenProps {
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const {
     draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle,
-    finishEmptyTrip, removeDraftVehicle, editDraftVehicle,
+    finishEmptyTrip, finishMuatanTrip, removeDraftVehicle, editDraftVehicle,
   } = useApp()
 
   const allRoutes = activeRoutes()
@@ -60,8 +60,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       finishEmptyTrip()
       go('trip-complete')
     } else {
+      // Ada muatan + swafoto sudah diambil → KIRIM SAJA (langsung selesai,
+      // tanpa melalui layar Trip Aktif/timer).
       startTrip()
-      go('trip-active')
+      finishMuatanTrip()
+      go('trip-complete')
     }
   }
 
@@ -69,7 +72,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     if (!photoTaken) return 'Ambil Foto Kamera Dulu'
     if (vehiclesMissingPhoto.length > 0) return 'Lengkapi Foto Kendaraan'
     if (selfieRequired && !selfieTaken) return 'Ambil Swafoto Dulu'
-    return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif'
+    return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
   }
 
   return (
@@ -234,7 +237,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       >
         <Play size={15} fill="white" />
         {allDocsComplete
-          ? (draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif')
+          ? (draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja')
           : submitLabel()}
       </button>
       <button

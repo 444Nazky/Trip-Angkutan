@@ -250,9 +250,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           <Lock size={11} className="shrink-0 mt-0.5" />
           <span>Endpoint locked by default by admin</span>
         </div>
-        <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
-          <Database size={11} className="shrink-0" />
-        </div>
       </div>
 
       {/* Sinkronisasi Kredensial */}

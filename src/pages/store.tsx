@@ -145,6 +145,8 @@ interface StoreValue {
   startTrip: () => void
   /** Langsung selesaikan trip kosong ke antrean sync (tanpa layar aktif). */
   finishEmptyTrip: () => void
+  /** Direct submit trip bermuatan (swafoto lengkap) ke antrean, tanpa Trip Aktif. */
+  finishMuatanTrip: () => void
   markTripSynced: (id: string) => void
   /** Perbaiki foto bukti TRIP yang hilang/ambul-ulang dari Riwayat. */
   patchTripPhoto: (tripId: string, fields: Partial<Trip>) => void
@@ -594,6 +596,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     commitTrip(trip)
   }, [draft, officer.name, commitTrip])
+  /**
+   * Kirim Saja (direct submit) untuk trip bermuatan yang sudah lengkap
+   * (foto kendaraan + foto bukti + swafoto). Sama seperti finishEmptyTrip,
+   * TIDAK melewati layar Trip Aktif/timer — langsung masuk antrean sync
+   * dan petugas diarahkan ke Trip Selesai.
+   */
+  const finishMuatanTrip = useCallback(() => {
+    if (draft.condition !== 'muatan') return
+    if (!draft.photoUrl || !draft.selfieUrl) {
+      console.warn('[trip] finishMuatanTrip ditolak: foto bukti/swafoto belum lengkap')
+      return
+    }
+    const now = new Date()
+    const id = nextTripId(tripsRef.current)
+    const routeCode = draft.routeCode ?? ''
+    const sepIdx = routeCode.lastIndexOf('-')
+    const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
+    const routeTo = sepIdx > 0 ? routeCode.slice(sepIdx + 1).trim() : ''
+    const routeLabel = sepIdx > 0 ? `${routeFrom} → ${routeTo}` : routeCode || 'Tidak Diketahui'
+    const startedAt = draft.startedAt ? new Date(draft.startedAt) : now
+    // ponytail: direct submit = tanpa layar Trip Aktif → durasi akurat hanya
+    // bila petugas sudah tekan "Mulai" di awal; jika tidak, tercatat ~0dtk (jujur).
+    const elapsed = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000))
+    const vehicles = draft.vehicles
+    const total = vehicles.reduce((sum, v) => sum + (v.tariff ?? 0), 0)
+    const trip: Trip = {
+      id,
+      route: routeLabel,
+      routeCode,
+      routeFrom,
+      routeTo,
+      status: 'Selesai',
+      time: fmtClock(now),
+      date: fmtDate(now),
+      load: 'Ada Muatan',
+      vehicle: vehicles[0]?.plate ?? '-',
+      type: vehicles[0]?.type ?? '-',
+      category: vehicles[0]?.category ?? '-',
+      revenue: formatRp(total),
+      revenueNum: total,
+      officer: officer.name,
+      officerId: String(officer.id),
+      duration: fmtElapsed(elapsed),
+      photo: !!draft.photoUrl,
+      photoUrl: draft.photoUrl,
+      photoCapturedAt: draft.photoCapturedAt,
+      photoLatitude: draft.photoLatitude ?? null,
+      photoLongitude: draft.photoLongitude ?? null,
+      startedAt: startedAt.toISOString(),
+      completedAt: now.toISOString(),
+      vehicles,
+      synced: false,
+      selfieUrl: draft.selfieUrl,
+      selfieCapturedAt: draft.selfieCapturedAt,
+    }
+    commitTrip(trip)
+  }, [draft, officer.name, commitTrip])
   const markTripSynced = useCallback((id: string) => {
     setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
   }, [])
@@ -706,14 +765,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariffs, saveTariffs,
     officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
-    startTrip, finishEmptyTrip, markTripSynced,
+    startTrip, finishEmptyTrip, finishMuatanTrip, markTripSynced,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
-    startTrip, finishEmptyTrip, markTripSynced,
+    startTrip, finishEmptyTrip, finishMuatanTrip, markTripSynced,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga])
 

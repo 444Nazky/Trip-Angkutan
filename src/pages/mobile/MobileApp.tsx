@@ -6,7 +6,6 @@ import TripConditionScreen from './TripConditionScreen'
 import VehicleFormScreen from './VehicleFormScreen'
 import CameraScreen from './CameraScreen'
 import TripSummaryScreen from './TripSummaryScreen'
-import TripActiveScreen from './TripActiveScreen'
 import TripCompleteScreen from './TripCompleteScreen'
 import HistoryScreen from './HistoryScreen'
 import HistoryDetailScreen from './HistoryDetailScreen'
@@ -52,7 +51,6 @@ export default function MobileApp() {
     'officer-switch', // Daftar Petugas - fullscreen view, no nav overlap
     'local-officers', // Daftar Petugas Lokal - fullscreen, bukan popup
     'pin-verify',
-    'trip-active',
     'trip-complete',
   ]
 
@@ -69,7 +67,6 @@ export default function MobileApp() {
     'vehicle-form': <VehicleFormScreen go={go} />,
     camera: <CameraScreen go={go} />,
     'trip-summary': <TripSummaryScreen go={go} />,
-    'trip-active': <TripActiveScreen go={go} />,
     'trip-complete': <TripCompleteScreen go={go} />,
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} />,

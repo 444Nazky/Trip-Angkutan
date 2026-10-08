@@ -10,7 +10,6 @@ export type MobileScreen =
   | 'vehicle-form'
   | 'camera'
   | 'trip-summary'
-  | 'trip-active'
   | 'trip-complete'
   | 'history'
   | 'history-detail'

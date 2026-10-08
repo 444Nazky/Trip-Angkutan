@@ -66,6 +66,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
+  const queuedCount = myTrips.filter(t => t.synced !== true).length
   // Tanpa akses dermaga → trip tidak bisa dimulai. Daripada senyap (console.warn),
   // tampilkan pesan yang bisa dibaca petugas dan arahkan ke admin.
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
@@ -157,6 +158,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
             <p className={`text-[22px] font-black ${s.color === 'blue' ? 'text-blue-600' : 'text-slate-900'}`}>{s.val}</p>
             <p className="text-[12px] font-semibold text-slate-700 mt-1">{s.label}</p>
             <p className="text-[12px] text-slate-400 mt-0.5">{s.sub}</p>
+            {s.label === 'Trip' && queuedCount > 0 && (
+              <p className="text-[10px] text-amber-600 mt-0.5 font-semibold">{queuedCount} belum terkirim</p>
+            )}
           </div>
         ))}
       </div>
