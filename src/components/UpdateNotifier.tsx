@@ -198,24 +198,24 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
             </div>
           )}
 
-          {/* Offline message */}
+     
           {status === 'offline' && (
             <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
               <WifiOff size={16} className="text-slate-500 shrink-0" />
               <p className="text-sm text-slate-600">
-                Periksa koneksi internet untuk update
+                pastikan sudah terhubung ke jaringan intranet
               </p>
             </div>
           )}
 
-          {/* Ready message */}
+      
           {status === 'ready' && (
             <p className="text-base text-slate-600 mb-4">
               Update sudah siap diterapkan. Aplikasi akan memperbarui secara otomatis saat Anda menekan tombol di bawah.
             </p>
           )}
 
-          {/* Actions */}
+   
           <div className="flex gap-2 mt-4">
             {status === 'error' && (
               <button

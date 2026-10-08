@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock, RefreshCw } from 'lucide-react'
-import { useApp } from '../store'
 import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
 import { dbClear } from '../../services/localDb'
-import { getBackend } from '../../services/offlineDb'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
 import {
   syncOfficerCredentials,
@@ -16,7 +14,6 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ go }: SettingsScreenProps) {
-  const { trips } = useApp()
   const [cleared, setCleared] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -112,7 +109,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
 
   // URL server: hanya sebagian tengah hostname yang disensor (read-only)
   const masked = getMaskedApiUrl()
-  const storageBackend = getBackend() === 'sqlite' ? 'SQLite (lokal)' : 'Penyimpanan lokal'
 
   // Cache clear
   function clearCache() {
@@ -237,18 +233,17 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-      {/* Data count */}
+    
       <div className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3 shadow-sm border border-slate-100">
         <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
           <Database size={18} />
         </div>
         <div>
-          <p className="text-[12px] font-bold text-slate-800">{trips.length} trip tercatat</p>
           <p className="text-[10px] text-slate-400">{pendingCount} · offline queue</p>
         </div>
       </div>
 
-      {/* Server URL — READ-ONLY, sebagian tengah disensor */}
+      
       <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-slate-100">
         <div className="flex items-center gap-2 mb-3">
           <Lock size={13} className="text-slate-400 shrink-0" />
@@ -263,11 +258,10 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
         <div className="flex items-start gap-2 mt-3 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <Lock size={11} className="shrink-0 mt-0.5" />
-          <span>URL terkunci untuk petugas lapangan. Perubahan server hanya bisa dilakukan supervisor/admin.</span>
+          <span>Endpoint locked by default by admin</span>
         </div>
         <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
           <Database size={11} className="shrink-0" />
-          <span>Data offline: {storageBackend}</span>
         </div>
       </div>
 

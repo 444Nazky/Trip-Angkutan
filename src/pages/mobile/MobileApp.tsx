@@ -14,6 +14,7 @@ import OfficerSwitchScreen from './OfficerSwitchScreen'
 import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
 import SettingsScreen from './SettingsScreen'
+import LocalOfficersScreen from './LocalOfficersScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
@@ -73,6 +74,7 @@ export default function MobileApp() {
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     settings: <SettingsScreen go={go} />,
+    'local-officers': <LocalOfficersScreen go={go} />,
   }
 
   /** Navigasi dengan animasi sesuai konteks. */
