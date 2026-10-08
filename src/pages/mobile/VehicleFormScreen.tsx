@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
-import { tariffFor, useApp } from '../store'
+import { tariffFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 
@@ -16,7 +16,9 @@ const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const { draft, patchDraft, addVehicle, tariffs } = useApp()
   const { plate, type: vehicleType, category } = draft.vehicleForm
-  const photoTaken = draft.photo
+  // Foto kendaraan MEMAKAI SLOT TERPISAH (vPhoto) — bukan foto trip,
+  // supaya tiap kendaraan (Truk 1, Truk 2, Mobil 1 …) punya foto sendiri.
+  const photoTaken = draft.vPhoto
 
   const [check, setCheck] = useState<PlateCheck | null>(null)
   const [checkLoading, setCheckLoading] = useState(false)
@@ -71,19 +73,19 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       type: vehicleType,
       category: category,
       tariff: tariffFor(vehicleType).loadedNum,
-      photoUrl: draft.photoUrl,
-      photoCapturedAt: draft.photoCapturedAt,
-      photoLatitude: draft.photoLatitude,
-      photoLongitude: draft.photoLongitude,
+      photoUrl: draft.vPhotoUrl,
+      photoCapturedAt: draft.vPhotoCapturedAt,
+      photoLatitude: draft.vPhotoLatitude,
+      photoLongitude: draft.vPhotoLongitude,
       plateStatus: check?.status,
     })
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
-      photo: false,
-      photoUrl: undefined,
-      photoCapturedAt: undefined,
-      photoLatitude: undefined,
-      photoLongitude: undefined,
+      vPhoto: false,
+      vPhotoUrl: undefined,
+      vPhotoCapturedAt: undefined,
+      vPhotoLatitude: undefined,
+      vPhotoLongitude: undefined,
     })
     setCheck(null)
     return true
@@ -127,9 +129,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 : 'border-dashed border-slate-300 bg-slate-50 hover:border-slate-400'
             }`}
           >
-            {photoTaken && draft.photoUrl ? (
+            {photoTaken && draft.vPhotoUrl ? (
               <>
-                <img src={draft.photoUrl} alt="" className="w-11 h-11 rounded-lg object-cover" />
+                <img src={draft.vPhotoUrl} alt="" className="w-11 h-11 rounded-lg object-cover" />
                 <span className="text-sm text-slate-700">Foto tersimpan</span>
                 <Check size={16} className="ml-auto text-emerald-500" />
               </>
@@ -263,10 +265,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {draft.vehicles.map((v, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                {v.photoUrl && <img src={v.photoUrl} alt="" className="w-8 h-8 rounded-md object-cover" />}
+                {v.photoUrl && <img src={v.photoUrl} alt={`Foto ${unitLabel(draft.vehicles, i)}`} className="w-8 h-8 rounded-md object-cover" />}
+                <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded shrink-0">
+                  {unitLabel(draft.vehicles, i)}
+                </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
-                <span className="text-xs text-slate-500">{v.type}</span>
-                <span className="ml-auto text-[11px] text-slate-400">{v.category}</span>
+                <span className="text-xs text-slate-500 ml-auto">{v.category}</span>
               </div>
             ))}
           </div>

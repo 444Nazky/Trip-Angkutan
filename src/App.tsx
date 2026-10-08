@@ -1,43 +1,56 @@
-import { useEffect } from 'react'
-import MobileApp from './pages/mobile/MobileApp'
-import LoginPage from './pages/LoginPage'
-import { AppProvider, useApp } from './pages/store'
-import { initializeSync } from './services/sync'
+import { useEffect, useRef } from "react"
+import { App as CapacitorApp } from "@capacitor/app"
+import MobileApp from "./pages/mobile/MobileApp"
+import LoginPage from "./pages/LoginPage"
+import { AppProvider, useApp } from "./pages/store"
+import { initializeSync } from "./services/sync"
+import { syncOnResume } from "./services/adminPull"
+import { initOfflineDb } from "./services/offlineDb"
+import { getCurrentVersion, restoreBundleFromStorage } from "./services/ota"
+import UpdateNotifier from "./components/UpdateNotifier"
 
-/**
- * Shell aplikasi mobile (branch main — siap export Capacitor/Android).
- *
- * Branch ini HANYA berisi aplikasi petugas. Dashboard admin tidak ada di
- * sini — login administrator dilakukan di build branch `admin`
- * (http://localhost:8000 / Netlify), bukan lewat aplikasi mobile.
- */
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
-  useEffect(() => { initializeSync() }, [])
+  const latestVersionRef = useRef<string | null>(null)
 
-  // Belum masuk → form login petugas (member).
+  useEffect(() => {
+    initializeSync()
+    void initOfflineDb()
+    void restoreBundleFromStorage()
+  }, [])
+
+  // Initialize version reference untuk UpdateNotifier
+  useEffect(() => {
+    getCurrentVersion().then(v => {
+      if (v) latestVersionRef.current = v
+    })
+
+    // Listen untuk foreground resume - UpdateNotifier akan handle auto-check
+    let sub: { remove?: () => void } | undefined
+    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) syncOnResume()
+    }).then(s => { sub = s })
+    return () => { sub?.remove?.() }
+  }, [])
+
   if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
-
-  // Sisa sesi admin dari build hybrid lama di browser ini → tutup, agar
-  // aplikasi mobile tidak pernah menampilkan rute/komponen admin.
-  if (userType === 'admin') {
-    logout()
-    return <LoginPage onLogin={() => login('member')} />
-  }
+  if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
-      <div className="flex items-center justify-center h-dvh w-full overflow-hidden p-0 sm:p-6">
-        <MobileApp />
-      </div>
+    <div className="app-root bg-slate-50">
+      {/* UpdateNotifier menangani semua state OTA: check, download, ready, error, offline */}
+      <UpdateNotifier
+        autoCheck={true}
+        initialDelay={5000}
+        checkInterval={30 * 60 * 1000}
+        position="bottom-right"
+        onUpdateApplied={(v) => console.log('[App] Update applied:', v)}
+      />
+      <MobileApp />
     </div>
   )
 }
 
 export default function App() {
-  return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
-  )
+  return <AppProvider><Shell /></AppProvider>
 }

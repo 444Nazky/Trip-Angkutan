@@ -1,6 +1,6 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, onSyncQueueChange, processSyncQueue } from '../../services/sync'
+import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -10,36 +10,62 @@ interface HomeScreenProps {
   onStartTrip: () => void
 }
 
+type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
+
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
-  const [syncing, setSyncing] = useState(false)
+  const [syncState, setSyncState] = useState<SyncState>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    // Check pending count on mount
+    // Refresh count saat focus window
+    const h = () => setPendingCount(getPendingCount())
+    window.addEventListener('focus', h)
+    const unsub = onSyncQueueChange(setPendingCount)
     setPendingCount(getPendingCount())
-    // Check on window focus
-    const handleFocus = () => setPendingCount(getPendingCount())
-    window.addEventListener('focus', handleFocus)
-    // Perubahan antrean (mis. terkirim otomatis saat online) langsung tercermin
-    const unsubscribe = onSyncQueueChange(setPendingCount)
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      unsubscribe()
-    }
+    return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
+
+  /** TOMBOL MANUAL — "Paksa Sinkronisasi". Verifikasi koneksi memakai ping
+   *  aktif, jadi tetap bisa ditekan walau navigator.onLine salah baca. */
   const handleSync = async () => {
-    if (syncing || !navigator.onLine) return
-    setSyncing(true)
+    if (busy) return
+    setBusy(true)
+    setSyncState(null)
     try {
-      await processSyncQueue({ retryAll: true })
+      const r = await syncNow()
+      setSyncState(r)
       setPendingCount(getPendingCount())
+      if (r.failed === 0) {
+        setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
+      }
     } finally {
-      setSyncing(false)
+      setBusy(false)
+      setPendingCount(getPendingCount())
     }
   }
 
-  const myTrips = trips.filter(t => t.officer === officer.name)
+  const syncLabel = (() => {
+    if (busy) return 'Menyinkronkan…'
+    if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
+    if (syncState && syncState.failed === 0) return `${syncState.synced} trip tersinkron ✓`
+    if (syncState && syncState.failed > 0) return `${syncState.failed} belum terkirim — ketuk untuk ulangi`
+    if (pendingCount > 0) return `${pendingCount} trip menunggu sinkronisasi`
+    return 'Semua data sudah tersinkron'
+  })()
+
+  const syncTone = (() => {
+    if (syncState && syncState.reachable === false) return 'amber'
+    if (syncState && syncState.failed === 0) return 'green'
+    if (syncState && syncState.failed > 0) return 'red'
+    if (busy || pendingCount > 0) return 'amber'
+    return 'slate'
+  })()
+
+  const myTrips = trips.filter(t =>
+    t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
+  )
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -63,18 +89,49 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Sync Status */}
-      {pendingCount > 0 && (
+      {/* Sinkronisasi — tombol PAKSA SINKRONISASI manual petugas */}
+      {(busy || pendingCount > 0 || !!syncState) && (
         <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 hover:bg-amber-100 transition-colors disabled:opacity-50"
+          onClick={() => { void handleSync() }}
+          disabled={busy}
+          className={`w-full border rounded-2xl p-4 flex items-center gap-3 transition-colors ${
+            syncTone === 'green'
+              ? 'bg-green-50 border-green-200 hover:bg-green-100'
+              : syncTone === 'red'
+                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                : syncTone === 'slate'
+                  ? 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+          } disabled:cursor-default`}
         >
-          <RefreshCw size={18} className={syncing ? 'animate-spin text-amber-500' : 'text-amber-500'} />
-          <span className="text-[13px] font-semibold text-amber-700">
-            {syncing ? 'Menyinkronkan...' : `${pendingCount} trip menunggu sinkronisasi`}
+          <RefreshCw
+            size={18}
+            className={`${busy || pendingCount > 0 ? 'animate-spin ' : ''}${
+              syncTone === 'green' ? 'text-emerald-500'
+                : syncTone === 'red' ? 'text-red-500'
+                : syncTone === 'slate' ? 'text-slate-400'
+                : 'text-amber-500'
+            }`}
+          />
+          <span className={`text-[13px] font-semibold flex-1 text-left ${
+            syncTone === 'green' ? 'text-green-700'
+              : syncTone === 'red' ? 'text-red-600'
+              : syncTone === 'slate' ? 'text-slate-500'
+              : 'text-amber-700'
+          }`}>
+            {syncLabel}
           </span>
-          {!syncing && <span className="ml-auto text-[11px] text-amber-500 font-bold">Tap untuk sync</span>}
+          <span className={`text-[11px] font-black px-2.5 py-1 rounded-full bg-white/80 border ${
+            syncTone === 'slate'
+              ? 'text-slate-500 border-slate-200'
+              : syncTone === 'green'
+                ? 'text-green-700 border-green-200'
+                : syncTone === 'red'
+                  ? 'text-red-600 border-red-200'
+                  : 'text-amber-700 border-amber-200'
+          }`}>
+            {busy ? 'Memproses…' : 'Paksa Sinkronisasi'}
+          </span>
         </button>
       )}
 

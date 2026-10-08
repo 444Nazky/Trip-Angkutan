@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Lock, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
-import { ROUTES } from '../data'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
-import { EMPTY_ROUTE_CODE } from './TripConditionScreen'
 
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
@@ -43,20 +41,13 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     ? routes.filter(r => r.dermagaId === dockId)
     : []
 
-  // Trip kosong: cari SJRE-SBDZ di backend, fallback statis jika offline.
   const isEmptyTrip = draft.condition === 'kosong'
-  const backendEmpty = routes.find(r =>
-    r.code === EMPTY_ROUTE_CODE && r.dermagaId === dockId)
-  const staticEmpty = ROUTES.find(r => r.code === EMPTY_ROUTE_CODE)
-  const emptyRoute: UiRoute | undefined = isEmptyTrip
-    ? (backendEmpty ?? staticEmpty)
-    : undefined
-  const list = isEmptyTrip ? (emptyRoute ? [emptyRoute] : []) : dermagaFiltered
+  const list = dermagaFiltered
 
   // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
     ? draft.routeCode
-    : isEmptyTrip ? list[0]?.code ?? null : null
+    : null
 
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
@@ -81,7 +72,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       <h2 className="font-black text-slate-900 text-[20px] mb-0.5">Pilih Rute</h2>
       <p className="text-slate-500 text-[13px] mb-4">
         {isEmptyTrip
-          ? 'Trip kosong — rute dikunci SJRE → SBDZ'
+          ? 'Trip kosong — pilih rute perjalanan'
           : dockName
             ? `Rute dari ${dockName} (${dock?.code ?? ''})`
             : 'Pilih rute perjalanan'}
@@ -102,11 +93,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             </div>
           )}
         </div>
-        {isEmptyTrip ? (
-          <Lock size={16} className="text-amber-400 shrink-0" />
-        ) : (
-          <Map size={16} className="text-slate-600 shrink-0" />
-        )}
+        <Map size={16} className="text-slate-600 shrink-0" />
       </div>
 
       {/* Loading */}
@@ -122,15 +109,12 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800 mb-4">
           {dockName
             ? `Tidak ada rute untuk ${dockName}. Hubungi admin untuk menambahkan rute.`
-            : isEmptyTrip
-              ? `Rute ${EMPTY_ROUTE_CODE} belum tersedia di dermaga ini.`
-              : 'Pilih dermaga untuk melihat rute.'}
+            : 'Pilih dermaga untuk melihat rute.'}
         </div>
       )}
 
       <div className="space-y-2.5 mb-5">
         {!loading && list.map(r => {
-          const locked = isEmptyTrip
           const isSelected = validSelected === r.code
           return (
             <button
@@ -142,11 +126,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
-                    {locked && !isSelected
-                      ? <Lock size={16} className="text-slate-500" />
-                      : <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />}
-                  </div>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
+                      <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />
+                    </div>
                   <div>
                     <p className="font-bold text-slate-900 text-[13px]">{r.from} → {r.to}</p>
                     <p className="text-[11px] text-slate-400">{r.label}</p>
@@ -161,11 +143,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
               <div className="flex gap-4 pl-[52px]">
                 <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance || '—'}</span>
                 <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration || '—'}</span>
-                {locked && (
-                  <span className="text-[10px] font-bold text-amber-600 ml-auto flex items-center gap-1">
-                    <Lock size={10} /> Terkunci (Trip Kosong)
-                  </span>
-                )}
               </div>
             </button>
           )

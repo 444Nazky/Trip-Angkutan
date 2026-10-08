@@ -172,9 +172,16 @@ function migrate() {
     ['trips', 'started_at', 'TEXT'],
     ['trips', 'completed_at', 'TEXT'],
     ['vehicles', 'foto_captured_at', 'TEXT'],
+    // ID trip di sisi klien — dipakai sinkronisasi offline-first untuk
+    // MENCEGAH DUPLIKAT saat antrean dikirim ulang setelah timeout/jaringan
+    // putus di tengah jalan (klien tidak tahu apakah server sudah menerima).
+    ['trips', 'client_trip_id', 'TEXT'],
   ]) {
     try { db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`); } catch (e) { /* already exists */ }
   }
+  try {
+    db.run(`CREATE INDEX IF NOT EXISTS idx_trips_client_trip_id ON trips(client_trip_id)`);
+  } catch (e) { /* index sudah ada */ }
   // Urutan penting: wilayah spec dibuat dulu, baru seedSpecTables memberi
   // tarif region (lokal/eksternal) untuk region yang baru saja ditambahkan.
   ensureSpecRegions();

@@ -1,6 +1,7 @@
-import { ChevronLeft, Camera, Play, AlertTriangle, Truck } from 'lucide-react'
+import { useEffect } from 'react'
+import { ChevronLeft, Camera, Play, AlertTriangle, Truck, ImageOff } from 'lucide-react'
 import { activeRoutes } from '../data'
-import { fmtDate, fmtTime, nextTripId, useApp } from '../store'
+import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import type { MobileScreen } from '../types'
 
 interface TripSummaryScreenProps {
@@ -8,7 +9,7 @@ interface TripSummaryScreenProps {
 }
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
-  const { draft, officer, trips, resetDraft, startTrip, patchDraft } = useApp()
+  const { draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle, finishEmptyTrip } = useApp()
 
   const allRoutes = activeRoutes()
   const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
@@ -16,9 +17,52 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const tripId = nextTripId(trips)
   const vehicles = draft.vehicles
   const conditionLabel = draft.condition === 'muatan' ? 'Ada Muatan' : 'Kosong'
-  // Submit trip hanya boleh setelah foto via kamera diambil
   const photoTaken = draft.photo
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
+  const vehiclesMissingPhoto = vehicles
+    .map((v, i) => ({ v, i, label: unitLabel(vehicles, i) }))
+    .filter(x => !x.v.photoUrl)
+  const selfieTaken = !!draft.selfieUrl
+  const selfieRequired = draft.condition === 'muatan'
+  const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
+
+  useEffect(() => {
+    if (!draft.vPhoto || !draft.vPhotoUrl) return
+    const target = draft.vehiclePhotoTarget ?? draft.vehicles.findIndex(v => !v.photoUrl)
+    if (target === -1 || target == null) return
+    patchDraftVehicle(target, {
+      photoUrl: draft.vPhotoUrl,
+      photoCapturedAt: draft.vPhotoCapturedAt,
+      photoLatitude: draft.vPhotoLatitude,
+      photoLongitude: draft.vPhotoLongitude,
+    })
+    patchDraft({
+      vPhoto: false,
+      vPhotoUrl: undefined,
+      vPhotoCapturedAt: undefined,
+      vPhotoLatitude: undefined,
+      vPhotoLongitude: undefined,
+      vehiclePhotoTarget: undefined,
+    })
+  }, [draft.vPhoto, draft.vPhotoUrl, draft.vPhotoCapturedAt, draft.vPhotoLatitude, draft.vPhotoLongitude, draft.vehicles, draft.vehiclePhotoTarget, patchDraft, patchDraftVehicle])
+
+  const handleSubmit = () => {
+    if (draft.condition === 'kosong') {
+      startTrip()
+      finishEmptyTrip()
+      go('trip-complete')
+    } else {
+      startTrip()
+      go('trip-active')
+    }
+  }
+
+  const submitLabel = () => {
+    if (!photoTaken) return 'Ambil Foto Kamera Dulu'
+    if (vehiclesMissingPhoto.length > 0) return 'Lengkapi Foto Kendaraan'
+    if (selfieRequired && !selfieTaken) return 'Ambil Swafoto Dulu'
+    return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif'
+  }
 
   return (
     <div className="px-4 pt-2 pb-4">
@@ -61,26 +105,37 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ) : vehicles.map((v, i) => (
           <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 border-t border-slate-100 mt-3' : ''}`}>
             {v.photoUrl ? (
-              <img src={v.photoUrl} alt={`Foto ${v.plate}`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
+              <img src={v.photoUrl} alt={`Foto ${unitLabel(vehicles, i)}`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Truck size={16} className="text-slate-400" /></div>
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0"><ImageOff size={14} className="text-amber-500" /></div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="font-mono text-[11px] font-black text-slate-800">{v.plate}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{unitLabel(vehicles, i)}</span>
+                <span className="font-mono text-[11px] font-black text-slate-800">{v.plate}</span>
+              </div>
               <p className="text-[10px] text-slate-400 truncate">{v.type} · {v.category}</p>
             </div>
+            {!v.photoUrl && (
+              <button
+                onClick={() => { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: i }); go('camera') }}
+                className="text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2 py-1.5 shrink-0"
+                title="Ambil foto dokumentasi kendaraan ini"
+              >
+                Ambil Foto
+              </button>
+            )}
             {v.plateStatus && (
-              <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full shrink-0 ${
+              <span className={`text-[9px] font-black px-2 py-1 rounded-full ${
                 v.plateStatus === 'internal' ? 'bg-slate-800 text-white'
-                : v.plateStatus === 'lokal' ? 'bg-blue-100 text-blue-700'
-                : 'bg-amber-100 text-amber-700'
+                  : v.plateStatus === 'lokal' ? 'bg-blue-100 text-blue-700'
+                  : 'bg-amber-100 text-amber-700'
               }`}>{v.plateStatus}</span>
             )}
           </div>
         ))}
       </div>
 
-      {/* Bukti foto — wajib via kamera sebelum submit trip */}
       <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${photoTaken ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${photoTaken ? 'bg-emerald-100' : 'bg-amber-100'}`}>
           <Camera size={16} className={photoTaken ? 'text-emerald-500' : 'text-amber-500'} />
@@ -90,7 +145,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             {photoTaken ? 'Foto kamera siap' : 'Foto kamera belum diambil'}
           </p>
           <p className={`text-[10px] ${photoTaken ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {photoTaken ? 'Bukti trip tersimpan pada ringkasan ini' : 'Wajib ambil foto via kamera sebelum submit trip'}
+            {!photoTaken
+              ? 'Wajib ambil foto via kamera sebelum submit trip'
+              : selfieRequired && !selfieTaken
+                ? 'Foto siap — lanjut swafoto petugas sebelum End Trip'
+                : 'Bukti trip tersimpan pada ringkasan ini'}
           </p>
         </div>
         {!photoTaken && (
@@ -101,22 +160,41 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             Ambil Foto
           </button>
         )}
+        {photoTaken && selfieRequired && !selfieTaken && (
+          <button
+            onClick={() => { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera') }}
+            className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
+          >
+            Ambil Swafoto
+          </button>
+        )}
         {photoTaken && draft.photoUrl && (
           <img src={draft.photoUrl} alt="Bukti Trip" className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0" />
         )}
       </div>
 
+      {!allDocsComplete && (
+        <div className="rounded-2xl p-3.5 border border-amber-200 bg-amber-50 mb-3 flex items-start gap-2.5">
+          <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-amber-800 leading-snug">
+            {!photoTaken
+              ? 'Foto bukti trip belum diambil via kamera.'
+              : selfieRequired && !selfieTaken
+                ? <>Swafoto petugas belum diambil — wajib sebelum End Trip.</>
+                : <>Foto dokumentasi belum lengkap: <b>{vehiclesMissingPhoto.map(x => x.label).join(', ')}</b> — setiap kendaraan wajib punya foto sendiri.</>}
+          </p>
+        </div>
+      )}
+
       <button
-        onClick={() => { startTrip(); go('trip-active') }}
-        disabled={!photoTaken}
-        title={photoTaken ? 'Mulai trip' : 'Ambil foto via kamera terlebih dahulu'}
-        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
+        onClick={handleSubmit}
+        disabled={!allDocsComplete}
+        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {photoTaken ? (
-          <><Play size={15} fill="white" /> Submit Trip — Mulai Sekarang</>
-        ) : (
-          <><AlertTriangle size={15} /> Ambil Foto Kamera Dulu</>
-        )}
+        <Play size={15} fill="white" />
+        {allDocsComplete
+          ? (draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif')
+          : submitLabel()}
       </button>
       <button
         onClick={() => { resetDraft(); go('home') }}

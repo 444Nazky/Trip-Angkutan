@@ -1,6 +1,10 @@
-import { useState } from 'react'
-import { Truck, ArrowRight, AlertCircle } from 'lucide-react'
-import { memberLogin } from '../services/auth'
+import { useState, useEffect } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { loginOffline, memberLogin, verifyPinOffline } from '../services/auth'
+import { initializeSync } from '../services/sync'
+import { getStoredOfficers } from '../services/officers'
+import { verifyPassword, hasStoredCredentials } from '../services/credentialSync'
+import { findOfficer as findOfflineOfficer } from '../services/offlineDb'
 
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
@@ -11,127 +15,259 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [showPw, setShowPw] = useState(false)
+
+  // ── Listener online/offline ─────────────────────────────────────
+  useEffect(() => {
+    const on  = () => setIsOnline(true)
+    const off  = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
-      setError('Username dan password harus diisi')
+      setError('Username & password harus diisi.')
       return
     }
     setLoading(true)
     setError(null)
+    if (!navigator.onLine) {
+      const ok = await tryOfflineLogin(username.trim(), password)
+      if (ok) return
+      let nOfficers = 0
+      let nCreds = 0
+      try { nOfficers = JSON.parse(localStorage.getItem('trip.officers.v1') || '[]').length } catch { /* */ }
+      try { nCreds = Object.keys(JSON.parse(localStorage.getItem('trip.officers.credentials.v1') || '{}')).length } catch { /* */ }
+      setError(`Akun tidak ditemukan di perangkat ini (${nOfficers} petugas, ${nCreds} kredensial tersimpan). Hubungkan internet untuk login pertama kali.`)
+      setLoading(false)
+      return
+    }
     try {
       const result = await memberLogin(username.trim(), password)
       if (result.success) {
+        void initializeSync()
         onLogin('member')
         return
       }
       const msg = result.error || ''
-      if (/timeout|network|failed|fetch|merespon|terjangkau/i.test(msg)) {
-        setError('Tidak bisa terhubung ke server.')
+      if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
+        const ok = await tryOfflineLogin(username.trim(), password)
+        if (ok) return
+        setError('Server tidak terjangkau — cek jaringan.' +
+          ` (cache lokal: ${getStoredOfficers().length} petugas)`)
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
       } else {
         setError(msg || 'Login gagal.')
       }
     } catch {
-      setError('Terjadi kesalahan.')
+      setError('Terjadi kesalahan sistem.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleKey = (e: React.KeyboardEvent) => {
+  // ── Offline login ──────────────────────────────────────────────
+  /**
+   * Login offline: verifikasi username + password terhadap kredensial tersimpan
+   * dari admin dashboard (via credentialSync), lalu bangun sesi offline
+   * untuk petugas yang dipilih, sehingga pergantian antar petugas satu dermaga
+   * tetap mulus tanpa jaringan.
+   *
+   * Prioritas verifikasi offline:
+   *  1. verifyPassword() — kredensial admin dashboard (password bcrypt/hash)
+   *  2. loginOffline()   — PIN/hash legacy dari login online sebelumnya
+   */
+  async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
+    if (!u || !p) return false
+
+    // ── 1. Verifikasi password terhadap kredensial admin dashboard ──
+    // credentialSync menyimpan hash password per username saat sync dari admin.
+    // Ini adalah verifikasi UTAMA untuk login offline karena admin dashboard
+    // menyimpan password (bukan PIN) yang dipakai user saat login.
+    try {
+      const hasCreds = await hasStoredCredentials(u)
+      if (hasCreds) {
+        const passwordValid = await verifyPassword(u, p)
+        if (passwordValid) {
+          // Dapatkan data officer dari DB offline untuk bangun sesi
+          const officer = await findOfflineOfficer<{
+            id: string
+            username?: string
+            name: string
+            regionId?: string
+            regionName?: string
+            regionCode?: string
+          }>(u)
+          if (officer) {
+            const sessionData = {
+              id: String(officer.id),
+              name: String(officer.name || officer.username || u),
+              regionId: String(officer.regionId || ''),
+              regionName: String(officer.regionName || ''),
+              regionCode: String(officer.regionCode || ''),
+              offlineMode: true,
+            }
+            localStorage.setItem('trip.auth.officer.v1', JSON.stringify(sessionData))
+            void initializeSync()
+            setLoading(false)
+            onLogin('member')
+            return true
+          }
+          // Officer tidak ada di DB tapi password valid (mungkin belum sync roster) —
+          // tetap izinkan login dengan data minimal
+          const minimalSession = {
+            id: u,
+            name: u,
+            regionId: '',
+            regionName: '',
+            regionCode: '',
+            offlineMode: true,
+          }
+          localStorage.setItem('trip.auth.officer.v1', JSON.stringify(minimalSession))
+          void initializeSync()
+          setLoading(false)
+          onLogin('member')
+          return true
+        }
+      }
+    } catch (e) {
+      console.warn('[login] Verifikasi password gagal, coba PIN fallback:', e)
+    }
+
+    // ── 2. Fallback: verifikasi PIN (legacy login online sebelumnya) ──
+    try {
+      const res = await loginOffline(u, p)
+      if (res.success) {
+        void initializeSync()
+        setLoading(false)
+        onLogin('member')
+        return true
+      }
+    } catch {
+      /* database offline belum siap — lanjut ke roster */
+    }
+
+    try {
+      const officers = getStoredOfficers()
+      const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
+      if (match && (await verifyPinOffline(String(match.id), p))) {
+        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
+          id: String(match.id),
+          name: match.name,
+          regionId: match.region,
+          regionName: match.region,
+          regionCode: match.region,
+          offlineMode: true,
+        }))
+        void initializeSync()
+        setLoading(false)
+        onLogin('member')
+        return true
+      }
+    } catch { /* no-op */ }
+    return false
+  }
+
+  const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void handleLogin()
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f4f5] flex items-center justify-center p-4 font-sans">
-      {/* Card */}
-      <div className="w-full max-w-[360px]">
-        {/* Logo mark */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0">
-            <Truck size={16} className="text-white" strokeWidth={1.5} />
-          </div>
+    <div className="min-h-screen flex flex-col bg-slate-50">
+
+      {/* ── Minimalist Header ── */}
+      <div className="px-6 pt-16 pb-8">
+        <div className="flex items-center gap-4">
+          <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
           <div>
-            <p className="text-sm font-semibold text-zinc-900 leading-none">Trip Angkutan</p>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Kalimantan Barat</p>
+            <h1 className="text-lg font-semibold text-slate-800">Trip Angkutan</h1>
+            <p className="text-xs text-slate-400">Kalimantan Barat</p>
           </div>
         </div>
+      </div>
 
-        {/* Form card */}
-        <div className="bg-white rounded-2xl border border-zinc-200 p-8">
-          <div className="mb-6">
-            <h2 className="text-[22px] font-semibold text-zinc-900 leading-tight">Masuk</h2>
-            <p className="text-sm text-zinc-500 mt-1">Gunakan akun petugas Anda.</p>
+      {/* ── Status & Form ── */}
+      <div className="flex-1 px-6">
+        {/* Online Status */}
+        <div className="flex items-center gap-2 mb-8">
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
+        </div>
+
+        {/* Welcome Text */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
+          <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-4">
+          {/* Username */}
+          <div>
+            <input
+              type="text"
+              value={username}
+              onChange={e => { setError(null); setUsername(e.target.value) }}
+              onKeyDown={onKey}
+              placeholder="ID Petugas"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
+            />
           </div>
 
-          <div className="space-y-4">
-            {/* Username */}
-            <div>
-              <label className="text-xs font-medium text-zinc-700 mb-1.5 block uppercase tracking-wider">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => { setError(null); setUsername(e.target.value) }}
-                onKeyDown={handleKey}
-                placeholder="ID petugas"
-                autoCapitalize="none"
-                autoCorrect="off"
-                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="text-xs font-medium text-zinc-700 mb-1.5 block uppercase tracking-wider">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => { setError(null); setPassword(e.target.value) }}
-                onKeyDown={handleKey}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors"
-              />
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
-                <AlertCircle size={14} className="shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
+          {/* Password */}
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={e => { setError(null); setPassword(e.target.value) }}
+              onKeyDown={onKey}
+              placeholder="PIN"
+              className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
+            />
             <button
-              onClick={() => void handleLogin()}
-              disabled={loading}
-              className="w-full mt-1 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-300 text-white text-sm font-medium py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
             >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Memverifikasi...
-                </>
-              ) : (
-                <>
-                  Lanjutkan
-                  <ArrowRight size={15} />
-                </>
-              )}
+              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+
+          {/* Error */}
+          {error && (
+            <div className="px-4 py-3 bg-red-50 rounded-xl">
+              <p className="text-xs text-red-500">{error}</p>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            onClick={() => void handleLogin()}
+            disabled={loading}
+            className="w-full py-3.5 rounded-xl font-medium text-sm text-white bg-[#1B3D6D] hover:bg-[#0f2847] disabled:opacity-50 transition-colors mt-2"
+          >
+            {loading ? 'Memproses…' : 'Masuk'}
+          </button>
         </div>
 
-        <p className="text-center text-xs text-zinc-300 mt-8">
-          Sistem Informasi Angkutan Umum · Kalimantan Barat
-        </p>
+        {/* Offline hint */}
+        {!isOnline && (
+          <p className="text-xs text-center text-slate-400 mt-6">
+            Gunakan ID & PIN yang pernah login di perangkat ini
+          </p>
+        )}
       </div>
+
+      {/* ── Footer ── */}
+      <p className="text-center text-[11px] text-slate-300 pb-8">
+        Trip Angkutan Kalimantan Barat
+      </p>
     </div>
   )
 }
