@@ -60,23 +60,20 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       finishEmptyTrip()
       go('trip-complete')
     } else {
-      // Ada muatan + swafoto sudah diambil → KIRIM SAJA (langsung selesai,
-      // tanpa melalui layar Trip Aktif/timer).
+
       startTrip()
       finishMuatanTrip()
       go('trip-complete')
     }
   }
 
-  // Satu tombol untuk semua: belum ada selfie → tombol memicu kamera swafoto;
-  // sudah lengkap → tombol mengirim. Menghindari 2 prompt swafoto sekaligus.
+
   const needSelfie = selfieRequired && !selfieTaken
   const docsReady = photoTaken && vehiclesMissingPhoto.length === 0
-  const canAct = docsReady // selfie boleh belum ada — tombol yang memicunya
+  const canAct = docsReady 
   const mainLabel = () => {
-    if (!photoTaken) return 'Ambil Foto Kamera Dulu'
     if (vehiclesMissingPhoto.length > 0) return 'Lengkapi Foto Kendaraan'
-    if (needSelfie) return 'Ambil Swafoto'
+    if (needSelfie) return 'Ambil foto selfie'
     return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
   }
   const onMainAction = () => {
