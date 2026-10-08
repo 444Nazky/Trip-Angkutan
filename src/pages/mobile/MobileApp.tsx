@@ -28,6 +28,9 @@ type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
+// Tab utama (Beranda/Riwayat/Profil) selalu berpindah TANPA animasi halaman —
+// animasi hanya untuk popup & tombol, agar UI tidak terasa ramai.
+const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
 
 export default function MobileApp() {
   const { officer, setActiveDermaga } = useApp()
@@ -47,6 +50,7 @@ export default function MobileApp() {
   const fullscreenScreens: MobileScreen[] = [
     'camera',
     'officer-switch', // Daftar Petugas - fullscreen view, no nav overlap
+    'local-officers', // Daftar Petugas Lokal - fullscreen, bukan popup
     'pin-verify',
     'trip-active',
     'trip-complete',
@@ -83,7 +87,8 @@ export default function MobileApp() {
     const path = stack.current
     const at = path.lastIndexOf(next)
     let kind: AnimKind
-    if (at >= 0) kind = 'pop'
+    if (TAB_SCREENS.includes(next)) kind = 'tab'
+    else if (at >= 0) kind = 'pop'
     else if (ZOOM_SCREENS.includes(next)) kind = 'zoom'
     else if (SHEET_SCREENS.includes(next)) kind = 'sheet'
     else kind = 'push'

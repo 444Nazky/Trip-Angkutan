@@ -59,6 +59,12 @@ export interface Trip {
   /** Swafoto wajib petugas sebelum End Trip (trip muatan) — lokal saja. */
   selfieUrl?: string
   selfieCapturedAt?: string
+  /**
+   * Cap waktu perubahan terakhir (ms). Dipakai rekonsiliasi localStorage↔IndexedDB
+   * agar EDIT pasca-kirim tidak ditimpa salinan lama saat merge (dulu merge
+   * memprioritaskan synced:true sehingga hasil edit bisa hilang setelah restart).
+   */
+  updatedAt?: number
 }
 
 export interface Draft {
@@ -318,13 +324,18 @@ function normalizeTrips(list: Trip[]): Trip[] {
 
 /** Gabung dua daftar trip tanpa duplikat (by id) — dipakai rekonsiliasi
  *  localStorage ↔ IndexedDB agar tidak ada trip yang hilang. */
-function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
+export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
     const key = String(t.id)
     const prev = byId.get(key)
     if (!prev) { byId.set(key, t); continue }
-    // Versi lebih baru menang; synced:true tidak pernah ditimpa synced:false
+    // EDIT pasca-kirim menang lewat updatedAt terbaru — mencegah salinan lama
+    // (synced:true) menimpa hasil edit yang belum terkirim saat rekonsiliasi.
+    const prevUpd = prev.updatedAt ?? 0
+    const nextUpd = t.updatedAt ?? 0
+    if (prevUpd !== nextUpd) { byId.set(key, prevUpd > nextUpd ? prev : t); continue }
+    // updatedAt seri (data lama): synced:true tidak pernah ditimpa synced:false
     const prevTs = Date.parse(prev.completedAt ?? '') || 0
     const nextTs = Date.parse(t.completedAt ?? '') || 0
     const winner =
@@ -574,7 +585,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const patchTripPhoto = useCallback((tripId: string, fields: Partial<Trip>) => {
     const current = tripsRef.current.find(t => t.id === tripId)
     if (!current) return
-    const updated: Trip = { ...current, ...fields, synced: false }
+    const updated: Trip = { ...current, ...fields, synced: false, updatedAt: Date.now() }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
     // Foto baru = payload baru → buka kembali antrean yg sblmnya macet (PHOTO_MISSING)
     void retrySyncItem(updated)
@@ -583,7 +594,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const current = tripsRef.current.find(t => t.id === tripId)
     if (!current?.vehicles?.[vehicleIndex]) return
     const vehicles = current.vehicles.map((v, i) => (i === vehicleIndex ? { ...v, ...fields } : v))
-    const updated: Trip = { ...current, vehicles, synced: false }
+    const updated: Trip = { ...current, vehicles, synced: false, updatedAt: Date.now() }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
     void retrySyncItem(updated)
   }, [])

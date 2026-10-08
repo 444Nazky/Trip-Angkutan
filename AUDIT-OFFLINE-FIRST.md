@@ -130,3 +130,47 @@
 | --- | --- | --- | --- |
 | R10 | `relaxTripsDermagaNotNull()` (rebuild tabel `trips`) tidak menyertakan `client_trip_id` di `CREATE`/`INSERT..SELECT`; kolom ditambah ALTER **setelah** rebuild | Rendah — urutan boot benar (rebuild → ALTER), jadi kolom tetap ada; baris lama diisi NULL | Tambahkan kolom ke rebuild bila kelak migrasi dermaga dijalankan lagi |
 | R11 | `check-client-trip-id.js` hanya menguji level DB, bukan endpoint HTTP | Rendah — guard duplikat ada tepat sebelum INSERT | Tambah test supertest bila backend mendapat kerangka test |
+
+---
+
+## 6. Audit — 8 Oktober 2026 (sesi bug edit-trip, animasi, & offline)
+
+> **Permintaan**: (a) bug edit trip terkirim → status "menunggu koneksi"; (b) pastikan trip sampai dashboard + endpoint Railway; (c) kurangi animasi tab; (d) daftar petugas fullscreen; (e) hapus menu di Setting; (f) kredensial offline bawaan + sync via OTA.
+
+### 6.1 Perbaikan
+
+| # | Area | Temuan | Tindakan |
+| --- | --- | --- | --- |
+| G1 | **Backend `routes/trips.js`** | `POST /trips/complete` hanya bisa INSERT. Setelah anti-duplikat sesi lalu, resend mengembalikan `duplicate:true` **tanpa menerapkan edit** → perubahan plat/foto pada trip terkirim **hilang** (atau, sebelum guard, jadi trip ganda). | **Upsert**: bila `client_trip_id` sudah ada → `UPDATE trips` + ganti seluruh baris `vehicles`/`trip_vehicles` dengan data & foto terbaru, balas **200 `{updated:true}`**. Insert hanya untuk trip baru. |
+| G2 | **Mobile `pages/store.tsx`** | `mergeTrips` memprioritaskan `synced:true` di atas `synced:false`. Hasil EDIT (synced:false) bisa ditimpa salinan lama (synced:true) saat rekonsiliasi localStorage↔IndexedDB → edit hilang, status balik "menunggu". | Tambah `Trip.updatedAt`; `patchTripPhoto`/`patchVehiclePhoto` menstempel waktu. `mergeTrips` memilih `updatedAt` terbaru lebih dulu; aturan `synced` hanya sebagai tie-breaker data lama. |
+| G3 | **Mobile `HistoryDetailScreen.tsx`** | Trip terkirim hanya bisa ganti foto, tidak bisa ubah info (plat/jenis/golongan). | Tambah editor inline per kendaraan (**Ubah** → plat/jenis/golongan → **Simpan & Kirim**) via `patchVehiclePhoto` → antrean → resend upsert. |
+| G4 | **Mobile `MobileApp.tsx`** | Transisi halaman `push/pop` ikut jalan saat menuju tab (Beranda/Riwayat/Profil) pada jalur non-nav. | `TAB_SCREENS = ['home','history','profile']` selalu `anim='tab'` (tanpa animasi). Animasi hanya untuk popup/tombol. |
+| G5 | **Mobile `MobileApp.tsx`** | `local-officers` dirender di dalam shell → UI menumpuk dengan bottom nav. | Dimasukkan ke `fullscreenScreens` → halaman penuh (tanpa nav bawah), punya tombol kembali sendiri. Rute lama (modal) sudah dihapus pada sesi lalu. |
+| G6 | **Menu** | Entri "Riwayat Trip" & "Daftar Petugas Lokal" pada daftar menu. | Sudah tidak ada baris "Riwayat Trip". "Daftar Petugas Lokal" tetap sebagai baris di Profil (seperti tombol Pengaturan) yang membuka **halaman** fullscreen. |
+
+### 6.2 Kredensial offline (dikonfirmasi, tanpa perubahan)
+
+| Aspek | Status | Bukti |
+| --- | --- | --- |
+| Seed bawaan (username, hash PIN bcrypt, status, scope dermaga+rute) | **Ada** | `services/seedData.ts` — `SEED_OFFICERS` (9 petugas), `SEED_ROUTES` per dermaga, `SEED_VERSION` |
+| Login tanpa internet/endpoint sejak instal pertama | **Jalan** | `LoginPage.tryOfflineLogin` → `loginOffline` → `verifyPinOffline` → fallback `verifySeedPin` (bcrypt lokal) |
+| Perubahan admin (tambah/nonaktif/ganti PIN) saat online | **Jalan** | `adminPull.syncOnResume` (throttle 5 mnt, event `online`, resume), `credentialSync.syncOfficerCredentials`, upsert — entri seed tidak pernah ditimpa |
+| Update kredensial via OTA | **Jalan** | `FORCE_ROSTER_SYNC_KEY` diset OTA → roster ditarik paksa; naikkan `SEED_VERSION` untuk menanam petugas baru bawaan |
+
+### 6.3 Verifikasi mesin (sesi ini)
+
+| Perintah | Hasil |
+| --- | --- |
+| `npx tsc --noEmit -p tsconfig.json` (mobile) | ✅ **0 error** |
+| `npm run test:unit` (mobile) | ✅ **35 test / 4 file lulus** (bertambah `store.merge.test.ts` — regresi merge edit) |
+| `npm run build` (mobile) | ✅ **Sukses** (warning CommonJS non-blokir) |
+| `node --check src/routes/trips.js` + `npm run check` (backend) | ✅ **Lulus** (upsert idempoten, tanpa duplikat) |
+| `curl /api/health` Railway | ✅ **HTTP 200** (endpoint terjangkau) |
+| `curl POST /api/trips/complete`, `GET /api/trips` (tanpa token) | ✅ **HTTP 401** (rute ada & terproteksi auth) |
+
+### 6.4 Sisa risiko
+
+| # | Temuan | Dampak | Rekomendasi |
+| --- | --- | --- | --- |
+| R12 | Backend memperbarui trip hanya bila path `POST /trips/complete` dipakai (pengiriman ulang). Edit yang gagal berulang menetap di antrean lokal tanpa batas atas | Rendah — tombol Paksa Sinkronisasi tersedia | — |
+| R13 | Upsert mengganti seluruh kendaraan trip (id baru) — laporan berbasis `trip_id` tetap benar, tapi id kendaraan berubah | Rendah — dashboard membaca via relasi trip | Pertimbangkan UPDATE per kendaraan bila ada referensi id kendaraan eksternal |

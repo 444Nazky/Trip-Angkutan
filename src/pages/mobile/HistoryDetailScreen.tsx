@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw } from 'lucide-react'
+import { ChevronLeft, Camera, ImageOff, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
@@ -45,7 +45,7 @@ interface DocPhoto {
 }
 
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
-  const { trips, detailTripId, officer, patchDraft } = useApp()
+  const { trips, detailTripId, officer, patchDraft, patchVehiclePhoto } = useApp()
   // Scope to this officer's trips — never leak another officer's trip detail
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
@@ -62,6 +62,14 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   // Preview lightbox dokumentasi
   const [preview, setPreview] = useState<DocPhoto | null>(null)
+
+  // Edit info kendaraan (plat/jenis/kategori) pada trip yang SUDAH terkirim.
+  // Menyimpan → patchVehiclePhoto → antrean lokal → otomatis dikirim ulang
+  // (backend memperbarui trip berdasarkan clientTripId, bukan membuat duplikat).
+  const [editVehicle, setEditVehicle] = useState<number | null>(null)
+  const [editPlate, setEditPlate] = useState('')
+  const [editType, setEditType] = useState('')
+  const [editCategory, setEditCategory] = useState('')
 
   if (!t) {
     return (
@@ -136,31 +144,88 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         {vehicles.map((v, i) => {
           const label = unitLabel(vehicles, i)
           const canRetake = !!realVehicles?.[i]
+          const editing = editVehicle === i
           return (
-            <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
-              {v.photoUrl ? (
-                <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
-                  <img src={v.photoUrl} alt={`Foto ${label}`} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
-                </button>
-              ) : (
-                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
-                  <ImageOff size={16} className="text-amber-500" />
+            <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
+              <div className="flex items-center gap-3">
+                {v.photoUrl ? (
+                  <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
+                    <img src={v.photoUrl} alt={`Foto ${label}`} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                  </button>
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
+                    <ImageOff size={16} className="text-amber-500" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
+                    <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
+                  </div>
+                  <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
-                  <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
-                </div>
-                <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+                {!editing && canRetake && (
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {!v.photoUrl && (
+                      <button
+                        onClick={() => retakePhoto('vehicle', i)}
+                        className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
+                      >
+                        <Camera size={11} /> Foto
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setEditVehicle(i); setEditPlate(v.plate); setEditType(v.type); setEditCategory(v.category) }}
+                      className="flex items-center gap-1 text-[10px] font-black text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"
+                    >
+                      <Pencil size={11} /> Ubah
+                    </button>
+                  </div>
+                )}
               </div>
-              {!v.photoUrl && canRetake && (
-                <button
-                  onClick={() => retakePhoto('vehicle', i)}
-                  className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-2 shrink-0"
-                >
-                  <Camera size={11} /> Ambil Foto
-                </button>
+
+              {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
+              {editing && (
+                <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                  <input
+                    value={editPlate}
+                    onChange={e => setEditPlate(e.target.value.toUpperCase())}
+                    placeholder="Plat nomor"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={editType}
+                      onChange={e => setEditType(e.target.value)}
+                      placeholder="Jenis (Truk/Mobil/Motor)"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <input
+                      value={editCategory}
+                      onChange={e => setEditCategory(e.target.value)}
+                      placeholder="Golongan"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!t || !realVehicles?.[i] || !editPlate.trim()) return
+                        patchVehiclePhoto(t.id, i, { plate: editPlate.trim(), type: editType.trim() || v.type, category: editCategory.trim() || v.category })
+                        setEditVehicle(null)
+                      }}
+                      className="flex-1 rounded-lg bg-blue-600 text-white text-[12px] font-bold py-2 hover:bg-blue-700 active:scale-[0.98]"
+                    >
+                      Simpan & Kirim
+                    </button>
+                    <button
+                      onClick={() => setEditVehicle(null)}
+                      className="rounded-lg bg-white border border-slate-200 text-slate-600 text-[12px] font-bold px-4 py-2"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )
