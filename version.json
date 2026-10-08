@@ -1,25 +1,4 @@
 {
-  "version": "1791433721761",
-  "assets": [
-    "3rdpartylicenses.txt",
-    "Assets/karyamasv.svg",
-    "assets/css/main-MQJYYVWI.css",
-    "assets/css/styles-LRBWZ7K2.css",
-    "assets/guest-profile.jpeg",
-    "assets/icon/favicon.png",
-    "assets/js/chunk-BK20khtZ.js",
-    "assets/js/chunk-CF7vOzQH.js",
-    "assets/js/chunk-CcNBax12.js",
-    "assets/js/chunk-DiZAw7ab.js",
-    "assets/js/chunk-DnOuYgm-.js",
-    "assets/js/chunk-jfFgvyoX.js",
-    "assets/js/main-HAMY3FAX.js",
-    "assets/karyamas_clean.png",
-    "assets/karyamas_clean.svg",
-    "assets/karyamasv.svg",
-    "assets/shapes.svg",
-    "index.html",
-    "prerendered-routes.json",
-    "sw.js"
-  ]
+  "version": "1791434082556",
+  "assets": []
 }
