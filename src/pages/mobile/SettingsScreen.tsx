@@ -222,25 +222,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-      {/* Perawatan */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-100">
-        <button
-          onClick={clearCache}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-slate-50 transition">
-          <Shield size={15} className="text-slate-400" />
-          <span className="flex-1 text-[13px] font-semibold text-slate-700">Bersihkan Cache</span>
-          {cleared && <Check size={12} className="text-emerald-600" />}
-        </button>
 
-
-
-        <button
-          onClick={resetData}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-red-600 active:bg-red-50">
-          <RotateCcw size={15} className="shrink-0" />
-          <span className="flex-1 text-[13px] font-semibold">Reset Semua Data</span>
-        </button>
-      </div>
 
       {/* Info */}
       <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-start gap-2.5">
