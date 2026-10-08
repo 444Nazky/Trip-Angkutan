@@ -1,0 +1,74 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main, mobile]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_VERSION: ${{ github.run_number }}
+          VITE_APP_BUILD: ${{ github.run_id }}
+          VITE_APP_COMMIT: ${{ github.sha }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: www/
+          retention-days: 30
+
+  deploy-static:
+    runs-on: ubuntu-latest
+    needs: build-web
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: www/
+
+      - name: Generate OTA manifest
+        run: |
+          # Create version.json for OTA
+          VERSION="${{ github.run_number }}"
+          BUILD_ID="${{ github.run_id }}"
+          COMMIT="${{ github.sha }}"
+          TIMESTAMP=$(date +%s)000
+
+          cat > www/version.json << EOF
+          {
+            "version": "1.0.$VERSION",
+            "buildNumber": "$VERSION",
+            "buildId": "$BUILD_ID",
+            "commitHash": "$COMMIT",
+            "releaseDate": "$(date -Iseconds)",
+            "releaseNotes": "Trip sync bug fix - clientTripId for idempotent uploads",
+            "downloadUrl": "https://aplikasi-trip-production.up.railway.app/version.json"
+          }
+          EOF
+
+          cat www/version.json
+
+      - name: Deploy to Railway
+        uses: railway-deploy-action@v1
+        with:
+          api-token: ${{ secrets.RAILWAY_TOKEN }}
+          service: aplikasi-trip
+          directory: www

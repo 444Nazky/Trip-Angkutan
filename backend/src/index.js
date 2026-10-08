@@ -50,6 +50,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// OTA Version endpoint - serves current app version for mobile update checks
+app.get('/api/version', (req, res) => {
+  const version = process.env.APP_VERSION || '1.0.0';
+  const buildNumber = process.env.BUILD_NUMBER || Date.now().toString();
+  const commitHash = process.env.COMMIT_HASH || 'unknown';
+
+  res.json({
+    version: version,
+    buildNumber: buildNumber,
+    commitHash: commitHash,
+    releaseDate: new Date().toISOString(),
+    releaseNotes: process.env.RELEASE_NOTES || 'Latest build',
+    downloadUrl: `${req.protocol}://${req.get('host')}`,
+  });
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
