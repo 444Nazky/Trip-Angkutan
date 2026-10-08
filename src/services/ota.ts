@@ -164,13 +164,30 @@ export function isNewer(remote: string, local: string): boolean {
   return !remote.startsWith(local)
 }
 
-/** Unduh satu file bundle. */
-async function downloadAsset(path: string, signal: AbortSignal): Promise<Uint8Array> {
-  const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
-  if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
-  const buf = await res.arrayBuffer()
-  if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
-  return new Uint8Array(buf)
+/** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
+ *  seret sesaat (429/throttle); tanpa retry, 1 gagal = 20 file dibuang. */
+async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): Promise<Uint8Array> {
+  let lastErr: unknown
+  for (let n = 0; n < attempts; n++) {
+    if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+    try {
+      const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
+      if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
+      const buf = await res.arrayBuffer()
+      if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
+      return new Uint8Array(buf)
+    } catch (err) {
+      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
+      lastErr = err
+      if (n < attempts - 1) await sleep(600 * (n + 1))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Gagal unduh ${path}`)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms))
 }
 
 // ── Penyimpanan internal ─────────────────────────────────────────────────────

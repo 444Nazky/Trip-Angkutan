@@ -266,15 +266,6 @@ async function dbGetById(tripId: string): Promise<SyncItem | null> {
   return all.find(i => i.trip.id === tripId) ?? null
 }
 
-/** Hapus item — HANYA dipanggil setelah server memberi HTTP 200/201. */
-export async function removeFromSyncQueue(syncIdOrTripId: string): Promise<void> {
-  const all = await readQueue()
-  const hit = all.find(i => i.syncId === syncIdOrTripId || i.trip.id === syncIdOrTripId)
-  if (!hit) return
-  await removeItem(hit.syncId)
-  notifyQueueListeners()
-}
-
 /** Jumlah antrean tertunda (nilai ter-cache, diperbarui tiap perubahan). */
 export function getPendingCount(): number { return _pendingCount }
 
@@ -343,11 +334,6 @@ export function onTripSynced(cb: SyncedListener): () => void {
   syncedListeners.push(cb)
   return () => { syncedListeners = syncedListeners.filter(x => x !== cb) }
 }
-
-// ── Backward compat exports ──────────────────────────────────────────────────
-export { addToSyncQueue as addToSyncQueueLegacy }
-export { removeFromSyncQueue as removeFromSyncQueueLegacy }
-export { getPendingCount as getPendingCountLegacy }
 
 // ── Verifikasi koneksi AKTIF (ping server) ───────────────────────────────────
 

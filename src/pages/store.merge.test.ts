@@ -5,7 +5,8 @@
 // Aturan: updatedAt terbaru menang; bila seri, synced:true tidak ditimpa false.
 
 import { describe, expect, it } from 'vitest'
-import { mergeTrips, type Trip } from './store'
+import { healDermagaAccess, mergeTrips, type Trip } from './store'
+import { SEED_OFFICERS } from '../services/seedData'
 
 const base = (over: Partial<Trip>): Trip => ({
   id: 'T1',
@@ -45,5 +46,26 @@ describe('mergeTrips — edit pasca-kirim tidak hilang', () => {
   it('tidak menduplikasi trip dengan id sama', () => {
     const merged = mergeTrips([base({ updatedAt: 1 })], [base({ updatedAt: 2 })])
     expect(merged).toHaveLength(1)
+  })
+})
+
+describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => {
+  const seed = SEED_OFFICERS[0]
+
+  it('isi ulang dermagaAccess kosong dari seed (regresi akun ke-lock)', () => {
+    const blanked = { id: seed.id, name: seed.name, region: seed.regionCode, dermagaAccess: [] } as never
+    const [healed] = healDermagaAccess([blanked])
+    expect(healed.dermagaAccess?.length).toBeGreaterThan(0)
+  })
+
+  it('akses yang sudah ada tidak diubah', () => {
+    const own = [{ id: 'D9', code: 'D9', name: 'Custom' }]
+    const officer = { id: seed.id, name: seed.name, region: seed.regionCode, dermagaAccess: own } as never
+    expect(healDermagaAccess([officer])[0].dermagaAccess).toEqual(own)
+  })
+
+  it('petugas non-seed tetap dibiarkan apa adanya (diserahkan ke sync berikutnya)', () => {
+    const unknown = { id: 'server-only-1', name: 'X', region: 'X', dermagaAccess: [] } as never
+    expect(healDermagaAccess([unknown])[0].dermagaAccess).toEqual([])
   })
 })

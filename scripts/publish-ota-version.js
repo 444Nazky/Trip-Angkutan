@@ -86,6 +86,10 @@ async function main() {
   // 2. Collect assets
   const assets = collectAssets(WEB_DIR)
   console.log(`Found ${assets.length} built assets in ${WEB_DIR}`)
+  if (!assets.includes("index.html") || assets.length < 3) {
+    console.error(`❌ www/ tampak belum dibuild (index.html=${assets.includes("index.html")}, total=${assets.length}). Jalankan "npm run build" dulu.`)
+    process.exit(1)
+  }
 
   // 3. Fetch existing version.json blob SHA if any
   let existingBlob = null

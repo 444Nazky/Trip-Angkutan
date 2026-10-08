@@ -347,6 +347,21 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   return [...byId.values()]
 }
 
+/**
+ * Isi ulang scope dermaga yang kosong dari seed. Cache roster lama (hasil sync
+ * yang membalas `dermagas: []`) bisa membuat akun kehilangan akses dermaga →
+ * HomeScreen salah mengunci "Mulai Trip". Untuk petugas seed, seed adalah
+ * sumber tepercaya; petugas buatan server diserahkan ke sinkronisasi berikutnya.
+ */
+export function healDermagaAccess(list: Officer[]): Officer[] {
+  const byId = new Map(seedRoster().map(s => [String(s.id), s.dermagaAccess ?? []]))
+  return list.map(o => {
+    if (o.dermagaAccess?.length) return o
+    const fromSeed = byId.get(String(o.id))
+    return fromSeed?.length ? { ...o, dermagaAccess: fromSeed } : o
+  })
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
@@ -357,7 +372,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const saved = load<Officer[]>(LS.officers, [])
     // DATA BAWAAN (seed): layar Ganti Petugas langsung terisi sejak instalasi
     // pertama — bahkan sebelum ada sinkronisasi / koneksi internet.
-    return saved.length ? saved : (seedRoster() as unknown as Officer[])
+    return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   /** Ref snapshot trips terbaru — dipakai aksi patch* agar tidak basi. */

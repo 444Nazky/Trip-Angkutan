@@ -15,7 +15,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ go }: SettingsScreenProps) {
   const [cleared, setCleared] = useState(false)
-  const [pendingCount, setPendingCount] = useState(0)
+  const [, setPendingCount] = useState(0)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)

@@ -78,7 +78,7 @@ export async function fetchBackendOfficers(force = false): Promise<BackendOffice
 }
 
 // Convert backend officer to mobile format
-export function toMobileOfficer(bo: BackendOfficer) {
+function toMobileOfficer(bo: BackendOfficer) {
   const primaryRegion = bo.regions?.[0]?.code ?? bo.region_id
   return {
     // id tetap string agar cocok dengan id UUID maupun id lama "1".."5"
@@ -136,12 +136,19 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   // Sinkron dari dashboard admin HANYA menambah/memperbarui. Petugas bawaan
   // (seed) dan entri lama yang tidak ikut dikirim server harus tetap ada,
   // sehingga data default tidak rusak oleh sinkronisasi/OTA.
+  const local = new Map<string, ReturnType<typeof toMobileOfficer>>()
+  for (const o of [...getStoredOfficers(), ...seedRoster()]) local.set(String(o.id), o)
+
   const merged = new Map<string, ReturnType<typeof toMobileOfficer>>()
-  for (const o of mobileOfficers) merged.set(String(o.id), o)
-  for (const o of [...getStoredOfficers(), ...seedRoster()]) {
-    const id = String(o.id)
-    if (!merged.has(id)) merged.set(id, o)
+  for (const o of mobileOfficers) {
+    const prev = local.get(String(o.id))
+    // JANGAN biarkan server mengosongkan scope dermaga yang sudah diketahui.
+    // Server kadang membalas `dermagas: []` (link belum tersinkron / DB lama)
+    // → tanpa ini HomeScreen menganggap akun tak punya akses & mengunci Mulai Trip.
+    const dermagaAccess = o.dermagaAccess?.length ? o.dermagaAccess : (prev?.dermagaAccess ?? [])
+    merged.set(String(o.id), { ...o, dermagaAccess })
   }
+  for (const [id, o] of local) if (!merged.has(id)) merged.set(id, o)
   const roster = [...merged.values()]
   localStorage.setItem('trip.officers.v1', JSON.stringify(roster))
 

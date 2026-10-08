@@ -39,6 +39,13 @@ try {
   const assets = collectAssets(WEB_DIR)
   console.log(`Found ${assets.length} built assets in ${WEB_DIR}`)
 
+  // Guard: jangan pernah publish bundel kosong/parsial. Ini yang bikin perangkat
+  // menarik versi baru lalu diam (manifest.assets kosong → app tak unduh apa pun).
+  if (!assets.includes('index.html') || assets.length < 3) {
+    console.error(`❌ www/ tampak belum dibuild (index.html=${assets.includes('index.html')}, total=${assets.length}). Jalankan "npm run build" dulu.`)
+    process.exit(1)
+  }
+
   for (const name of fs.readdirSync(TMP)) {
     if (/^(?:chunk|main|styles)-[\w-]+\.(?:js|css)$/.test(name)) {
       fs.rmSync(path.join(TMP, name), { force: true })
