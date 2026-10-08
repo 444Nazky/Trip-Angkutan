@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock, RefreshCw } from 'lucide-react'
+import { Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock, RefreshCw } from 'lucide-react'
 import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
 import { dbClear } from '../../services/localDb'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
