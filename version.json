@@ -1,4 +1,25 @@
 {
-  "version": "1791434209998",
-  "assets": []
+  "version": "1791443090286",
+  "assets": [
+    "3rdpartylicenses.txt",
+    "Assets/karyamasv.svg",
+    "assets/css/main-MQJYYVWI.css",
+    "assets/css/styles-JIA6MAGJ.css",
+    "assets/guest-profile.jpeg",
+    "assets/icon/favicon.png",
+    "assets/js/chunk-B4M__14y.js",
+    "assets/js/chunk-B83qDZjP.js",
+    "assets/js/chunk-C3FYsm_M.js",
+    "assets/js/chunk-DOZl0A25.js",
+    "assets/js/chunk-Uc4jlaB-.js",
+    "assets/js/chunk-x6rkk9y3.js",
+    "assets/js/main-U2BEIKHD.js",
+    "assets/karyamas_clean.png",
+    "assets/karyamas_clean.svg",
+    "assets/karyamasv.svg",
+    "assets/shapes.svg",
+    "index.html",
+    "prerendered-routes.json",
+    "sw.js"
+  ]
 }
