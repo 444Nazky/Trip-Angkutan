@@ -1,15 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
 import { useApp } from '../store'
-import { getSyncQueue } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 // ─── Sync Badge Component ─────────────────────────────────────────────────────
-function SyncBadge({ tripId, isSynced }: { tripId: string; isSynced: boolean }) {
-  const queue = getSyncQueue()
-  const inQueue = queue.some(q => q.trip.id === tripId)
-  void inQueue // referenced via queue length in parent
-
+function SyncBadge({ isSynced }: { isSynced: boolean }) {
   if (isSynced) {
     return (
       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
@@ -60,39 +55,11 @@ interface HistoryScreenProps {
 export default function HistoryScreen({ go }: HistoryScreenProps) {
   const { trips, setDetailTripId, officer } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
-  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Re-read from localStorage on mount and when window gains focus
-  // This ensures trips are fresh even after navigation from other screens
-  const refreshTrips = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
-
-  useEffect(() => {
-    // Initial refresh on mount
-    refreshTrips()
-
-    // Refresh when window regains focus (user navigates back from another screen)
-    const handleFocus = () => refreshTrips()
-    window.addEventListener('focus', handleFocus)
-
-    // Also listen for storage events (cross-tab sync)
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'trip.trips.v1') refreshTrips()
-    }
-    window.addEventListener('storage', handleStorage)
-
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('storage', handleStorage)
-    }
-  }, [refreshTrips])
-
-  // Key force re-render when data changes from store (new trip committed)
-  const tripsKey = `${refreshKey}-${trips.length}-${officer.name}`
-
-  // Officers only see their own trips - match by officer name
-  const myTrips = trips.filter(t => t.officer === officer.name)
+  // Officers only see their own trips (matches HomeScreen)
+  const myTrips = trips.filter(t =>
+    t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
+  )
   const filtered = filter === 'all'
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
@@ -132,7 +99,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
       </div>
 
       {/* List */}
-      <div className="space-y-3" key={tripsKey}>
+      <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
             <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
@@ -148,7 +115,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         )}
         {filtered.map(t => (
           <button
-            key={`${t.id}-${t.date}-${t.time}`}
+            key={t.id}
             onClick={() => { setDetailTripId(t.id); go('history-detail') }}
             className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-start gap-4 text-left hover:shadow-md active:scale-[0.98] transition-all"
           >
@@ -158,7 +125,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
-                <SyncBadge tripId={t.id} isSynced={t.synced ?? false} />
+                <SyncBadge isSynced={t.synced ?? false} />
               </div>
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
               <div className="flex items-center gap-3 mt-2">

@@ -1,5 +1,4 @@
 import { Anchor, Check } from 'lucide-react'
-import { useApp } from '../store'
 import { selectDermaga, type Dermaga } from '../../services/auth'
 import { useState } from 'react'
 import type { MobileScreen } from '../types'
@@ -11,7 +10,7 @@ interface DermagaSelectScreenProps {
   onCancel: () => void
 }
 
-export default function DermagaSelectScreen({ go, dermagas, onSelected, onCancel }: DermagaSelectScreenProps) {
+export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: DermagaSelectScreenProps) {
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

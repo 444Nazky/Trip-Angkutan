@@ -58,8 +58,6 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               vPhotoLongitude: undefined,
               retakeTarget: undefined,
               cameraMode: 'photo',
-              ocrResult: undefined,
-              ocrError: undefined,
             })
           }}
           className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('kosong')}`}

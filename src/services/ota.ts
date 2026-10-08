@@ -17,9 +17,10 @@
 import { Network } from '@capacitor/network'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
-const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/'
+const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
 
 /** Cache Storage yang dibaca service worker (src/sw.js). */
 export const OTA_CACHE = 'trip-ota-active'
@@ -27,10 +28,6 @@ const CACHE_PREFIX = 'trip-ota-'
 /** Folder penyimpanan internal bundle (Capacitor Filesystem, direktori Cache). */
 const OTA_DIR = 'trip-ota'
 const MARKER = '.complete.json'
-/** Timeout lebih panjang untuk mobile networks */
-const FETCH_TIMEOUT_MS = 45_000
-/** Jangan tampilkan error yang sama dalam 5 menit */
-const ERROR_DEDUP_MS = 5 * 60 * 1000
 /** Cooldown setelah error sebelum retry */
 const ERROR_COOLDOWN_MS = 2 * 60 * 1000
 
@@ -38,6 +35,14 @@ export interface VersionManifest {
   version: string
   assets: string[]
   minAppVersion?: string
+  /**
+   * Peta { "path/aset": "sha256-hex" } untuk setiap file di `assets`.
+   * Diisi oleh scripts/publish-ota-git.mjs. Bila ada, klien MEMVERIFIKASI
+   * setiap file yang diunduh terhadap hash ini SEBELUM bundle dianggap sah —
+   * manifest basi / aset yang tidak cocok otomatis dibuang (update palsu
+   * berubah menjadi no-op yang aman, bukan bundle rusak).
+   */
+  integrity?: Record<string, string>
 }
 
 export interface UpdateState {
@@ -54,7 +59,6 @@ const CURRENT_VER_KEY = 'trip.ota.currentVersion'
 const BUNDLED_VERSION = '0.0.0'
 /** Timestamp error terakhir untuk deduplikasi */
 const LAST_ERROR_KEY = 'trip.ota.lastError'
-const LAST_CHECK_KEY = 'trip.ota.lastCheck'
 
 // ── Versi lokal ──────────────────────────────────────────────────────────────
 
@@ -168,13 +172,63 @@ export function isNewer(remote: string, local: string): boolean {
   return !remote.startsWith(local)
 }
 
-/** Unduh satu file bundle. */
-async function downloadAsset(path: string, signal: AbortSignal): Promise<Uint8Array> {
-  const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
-  if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
-  const buf = await res.arrayBuffer()
-  if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
-  return new Uint8Array(buf)
+/** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
+ *  seret sesaat (429/throttle); tanpa retry, 1 gagal = 20 file dibuang. */
+async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): Promise<Uint8Array> {
+  let lastErr: unknown
+  for (let n = 0; n < attempts; n++) {
+    if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+    try {
+      const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
+      if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
+      const buf = await res.arrayBuffer()
+      if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
+      return new Uint8Array(buf)
+    } catch (err) {
+      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
+      lastErr = err
+      if (n < attempts - 1) await sleep(600 * (n + 1))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Gagal unduh ${path}`)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms))
+}
+
+// ── Verifikasi integritas (SHA-256) ─────────────────────────────────────────
+// Membuktikan bahwa file yang diunduh BENAR-BENAR isi manifest terbitan,
+// bukan potongan basi/CDN nyasar. Tanpa hash → lewati verifikasi (mundur kompatibel).
+
+/** Hash SHA-256 (hex) dari bytes — memakai WebCrypto bila tersedia. */
+async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle
+    if (!subtle) return null // lingkungan tanpa WebCrypto → verifikasi dilewati
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    const digest = await subtle.digest('SHA-256', buf)
+    return Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Cocokkan bytes terunduh dengan hash manifest (bila ada).
+ * Returns true bila SAH: tidak ada hash untuk path ini, WebCrypto tidak
+ * tersedia (mundur kompatibel), atau hash cocok. Hanya hash yang TERSEDIA
+ * dan TIDAK cocok yang membatalkan update.
+ */
+async function verifyAsset(bytes: Uint8Array, path: string, integrity?: Record<string, string>): Promise<boolean> {
+  const expected = integrity?.[path]
+  if (!expected) return true
+  const actual = await sha256Hex(bytes)
+  if (actual == null) return true // tidak bisa verifikasi → jangan blokir update
+  return actual.toLowerCase() === expected.toLowerCase()
 }
 
 // ── Penyimpanan internal ─────────────────────────────────────────────────────
@@ -432,6 +486,14 @@ export async function checkForUpdate(
       const asset = remote.assets[i]
       try {
         const bytes = await downloadAsset(asset, sig)
+        // Verifikasi SHA-256 terhadap manifest — file basi/tidak cocok dibuang.
+        if (!(await verifyAsset(bytes, asset, remote.integrity))) {
+          console.warn('[ota] integritas gagal (silent):', asset)
+          await removeStorage(remote.version)
+          localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+          emit({ status: 'idle', latestVersion: local })
+          return { available: false }
+        }
         await persistToStorage(remote.version, asset, bytes)
         // Web (tanpa Filesystem) → langsung ke Cache Storage
         if (!isNative()) await putToCache(asset, bytes)
@@ -495,6 +557,10 @@ export async function applyUpdate(): Promise<boolean> {
 
     setCurrentVersion(version)
     saveState({ status: 'idle', latestVersion: version })
+    // Bundle OTA baru diterapkan → minta penarikan roster petugas SEGERA saat
+    // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin
+    // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
+    try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
     return true
   } catch (err) {
     console.warn('[ota] apply gagal:', err)

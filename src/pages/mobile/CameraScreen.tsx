@@ -4,7 +4,6 @@ import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/
 import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
-import { readPlateFromImage } from '../../services/ocr'
 import type { MobileScreen } from '../types'
 
 // ─── Camera Screen ───────────────────────────────────────────────────────────
@@ -39,16 +38,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const launchedRef = useRef(false)
   const busyRef = useRef(false)
 
-  const isOcr = draft.cameraMode === 'ocr'
   const retake = draft.retakeTarget
   const returnTo: MobileScreen = retake
     ? 'history-detail'
-    : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
-  const title = isOcr
-    ? 'Scan Plat Nomor'
-    : retake
-      ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
-      : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
+    : draft.cameraReturn ?? (draft.cameraFrom || 'vehicle-form')
+  const title = retake
+    ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
+    : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
   // Jam berjalan untuk pratinjau watermark (timestamp real-time)
@@ -207,18 +203,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     } catch { /* lokasi gagal — tetap lanjut */ }
 
     const watermarked = await addWatermark(rawDataUrl, lat, lon, regionLabel, capturedAt)
-
-    if (isOcr) {
-      // OCR plat: pakai gambar mentah (tanpa watermark) agar akurasi terjaga
-      try {
-        const plate = await readPlateFromImage(rawDataUrl)
-        if (plate) patchDraft({ ocrResult: plate })
-      } catch { /* OCR gagal — biarkan petugas isi manual */ }
-      setBusy(false)
-      patchDraft({ cameraReturn: undefined })
-      go('vehicle-form')
-      return
-    }
 
     const capturedIso = capturedAt.toISOString()
 

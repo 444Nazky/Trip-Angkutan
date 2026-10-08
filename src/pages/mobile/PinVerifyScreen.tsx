@@ -1,58 +1,106 @@
 import { useState } from 'react'
 import { ChevronLeft, Lock, Delete } from 'lucide-react'
-import { loginWithPin } from '../../services/auth'
+import { api } from '../../services/api'
+import { loginOffline, loginWithPin, SESSION_READY_EVENT } from '../../services/auth'
+import { syncNow } from '../../services/sync'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// PIN Verify Screen — popup dermaga MULAI TRIP di HomeScreen, BUKAN di sini.
+// PinVerifyScreen — verifikasi PIN petugas untuk mulai trip / ganti petugas.
+// Berfungsi PULA saat offline: hash PIN tersimpan di penyimpanan lokal perangkat.
+// Alur: LOKAL-LEBIH-DULU (instan, tanpa jeda jaringan) → sesi online + update
+// roster dari dashboard admin ditarik di latar belakang bila ada koneksi.
+
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
 }
 
 export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   const { officer, officers, pendingOfficerId, verifyIntent, setOfficerId, clearVerify } = useApp()
+
+  // Target: petugas yang dipilih (ganti petugas) atau petugas aktif
   const target = pendingOfficerId != null
-    ? officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer
+    ? (officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer)
     : officer
+  const targetId = String(target?.id ?? '')
+  const targetName = target?.name ?? officer?.name ?? '…'
+
   const [digits, setDigits] = useState<string[]>([])
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  const pressedPin = digits.join('')
+
+  /** Tambah digit / hapus digit terakhir */
   const press = (d: string) => {
     setError(false)
     if (d === 'del') { setDigits(p => p.slice(0, -1)); return }
     if (digits.length < 6) setDigits(p => [...p, d])
   }
 
-  const rejectPin = () => {
+  /** Tampilkan feedback PIN salah */
+  const rejectPin = (reason?: string) => {
     setError(true)
-    setTimeout(() => setDigits([]), 600)
+    setTimeout(() => { setDigits([]); setError(false) }, 700)
+    if (reason) console.warn('[pin-verify] verifikasi gagal:', reason)
+  }
+
+  /** Selesai — terapkan sesi hasil verifikasi ke state aplikasi. */
+  const finishAuth = () => {
+    if (verifyIntent === 'switch') setOfficerId(targetId)
+    clearVerify()
+    go('profile')
   }
 
   const confirm = async () => {
-    if (digits.length < 6) return
-    const pin = digits.join('')
+    if (pressedPin.length < 6 || loading) return
     setLoading(true)
     setError(false)
+
     try {
-      const result = await loginWithPin(String(target?.id ?? ''), pin)
-      if (result.success) {
+      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu, instan tanpa jaringan ──
+      const local = await loginOffline(targetId, pressedPin)
+      if (local.success) {
+        // ── 2. Ada internet → JWT + roster terbaru dari dashboard admin
+        //       ditarik di LATAR BELAKANG (tidak menunda verifikasi).
+        if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
         finishAuth()
-      } else {
-        rejectPin()
+        return
       }
+
+      if (!navigator.onLine) {
+        rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+        return
+      }
+
+      // ── 3. PIN belum tersimpan lokal → verifikasi ke server
+      //       (hasilnya disimpan agar berikutnya bisa offline) ──────────────
+      const result = await loginWithPin(targetId, pressedPin)
+      if (result.success) finishAuth()
+      else rejectPin(result.error?.message ?? 'PIN tidak valid')
     } catch {
-      if (pin === '123456') finishAuth()
-      else rejectPin()
+      try {
+        const local = await loginOffline(targetId, pressedPin)
+        if (local.success) {
+          finishAuth()
+          return
+        }
+      } catch {}
+      rejectPin('Verifikasi lokal gagal — coba lagi')
     } finally {
       setLoading(false)
     }
   }
 
-  const finishAuth = () => {
-    if (verifyIntent === 'switch') setOfficerId(String(target?.id ?? ''))
-    clearVerify()
-    go('profile')
+  /** LATAR BELAKANG: peroleh JWT + tarik perubahan petugas terbaru dari admin. */
+  const refreshSessionInBackground = async (id: string, pin: string) => {
+    try {
+      await loginWithPin(id, pin)
+      if (api.isAuthenticated) {
+        void syncNow().catch(() => undefined)
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
+      }
+    } catch { /* tetap mode offline — sinkron menyusul */ }
   }
 
   return (
@@ -64,15 +112,21 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         <ChevronLeft size={16} /> Kembali
       </button>
 
+      {/* Icon + judul */}
       <div className="w-16 h-16 rounded-3xl bg-[#0F172A] flex items-center justify-center mb-4 shadow-lg">
         <Lock size={28} className="text-amber-400" />
       </div>
       <h2 className="font-black text-slate-900 text-[22px] mb-1">Verifikasi PIN</h2>
-      <p className="text-slate-500 text-[13px] text-center mb-7">
+      <p className="text-slate-500 text-[13px] text-center mb-1">
         {verifyIntent === 'switch'
-          ? `Login Sebagai : ${target?.name ?? ''}`
-          : 'Masukkan 6-digit PIN Anda'}
+          ? `Login Sebagai ${targetName}`
+          : `Petugas: ${targetName}`}
       </p>
+      {!navigator.onLine && (
+        <p className="text-amber-600 text-[11px] font-semibold mb-1">
+          Offline — verifikasi lokal aktif
+        </p>
+      )}
 
       {/* Dot indicators */}
       <div className="flex gap-3 mb-7">
@@ -80,49 +134,57 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
           <div
             key={i}
             className={`w-11 h-11 rounded-2xl border-2 flex items-center justify-center transition-all ${
-              error ? 'border-red-400 bg-red-50'
-              : i < digits.length ? 'border-blue-500 bg-blue-500'
-              : 'border-slate-200 bg-white'
+              error ? 'border-red-400'
+                : i < digits.length ? 'border-blue-500'
+                : 'border-slate-200'
             }`}
           >
             {i < digits.length && (
-              <div className={`w-3 h-3 rounded-full ${error ? 'bg-red-400' : 'bg-white'}`} />
+              <div className={`w-3 h-3 rounded-full ${error ? 'bg-red-400' : 'bg-blue-500'}`} />
             )}
           </div>
         ))}
       </div>
 
       {error && (
-        <p className="text-red-500 text-[12px] font-semibold mb-3">PIN salah. Coba lagi.</p>
+        <p className="text-red-500 text-[12px] font-semibold mb-3">
+          PIN salah — coba lagi
+        </p>
       )}
 
       {/* Numpad */}
       <div className="grid grid-cols-3 gap-3 w-full max-w-[260px]">
-        {['1','2','3','4','5','6','7','8','9','','0','del'].map(key => (
-          key === '' ? <div key="empty" />
-          : <button
-            key={key}
-            onClick={() => press(key)}
-            className={`h-14 rounded-2xl font-bold text-lg flex items-center justify-center transition-all active:scale-95 ${
-              key === 'del'
-                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm'
-                : 'bg-white shadow-sm text-slate-900 hover:bg-slate-50 border border-slate-100'
-            }`}
-          >
-            {key === 'del' ? <Delete size={18} /> : key}
-          </button>
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => (
+          k === '' ? <div key="empty" />
+            : (
+              <button
+                key={k}
+                onClick={() => press(k)}
+                disabled={loading}
+                className="h-14 rounded-2xl font-bold text-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 bg-white shadow-sm border border-slate-100 text-slate-900 hover:bg-slate-50"
+              >
+                {k === 'del' ? <Delete size={18} /> : k}
+              </button>
+            )
         ))}
       </div>
 
+      {/* Konfirmasi */}
       <button
-        onClick={confirm}
-        disabled={digits.length < 6 || loading}
+        onClick={() => void confirm()}
+        disabled={pressedPin.length < 6 || loading}
         className="mt-6 w-full max-w-[260px] bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
       >
-        {loading ? (
-          <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Verifikasi...</>
-        ) : 'Konfirmasi'}
+        {loading
+          ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Memverifikasi…</>
+          : 'Konfirmasi PIN'}
       </button>
+
+      {!navigator.onLine && (
+        <p className="text-slate-400 text-[11px] mt-2 text-center">
+          Offline — hash PIN tersimpan di perangkat ini
+        </p>
+      )}
     </div>
   )
 }

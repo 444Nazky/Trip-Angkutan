@@ -17,10 +17,12 @@
 export const environment = {
   production: false,
 
-  // Default for browser dev / emulator with adb reverse
+  // Browser dev (localhost) — HANYA berlaku di development server.
+  // Build produksi (`ng build`) memakai environment.prod.ts (fileReplacements).
   apiBaseUrl: 'http://localhost:3000/api',
 
-  // For physical device - replace with your host machine IP address
-  // Example: http://192.168.1.100:3000/api
-  deviceApiBaseUrl: 'http://192.168.1.100:3000/api',
+  // PERANGKAT FISIK (Android/iOS/webview) → SELALU backend produksi Railway.
+  // Nilai lama (http://192.168.1.100:3000/api) membuat data trip dari HP
+  // tidak pernah sampai ke dashboard admin.
+  deviceApiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
 };

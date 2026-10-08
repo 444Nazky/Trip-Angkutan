@@ -4,29 +4,26 @@
 import { api, type ApiError } from './api'
 import {
   findOfficer as findOfflineOfficer,
-  getPinHash,
   hashPin,
   saveOfficers,
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
-import bcrypt from 'bcryptjs'
+import { findSeedOfficer, verifySeedPin } from './seedData'
+
+/**
+ * Event window: sesi backend baru saja ditanam di latar belakang (login lokal
+ * → sinkron online). Store memakainya untuk menarik roster terbaru dari
+ * dashboard admin begitu token tersedia.
+ */
+export const SESSION_READY_EVENT = 'trip:session-ready'
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'
+const AUTH_TIMEOUT_MS = 4000
 
-// Demo PIN shared by all seeded officers
-export const DEMO_PIN = '123456'
-
-/** Kunci penyimpan hash password bersama member-login (offline verify). */
-const MEMBER_PASS_KEY = '__member__'
-
-/** Kunci penyimpanan password member bersama (planteks lokal). */
 const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
-
-// Officer the app *wants* to be authenticated as, even while offline
-let activeOfficerId: string | null = null
 
 export interface Dermaga {
   id: string
@@ -51,6 +48,8 @@ export interface StoredOfficer {
   regionId: string
   regionName: string
   regionCode: string
+  /** Scope dermaga — agar UI tidak jatuh ke fallback `officers[0]` (swap akun). */
+  dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
 export interface LoginResponse {
@@ -104,10 +103,6 @@ export interface UiRoute {
 
 function isValidRoute(r: unknown): r is Route {
   return typeof r === 'object' && r !== null && !!(r as Route).id && !!(r as Route).name
-}
-
-function isNonEmptyString(s: unknown): s is string {
-  return typeof s === 'string' && s.length > 0
 }
 
 function saveRoutesMap(map: Record<string, Route[]>): void {
@@ -239,7 +234,7 @@ export async function memberLogin(
   username: string,
   password: string
 ): Promise<{ success: boolean; error?: string; officer?: StoredOfficer }> {
-  const result = await api.post<LoginResponse>('/auth/member-login', { username, password })
+  const result = await api.post<LoginResponse>('/auth/member-login', { username, password }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
     // Gagal karena jaringan → coba verifikasi lokal agar petugas tetap bisa masuk
@@ -253,14 +248,9 @@ export async function memberLogin(
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-  void cachePin(result.data.officer.id, password)
-  // Password bersama (member-login) di-cache lokal supaya verifikasi offline
-  // untuk petugas mana pun bisa dilakukan tanpa pernah login online dulu.
-  void hashPin(MEMBER_PASS_KEY, password).then(h => setPinHash(MEMBER_PASS_KEY, h))
-  // Cache password member bersama (teks lokal) untuk validasi offline —
-  // backend memakai satu password yang sama untuk semua petugas, sehingga
-  // cukup disimpan sekali saat login online berhasil.
-  try { localStorage.setItem(MEMBER_CRED_KEY, password) } catch { /* quota */ }
+  const memberKey = `member:${result.data.officer.id}`
+  await setPinHash(memberKey, await hashPin(memberKey, password))
+  try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
 
   // ── LOGIN PERTAMA KALI (ONLINE): tarik & simpan SEMUA petugas satu dermaga
   //    ke penyimpanan lokal, supaya pergantian akun tetap jalan saat offline.
@@ -274,7 +264,8 @@ export async function memberLogin(
 /** True bila error disebabkan jaringan (bukan kredensial salah). */
 function isNetworkError(err?: ApiError): boolean {
   if (!err) return true
-  if (err.code && !/^5\d\d$/.test(err.code)) return false
+  if (err.code === 'NETWORK' || err.code === 'TIMEOUT' || /^5\d\d$/.test(err.code ?? '')) return true
+  if (err.code) return false
   return /timeout|network|failed to fetch|terjangkau|offline|merespon|unreachable/i.test(err.message)
 }
 
@@ -283,7 +274,7 @@ export async function loginWithPin(
   officerId: string,
   pin: string,
 ): Promise<{ success: boolean; error?: ApiError; data?: LoginResponse; offline?: boolean }> {
-  const result = await api.post<LoginResponse>('/auth/login', { officerId, pin })
+  const result = await api.post<LoginResponse>('/auth/login', { officerId, pin }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
     // Server tidak terjangkau → verifikasi PIN terhadap hash tersimpan di perangkat
@@ -368,6 +359,27 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
 }
 
 /**
+ * Bentuk petugas BAWAAN (seed) menjadi record offline — fallback terakhir
+ * saat baris belum ada di DB offline maupun roster (mis. login pertama kali
+ * begitu aplikasi dibuka, sebelum migrasi/seeding selesai).
+ */
+function seedToRecord(identifier: string): OfflineOfficerRecord | null {
+  const s = findSeedOfficer(identifier)
+  if (!s) return null
+  return {
+    id: s.id,
+    username: s.username,
+    name: s.name,
+    region: s.regionCode,
+    regionId: s.regionId,
+    regionName: s.regionName,
+    regionCode: s.regionCode,
+    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
+    dermagaAccess: s.dermagaAccess,
+  }
+}
+
+/**
  * Susun sesi offline dari data petugas tersimpan di perangkat.
  * Menerima id ATAU username/ nama — resolusi dilakukan ke DB offline dulu,
  * lalu ke roster localStorage, sehingga pergantian antar petugas dalam satu
@@ -377,10 +389,12 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
   let row: OfflineOfficerRecord | null = null
   try { row = await findOfflineOfficer<OfflineOfficerRecord>(identifier) } catch { row = null }
   if (!row) row = findStoredOfficerRecord(identifier)
+  if (!row) row = seedToRecord(identifier) // data bawaan aplikasi (seed)
   if (!row) return null
-  // Petugas yang dinonaktifkan admin tidak boleh login (offline maupun online)
-  if (row.status && /nonaktif/i.test(String(row.status))) return null
+  if (row.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(row.status))) return null
 
+  const roster = findStoredOfficerRecord(String(row.id))
+  const access = row.dermagaAccess?.length ? row.dermagaAccess : roster?.dermagaAccess
   const region = String(row.region ?? row.regionCode ?? row.regionId ?? '')
   const officer: StoredOfficer = {
     id: String(row.id ?? identifier),
@@ -388,22 +402,21 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionId: String(row.regionId ?? region),
     regionName: String(row.regionName ?? region),
     regionCode: String(row.regionCode ?? region),
-    // dermagaAccess disimpan di payload officer agar route/dermaga scope aktif offline
+    dermagaAccess: access ?? [],
   }
-  activeOfficerId = officer.id
   saveOfficer(officer)
-  api.setToken(null) // sesi offline — tidak ada JWT sampai kembali online
-  // Pastikan baris petugas ikut tersimpan di DB offline utk lookup berikutnya
-  void saveOfficers([{
-    id: officer.id,
-    username: row.username,
-    name: officer.name,
-    regionId: officer.regionId,
-    regionName: officer.regionName,
-    regionCode: officer.regionCode,
-    isActive: true,
-    payload: { ...officer, username: row.username, dermagaAccess: row.dermagaAccess },
-  }])
+  api.setToken(null)
+  try { localStorage.removeItem(DERMAGA_KEY) } catch {}
+  if (access?.length === 1) {
+    const dock = access[0]
+    saveDermaga({
+      id: dock.id,
+      name: dock.name,
+      code: dock.code,
+      region_name: officer.regionName,
+      region_code: officer.regionCode,
+    })
+  }
   return { token: '', officer }
 }
 
@@ -452,18 +465,11 @@ export function logout() {
  * Refresh JWT with latest claims from database.
  */
 export async function refreshBackendSession(officerId?: string): Promise<boolean> {
-  const id = officerId ?? activeOfficerId ?? getStoredOfficer()?.id
-  if (id == null || id === '') return false
-
-  activeOfficerId = String(id)
-
-  if (!api.isAuthenticated) {
-    const result = await loginWithPin(String(id), DEMO_PIN)
-    return result.success
-  }
+  const id = officerId ?? getStoredOfficer()?.id
+  if (!id || !(await ensureBackendSession(String(id)))) return false
 
   const result = await api.post<LoginResponse>('/auth/refresh', {})
-  if (result.ok && result.data) {
+  if (result.ok && result.data?.token && String(result.data.officer?.id) === String(id)) {
     api.setToken(result.data.token)
     saveOfficer(result.data.officer)
     return true
@@ -486,22 +492,6 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   } catch {
     return null
   }
-}
-
-/**
- * Fetch an admin JWT for the dashboard.
- */
-export async function ensureAdminBackendSession(): Promise<boolean> {
-  const result = await api.post<{ token: string }>('/auth/admin-login', {
-    username: 'admin',
-    password: 'admin123',
-  })
-
-  if (result.ok && result.data) {
-    api.setToken(result.data.token)
-    return true
-  }
-  return false
 }
 
 /** Masa berlaku JWT terakhir (epoch ms) — null bila tidak bisa dibaca. */
@@ -529,7 +519,7 @@ function jwtExpiryMs(token?: string | null): number | null {
  * wajib MENUNDA pengiriman (jangan membakar percobaan 401 yang sia-sia).
  */
 export async function renewSessionIfNeeded(): Promise<boolean> {
-  if (!api.isAuthenticated) return ensureBackendSession()
+  if (!(await ensureBackendSession())) return false
 
   const exp = jwtExpiryMs(api.token)
   if (exp === null || Date.now() < exp - 60_000) return true // masih berlaku
@@ -540,35 +530,23 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
     if (r.data.officer) saveOfficer(r.data.officer)
     return true
   }
-  // Refresh ditolak → paksa login ulang
   api.setToken(null)
-  return ensureBackendSession()
+  return false
 }
 
 /**
  * Ensure we have a valid backend JWT for the given officer.
  */
 export async function ensureBackendSession(officerId?: string): Promise<boolean> {
-  if (officerId != null && officerId !== '') {
-    activeOfficerId = officerId
-    const stored = getStoredOfficer()
-    if (stored && String(stored.id) !== String(officerId)) {
-      api.setToken(null)
-    }
-  }
-
+  const stored = getStoredOfficer()
+  const id = officerId ?? stored?.id
   const payload = jwtPayload()
-  if (payload && (payload.role === 'admin' || payload.officerId == null)) {
-    api.setToken(null)
+  if (!id || String(stored?.id) !== String(id) || !payload?.officerId ||
+      payload.role === 'admin' || String(payload.officerId) !== String(id)) {
+    if (api.isAuthenticated) api.setToken(null)
+    return false
   }
-
-  if (api.isAuthenticated) return true
-
-  const id = officerId ?? activeOfficerId ?? getStoredOfficer()?.id
-  if (id == null || id === '') return false
-
-  const result = await loginWithPin(String(id), DEMO_PIN)
-  return result.success
+  return api.isAuthenticated
 }
 
 // ── Kredensial offline (hash PIN) ──────────────────────────────────────────
@@ -617,31 +595,19 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number; payload?: { status?: string } }>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
     const status = row?.status ?? row?.payload?.status
-    if (status && /nonaktif/i.test(String(status))) inactive = true
+    if (status && /^(nonaktif|non-aktif|inactive)$/i.test(String(status))) inactive = true
     if (row?.isActive === false || row?.is_active === 0) inactive = true
   } catch { /* database offline belum siap */ }
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
-  if (storedRecord && storedRecord.status && /nonaktif/i.test(String(storedRecord.status))) inactive = true
+  if (storedRecord && storedRecord.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(storedRecord.status))) inactive = true
   if (inactive) return false
 
-  // Password member bersama: cek versi teks yang di-cache + versi hash.
-  try {
-    const cachedPass = localStorage.getItem(MEMBER_CRED_KEY)
-    if (cachedPass !== null && cachedPass === pin) return true
-    const memberHash = await getPinHash(MEMBER_PASS_KEY)
-    if (memberHash) {
-      if (memberHash.startsWith('$2')) {
-        try { if (bcrypt.compareSync(pin, memberHash)) return true } catch { /* lanjut */ }
-      } else if (memberHash === (await hashPin(MEMBER_PASS_KEY, pin))) {
-        return true
-      }
-    }
-  } catch { /* lanjut cek per-petugas */ }
+  try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
 
   try {
-    if (await verifyStoredPin(officerId, pin)) return true
+    if (await verifyStoredPin(officerId, pin) || await verifyStoredPin(`member:${officerId}`, pin)) return true
   } catch { /* lanjut ke fallback legacy */ }
 
   // Fallback data lama (PIN polos) → upgrade ke hash bila cocok
@@ -652,12 +618,10 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     return true
   }
 
-  // Roster lama yang menyimpan PIN polos pada object petugas
-  const plain = storedRecord?.pin
-  if (plain && plain === pin) {
-    await cachePin(officerId, pin)
-    return true
-  }
+  // Fallback DATA BAWAAN (seed): hash PIN petugas tertanam di aplikasi,
+  // sehingga login tetap instan walau database lokal masih kosong.
+  if (verifySeedPin(officerId, pin) || verifySeedPin(identifier, pin)) return true
+
   return false
 }
 

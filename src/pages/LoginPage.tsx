@@ -1,13 +1,56 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { loginOffline, memberLogin, verifyPinOffline } from '../services/auth'
-import { initializeSync } from '../services/sync'
+import { api } from '../services/api'
+import {
+  getStoredOfficer,
+  loginOffline,
+  loginWithPin,
+  memberLogin,
+  SESSION_READY_EVENT,
+  verifyPinOffline,
+} from '../services/auth'
+import { initializeSync, syncNow } from '../services/sync'
 import { getStoredOfficers } from '../services/officers'
-import { verifyPassword, hasStoredCredentials } from '../services/credentialSync'
-import { findOfficer as findOfflineOfficer } from '../services/offlineDb'
 
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
+}
+
+/**
+ * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
+ * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
+ * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
+ *
+ * Berada di lingkup MODUL (bukan di dalam komponen) agar bisa diuji unit test
+ * (src/services/auth.test.ts) tanpa merender UI.
+ */
+export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
+  if (!u || !p) return false
+
+  try {
+    const res = await loginOffline(u, p)
+    if (res.success) return true
+  } catch {
+    /* database offline belum siap — lanjut ke roster */
+  }
+
+  try {
+    const officers = getStoredOfficers()
+    const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
+    if (match && (await verifyPinOffline(String(match.id), p))) {
+      api.setToken(null)
+      localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
+        id: String(match.id),
+        name: match.name,
+        regionId: match.region,
+        regionName: match.region,
+        regionCode: match.region,
+        offlineMode: true,
+      }))
+      return true
+    }
+  } catch { /* no-op */ }
+  return false
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
@@ -29,24 +72,35 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
-      setError('Username & password harus diisi.')
+      setError('ID petugas & PIN harus diisi.')
       return
     }
+    if (loading) return
     setLoading(true)
     setError(null)
-    if (!navigator.onLine) {
-      const ok = await tryOfflineLogin(username.trim(), password)
-      if (ok) return
-      let nOfficers = 0
-      let nCreds = 0
-      try { nOfficers = JSON.parse(localStorage.getItem('trip.officers.v1') || '[]').length } catch { /* */ }
-      try { nCreds = Object.keys(JSON.parse(localStorage.getItem('trip.officers.credentials.v1') || '{}')).length } catch { /* */ }
-      setError(`Akun tidak ditemukan di perangkat ini (${nOfficers} petugas, ${nCreds} kredensial tersimpan). Hubungkan internet untuk login pertama kali.`)
-      setLoading(false)
-      return
-    }
+    const u = username.trim()
+    const p = password
     try {
-      const result = await memberLogin(username.trim(), password)
+      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu ───────────────────────
+      // Membaca database offline + DATA BAWAAN (seed) secara instan:
+      // tanpa jeda network request, langsung bisa100% offline.
+      if (await tryOfflineLogin(u, p)) {
+        void initializeSync()
+        onLogin('member')
+        // ── 2. Ada internet → sesi backend + update petugas dari dashboard
+        //       admin ditarik di LATAR BELAKANG (tidak menunda login).
+        if (navigator.onLine) void establishOnlineSession(u, p)
+        return
+      }
+
+      if (!navigator.onLine) {
+        setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
+        return
+      }
+
+      // ── 3. Gagal lokal & online → serahkan ke server ──────────────────
+      // Kasus: petugas baru dibuat admin / PIN baru yang belum tersinkron.
+      const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
         onLogin('member')
@@ -54,122 +108,41 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       }
       const msg = result.error || ''
       if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
-        const ok = await tryOfflineLogin(username.trim(), password)
-        if (ok) return
-        setError('Server tidak terjangkau — cek jaringan.' +
-          ` (cache lokal: ${getStoredOfficers().length} petugas)`)
+        setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
       } else if (/unauthorized|401|invalid/i.test(msg)) {
         setError('Username atau password salah.')
       } else {
         setError(msg || 'Login gagal.')
       }
     } catch {
-      setError('Terjadi kesalahan sistem.')
+      setError('Verifikasi gagal. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Offline login ──────────────────────────────────────────────
   /**
-   * Login offline: verifikasi username + password terhadap kredensial tersimpan
-   * dari admin dashboard (via credentialSync), lalu bangun sesi offline
-   * untuk petugas yang dipilih, sehingga pergantian antar petugas satu dermaga
-   * tetap mulus tanpa jaringan.
-   *
-   * Prioritas verifikasi offline:
-   *  1. verifyPassword() — kredensial admin dashboard (password bcrypt/hash)
-   *  2. loginOffline()   — PIN/hash legacy dari login online sebelumnya
+   * LATAR BELAKANG setelah login lokal sukses (saat ada internet):
+   *   1. Ambil JWT (member-login → fallback login PIN per petugas).
+   *   2. Tarik penambahan / penonaktifan petugas dari dashboard admin ke
+   *      penyimpanan lokal (sinkron otomatis, data bawaan tidak dirusak).
+   *   3. Proses antrean trip yang tertunda.
+   * Gagal total → aplikasi tetap berjalan normal dalam mode offline.
    */
-  async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
-    if (!u || !p) return false
-
-    // ── 1. Verifikasi password terhadap kredensial admin dashboard ──
-    // credentialSync menyimpan hash password per username saat sync dari admin.
-    // Ini adalah verifikasi UTAMA untuk login offline karena admin dashboard
-    // menyimpan password (bukan PIN) yang dipakai user saat login.
+  async function establishOnlineSession(u: string, p: string): Promise<void> {
     try {
-      const hasCreds = await hasStoredCredentials(u)
-      if (hasCreds) {
-        const passwordValid = await verifyPassword(u, p)
-        if (passwordValid) {
-          // Dapatkan data officer dari DB offline untuk bangun sesi
-          const officer = await findOfflineOfficer<{
-            id: string
-            username?: string
-            name: string
-            regionId?: string
-            regionName?: string
-            regionCode?: string
-          }>(u)
-          if (officer) {
-            const sessionData = {
-              id: String(officer.id),
-              name: String(officer.name || officer.username || u),
-              regionId: String(officer.regionId || ''),
-              regionName: String(officer.regionName || ''),
-              regionCode: String(officer.regionCode || ''),
-              offlineMode: true,
-            }
-            localStorage.setItem('trip.auth.officer.v1', JSON.stringify(sessionData))
-            void initializeSync()
-            setLoading(false)
-            onLogin('member')
-            return true
-          }
-          // Officer tidak ada di DB tapi password valid (mungkin belum sync roster) —
-          // tetap izinkan login dengan data minimal
-          const minimalSession = {
-            id: u,
-            name: u,
-            regionId: '',
-            regionName: '',
-            regionCode: '',
-            offlineMode: true,
-          }
-          localStorage.setItem('trip.auth.officer.v1', JSON.stringify(minimalSession))
-          void initializeSync()
-          setLoading(false)
-          onLogin('member')
-          return true
-        }
+      await memberLogin(u, p)
+      if (!api.isAuthenticated) {
+        // Kata sandi bukan password member → coba PIN petugas per akun
+        const id = getStoredOfficer()?.id
+        if (id) await loginWithPin(String(id), p)
       }
-    } catch (e) {
-      console.warn('[login] Verifikasi password gagal, coba PIN fallback:', e)
-    }
-
-    // ── 2. Fallback: verifikasi PIN (legacy login online sebelumnya) ──
-    try {
-      const res = await loginOffline(u, p)
-      if (res.success) {
-        void initializeSync()
-        setLoading(false)
-        onLogin('member')
-        return true
+      if (api.isAuthenticated) {
+        void syncNow().catch(() => undefined)
+        // Beri tahu store: token siap → tarik roster admin terbaru.
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
-    } catch {
-      /* database offline belum siap — lanjut ke roster */
-    }
-
-    try {
-      const officers = getStoredOfficers()
-      const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
-      if (match && (await verifyPinOffline(String(match.id), p))) {
-        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
-          id: String(match.id),
-          name: match.name,
-          regionId: match.region,
-          regionName: match.region,
-          regionCode: match.region,
-          offlineMode: true,
-        }))
-        void initializeSync()
-        setLoading(false)
-        onLogin('member')
-        return true
-      }
-    } catch { /* no-op */ }
-    return false
+    } catch { /* tetap mode offline — sinkron menyusul saat koneksi ada */ }
   }
 
   const onKey = (e: React.KeyboardEvent) => {

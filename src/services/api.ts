@@ -71,11 +71,16 @@ function isMobileDevice(): boolean {
 
 // Get current base URL (user-configurable for physical devices)
 function getBaseUrl(): string {
-  // Check if user set a custom URL
-  try {
-    const customUrl = localStorage.getItem(API_BASE_URL_KEY)
-    if (customUrl) return customUrl
-  } catch { /* ignore */ }
+  // Custom URL HANYA berlaku di build development.
+  // Build produksi (`ng build` → environment.prod.ts) WAJIB selalu memakai
+  // endpoint resmi Railway — override lokal lama (mis. IP LAN sesi debug)
+  // tidak boleh mengalihkan data trip dari server produksi.
+  if (!environment.production) {
+    try {
+      const customUrl = localStorage.getItem(API_BASE_URL_KEY)
+      if (customUrl) return customUrl
+    } catch { /* ignore */ }
+  }
 
   // Use device-specific URL on mobile
   if (isMobileDevice() && environment.deviceApiBaseUrl) {
@@ -160,6 +165,7 @@ class ApiService {
     method: string,
     path: string,
     body?: unknown,
+    timeoutMs = 12000,
   ): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -168,46 +174,45 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this._token}`
     }
 
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort()
+        reject(new Error('timeout'))
+      }, timeoutMs)
+    })
     try {
-      // Timeout 12s — kalau base URL salah/host mati, request dibatalkan
-      // dan login menampilkan error, bukan loading selamanya.
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 12000)
-
-      let res: Response
-      try {
-        res = await fetch(`${this.baseUrl}${path}`, {
-          method,
-          headers,
-          body: body ? JSON.stringify(body) : undefined,
-          signal: controller.signal,
-        })
-      } finally {
-        clearTimeout(timer)
-      }
-
-      const data = await res.json().catch(() => ({}))
+      const res = await Promise.race([fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      }), timeout])
+      const data = await Promise.race([res.json(), timeout]).catch(err => {
+        if (controller.signal.aborted) throw err
+        return {}
+      })
 
       if (!res.ok) {
-        // Clear token on auth errors
-        if (res.status === 401) {
-          this.setToken(null)
-        }
+        if (res.status === 401) this.setToken(null)
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
 
       return { ok: true, data }
     } catch (err) {
-      const aborted = err instanceof DOMException && err.name === 'AbortError'
+      const aborted = controller.signal.aborted
       const message = aborted
-        ? `Server tidak merespon (12 detik timeout) — periksa API ${this.baseUrl}`
+        ? `Server tidak merespon (${timeoutMs / 1000} detik timeout) — periksa API ${this.baseUrl}`
         : err instanceof Error ? err.message : 'Network error'
-      return { ok: false, error: { message } }
+      return { ok: false, error: { message, code: aborted ? 'TIMEOUT' : 'NETWORK' } }
+    } finally {
+      clearTimeout(timer)
     }
   }
 
   get<T>(path: string) { return this.request<T>('GET', path) }
-  post<T>(path: string, body?: unknown) { return this.request<T>('POST', path, body) }
+  post<T>(path: string, body?: unknown, timeoutMs?: number) { return this.request<T>('POST', path, body, timeoutMs) }
   put<T>(path: string, body?: unknown) { return this.request<T>('PUT', path, body) }
   delete<T>(path: string) { return this.request<T>('DELETE', path) }
 

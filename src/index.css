@@ -105,6 +105,10 @@
    ═════════════════════════════════════════════════════════════════════════ */
 :where(button) {
   -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.18s ease;
+}
+:where(button.old) {
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 :where(button:not(:disabled):active) { transform: scale(0.96); }

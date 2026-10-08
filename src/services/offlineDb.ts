@@ -11,6 +11,14 @@
 
 import { Capacitor } from '@capacitor/core'
 import bcrypt from 'bcryptjs'
+import {
+  SEED_OFFICERS,
+  SEED_VERSION,
+  SEED_VERSION_KEY,
+  seedRosterIfAbsent,
+  seedRouteCacheIfAbsent,
+  type SeedOfficer,
+} from './seedData'
 
 export type LocalBackend = 'sqlite' | 'localStorage'
 
@@ -89,17 +97,120 @@ async function migrateFromLocalStorage(): Promise<void> {
   try {
     const rawOfficers = localStorage.getItem(LS_OFFICERS)
     if (rawOfficers) {
-      const list = JSON.parse(rawOfficers)
-      if (Array.isArray(list)) await saveOfficers(list)
+      const list = JSON.parse(rawOfficers) as OfficerRow[]
+      if (Array.isArray(list)) {
+        for (const row of list) {
+          if (!row?.id || !row?.name || (row as OfficerRow & { pin?: string }).pin) continue
+          const existing = await conn!.query('SELECT id FROM officers WHERE id = ? LIMIT 1', [String(row.id)])
+          if (!existing.values?.length) await saveOfficers([row], true)
+        }
+      }
     }
     const rawCreds = localStorage.getItem(LS_CREDENTIALS)
     if (rawCreds) {
       const map = JSON.parse(rawCreds) as Record<string, string>
       for (const [id, hash] of Object.entries(map)) {
-        await setPinHash(id, hash)
+        if (!hash || id === '__member__') continue
+        const existing = await conn!.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [id])
+        if (!existing.values?.length) await setPinHash(id, hash, true)
       }
     }
   } catch { /* data rusak — abaikan */ }
+}
+
+/** Payload mobile untuk baris petugas bawaan (tanpa field `pin` agar tampil di modal petugas lokal). */
+function seedPayload(s: SeedOfficer): Record<string, unknown> {
+  return {
+    id: s.id,
+    name: s.name,
+    username: s.username,
+    initials: s.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+    region: s.regionCode,
+    regions: [s.regionCode],
+    regionId: s.regionId,
+    regionName: s.regionName,
+    regionCode: s.regionCode,
+    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
+    isActive: (s.isActive ?? 1) === 1,
+    device: '-',
+    trips: 0,
+    lastActive: '-',
+    joined: '-',
+    dermagaAccess: s.dermagaAccess,
+  }
+}
+
+/**
+ * TANAM DATA BAWAAN (seed) ke penyimpanan lokal.
+ *
+ * INSERT-IF-ABSENT — baris/hash yang sudah ada TIDAK pernah ditimpa:
+ *   • Hasil sinkronisasi/OTA dari dashboard admin tetap menang.
+ *   • Data default tidak pernah rusak terhapus oleh sync.
+ *   • Seeding dijalankan setiap init → petugas bawaan versi OTA terbaru
+ *     ikut melengkapi daftar perangkat lama (lihat SEED_VERSION).
+ *
+ * FUNGSI INI TIDAK BOLEH memanggil initOfflineDb() — dipanggil dari dalam
+ * inisialisasi (maupun setelah clearOfflineData ketika init sudah selesai).
+ */
+async function seedDefaultOfficers(): Promise<void> {
+  const now = Date.now()
+
+  if (backend === 'sqlite' && conn) {
+    try {
+      for (const s of SEED_OFFICERS) {
+        const existing = await conn.query('SELECT id FROM officers WHERE id = ? LIMIT 1', [s.id])
+        if (!existing.values?.length) {
+          await conn.run(
+            `INSERT INTO officers (id, username, name, region_id, region_name, region_code, is_active, payload, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              s.id, s.username, s.name, s.regionId, s.regionName, s.regionCode,
+              s.isActive ?? 1, JSON.stringify(seedPayload(s)), now,
+            ],
+          )
+        }
+        const cred = await conn.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [s.id])
+        if (!cred.values?.length) {
+          await conn.run(
+            'INSERT INTO credentials (officer_id, pin_hash, updated_at) VALUES (?, ?, ?)',
+            [s.id, s.pinHash, now],
+          )
+        }
+      }
+      return
+    } catch (err) {
+      console.warn('[offline-db] seed SQLite gagal — fallback localStorage:', err)
+    }
+  }
+
+  // Backend localStorage (web / plugin SQLite belum siap)
+  try {
+    const merged = new Map<string, OfficerRow>(lsOfficers().map(o => [String(o.id), o]))
+    for (const s of SEED_OFFICERS) {
+      if (merged.has(s.id)) continue // data tersimpan (sync/admin) menang
+      merged.set(s.id, {
+        id: s.id,
+        username: s.username,
+        name: s.name,
+        regionId: s.regionId,
+        regionName: s.regionName,
+        regionCode: s.regionCode,
+        isActive: (s.isActive ?? 1) === 1,
+        dermagaAccess: s.dermagaAccess,
+        payload: seedPayload(s),
+      })
+    }
+    localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
+
+    const creds = lsCredentials()
+    let changed = false
+    for (const s of SEED_OFFICERS) {
+      if (creds[s.id]) continue // hash hasil sync admin tidak ditimpa
+      creds[s.id] = s.pinHash
+      changed = true
+    }
+    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
+  } catch { /* quota — dicoba lagi pada init berikutnya */ }
 }
 
 /**
@@ -111,10 +222,25 @@ export function initOfflineDb(): Promise<LocalBackend> {
     initPromise = (async () => {
       // Timeout 5 dtk: bila plugin SQLite menggantung di perangkat tertentu,
       // turunkan ke localStorage agar login offline tidak hang selamanya.
-      const timeout = new Promise<boolean>(res => setTimeout(() => { console.warn('[offline-db] init timeout — fallback localStorage'); res(false) }, 5000))
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<boolean>(res => {
+        timer = setTimeout(() => { console.warn('[offline-db] init timeout — fallback localStorage'); res(false) }, 5000)
+      })
       const ok = await Promise.race([openSqlite(), timeout])
+      clearTimeout(timer)
       backend = ok ? 'sqlite' : 'localStorage'
       if (ok) await migrateFromLocalStorage()
+      // ── SEED DATA BAWAAN ────────────────────────────────────────────────
+      // Tanam petugas + hash PIN bawaan sehingga login OFFLINE100% bisa
+      // sejak instalasi pertama — tanpa sinkronisasi awal / endpoint server.
+      try {
+        await seedDefaultOfficers()
+        seedRosterIfAbsent()
+        seedRouteCacheIfAbsent()
+        try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch { /* quota */ }
+      } catch (err) {
+        console.warn('[offline-db] seed data bawaan gagal:', err)
+      }
       return backend
     })()
   }
@@ -134,9 +260,9 @@ function lsOfficers(): OfficerRow[] {
 }
 
 /** Simpan/meg-barui daftar petugas (upsert per id). */
-export async function saveOfficers(rows: OfficerRow[]): Promise<void> {
+export async function saveOfficers(rows: OfficerRow[], migrating = false): Promise<void> {
   if (!rows?.length) return
-  await initOfflineDb()
+  if (!migrating) await initOfflineDb()
   const now = Date.now()
   const toRow = (r: OfficerRow): OfficerRow => ({
     id: String(r.id),
@@ -254,9 +380,9 @@ function fnv1a(str: string): string {
   return (h >>> 0).toString(16)
 }
 
-export async function setPinHash(officerId: string, hash: string): Promise<void> {
+export async function setPinHash(officerId: string, hash: string, migrating = false): Promise<void> {
   if (!officerId || !hash) return
-  await initOfflineDb()
+  if (!migrating) await initOfflineDb()
   if (backend === 'sqlite' && conn) {
     try {
       await conn.run(
@@ -320,4 +446,12 @@ export async function clearOfflineData(): Promise<void> {
   try {
     localStorage.removeItem(LS_CREDENTIALS)
   } catch { /* quota */ }
+
+  // Tanam ULANG data bawaan setelah reset — aplikasi selalu punya kredensial
+  // offline (seed) meski penyimpanan dibersihkan pengguna.
+  try {
+    await seedDefaultOfficers()
+    seedRosterIfAbsent()
+    seedRouteCacheIfAbsent()
+  } catch { /* dicoba lagi pada init berikutnya */ }
 }

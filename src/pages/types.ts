@@ -10,7 +10,6 @@ export type MobileScreen =
   | 'vehicle-form'
   | 'camera'
   | 'trip-summary'
-  | 'trip-active'
   | 'trip-complete'
   | 'history'
   | 'history-detail'
@@ -18,6 +17,7 @@ export type MobileScreen =
   | 'pin-verify'
   | 'profile'
   | 'settings'
+  | 'local-officers'
 
 export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'reports' | 'settings'
 

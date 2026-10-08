@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
 import { tariffFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
@@ -14,8 +14,11 @@ const TYPE_PLACEHOLDER = 'Pilih jenis kendaraan'
 const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
-  const { draft, patchDraft, addVehicle, tariffs } = useApp()
+  const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
   const { plate, type: vehicleType, category } = draft.vehicleForm
+  // Mode ubah (edit sebelum submit): indeks kendaraan yang sedang diperbaiki.
+  const editingIndex = draft.editVehicleIndex ?? null
+  const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
   // Foto kendaraan MEMAKAI SLOT TERPISAH (vPhoto) — bukan foto trip,
   // supaya tiap kendaraan (Truk 1, Truk 2, Mobil 1 …) punya foto sendiri.
   const photoTaken = draft.vPhoto
@@ -48,27 +51,19 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
-  // Handle OCR result
-  useEffect(() => {
-    if (draft.ocrResult) {
-      const normalizedPlate = draft.ocrResult.replace(/\s+/g, ' ').trim().toUpperCase()
-      if (normalizedPlate.length >= 3) {
-        setField({ plate: normalizedPlate })
-        void runCheck(normalizedPlate)
-      }
-      patchDraft({ ocrResult: undefined })
-    }
-  }, [draft.ocrResult])
-
-  const openCamera = (mode: 'photo' | 'ocr') => {
-    patchDraft({ cameraFrom: 'vehicle-form', cameraMode: mode })
+  // Fitur scan plat (OCR) DIHAPUS atas permintaan — input kendaraan disederhanakan:
+  // petugas mengetik nomor plat manual, lalu sistem memeriksanya otomatis (onBlur).
+  const openCamera = () => {
+    patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo' })
     go('camera')
   }
 
   // Guard keras: tidak ada kendaraan yang tersimpan dengan field kosong.
+  // Mode edit → perbarui kendaraan pada tempatnya (indeks tidak berubah),
+  // sehingga foto dokumentasi yang sudah terpasang tidak tertukar.
   const pushVehicle = () => {
     if (!isFormComplete) return false
-    addVehicle({
+    const entry = {
       plate: plate.trim().toUpperCase(),
       type: vehicleType,
       category: category,
@@ -78,7 +73,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       photoLatitude: draft.vPhotoLatitude,
       photoLongitude: draft.vPhotoLongitude,
       plateStatus: check?.status,
-    })
+    }
+    if (isEditing) patchDraftVehicle(editingIndex, entry)
+    else addVehicle(entry)
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
       vPhoto: false,
@@ -86,21 +83,43 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       vPhotoCapturedAt: undefined,
       vPhotoLatitude: undefined,
       vPhotoLongitude: undefined,
+      vehiclePhotoTarget: undefined,
+      editVehicleIndex: null,
     })
     setCheck(null)
     return true
   }
 
+  /** Batalkan mode ubah tanpa menyimpan perubahan. */
+  const cancelEdit = () => {
+    patchDraft({
+      vehicleForm: { plate: '', type: '', category: '' },
+      vPhoto: false,
+      vPhotoUrl: undefined,
+      vPhotoCapturedAt: undefined,
+      vPhotoLatitude: undefined,
+      vPhotoLongitude: undefined,
+      vehiclePhotoTarget: undefined,
+      editVehicleIndex: null,
+    })
+    setCheck(null)
+  }
+
   return (
     <div className="px-4 pt-2 pb-6">
-      <button onClick={() => go('route-select')} className="flex items-center gap-1.5 text-slate-500 text-sm mb-4">
-        <ChevronLeft size={16} /> Kembali
+      <button
+        onClick={() => go(isEditing ? 'trip-summary' : 'route-select')}
+        className="flex items-center gap-1.5 text-slate-500 text-sm mb-4"
+      >
+        <ChevronLeft size={16} /> {isEditing ? 'Kembali ke Ringkasan' : 'Kembali'}
       </button>
 
       <div className="flex items-baseline justify-between mb-5">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Input Kendaraan</h2>
-          <p className="text-[13px] text-slate-500 mt-0.5">Semua kolom wajib diisi</p>
+          <h2 className="text-lg font-bold text-slate-900">{isEditing ? 'Ubah Kendaraan' : 'Input Kendaraan'}</h2>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            {isEditing ? `Memperbaiki data ${unitLabel(draft.vehicles, editingIndex)}` : 'Semua kolom wajib diisi'}
+          </p>
         </div>
         <span className={`text-xs font-semibold tabular-nums ${isFormComplete ? 'text-emerald-600' : 'text-slate-400'}`}>
           {filledCount}/4
@@ -116,13 +135,13 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               Foto Dokumentasi <span className="text-red-500">*</span>
             </label>
             {photoTaken && (
-              <button onClick={() => openCamera('photo')} className="text-[11px] text-blue-600 font-medium">
+              <button onClick={() => openCamera()} className="text-[11px] text-blue-600 font-medium">
                 Ulangi
               </button>
             )}
           </div>
           <button
-            onClick={() => openCamera('photo')}
+            onClick={() => openCamera()}
             className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
               photoTaken
                 ? 'border-slate-200 bg-white'
@@ -151,24 +170,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           <label className="text-[13px] font-medium text-slate-600 block mb-2">
             Nomor Plat <span className="text-red-500">*</span>
           </label>
-          <div className="flex gap-2">
-            <input
-              value={plate}
-              onChange={e => {
-                setPlateError('')
-                setField({ plate: e.target.value.toUpperCase() })
-              }}
-              onBlur={() => plate.trim() && void runCheck(plate)}
-              placeholder="B 1234 XY"
-              className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-            />
-            <button
-              onClick={() => openCamera('ocr')}
-              className="shrink-0 px-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 text-xs font-medium flex items-center gap-1.5 hover:bg-slate-100"
-            >
-              <Camera size={14} /> Scan
-            </button>
-          </div>
+          <input
+            value={plate}
+            onChange={e => {
+              setPlateError('')
+              setField({ plate: e.target.value.toUpperCase() })
+            }}
+            onBlur={() => plate.trim() && void runCheck(plate)}
+            placeholder="B 1234 XY"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+          />
           {plateError && <p className="text-xs text-red-500 mt-1.5">{plateError}</p>}
           {(check || checkLoading) && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
@@ -176,7 +187,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <><Loader2 size={12} className="animate-spin" /> Memeriksa plat…</>
               ) : check ? (
                 <>
-                /* <span className={`font-medium ${
+                  <span className={`font-medium ${
                     check.status === 'internal' ? 'text-slate-700'
                     : check.status === 'lokal' ? 'text-blue-600'
                     : 'text-amber-600'
@@ -253,8 +264,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               ? 'Pilih Jenis Kendaraan'
               : !categoryOk
                 ? 'Pilih Kategori'
-                : 'Simpan Kendaraan'}
+                : isEditing ? 'Perbarui Kendaraan' : 'Simpan Kendaraan'}
       </button>
+      {isEditing && (
+        <button
+          onClick={cancelEdit}
+          className="w-full py-3 mt-2 rounded-xl font-semibold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+        >
+          Batal Ubah
+        </button>
+      )}
 
       {/* Kendaraan Tersimpan */}
       {draft.vehicles.length > 0 && (
@@ -271,10 +290,35 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
                 <span className="text-xs text-slate-500 ml-auto">{v.category}</span>
+                {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
+                <button
+                  onClick={() => editDraftVehicle(i)}
+                  className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
+                  title={`Ubah data ${unitLabel(draft.vehicles, i)}`}
+                >
+                  Ubah
+                </button>
+                <button
+                  onClick={() => removeDraftVehicle(i)}
+                  className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-2 py-1.5 shrink-0"
+                  title={`Hapus ${unitLabel(draft.vehicles, i)} dari trip ini`}
+                >
+                  Hapus
+                </button>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Mode ubah: jalan keluar harus kembali ke Ringkasan (bukan ke pilih rute) */}
+      {isEditing && (
+        <button
+          onClick={() => go('trip-summary')}
+          className="w-full mt-2 py-3.5 rounded-2xl text-slate-500 font-semibold text-[13px] hover:bg-slate-100 transition-colors"
+        >
+          Batal & Kembali ke Ringkasan
+        </button>
       )}
 
       {/* Modal Konfirmasi */}
@@ -282,7 +326,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="w-full bg-white rounded-t-2xl p-6">
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-5" />
-            <h3 className="text-center font-semibold text-slate-900 mb-4">Kendaraan Tersimpan</h3>
+            <h3 className="text-center font-semibold text-slate-900 mb-4">{isEditing ? 'Perubahan Tersimpan' : 'Kendaraan Tersimpan'}</h3>
 
             <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <div className="flex justify-between">
@@ -304,13 +348,13 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 onClick={() => { if (pushVehicle()) { setShowModal(false); go('trip-summary') } }}
                 className="flex-1 py-3 rounded-xl border-2 border-slate-200 font-medium text-sm text-slate-700"
               >
-                Lanjut Trip
+                {isEditing ? 'Kembali ke Ringkasan' : 'Lanjut Trip'}
               </button>
               <button
                 onClick={() => { if (pushVehicle()) setShowModal(false) }}
                 className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-medium text-sm"
               >
-                Tambah Lagi
+                {isEditing ? 'Selesai Ubah' : 'Tambah Lagi'}
               </button>
             </div>
           </div>

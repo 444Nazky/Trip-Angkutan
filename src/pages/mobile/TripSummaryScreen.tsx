@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ChevronLeft, Camera, Play, AlertTriangle, Truck, ImageOff } from 'lucide-react'
+import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -9,7 +9,10 @@ interface TripSummaryScreenProps {
 }
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
-  const { draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle, finishEmptyTrip } = useApp()
+  const {
+    draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle,
+    finishEmptyTrip, finishMuatanTrip, removeDraftVehicle, editDraftVehicle,
+  } = useApp()
 
   const allRoutes = activeRoutes()
   const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
@@ -27,6 +30,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
 
   useEffect(() => {
+    // HANYA foto yang dimintan dari layar ini (vehiclePhotoTarget terpasang).
+    // Tanpa guard ini, mode "Ubah kendaraan" (vPhoto sudah terisi dari kendaraan
+    // lama) bisa salah terpasang & mengosongkan slot foto sebelum form dibuka.
+    if (draft.vehiclePhotoTarget == null) return
     if (!draft.vPhoto || !draft.vPhotoUrl) return
     const target = draft.vehiclePhotoTarget ?? draft.vehicles.findIndex(v => !v.photoUrl)
     if (target === -1 || target == null) return
@@ -43,6 +50,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       vPhotoLatitude: undefined,
       vPhotoLongitude: undefined,
       vehiclePhotoTarget: undefined,
+      cameraReturn: undefined,
     })
   }, [draft.vPhoto, draft.vPhotoUrl, draft.vPhotoCapturedAt, draft.vPhotoLatitude, draft.vPhotoLongitude, draft.vehicles, draft.vehiclePhotoTarget, patchDraft, patchDraftVehicle])
 
@@ -52,17 +60,26 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       finishEmptyTrip()
       go('trip-complete')
     } else {
+
       startTrip()
-      go('trip-active')
+      finishMuatanTrip()
+      go('trip-complete')
     }
   }
 
-  const submitLabel = () => {
-    if (!photoTaken) return 'Ambil Foto Kamera Dulu'
-    if (vehiclesMissingPhoto.length > 0) return 'Lengkapi Foto Kendaraan'
-    if (selfieRequired && !selfieTaken) return 'Ambil Swafoto Dulu'
-    return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif'
+
+  // Satu kartu foto gabungan + satu tombol utama.
+  const selfiePending = selfieRequired && !selfieTaken
+  const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
+  // Tombol utama: terkunci sampai semua dokumentasi (termasuk swafoto) lengkap.
+  const mainDisabled = !allDocsComplete
+  const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
+  const goCapture = () => {
+    if (actionType === 'photo') { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera'); return }
+    if (actionType === 'selfie') { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera'); return }
+    if (actionType === 'vehicle') { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: draft.vehicles.findIndex(v => !v.photoUrl) }); go('camera') }
   }
+  const onMain = () => { if (allDocsComplete) handleSubmit() }
 
   return (
     <div className="px-4 pt-2 pb-4">
@@ -73,6 +90,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       <p className="text-slate-500 text-[13px] mb-4">Periksa data sebelum memulai trip</p>
 
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4 text-white">
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wide mb-3">Rincian Trip</p>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
             <Truck size={18} className="text-white" />
@@ -95,6 +113,23 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               <span className="text-white text-[11px] font-semibold">{v}</span>
             </div>
           ))}
+        </div>
+        {/* Edit sebelum submit — rute & kondisi masih boleh diubah */}
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => go('route-select')}
+            className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-black text-blue-300 bg-blue-500/15 hover:bg-blue-500/25 rounded-xl py-2.5 transition-colors"
+            title="Ubah rute perjalanan"
+          >
+            <MapPin size={13} /> Ubah Rute
+          </button>
+          <button
+            onClick={() => go('trip-condition')}
+            className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-black text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 rounded-xl py-2.5 transition-colors"
+            title="Ubah kondisi muatan (kosong / ada muatan)"
+          >
+            <Package size={13} /> Ubah Kondisi
+          </button>
         </div>
       </div>
 
@@ -125,6 +160,21 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 Ambil Foto
               </button>
             )}
+            {/* Edit sebelum submit — perbaiki data / buang kendaraan */}
+            <button
+              onClick={() => { editDraftVehicle(i); go('vehicle-form') }}
+              className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
+              title={`Ubah data ${unitLabel(vehicles, i)}`}
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              onClick={() => removeDraftVehicle(i)}
+              className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-2 py-1.5 shrink-0"
+              title={`Hapus ${unitLabel(vehicles, i)} dari trip ini`}
+            >
+              <Trash2 size={11} />
+            </button>
             {v.plateStatus && (
               <span className={`text-[9px] font-black px-2 py-1 rounded-full ${
                 v.plateStatus === 'internal' ? 'bg-slate-800 text-white'
@@ -136,65 +186,39 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ))}
       </div>
 
-      <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${photoTaken ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${photoTaken ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-          <Camera size={16} className={photoTaken ? 'text-emerald-500' : 'text-amber-500'} />
+      {/* Satu kartu foto gabungan — tidak ada kartu duplikat. */}
+      <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${allDocsComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allDocsComplete ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+          <Camera size={16} className={allDocsComplete ? 'text-emerald-500' : 'text-amber-500'} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`text-[12px] font-bold ${photoTaken ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {photoTaken ? 'Foto kamera siap' : 'Foto kamera belum diambil'}
+          <p className={`text-[12px] font-bold ${allDocsComplete ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {allDocsComplete ? 'Foto kamera siap' : actionType === 'photo' ? 'Foto bukti trip belum diambil' : actionType === 'selfie' ? 'Swafoto penutup belum diambil' : 'Foto kendaraan belum lengkap'}
           </p>
-          <p className={`text-[10px] ${photoTaken ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {!photoTaken
-              ? 'Wajib ambil foto via kamera sebelum submit trip'
-              : selfieRequired && !selfieTaken
-                ? 'Foto siap — lanjut swafoto petugas sebelum End Trip'
-                : 'Bukti trip tersimpan pada ringkasan ini'}
+          <p className={`text-[10px] ${allDocsComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {allDocsComplete ? 'Bukti trip tersimpan — siap dikirim' : 'Wajib diambil sebelum trip dikirim'}
           </p>
         </div>
-        {!photoTaken && (
+        {actionType !== 'done' && (
           <button
-            onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera') }}
+            onClick={goCapture}
             className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
           >
-            Ambil Foto
+            {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi Foto'}
           </button>
         )}
-        {photoTaken && selfieRequired && !selfieTaken && (
-          <button
-            onClick={() => { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera') }}
-            className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
-          >
-            Ambil Swafoto
-          </button>
-        )}
-        {photoTaken && draft.photoUrl && (
+        {allDocsComplete && draft.photoUrl && (
           <img src={draft.photoUrl} alt="Bukti Trip" className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0" />
         )}
       </div>
 
-      {!allDocsComplete && (
-        <div className="rounded-2xl p-3.5 border border-amber-200 bg-amber-50 mb-3 flex items-start gap-2.5">
-          <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-800 leading-snug">
-            {!photoTaken
-              ? 'Foto bukti trip belum diambil via kamera.'
-              : selfieRequired && !selfieTaken
-                ? <>Swafoto petugas belum diambil — wajib sebelum End Trip.</>
-                : <>Foto dokumentasi belum lengkap: <b>{vehiclesMissingPhoto.map(x => x.label).join(', ')}</b> — setiap kendaraan wajib punya foto sendiri.</>}
-          </p>
-        </div>
-      )}
-
       <button
-        onClick={handleSubmit}
-        disabled={!allDocsComplete}
+        onClick={onMain}
+        disabled={mainDisabled}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />
-        {allDocsComplete
-          ? (draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Mulai Trip Aktif')
-          : submitLabel()}
+        {mainText}
       </button>
       <button
         onClick={() => { resetDraft(); go('home') }}

@@ -17,12 +17,11 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { Download, RefreshCw, X, Check, AlertCircle, WifiOff, ChevronUp } from 'lucide-react'
+import { Download, RefreshCw, X, Check, AlertCircle, WifiOff } from 'lucide-react'
 import {
   getCurrentVersion,
   checkForUpdate,
   applyUpdate,
-  restoreBundleFromStorage,
   type UpdateState
 } from '../services/ota'
 
@@ -148,8 +147,8 @@ interface SheetProps {
   zIndex: number
 }
 
-function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: SheetProps) {
-  const { status, progress, error, latestVersion } = state
+function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
+  const { status, error, latestVersion } = state
 
   // Tidak tampil jika idle atau checking
   if (status === 'idle' || status === 'checking') return null
@@ -199,24 +198,24 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: S
             </div>
           )}
 
-          {/* Offline message */}
+     
           {status === 'offline' && (
             <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
               <WifiOff size={16} className="text-slate-500 shrink-0" />
               <p className="text-sm text-slate-600">
-                Periksa koneksi internet untuk update
+                pastikan sudah terhubung ke jaringan intranet
               </p>
             </div>
           )}
 
-          {/* Ready message */}
+      
           {status === 'ready' && (
             <p className="text-base text-slate-600 mb-4">
               Update sudah siap diterapkan. Aplikasi akan memperbarui secara otomatis saat Anda menekan tombol di bawah.
             </p>
           )}
 
-          {/* Actions */}
+   
           <div className="flex gap-2 mt-4">
             {status === 'error' && (
               <button
@@ -267,7 +266,6 @@ export default function UpdateNotifier({
   autoCheck = true,
   checkInterval = 30 * 60 * 1000,
   initialDelay = 5000,
-  minAppVersion,
   onStateChange,
   onUpdateApplied,
   position = 'bottom-right',

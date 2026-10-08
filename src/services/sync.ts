@@ -128,8 +128,11 @@ function isNetworkError(err?: string): boolean {
   return !!err && /timeout|network|failed.to.fetch|terjangkau|offline|request.failed|ECONNREFUSED|ENOTFOUND|server tidak merespon|unreachable/i.test(err)
 }
 
-/** Exponential backoff bertingkat: 15s → 30s → 60s → … → cap 10 menit. */
-function backoffMs(attempts: number): number {
+/**
+ * Exponential backoff bertingkat: 15s → 30s → 60s → … → cap 10 menit.
+ * Di-eksport untuk unit test (services/sync.test.ts).
+ */
+export function backoffMs(attempts: number): number {
   if (attempts <= 0) return 0
   return Math.min(BASE_BACKOFF_MS * Math.pow(2, attempts - 1), MAX_BACKOFF_MS)
 }
@@ -263,15 +266,6 @@ async function dbGetById(tripId: string): Promise<SyncItem | null> {
   return all.find(i => i.trip.id === tripId) ?? null
 }
 
-/** Hapus item — HANYA dipanggil setelah server memberi HTTP 200/201. */
-export async function removeFromSyncQueue(syncIdOrTripId: string): Promise<void> {
-  const all = await readQueue()
-  const hit = all.find(i => i.syncId === syncIdOrTripId || i.trip.id === syncIdOrTripId)
-  if (!hit) return
-  await removeItem(hit.syncId)
-  notifyQueueListeners()
-}
-
 /** Jumlah antrean tertunda (nilai ter-cache, diperbarui tiap perubahan). */
 export function getPendingCount(): number { return _pendingCount }
 
@@ -284,7 +278,13 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
   try {
     await initLocalDb()
     const existing = await dbGetById(trip.id)
-    if (!existing) return
+    // Trip sudah pernah terkirim (item sudah keluar dari antrean) lalu diedit
+    // → antrekan ULANG. Tanpa ini, status trip hanya berubah jadi
+    // "menunggu koneksi" di lokal tapi tidak pernah dikirim lagi.
+    if (!existing) {
+      await addToSyncQueue(trip, derivePhotos(trip), deriveTripPhoto(trip))
+      return
+    }
     const item: SyncItem = {
       ...existing,
       trip,
@@ -334,11 +334,6 @@ export function onTripSynced(cb: SyncedListener): () => void {
   syncedListeners.push(cb)
   return () => { syncedListeners = syncedListeners.filter(x => x !== cb) }
 }
-
-// ── Backward compat exports ──────────────────────────────────────────────────
-export { addToSyncQueue as addToSyncQueueLegacy }
-export { removeFromSyncQueue as removeFromSyncQueueLegacy }
-export { getPendingCount as getPendingCountLegacy }
 
 // ── Verifikasi koneksi AKTIF (ping server) ───────────────────────────────────
 

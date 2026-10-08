@@ -1,8 +1,12 @@
-const initSqlJs = require('sql.js');
+const initSqlJs = require('sql.js').default;
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+// sql.js di lingkungan produksi (Railway/Docker) tidak menemukan file wasm
+// secara otomatis → inisialisasi DB gagal dan SELURUH endpoint mati.
+// Tunjuk lokasi wasm secara eksplisit agar jatuhnya ke node_modules yang benar.
+const SQL_WASM = path.resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/trip.db');
 
@@ -64,9 +68,15 @@ function saveDb() {
 }
 
 async function loadDb() {
-  const SQL = await initSqlJs();
+  const SQL = await initSqlJs({
+    locateFile: (file) => {
+      if (file.endsWith('.wasm')) return SQL_WASM;
+      return file;
+    },
+  });
 
-  if (fs.existsSync(DB_PATH)) {
+  const fresh = !fs.existsSync(DB_PATH);
+  if (!fresh) {
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
   } else {
