@@ -30,7 +30,7 @@
 | **3.3** | Persistensi trip & **hapus dari antrean hanya setelah HTTP 200/201** | **Selesai** | Offline/Online | Antrean di IndexedDB `pending` (bukan localStorage), bertahan refresh/restart; migrasi legacy hanya menghapus kunci lama **setelah** tulis IndexedDB sukses; `removeItem()` hanya dipanggil di cabang `result.success`. `requestPersistentStorage()` meminta browser tidak menghapus origin. |
 | **3.4** | Anti-stuck: ping check, reset kunci saat timeout, exponential backoff | **Selesai** | Online/Offline | `probeServer()` (ping `/api/health`, TTL 2,5 dtk) sebelum & di sela siklus; watchdog `LOCK_TIMEOUT_MS` 2 menit melepas `_syncing`; `ITEM_TIMEOUT_MS` 90 dtk per item; backoff 15s→30s→…→cap 10 menit + fast-retry 2 dtk untuk error jaringan; re-auth 401 otomatis. |
 | **3.5** | Tombol **Paksa Sinkronisasi** (manual) | **Selesai** | Online/Offline | `HomeScreen` ("Paksa Sinkronisasi" + jumlah antrean + status), `SettingsScreen` ("Cek Koneksi", "Sinkron" kredensial). `syncNow()` tetap jalan walau `navigator.onLine` salah, memakai ping. |
-| **3.6** | Anti-duplikat saat kirim ulang | **Selesai** | Online | `clientTripId` → backend membalas 200 `duplicate:true` tanpa insert ulang. |
+| **3.6** | Anti-duplikat saat kirim ulang | **Selesai** *(diperbaiki 8 Okt 2026 — lihat §5)* | Online | `clientTripId` → backend memeriksa `trips.client_trip_id`; bila sudah ada, balas **200 `duplicate:true`** tanpa insert ulang. Sebelum 8 Okt klaim ini **salah**: backend belum menangani `clientTripId` sehingga kirim-ulang pasca-timeout membuat trip ganda. |
 | **4.1** | Audit kode modul di atas + laporan cross-check | **Selesai** | — | Dokumen ini; daftar perbaikan di §2, sisa risiko di §3. |
 
 **Legenda status**: *Selesai* = berfungsi & terverifikasi; *Belum* = tidak ada pekerjaan tersisa untuk klaim pada spesifikasi.
@@ -79,3 +79,54 @@
 | OTA | `services/ota.ts`, `src/sw.js`, `scripts/publish-ota-git.mjs`, `version.json` | Manifest branch `mobile`, unduh + terapkan bundle |
 | Alur trip | `pages/mobile/{TripCondition,RouteSelect,VehicleForm,Camera,TripSummary,TripActive,TripComplete}Screen.tsx` | Draft → dokumentasi → submit |
 | State & persistensi | `pages/store.tsx` | Draft trip, daftar trip (localStorage + IndexedDB), edit sebelum submit |
+
+---
+
+## 5. Audit Lanjutan — 8 Oktober 2026 (verifikasi ulang + perbaikan)
+
+> **Cakupan**: working tree mobile + `endpoint-trip` backend. Verifikasi ulang klaim §1–§3 dan penutupan celah yang ditemukan.
+
+### 5.1 Hasil verifikasi mesin (setelah perbaikan)
+
+| Perintah | Hasil |
+| --- | --- |
+| `npx tsc --noEmit -p tsconfig.json` (mobile) | ✅ **0 error** (sebelum perbaikan sesi ini: **8 error**) |
+| `npm run test:unit` (mobile, vitest) | ✅ **32 test / 3 file lulus** |
+| `npm run build` (mobile, `ng build` + organize) | ✅ **Sukses** (hanya warning CommonJS react/tesseract — non-blokir) |
+| `node --check src/routes/trips.js` & `src/db.js` (backend) | ✅ **Syntax OK** |
+| `npm run check` (backend anti-duplikat) | ✅ **Lulus** (kolom + lookup + deteksi duplikat) |
+
+### 5.2 Temuan & perbaikan sesi ini
+
+| # | Repo/File | Temuan | Tindakan |
+| --- | --- | --- | --- |
+| F1 | mobile — `ProfileScreen.tsx`, `SettingsScreen.tsx`, `MobileApp.tsx`, `types.ts` | Working tree **rusak**: edit setengah jalan menghapus baris Profil & menambah `MobileScreen 'local-officers'` tanpa menyinkronkan impor/`screenMap`. Akibatnya **8 error typecheck** → `npm run build` gagal. | Selesai: `local-officers` di-wire ke `screenMap` (`LocalOfficersScreen`), Profil memakai layar tsb (bukan modal), impor mati & cabang `highlight` dihapus, `useApp`/`getBackend`/`storageBackend` yang tak terpakai dibuang. |
+| F2 | mobile — `LocalOfficersModal.tsx` | Duplikat mati dari `LocalOfficersScreen` setelah F1 | File **dihapus** (218 baris) |
+| F3 | **backend** — `routes/trips.js` + `db.js` | `POST /trips/complete` **tidak** menangani `clientTripId`. Klien mengirim field tsb & audit §3.6 mengklaim proteksi duplikat — **klaim itu tidak benar**. Kirim-ulang pasca timeout (server sebenarnya sudah menyimpan) membuat **trip ganda** di laporan admin. | Selesai: kolom `trips.client_trip_id` (migrasi ALTER idempotent), cek `SELECT ... WHERE client_trip_id = ?` sebelum insert → balas **HTTP 200 `{ duplicate:true }`** + bersihkan berkas unggahan. Klien (`api.postMultipart`) sudah memperlakukan 200 sebagai `ok` → item keluar dari antrean tanpa trip ganda. |
+| F4 | backend — `scripts/check-client-trip-id.js` | Tidak ada test backend sama sekali | Ditambah self-check `npm run check` (boot DB sementara, verifikasi kolom + lookup + deteksi duplikat). |
+
+### 5.3 Cross-check status modul (ringkas, per 8 Okt 2026)
+
+| Modul sesuai permintaan | Status | Kondisi | Catatan |
+| --- | --- | --- | --- |
+| 1.1 Seed data bawaan (username, hash PIN, status, scope dermaga+rute) | **Selesai** | Offline | `seedData.ts` — hash bcrypt identik server, `isActive` tertanam |
+| 1.2 Login offline sejak instal pertama (tanpa "request failed") | **Selesai** | Offline | `LoginPage.tryOfflineLogin` → `loginOffline` → fallback seed |
+| 1.3 Auto-sync master saat online + OTA kredensial | **Selesai** | Online | `adminPull.syncOnResume` (throttle 5 mnt + force pasca-OTA), upsert |
+| 1.4 OTA aset dari branch `mobile` tanpa reinstall .apk | **Selesai** | Online | `ota.ts` + `publish-ota-git.mjs` + Cache Storage |
+| 1.5 Verifikasi PIN multi-akun offline tanpa stuck | **Selesai** | Offline | Resolusi id/username/nama, tolak nonaktif, timeout 5 dtk anti-hang |
+| 2.1 Edit sebelum submit | **Selesai** | Offline | Ubah/Hapus per kendaraan, Ubah Rute/Kondisi di `TripSummaryScreen` |
+| 2.2 Foto dokumentasi per kendaraan (truk_1, mobil_1, …) | **Selesai** | Offline | Slot `vPhoto*` + `photoIndex` per kendaraan |
+| 2.3 Alur kosong & ada muatan offline penuh | **Selesai** | Offline | Guard `allDocsComplete`, swafoto wajib, IndexedDB |
+| 3.1 Payload & FormData `POST /trips/complete` | **Selesai** | Online | Cross-check backend: field cocok, MIME dipaksa |
+| 3.2 Rute akurat tanpa `--` di dashboard | **Selesai** | Online | `resolveRoute()` → `route_from`/`route_to` |
+| 3.3 Persistensi & hapus hanya setelah 200/201 | **Selesai** | Keduanya | Antrean IndexedDB, migrasi aman, `removeItem` di cabang sukses |
+| 3.4 Anti-stuck (ping, reset kunci timeout, backoff) | **Selesai** | Keduanya | `probeServer`, watchdog 2 mnt, `ITEM_TIMEOUT_MS`, backoff |
+| 3.5 Tombol Paksa Sinkronisasi | **Selesai** | Keduanya | `syncNow()` di HomeScreen/SettingsScreen |
+| **3.6 Anti-duplikat `clientTripId`** | **Selesai (baru)** | Online | **Diperbaiki sesi ini di backend — lihat F3** |
+
+### 5.4 Sisa risiko (non-blokir)
+
+| # | Temuan | Dampak | Rekomendasi |
+| --- | --- | --- | --- |
+| R10 | `relaxTripsDermagaNotNull()` (rebuild tabel `trips`) tidak menyertakan `client_trip_id` di `CREATE`/`INSERT..SELECT`; kolom ditambah ALTER **setelah** rebuild | Rendah — urutan boot benar (rebuild → ALTER), jadi kolom tetap ada; baris lama diisi NULL | Tambahkan kolom ke rebuild bila kelak migrasi dermaga dijalankan lagi |
+| R11 | `check-client-trip-id.js` hanya menguji level DB, bukan endpoint HTTP | Rendah — guard duplikat ada tepat sebelum INSERT | Tambah test supertest bila backend mendapat kerangka test |
