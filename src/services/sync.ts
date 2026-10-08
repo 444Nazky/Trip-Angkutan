@@ -115,6 +115,7 @@ async function postTripToServer(trip: Trip): Promise<SyncResult> {
 
   // One multipart request carries the full trip manifest and every image.
   const payload = {
+    clientTripId: trip.id,
     statusMuatan: trip.load === 'Ada Muatan' ? 'muatan' : 'kosong',
     routeFrom: trip.route.split(' → ')[0],
     routeTo: trip.route.split(' → ')[1],
@@ -130,7 +131,14 @@ async function postTripToServer(trip: Trip): Promise<SyncResult> {
 
   const form = new FormData()
   form.append('payload', JSON.stringify(payload))
-  photos.forEach((photo, index) => form.append('photos', photo, `documentation-${index}.jpg`))
+  // Naming convention: trip-photo for main trip, vehicle-N-photo for each vehicle
+  photos.forEach((photo, index) => {
+    if (index === 0) {
+      form.append('photos', photo, 'trip-photo.jpg')
+    } else {
+      form.append('photos', photo, `vehicle-${index - 1}-photo.jpg`)
+    }
+  })
   const tripResult = await api.postMultipart<{ id: string; noTrip: string }>('/trips/complete', form)
 
   if (!tripResult.ok || !tripResult.data) {
