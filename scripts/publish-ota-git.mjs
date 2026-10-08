@@ -72,7 +72,7 @@ try {
     console.log('Tidak ada perubahan aset — skip push.')
     process.exit(0)
   }
-  run(`git commit -m "chore(ota): bump version to ${version}"`, TMP)
+  run(`git commit -m "chore(ota): bump version to ${version} [skip ci]"`, TMP)
   run(`git push origin HEAD:${BRANCH}`, TMP)
   console.log('✅ OTA assets + version.json pushed to', BRANCH)
 } finally {

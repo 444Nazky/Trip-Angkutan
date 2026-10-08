@@ -1,0 +1,42 @@
+name: OTA Publish (mobile)
+
+# Seperti Netlify: setiap push ke branch `mobile` → build + publish OTA otomatis.
+# Commit hasil publish memakai "[skip ci]" agar tidak memicu loop.
+on:
+  push:
+    branches: [mobile]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ota-publish-mobile
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    # Lewati commit bot OTA (sudah [skip ci], ini jaring kedua).
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit -p tsconfig.json
+
+      - run: npm run build
+
+      - name: Publish OTA ke branch mobile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm run ota:publish

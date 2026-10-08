@@ -139,8 +139,8 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         if (k && (k.startsWith('trip.dermaga.officers.') || k.startsWith('trip.localdb.v1.'))) legacy.push(k)
       }
       legacy.forEach(k => localStorage.removeItem(k))
-    } catch { /* ignore */ }
-    // Object store IndexedDB
+    } catch {}
+  
     await Promise.all([dbClear('trips'), dbClear('pending'), dbClear('meta')])
     alert('✓ Data direset.\n\nMuat ulang aplikasi.')
     window.location.reload()
@@ -291,6 +291,9 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           <span className="flex-1 text-[13px] font-semibold text-slate-700">Bersihkan Cache</span>
           {cleared && <Check size={12} className="text-emerald-600" />}
         </button>
+
+
+
         <button
           onClick={resetData}
           className="w-full flex items-center gap-3 px-4 py-3.5 text-red-600 active:bg-red-50">

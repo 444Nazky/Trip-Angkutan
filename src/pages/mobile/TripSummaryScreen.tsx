@@ -68,11 +68,25 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     }
   }
 
-  const submitLabel = () => {
+  // Satu tombol untuk semua: belum ada selfie → tombol memicu kamera swafoto;
+  // sudah lengkap → tombol mengirim. Menghindari 2 prompt swafoto sekaligus.
+  const needSelfie = selfieRequired && !selfieTaken
+  const docsReady = photoTaken && vehiclesMissingPhoto.length === 0
+  const canAct = docsReady // selfie boleh belum ada — tombol yang memicunya
+  const mainLabel = () => {
     if (!photoTaken) return 'Ambil Foto Kamera Dulu'
     if (vehiclesMissingPhoto.length > 0) return 'Lengkapi Foto Kendaraan'
-    if (selfieRequired && !selfieTaken) return 'Ambil Swafoto Dulu'
+    if (needSelfie) return 'Ambil Swafoto'
     return draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
+  }
+  const onMainAction = () => {
+    if (!docsReady) return
+    if (needSelfie) {
+      patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' })
+      go('camera')
+      return
+    }
+    handleSubmit()
   }
 
   return (
@@ -231,14 +245,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       )}
 
       <button
-        onClick={handleSubmit}
-        disabled={!allDocsComplete}
+        onClick={onMainAction}
+        disabled={!canAct}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />
-        {allDocsComplete
-          ? (draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja')
-          : submitLabel()}
+        {mainLabel()}
       </button>
       <button
         onClick={() => { resetDraft(); go('home') }}
