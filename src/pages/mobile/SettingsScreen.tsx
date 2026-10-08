@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Shield, Globe, Check, AlertTriangle, Server, RotateCcw, Lock } from 'lucide-react'
-import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/sync'
-import { dbClear } from '../../services/localDb'
+import { Globe, Server, RotateCcw, Lock } from 'lucide-react'
+import { getMaskedApiUrl, probeServer } from '../../services/sync'
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
 import type { MobileScreen } from '../types'
 
@@ -10,14 +9,9 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ go }: SettingsScreenProps) {
-  const [cleared, setCleared] = useState(false)
-  const [, setPendingCount] = useState(0)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
-
-  // Antrean sinkron — berlangganan perubahan supaya angka selalu akurat
-  useEffect(() => onSyncQueueChange(setPendingCount), [])
 
   // Verifikasi koneksi PAKTI (ping /api/health) — navigator.onLine sering menipu
   useEffect(() => {
@@ -80,41 +74,9 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   // URL server: hanya sebagian tengah hostname yang disensor (read-only)
   const masked = getMaskedApiUrl()
 
-  // Cache clear
-  function clearCache() {
-    if (!confirm('Bersihkan cache sesi?')) return
-    sessionStorage.clear()
-    setCleared(true)
-    setTimeout(() => setCleared(false), 2500)
-  }
-
-  // Reset data — hapus localStorage DAN IndexedDB (antrean + daftar trip)
-  async function resetData() {
-    if (!confirm('Yakin?\n\nSemua data trip & petugas lokal akan dihapus.')) return
-    const keys = [
-      'trip.trips.v1', 'trip.trips.v2', 'trip.trips.v3',
-      'trip.syncQueue.v1', 'trip.tariffs.v1',
-      'trip.officers.v1', 'trip.officers.cache.v1',
-      'trip.officers.credentials.v1',
-      'trip.auth.officer.v1', 'trip.auth.dermaga.v1', 'trip.auth.routes.v1', 'trip.auth.pin.v1',
-      'trip.dermaga.officers.v1', 'trip.api.baseUrl.v1',
-      'trip.ota.state',
-    ]
-    keys.forEach(k => localStorage.removeItem(k))
-    // Kunci per-dermaga (roster petugas)
-    try {
-      const legacy: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i)
-        if (k && (k.startsWith('trip.dermaga.officers.') || k.startsWith('trip.localdb.v1.'))) legacy.push(k)
-      }
-      legacy.forEach(k => localStorage.removeItem(k))
-    } catch {}
-  
-    await Promise.all([dbClear('trips'), dbClear('pending'), dbClear('meta')])
-    alert('✓ Data direset.\n\nMuat ulang aplikasi.')
-    window.location.reload()
-  }
+  // ── Data-safety: tidak ada tombol "Hapus Data Lokal" di sini ──────────────
+  // Penghapusan antrean & trip lokal sengaja TIDAK disediakan di UI agar data
+  // petugas yang belum terkirim tidak pernah hilang secara tidak sengaja.
 
   return (
     <div className="px-4 pt-3 pb-6 space-y-4">
@@ -168,7 +130,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
       </div>
 
       {/* Versi Aplikasi / Update OTA */}
-      <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-2xl px-4 py-3.5 sh    adow-sm border border-slate-100">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center shrink-0">
             <RotateCcw size={18} />

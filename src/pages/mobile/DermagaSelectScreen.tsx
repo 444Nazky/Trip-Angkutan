@@ -1,5 +1,5 @@
 import { Anchor, Check } from 'lucide-react'
-import { selectDermaga, type Dermaga } from '../../services/auth'
+import { selectDermaga, selectDermagaLocal, type Dermaga } from '../../services/auth'
 import { useState } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -20,7 +20,19 @@ export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: 
     setLoading(true)
     setError('')
 
-    const result = await selectDermaga(selected)
+    // Online dulu (ambil rute terbaru dari server). Bila jaringan tidak
+    // tembus, fallback PEMILIHAN LOKAL agar petugas dual-access tetap bisa
+    // memilih dermaga & mulai trip walau sedang offline.
+    let result = await selectDermaga(selected)
+    if (!result.success) {
+      const chosen = dermagas.find(d => d.id === selected)
+      result = await selectDermagaLocal(selected, {
+        name: chosen?.name,
+        code: chosen?.code,
+        regionName: chosen?.region_name,
+        regionCode: chosen?.region_code,
+      })
+    }
     if (result.success) {
       const dermaga = dermagas.find(d => d.id === selected)
       if (dermaga) onSelected(dermaga)

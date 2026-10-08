@@ -14,6 +14,7 @@ import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import crypto from 'node:crypto'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const WEB_DIR = path.join(ROOT, 'www')
@@ -30,6 +31,10 @@ function collectAssets(dir, base = dir) {
     else out.push(path.relative(base, full))
   }
   return out
+}
+
+function sha256File(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
 
 try {
@@ -63,7 +68,12 @@ try {
   // Versi murni angka naik-terus — cocok dengan SEMUA versi isNewer
   // (lama maupun baru) yang membandingkan segmen numerik.
   const version = String(Date.now())
-  const manifest = JSON.stringify({ version, assets }, null, 2)
+  // Peta integritas SHA-256 per aset — klien memverifikasi unduhan sehingga
+  // manifest basi / berkas rusak terdeteksi sebagai "update dibatalkan",
+  // bukan notifikasi sukses palsu dengan kode lama.
+  const integrity = {}
+  for (const a of assets) integrity[a] = sha256File(path.join(WEB_DIR, a))
+  const manifest = JSON.stringify({ version, assets, integrity }, null, 2)
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
   run('git add -A', TMP)

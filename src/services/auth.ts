@@ -456,6 +456,34 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
   return { success: true, error: undefined }
 }
 
+/**
+ * Pilih dermaga SECARA LOKAL tanpa jaringan — dipakai petugas dual-access
+ * yang memilih dermaga saat OFFLINE. Menyimpan ke kunci persis sama
+ * (trip.auth.dermaga.v1) dengan selectDermaga() online, sehingga payload sync
+ * (getStoredDermaga()?.id → field dermagaId) tetap terisi benar. Rute master
+ * dermaga ini sudah di-cache (cacheDockOfficers/seedRouteCacheIfAbsent) untuk
+ * dipakai layar Pilih Rute offline.
+ *
+ * Bila petugas nanti memilih dermaga secara online, selectDermaga() akan
+ * menimpa entri ini dengan data resmi + rute terbaru dari server.
+ */
+export async function selectDermagaLocal(
+  dermagaId: string,
+  opts?: { name?: string; code?: string; regionName?: string; regionCode?: string },
+): Promise<{ success: boolean; error?: string }> {
+  if (!dermagaId) return { success: false, error: 'ID dermaga kosong' }
+  const officer = getStoredOfficer()
+  // Derive dari akses petugas bila info lengkap tidak disediakan caller
+  const fromAccess = officer?.dermagaAccess?.find(d => String(d.id) === String(dermagaId))
+  const name = opts?.name ?? fromAccess?.name ?? ''
+  const code = opts?.code ?? fromAccess?.code ?? ''
+  const regionName = opts?.regionName ?? officer?.regionName ?? ''
+  const regionCode = opts?.regionCode ?? officer?.regionCode ?? ''
+  if (!name && !code) return { success: false, error: 'Dermaga tidak ditemukan di akses petugas' }
+  saveDermaga({ id: String(dermagaId), name, code, region_name: regionName, region_code: regionCode })
+  return { success: true, error: undefined }
+}
+
 export function logout() {
   api.setToken(null)
   clearOfficer()

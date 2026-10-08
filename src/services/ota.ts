@@ -35,6 +35,13 @@ export interface VersionManifest {
   version: string
   assets: string[]
   minAppVersion?: string
+  /**
+   * Peta { "path/aset": "sha256-hex" } — DIPUBLISH oleh scripts/publish-ota-git.mjs.
+   * Bila ada, klien MEMVERIFIKASI tiap file unduhan; ketidakcocokan = manifest
+   * basi/unduhan rusak → update DIBATALKAN dengan aman (bukan "update palsu"
+   * yang sukses notifikasi tapi kode lama tetap jalan).
+   */
+  integrity?: Record<string, string>
 }
 
 export interface UpdateState {
@@ -188,6 +195,36 @@ async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): P
 
 function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
+}
+
+/**
+ * Hitung SHA-256 (hex) dari bytes via WebCrypto. Return null bila crypto.subtle
+ * tidak tersedia ( WebView lawas / konteks tidak aman ) — caller melewati
+ * verifikasi sengaja agar update tetap jalan di lingkungan tanpa WebCrypto.
+ */
+async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle
+    if (!subtle) return null
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    const digest = await subtle.digest('SHA-256', buf)
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Cocokkan bytes hasil unduh dengan hash di manifest. Return true bila SAH:
+ * tidak ada hash untuk path ini, WebCrypto tidak tersedia (mundur kompatibel),
+ * atau hash cocok. Hanya ketidakcocokan nyata yang membatalkan update.
+ */
+async function verifyAsset(bytes: Uint8Array, path: string, integrity?: Record<string, string>): Promise<boolean> {
+  const expected = integrity?.[path]
+  if (!expected) return true
+  const actual = await sha256Hex(bytes)
+  if (actual == null) return true // tak bisa verifikasi → jangan blokir update
+  return actual.toLowerCase() === expected.toLowerCase()
 }
 
 // ── Penyimpanan internal ─────────────────────────────────────────────────────
@@ -445,6 +482,15 @@ export async function checkForUpdate(
       const asset = remote.assets[i]
       try {
         const bytes = await downloadAsset(asset, sig)
+        // Verifikasi isi file terhadap manifest — file basi/rusak dibuang,
+        // update dibatalkan dengan aman (app tetap pakai bundle bawaan APK).
+        if (!(await verifyAsset(bytes, asset, remote.integrity))) {
+          console.warn('[ota] integritas aset tidak cocok, batalkan update:', asset)
+          await removeStorage(remote.version)
+          localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+          emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
+          return { available: false }
+        }
         await persistToStorage(remote.version, asset, bytes)
         // Web (tanpa Filesystem) → langsung ke Cache Storage
         if (!isNative()) await putToCache(asset, bytes)
