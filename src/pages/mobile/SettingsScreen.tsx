@@ -233,16 +233,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-    
-      <div className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3 shadow-sm border border-slate-100">
-        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
-          <Database size={18} />
-        </div>
-        <div>
-          <p className="text-[10px] text-slate-400">{pendingCount} · offline queue</p>
-        </div>
-      </div>
-
       
       <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-slate-100">
         <div className="flex items-center gap-2 mb-3">
