@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
 import { useApp } from '../store'
-import { getSyncQueue } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 // ─── Sync Badge Component ─────────────────────────────────────────────────────
-function SyncBadge({ tripId, isSynced }: { tripId: string; isSynced: boolean }) {
-  const queue = getSyncQueue()
-  const inQueue = queue.some(q => q.trip.id === tripId)
-
+function SyncBadge({ isSynced }: { isSynced: boolean }) {
   if (isSynced) {
     return (
       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
@@ -129,7 +125,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
-                <SyncBadge tripId={t.id} isSynced={t.synced ?? false} />
+                <SyncBadge isSynced={t.synced ?? false} />
               </div>
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
               <div className="flex items-center gap-3 mt-2">

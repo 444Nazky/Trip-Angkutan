@@ -28,10 +28,6 @@ const CACHE_PREFIX = 'trip-ota-'
 /** Folder penyimpanan internal bundle (Capacitor Filesystem, direktori Cache). */
 const OTA_DIR = 'trip-ota'
 const MARKER = '.complete.json'
-/** Timeout lebih panjang untuk mobile networks */
-const FETCH_TIMEOUT_MS = 45_000
-/** Jangan tampilkan error yang sama dalam 5 menit */
-const ERROR_DEDUP_MS = 5 * 60 * 1000
 /** Cooldown setelah error sebelum retry */
 const ERROR_COOLDOWN_MS = 2 * 60 * 1000
 
@@ -55,7 +51,6 @@ const CURRENT_VER_KEY = 'trip.ota.currentVersion'
 const BUNDLED_VERSION = '0.0.0'
 /** Timestamp error terakhir untuk deduplikasi */
 const LAST_ERROR_KEY = 'trip.ota.lastError'
-const LAST_CHECK_KEY = 'trip.ota.lastCheck'
 
 // ── Versi lokal ──────────────────────────────────────────────────────────────
 

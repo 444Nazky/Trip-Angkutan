@@ -66,6 +66,12 @@ export interface Draft {
   condition: 'kosong' | 'muatan' | null
   vehicles: VehicleEntry[]
   vehicleForm: { plate: string; type: string; category: string }
+  /**
+   * Indeks kendaraan yang sedang DIUBAH dari layar Ringkasan/Input.
+   * null/undefined = mode tambah baru. Diset lewat patchDraft, dibersihkan
+   * setelah kendaraan disimpan kembali (update) atau batal.
+   */
+  editVehicleIndex?: number | null
   /** Foto BUKTI TRIP (ringkasan) — terpisah dari foto kendaraan. */
   photo: boolean
   photoUrl?: string
@@ -115,7 +121,7 @@ interface StoreValue {
   setOfficerId: (id: string) => void
   refreshOfficers: (force?: boolean) => Promise<void>
   trips: Trip[]
-  commitTrip: (t: Trip) => void
+  commitTrip: (t: Trip, photos?: { dataUrl: string; mimeType: string }[], tripPhoto?: { dataUrl: string; mimeType: string } | undefined) => void
   tariffs: TariffRow[]
   saveTariffs: (rows: TariffRow[]) => void
   officers: Officer[]
@@ -126,6 +132,10 @@ interface StoreValue {
   addVehicle: (v: VehicleEntry) => void
   /** Ubah satu kendaraan pada DRAFT (mis. melengkapi foto yang kurang). */
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
+  /** Hapus satu kendaraan dari DRAFT (koreksi sebelum trip disimpan). */
+  removeDraftVehicle: (index: number) => void
+  /** Muat kendaraan ke form untuk DIUBAH (mode edit sebelum submit). */
+  editDraftVehicle: (index: number) => void
   startTrip: () => void
   /** Langsung selesaikan trip kosong ke antrean sync (tanpa layar aktif). */
   finishEmptyTrip: () => void
@@ -150,6 +160,7 @@ const emptyDraft: Draft = {
   condition: null,
   vehicles: [],
   vehicleForm: { plate: '', type: '', category: '' },
+  editVehicleIndex: null,
   photo: false,
   photoUrl: undefined,
   photoCapturedAt: undefined,
@@ -456,20 +467,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })),
     [],
   )
+  /** Hapus kendaraan dari draft — koreksi sebelum trip dikirim permanen. */
+  const removeDraftVehicle = useCallback((index: number) => setDraft(d => {
+    const vehicles = d.vehicles.filter((_, i) => i !== index)
+    return {
+      ...d,
+      vehicles,
+      // Indeks edit melewati batas setelah penghapusan → kembali ke mode tambah
+      editVehicleIndex: d.editVehicleIndex != null && d.editVehicleIndex >= vehicles.length
+        ? null
+        : d.editVehicleIndex,
+    }
+  }), [])
+  /**
+   * Muat kendaraan ke form untuk DIUBAH (fitur edit sebelum submit):
+   * plat/jenis/kategori terisi + foto kendaraan tsb dipasang ke slot vPhoto,
+   * sehingga pemanggil bisa memperbaiki data lalu menyimpannya kembali.
+   */
+  const editDraftVehicle = useCallback((index: number) => setDraft(d => {
+    const v = d.vehicles[index]
+    if (!v) return d
+    return {
+      ...d,
+      editVehicleIndex: index,
+      vehicleForm: { plate: v.plate, type: v.type, category: v.category },
+      vPhoto: !!v.photoUrl,
+      vPhotoUrl: v.photoUrl,
+      vPhotoCapturedAt: v.photoCapturedAt,
+      vPhotoLatitude: v.photoLatitude,
+      vPhotoLongitude: v.photoLongitude,
+      cameraFrom: 'vehicle-form',
+      cameraMode: 'photo',
+      cameraReturn: 'vehicle-form',
+    }
+  }), [])
   const startTrip = useCallback(() => setDraft(d => ({ ...d, startedAt: d.startedAt ?? Date.now() })), [])
   /**
    * Langsung selesaikan trip kosong: buat payload & masukkan ke antrean sync TANPA layar aktif/timer/durasi.
    * Foto bukti WAJIB sudah tersimpan di draft.photoUrl sebelum fungsi ini dipanggil.
    * Pemanggil bertanggung jawab memastikan draft.condition === 'kosong' dan draft.photo === true.
    */
-  const commitTrip = useCallback((t: Trip) => {
+  const commitTrip = useCallback((
+    t: Trip,
+    photos?: { dataUrl: string; mimeType: string }[],
+    tripPhoto?: { dataUrl: string; mimeType: string },
+  ) => {
     const tripWithSync = { ...t, synced: false }
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)
-    const photos = (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
-    const tripPhoto = t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined
-    void addToSyncQueue(tripWithSync, photos, tripPhoto)
+    // Foto kendaraan PER UNIT (truk 1 = foto truk 1) — bila pemanggil tidak
+    // mengirim, derive dari trip agar indeks foto selalu sejajar kendaraan.
+    const photoList = photos?.length
+      ? photos
+      : (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
+    const tripPhotoEntry = tripPhoto ?? (t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined)
+    void addToSyncQueue(tripWithSync, photoList, tripPhotoEntry)
   }, [])
   const finishEmptyTrip = useCallback(() => {
     if (!draft.photoUrl) {
@@ -626,13 +679,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     trips, commitTrip,
     tariffs, saveTariffs,
     officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, startTrip, finishEmptyTrip, markTripSynced,
+    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    startTrip, finishEmptyTrip, markTripSynced,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, startTrip, finishEmptyTrip, markTripSynced,
+    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    startTrip, finishEmptyTrip, markTripSynced,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     activeDermagaId, setActiveDermaga])
 

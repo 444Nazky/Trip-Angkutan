@@ -16,6 +16,43 @@ interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
 }
 
+/**
+ * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
+ * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
+ * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
+ *
+ * Berada di lingkup MODUL (bukan di dalam komponen) agar bisa diuji unit test
+ * (src/services/auth.test.ts) tanpa merender UI.
+ */
+export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
+  if (!u || !p) return false
+
+  try {
+    const res = await loginOffline(u, p)
+    if (res.success) return true
+  } catch {
+    /* database offline belum siap — lanjut ke roster */
+  }
+
+  try {
+    const officers = getStoredOfficers()
+    const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
+    if (match && (await verifyPinOffline(String(match.id), p))) {
+      api.setToken(null)
+      localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
+        id: String(match.id),
+        name: match.name,
+        regionId: match.region,
+        regionName: match.region,
+        regionCode: match.region,
+        offlineMode: true,
+      }))
+      return true
+    }
+  } catch { /* no-op */ }
+  return false
+}
+
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -82,40 +119,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     } finally {
       setLoading(false)
     }
-  }
-
-  /**
-   * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
-   * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
-   * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
-   */
-  async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
-    if (!u || !p) return false
-
-    try {
-      const res = await loginOffline(u, p)
-      if (res.success) return true
-    } catch {
-      /* database offline belum siap — lanjut ke roster */
-    }
-
-    try {
-      const officers = getStoredOfficers()
-      const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
-      if (match && (await verifyPinOffline(String(match.id), p))) {
-        api.setToken(null)
-        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
-          id: String(match.id),
-          name: match.name,
-          regionId: match.region,
-          regionName: match.region,
-          regionCode: match.region,
-          offlineMode: true,
-        }))
-        return true
-      }
-    } catch { /* no-op */ }
-    return false
   }
 
   /**

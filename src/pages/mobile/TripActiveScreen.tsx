@@ -28,7 +28,7 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
         label: draftCode.replace('-', ' → '),
       }
       : allRoutes[0])
-  const [startedAt, setStartedAt] = useState<number>(() => draft.startedAt ?? Date.now())
+  const [startedAt] = useState<number>(() => draft.startedAt ?? Date.now())
   const finishingRef = useRef(false)
   const [elapsed, setElapsed] = useState(() =>
     Math.floor((Date.now() - (draft.startedAt ?? Date.now())) / 1000),
@@ -64,7 +64,6 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
   const etaMinutes = Math.max(0, Math.ceil((totalSec - elapsed) / 60))
 
   const finish = () => {
-    // Guard against double-tap creating duplicate trips
     if (finishingRef.current) return
     finishingRef.current = true
 
@@ -72,45 +71,60 @@ export default function TripActiveScreen({ go }: TripActiveScreenProps) {
     const total = vehicles.reduce((sum, v) => sum + v.tariff, 0)
     const isMuatan = draft.condition === 'muatan'
     const now = new Date()
-    commitTrip({
-      id: (function () {
+
+    // Konversi foto kendaraan & foto trip ke format PhotoEntry utk sync queue
+    const capturedPhotos = vehicles.map(v => ({
+        dataUrl: v.photoUrl ?? '',
+        mimeType: 'image/jpeg',
+    }))
+    const tripPhotoEntry = draft.photoUrl
+        ? { dataUrl: draft.photoUrl, mimeType: 'image/jpeg' }
+        : undefined
+
+    const generatedId = (() => {
         let max = 0
         for (const t of trips) {
-          const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)
-          if (m) max = Math.max(max, parseInt(m[2], 10))
+            const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)
+            if (m) max = Math.max(max, parseInt(m[2]))
         }
         return `TRP-${now.getFullYear()}-${String(max + 1).padStart(4, '0')}`
-      })(),
-      route: `${route.from} → ${route.to}`,
-      // Metadata rute mentah — dipakai sync utk payload routeFrom/routeTo
-      // sehingga dashboard admin tidak pernah menerima nilai kosong ("--").
-      routeCode: route.code,
-      routeFrom: route.from,
-      routeTo: route.to,
-      status: 'Selesai',
-      time: fmtTime(now),
-      date: `${now.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][now.getMonth()]} ${now.getFullYear()}`,
-      load: isMuatan ? 'Ada Muatan' : 'Kosong',
-      vehicle: isMuatan && vehicles[0] ? vehicles[0].plate : '-',
-      type: isMuatan && vehicles[0] ? vehicles[0].type : '-',
-      category: isMuatan && vehicles[0] ? vehicles[0].category : '-',
-      revenue: formatRp(isMuatan ? total : 0),
-      revenueNum: isMuatan ? total : 0,
-      officer: officer.name,
-      officerId: String(officer.id),
-      duration: isMuatan ? fmtElapsed(elapsed) : '-',
-      photo: draft.photo,
-      photoUrl: draft.photoUrl,
-      photoCapturedAt: draft.photoCapturedAt,
-      photoLatitude: draft.photoLatitude,
-      photoLongitude: draft.photoLongitude,
-      startedAt: new Date(startedAt).toISOString(),
-      completedAt: now.toISOString(),
-      vehicles: isMuatan ? vehicles : [],
-      synced: false,
-      selfieUrl: draft.selfieUrl,
-      selfieCapturedAt: draft.selfieCapturedAt,
-    })
+    })()
+
+    commitTrip(
+        {
+            id: generatedId,
+            route: `${route.from} → ${route.to}`,
+            routeCode: route.code,
+            routeFrom: route.from,
+            routeTo: route.to,
+            status: 'Selesai',
+            time: fmtTime(now),
+            date: `${now.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][now.getMonth()]} ${now.getFullYear()}`,
+            load: isMuatan ? 'Ada Muatan' : 'Kosong',
+            vehicle: isMuatan && vehicles[0] ? vehicles[0].plate : '-',
+            type: isMuatan && vehicles[0] ? vehicles[0].type : '-',
+            category: isMuatan && vehicles[0] ? vehicles[0].category : '-',
+            revenue: formatRp(isMuatan ? total : 0),
+            revenueNum: isMuatan ? total : 0,
+            officer: officer.name,
+            officerId: String(officer.id),
+            duration: isMuatan ? fmtElapsed(elapsed) : '-',
+            photo: draft.photo,
+            photoUrl: draft.photoUrl,
+            photoCapturedAt: draft.photoCapturedAt,
+            photoLatitude: draft.photoLatitude,
+            photoLongitude: draft.photoLongitude,
+            startedAt: new Date(startedAt).toISOString(),
+            completedAt: now.toISOString(),
+            vehicles: isMuatan ? vehicles : [],
+            synced: false,
+            selfieUrl: draft.selfieUrl,
+            selfieCapturedAt: draft.selfieCapturedAt,
+        },
+        capturedPhotos,
+        tripPhotoEntry,
+    )
+
     go('trip-complete')
   }
 

@@ -17,12 +17,11 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import { Download, RefreshCw, X, Check, AlertCircle, WifiOff, ChevronUp } from 'lucide-react'
+import { Download, RefreshCw, X, Check, AlertCircle, WifiOff } from 'lucide-react'
 import {
   getCurrentVersion,
   checkForUpdate,
   applyUpdate,
-  restoreBundleFromStorage,
   type UpdateState
 } from '../services/ota'
 
@@ -148,8 +147,8 @@ interface SheetProps {
   zIndex: number
 }
 
-function UpdateSheet({ state, onApply, onDismiss, onRetry, position, zIndex }: SheetProps) {
-  const { status, progress, error, latestVersion } = state
+function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
+  const { status, error, latestVersion } = state
 
   // Tidak tampil jika idle atau checking
   if (status === 'idle' || status === 'checking') return null
@@ -267,7 +266,6 @@ export default function UpdateNotifier({
   autoCheck = true,
   checkInterval = 30 * 60 * 1000,
   initialDelay = 5000,
-  minAppVersion,
   onStateChange,
   onUpdateApplied,
   position = 'bottom-right',

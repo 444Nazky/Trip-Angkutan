@@ -44,6 +44,11 @@ try {
       fs.rmSync(path.join(TMP, name), { force: true })
     }
   }
+  // Bundle terbaru dikeluarkan ke assets/js & assets/css oleh
+  // scripts/organize-build.mjs — buang salinan LAMA agar hash basi tidak
+  // menumpuk dan tidak ikut terbawa ke repo OTA.
+  fs.rmSync(path.join(TMP, 'assets', 'js'), { recursive: true, force: true })
+  fs.rmSync(path.join(TMP, 'assets', 'css'), { recursive: true, force: true })
   fs.rmSync(path.join(TMP, 'ota'), { recursive: true, force: true })
   fs.cpSync(WEB_DIR, path.join(TMP, 'ota'), { recursive: true })
   fs.cpSync(WEB_DIR, TMP, { recursive: true })

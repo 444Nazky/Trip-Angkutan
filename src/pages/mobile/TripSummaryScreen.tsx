@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ChevronLeft, Camera, Play, AlertTriangle, Truck, ImageOff } from 'lucide-react'
+import { ChevronLeft, Camera, Play, AlertTriangle, Truck, ImageOff, Pencil, Trash2, MapPin, Package } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -9,7 +9,10 @@ interface TripSummaryScreenProps {
 }
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
-  const { draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle, finishEmptyTrip } = useApp()
+  const {
+    draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle,
+    finishEmptyTrip, removeDraftVehicle, editDraftVehicle,
+  } = useApp()
 
   const allRoutes = activeRoutes()
   const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
@@ -27,6 +30,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
 
   useEffect(() => {
+    // HANYA foto yang dimintan dari layar ini (vehiclePhotoTarget terpasang).
+    // Tanpa guard ini, mode "Ubah kendaraan" (vPhoto sudah terisi dari kendaraan
+    // lama) bisa salah terpasang & mengosongkan slot foto sebelum form dibuka.
+    if (draft.vehiclePhotoTarget == null) return
     if (!draft.vPhoto || !draft.vPhotoUrl) return
     const target = draft.vehiclePhotoTarget ?? draft.vehicles.findIndex(v => !v.photoUrl)
     if (target === -1 || target == null) return
@@ -43,6 +50,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       vPhotoLatitude: undefined,
       vPhotoLongitude: undefined,
       vehiclePhotoTarget: undefined,
+      cameraReturn: undefined,
     })
   }, [draft.vPhoto, draft.vPhotoUrl, draft.vPhotoCapturedAt, draft.vPhotoLatitude, draft.vPhotoLongitude, draft.vehicles, draft.vehiclePhotoTarget, patchDraft, patchDraftVehicle])
 
@@ -73,6 +81,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       <p className="text-slate-500 text-[13px] mb-4">Periksa data sebelum memulai trip</p>
 
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4 text-white">
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wide mb-3">Rincian Trip</p>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
             <Truck size={18} className="text-white" />
@@ -95,6 +104,23 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               <span className="text-white text-[11px] font-semibold">{v}</span>
             </div>
           ))}
+        </div>
+        {/* Edit sebelum submit — rute & kondisi masih boleh diubah */}
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => go('route-select')}
+            className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-black text-blue-300 bg-blue-500/15 hover:bg-blue-500/25 rounded-xl py-2.5 transition-colors"
+            title="Ubah rute perjalanan"
+          >
+            <MapPin size={13} /> Ubah Rute
+          </button>
+          <button
+            onClick={() => go('trip-condition')}
+            className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-black text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 rounded-xl py-2.5 transition-colors"
+            title="Ubah kondisi muatan (kosong / ada muatan)"
+          >
+            <Package size={13} /> Ubah Kondisi
+          </button>
         </div>
       </div>
 
@@ -125,6 +151,21 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 Ambil Foto
               </button>
             )}
+            {/* Edit sebelum submit — perbaiki data / buang kendaraan */}
+            <button
+              onClick={() => { editDraftVehicle(i); go('vehicle-form') }}
+              className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
+              title={`Ubah data ${unitLabel(vehicles, i)}`}
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              onClick={() => removeDraftVehicle(i)}
+              className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-2 py-1.5 shrink-0"
+              title={`Hapus ${unitLabel(vehicles, i)} dari trip ini`}
+            >
+              <Trash2 size={11} />
+            </button>
             {v.plateStatus && (
               <span className={`text-[9px] font-black px-2 py-1 rounded-full ${
                 v.plateStatus === 'internal' ? 'bg-slate-800 text-white'

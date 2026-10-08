@@ -130,8 +130,8 @@ function seedPayload(s: SeedOfficer): Record<string, unknown> {
     regionId: s.regionId,
     regionName: s.regionName,
     regionCode: s.regionCode,
-    status: 'Aktif',
-    isActive: true,
+    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
+    isActive: (s.isActive ?? 1) === 1,
     device: '-',
     trips: 0,
     lastActive: '-',
@@ -165,7 +165,7 @@ async function seedDefaultOfficers(): Promise<void> {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               s.id, s.username, s.name, s.regionId, s.regionName, s.regionCode,
-              1, JSON.stringify(seedPayload(s)), now,
+              s.isActive ?? 1, JSON.stringify(seedPayload(s)), now,
             ],
           )
         }
@@ -195,7 +195,7 @@ async function seedDefaultOfficers(): Promise<void> {
         regionId: s.regionId,
         regionName: s.regionName,
         regionCode: s.regionCode,
-        isActive: true,
+        isActive: (s.isActive ?? 1) === 1,
         dermagaAccess: s.dermagaAccess,
         payload: seedPayload(s),
       })

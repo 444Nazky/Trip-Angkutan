@@ -9,16 +9,7 @@
 // 2. Pull password/PIN changes (admin changes password → mobile updates hash)
 // 3. Pull deactivation (admin disables officer → mobile removes from local cache)
 
-import { api } from './api'
 import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes } from './auth'
-import {
-  type OfficerRow,
-  initOfflineDb,
-  listOfficers,
-  saveOfficers,
-  setPinHash,
-  hashPin,
-} from './offlineDb'
 
 // ── Types ──────────────────────────────────────────────────────
 

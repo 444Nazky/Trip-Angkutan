@@ -25,9 +25,6 @@ const AUTH_TIMEOUT_MS = 4000
 
 const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
 
-// Officer the app *wants* to be authenticated as, even while offline
-let activeOfficerId: string | null = null
-
 export interface Dermaga {
   id: string
   name: string
@@ -104,10 +101,6 @@ export interface UiRoute {
 
 function isValidRoute(r: unknown): r is Route {
   return typeof r === 'object' && r !== null && !!(r as Route).id && !!(r as Route).name
-}
-
-function isNonEmptyString(s: unknown): s is string {
-  return typeof s === 'string' && s.length > 0
 }
 
 function saveRoutesMap(map: Record<string, Route[]>): void {
@@ -253,7 +246,6 @@ export async function memberLogin(
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-  activeOfficerId = result.data.officer.id
   const memberKey = `member:${result.data.officer.id}`
   await setPinHash(memberKey, await hashPin(memberKey, password))
   try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
@@ -299,7 +291,6 @@ export async function loginWithPin(
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-  activeOfficerId = result.data.officer.id
   // Simpan HASH PIN (wajib) agar verifikasi PIN offline berfungsi
   void cachePin(officerId, pin)
 
@@ -381,7 +372,7 @@ function seedToRecord(identifier: string): OfflineOfficerRecord | null {
     regionId: s.regionId,
     regionName: s.regionName,
     regionCode: s.regionCode,
-    status: 'Aktif',
+    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
     dermagaAccess: s.dermagaAccess,
   }
 }
@@ -410,7 +401,6 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionName: String(row.regionName ?? region),
     regionCode: String(row.regionCode ?? region),
   }
-  activeOfficerId = officer.id
   saveOfficer(officer)
   api.setToken(null)
   try { localStorage.removeItem(DERMAGA_KEY) } catch {}
@@ -553,7 +543,6 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
     if (api.isAuthenticated) api.setToken(null)
     return false
   }
-  activeOfficerId = String(id)
   return api.isAuthenticated
 }
 

@@ -66,6 +66,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
+  // Tanpa akses dermaga → trip tidak bisa dimulai. Daripada senyap (console.warn),
+  // tampilkan pesan yang bisa dibaca petugas dan arahkan ke admin.
+  const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -80,12 +83,21 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         <div className="relative">
           <p className="text-blue-100 text-[13px] font-semibold mb-1">Siap bertugas?</p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">Mulai Trip<br />Baru Sekarang</h2>
-          <button
-            onClick={() => { resetDraft(); onStartTrip() }}
-            className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
-          >
-            Mulai Trip <ArrowRight size={16} />
-          </button>
+          {hasDockAccess ? (
+            <button
+              onClick={() => { resetDraft(); onStartTrip() }}
+              className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
+            >
+              Mulai Trip <ArrowRight size={16} />
+            </button>
+          ) : (
+            <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">
+              <p className="text-white font-black text-[13px]">Hubungi Admin</p>
+              <p className="text-blue-100 text-[11px] leading-snug mt-1">
+                Akun ini belum memiliki akses dermaga — trip belum bisa dimulai.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

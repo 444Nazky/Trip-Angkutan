@@ -28,7 +28,7 @@ type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
 
-export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
+export default function MobileApp() {
   const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
@@ -94,7 +94,8 @@ export default function MobileApp({ onUpdate }: { onUpdate?: () => void }) {
       return
     }
     if (accesses.length === 0) {
-      console.warn('[trip] Petugas tanpa akses dermaga — tidak bisa mulai trip')
+      // Tanpa akses dermaga: HomeScreen sudah menampilkan pesan "Hubungi Admin"
+      // (sengaja TIDAK memakai console.warn — pesan dev tidak berguna bagi petugas).
       return
     }
     setPendingDermagas(null)

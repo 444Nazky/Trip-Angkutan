@@ -38,6 +38,12 @@ export interface SeedOfficer {
   name: string
   /** bcrypt hash PIN (server-compatible) — PIN polos tidak pernah disimpan. */
   pinHash: string
+  /**
+   * Status bawaan petugas: 1 = Aktif, 0 = Nonaktif.
+   * Opsional (default 1) — rilis OTA dapat menanam petugas yang sudah
+   * dinonaktifkan tanpa perlu menunggu sinkronisasi pertama dari server.
+   */
+  isActive?: 0 | 1
   regionId: string
   regionName: string
   regionCode: string
@@ -254,6 +260,7 @@ export interface SeedMobileOfficer {
 }
 
 export function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
+  const active = (s.isActive ?? 1) === 1
   return {
     id: s.id,
     name: s.name,
@@ -262,7 +269,7 @@ export function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
     region: s.regionCode,
     regions: [s.regionCode],
     pin: '',
-    status: 'Aktif',
+    status: active ? 'Aktif' : 'Nonaktif',
     device: '-',
     trips: 0,
     lastActive: '-',

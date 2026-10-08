@@ -128,8 +128,11 @@ function isNetworkError(err?: string): boolean {
   return !!err && /timeout|network|failed.to.fetch|terjangkau|offline|request.failed|ECONNREFUSED|ENOTFOUND|server tidak merespon|unreachable/i.test(err)
 }
 
-/** Exponential backoff bertingkat: 15s → 30s → 60s → … → cap 10 menit. */
-function backoffMs(attempts: number): number {
+/**
+ * Exponential backoff bertingkat: 15s → 30s → 60s → … → cap 10 menit.
+ * Di-eksport untuk unit test (services/sync.test.ts).
+ */
+export function backoffMs(attempts: number): number {
   if (attempts <= 0) return 0
   return Math.min(BASE_BACKOFF_MS * Math.pow(2, attempts - 1), MAX_BACKOFF_MS)
 }
