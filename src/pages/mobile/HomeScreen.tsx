@@ -168,7 +168,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       {/* Recent Trips */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-slate-800 text-[15px]">Trip Terbaru</h3>
+          <h3 className="font-bold text-slate-800 text-[15px]">Daftar Trip</h3>
           <button onClick={() => go('history')} className="text-blue-600 text-[12px] font-bold flex items-center gap-1">
             Lihat Semua <ChevronRight size={14} />
           </button>

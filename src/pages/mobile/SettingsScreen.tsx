@@ -224,14 +224,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
 
 
 
-      {/* Info */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-start gap-2.5">
-        <AlertTriangle size={14} className="text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-[10px] text-blue-700 leading-relaxed">
-          <strong className="font-bold">Mode Lokal-First Aktif</strong>
-          {` — data tersimpan di perangkat. Sinkronisasi berjalan otomatis saat online.`}
-        </p>
-      </div>
     </div>
   )
 }

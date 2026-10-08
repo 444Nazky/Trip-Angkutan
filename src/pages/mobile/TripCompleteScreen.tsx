@@ -78,3 +78,6 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
     </div>
   )
 }
+
+// hilangkan belum afda foto di trip kosong. hilangkan detail kendaraan juga, karena ini trip kosong
+// hilangkan informasi internet online / offline di detail trip yang sudah terkirim
