@@ -287,7 +287,13 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
   try {
     await initLocalDb()
     const existing = await dbGetById(trip.id)
-    if (!existing) return
+    // Trip sudah pernah terkirim (item sudah keluar dari antrean) lalu diedit
+    // → antrekan ULANG. Tanpa ini, status trip hanya berubah jadi
+    // "menunggu koneksi" di lokal tapi tidak pernah dikirim lagi.
+    if (!existing) {
+      await addToSyncQueue(trip, derivePhotos(trip), deriveTripPhoto(trip))
+      return
+    }
     const item: SyncItem = {
       ...existing,
       trip,

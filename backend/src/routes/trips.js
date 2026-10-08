@@ -69,8 +69,73 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         `SELECT id, no_trip FROM trips WHERE client_trip_id = ? LIMIT 1`,
       ).get(clientTripId);
       if (existing) {
-        cleanupFiles();
-        return res.status(200).json({ id: existing.id, noTrip: existing.no_trip, duplicate: true });
+        // Trip sudah ada DAN payload membawa perubahan (mis. petugas mengedit
+        // foto/plat/rute dari Riwayat) → UPDATE, bukan hanya balas duplikat.
+        // Bila petugas sengaja kirim ulang payload sama (retry timeout),UPDATE
+        // yang dilakukan identik hasilnya — idempoten dari sisi klien.
+        const tripPhotoIndexDup = validPhotoIndex(payload.tripPhotoIndex, files);
+        const vehiclePhotoIndexesDup = vehicles.map(v => validPhotoIndex(v.photoIndex, files));
+        if (tripPhotoIndexDup === null || tripPhotoIndexDup === undefined ||
+            vehiclePhotoIndexesDup.some(i => i === null || i === undefined) ||
+            new Set([tripPhotoIndexDup, ...vehiclePhotoIndexesDup]).size !== files.length) {
+          cleanupFiles();
+          return res.status(400).json({ error: 'Payload duplikat tidak valid' });
+        }
+
+        const oldVehicleRows = db.prepare(`SELECT foto_path FROM vehicles WHERE trip_id = ?`).all(existing.id);
+        const oldTrip = db.prepare(`SELECT foto_kosong_path FROM trips WHERE id = ?`).get(existing.id);
+        const oldPaths = [oldTrip?.foto_kosong_path, ...oldVehicleRows.map(r => r.foto_path)].filter(Boolean);
+        const photoPathsDup = files.map(file => `/uploads/${file.filename}`);
+
+        const { officerId, regionId } = req.officer;
+        const dermagaId =
+          req.body.dermagaId ||
+          (db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ? LIMIT 1`).get(officerId)?.dermaga_id) ||
+          (db.prepare(`SELECT id FROM dermagas WHERE region_id = ? LIMIT 1`).get(regionId)?.id) ||
+          (db.prepare(`SELECT id FROM dermagas LIMIT 1`).get()?.id) || null;
+
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE trips SET status_muatan=?, route_from=?, route_to=?, keterangan=?,
+              dermaga_id=?, foto_kosong_path=?, foto_captured_at=?, foto_latitude=?, foto_longitude=?,
+              started_at=?, completed_at=?
+            WHERE id=?
+          `).run(
+            payload.statusMuatan, payload.routeFrom || null, payload.routeTo || null, payload.keterangan || null,
+            dermagaId, photoPathsDup[tripPhotoIndexDup], payload.tripPhotoCapturedAt || null,
+            numericCoordinate(payload.tripPhotoLatitude), numericCoordinate(payload.tripPhotoLongitude),
+            payload.startedAt || null, payload.completedAt || null, existing.id,
+          );
+          db.prepare(`DELETE FROM trip_vehicles WHERE trip_id = ?`).run(existing.id);
+          db.prepare(`DELETE FROM vehicles WHERE trip_id = ?`).run(existing.id);
+          vehicles.forEach((vehicle, index) => {
+            const masterTariff = db.prepare(`
+              SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
+            `).get(vehicle.vehicleType);
+            const amount = masterTariff
+              ? (vehicle.hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
+              : (vehicle.tariffAmount || 0);
+            const vehicleId = uuidv4();
+            const photoIndex = vehiclePhotoIndexesDup[index];
+            db.prepare(`
+              INSERT INTO vehicles (
+                id, no_polisi, vehicle_type, golongan, trip_id, has_load, tariff_id,
+                tariff_amount, foto_path, foto_captured_at, latitude, longitude
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              vehicleId, vehicle.noPolisi, vehicle.vehicleType, vehicle.golongan, existing.id,
+              vehicle.hasLoad ? 1 : 0, masterTariff ? masterTariff.id : null, amount,
+              photoPathsDup[photoIndex], vehicle.photoCapturedAt || null,
+              numericCoordinate(vehicle.latitude), numericCoordinate(vehicle.longitude)
+            );
+            db.prepare(`INSERT INTO trip_vehicles (id, trip_id, vehicle_id) VALUES (?, ?, ?)`)
+              .run(uuidv4(), existing.id, vehicleId);
+          });
+        })();
+        for (const p of oldPaths) {
+          try { fs.unlinkSync(path.join(UPLOADS_DIR, path.basename(p))); } catch { /* ignore */ }
+        }
+        return res.status(200).json({ id: existing.id, noTrip: existing.no_trip, updated: true });
       }
     }
 
