@@ -48,6 +48,8 @@ export interface StoredOfficer {
   regionId: string
   regionName: string
   regionCode: string
+  /** Scope dermaga — agar UI tidak jatuh ke fallback `officers[0]` (swap akun). */
+  dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
 export interface LoginResponse {
@@ -400,6 +402,7 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionId: String(row.regionId ?? region),
     regionName: String(row.regionName ?? region),
     regionCode: String(row.regionCode ?? region),
+    dermagaAccess: access ?? [],
   }
   saveOfficer(officer)
   api.setToken(null)

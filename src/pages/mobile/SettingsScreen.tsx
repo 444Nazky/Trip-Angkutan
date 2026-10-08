@@ -258,19 +258,6 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
           <div className="w-9 h-9 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
             <Shield size={16} />
           </div>
-          <div className="flex-1">
-            <p className="text-[12px] font-bold text-slate-800 leading-tight">Data Petugas Offline</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">
-              {lastCredSync
-                ? `Terakhir: ${new Date(lastCredSync).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}`
-                : 'Belum pernah sinkron'}
-            </p>
-            {credSyncResult && (
-              <p className={`text-[9px] mt-0.5 ${credSyncResult.error ? 'text-red-500' : 'text-emerald-600'}`}>
-                {credSyncResult.message}
-              </p>
-            )}
-          </div>
           <button
             onClick={() => void handleSyncCredentials()}
             disabled={credSyncing}
@@ -279,7 +266,17 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
             <RefreshCw size={11} className={credSyncing ? 'animate-spin' : ''} />
             {credSyncing ? 'Sinkron…' : 'Sinkron'}
           </button>
+          {credSyncResult && (
+            <p className={`ml-auto text-[10px] font-medium ${credSyncResult.error ? 'text-red-600' : 'text-emerald-600'}`}>
+              {credSyncResult.message}
+            </p>
+          )}
         </div>
+        {lastCredSync > 0 && (
+          <p className="text-[9px] text-slate-400 mt-1.5 pl-11">
+            Terakhir sinkron: {new Date(lastCredSync).toLocaleString('id-ID')}
+          </p>
+        )}
         <p className="text-[9px] text-slate-400 mt-2 pl-11">
           Tarik daftar petugas, hash PIN, dan rute wilayah dari server. Login online diperlukan.
         </p>

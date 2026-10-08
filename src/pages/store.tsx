@@ -441,10 +441,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
   }, [userType])
 
-  const officer = useMemo(
-    () => officers.find(o => String(o.id) === String(officerId)) ?? officers[0] ?? officerList[0],
-    [officers, officerId],
-  )
+  const officer = useMemo(() => {
+    const inRoster = officers.find(o => String(o.id) === String(officerId))
+    if (inRoster) return inRoster
+    // Akun offline yang id-nya tidak ada di roster UI (mis. naski, petugas
+    // lokal saja): jangan jatuh ke `officers[0]` (swap akun!). Dapatkan dari
+    // sesi yang benar-benar tersimpan.
+    try {
+      const so = getStoredOfficer()
+      if (so?.id && String(so.id) === String(officerId)) {
+        return {
+          id: String(so.id),
+          name: so.name,
+          username: (so as { username?: string }).username,
+          initials: so.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+          region: so.regionCode || so.regionId || '',
+          regions: so.regionCode ? [so.regionCode] : [],
+          pin: '',
+          status: 'Aktif',
+          device: '-',
+          trips: 0,
+          lastActive: '-',
+          joined: '-',
+          dermagaAccess: (so as { dermagaAccess?: Officer['dermagaAccess'] }).dermagaAccess ?? [],
+        } as Officer
+      }
+    } catch { /* fallthrough */ }
+    return officers[0] ?? officerList[0]
+  }, [officers, officerId])
 
   const login = useCallback((type: 'admin' | 'member') => {
     setUserType(type)
