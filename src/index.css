@@ -18,24 +18,16 @@
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in { animation: fade-in 0.3s ease-out both; }
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   TRANSISI HALAMAN MOBILE — variasi per konteks navigasi (bukan fade terus)
-   push  : maju (dari kanan)     pop   : kembali (dari kiri)
-   zoom  : halaman detail        sheet : form/modal (dari bawah)
-   tab   : ganti tab bawah
-   Semua memakai transform+opacity (compositor) → tetap 60 FPS.
-   ═════════════════════════════════════════════════════════════════════════ */
-@keyframes scr-push  { from { transform: translateX(34px);  opacity: 0 } to { transform: none; opacity: 1 } }
-@keyframes scr-pop   { from { transform: translateX(-34px); opacity: 0 } to { transform: none; opacity: 1 } }
-@keyframes scr-zoom  { from { transform: scale(0.93);       opacity: 0 } to { transform: none; opacity: 1 } }
-@keyframes scr-sheet { from { transform: translateY(52px);  opacity: 0.35 } to { transform: none; opacity: 1 } }
-@keyframes scr-tab   { from { transform: translateY(10px) scale(0.985); opacity: 0.3 } to { transform: none; opacity: 1 } }
+   TRANSISI HALAMAN MOBILE — Minimal animations untuk performa
+   tab  : instant (tanpa animasi)    push/pop : sangat cepat
+   zoom : halaman detail            sheet : form/modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes scr-push  { from { transform: translateX(16px);  opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-pop   { from { transform: translateX(-16px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-zoom  { from { transform: scale(0.96);       opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-sheet { from { transform: translateY(24px);  opacity: 0.5 } to { transform: none; opacity: 1 } }
+/* tab: instant - no animation for smooth tab switching */
 
 /* Catatan: jangan pakai `backface-visibility: hidden` / `preserve-3d` di sini.
    Keduanya memaksa layer komposit tersendiri dan di WebView Android sering
@@ -44,11 +36,12 @@
 .scr-anim {
   will-change: transform, opacity;
 }
-.scr-anim-push  { animation: scr-push  0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-.scr-anim-pop   { animation: scr-pop   0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-.scr-anim-zoom  { animation: scr-zoom  0.26s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-.scr-anim-sheet { animation: scr-sheet 0.30s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.scr-anim-tab   { animation: scr-tab   0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.scr-anim-push  { animation: scr-push  0.15s ease-out both; }
+.scr-anim-pop   { animation: scr-pop   0.12s ease-out both; }
+.scr-anim-zoom  { animation: scr-zoom  0.15s ease-out both; }
+.scr-anim-sheet { animation: scr-sheet 0.18s ease-out both; }
+/* scr-anim-tab: no animation - instant switch for snappy feel */
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIF — target utama perangkat seluler
