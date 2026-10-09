@@ -10,7 +10,7 @@ import {
   verifyPinOffline,
 } from '../services/auth'
 import { initializeSync, syncNow } from '../services/sync'
-import { getStoredOfficers } from '../services/officers'
+import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
@@ -88,8 +88,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         void initializeSync()
         onLogin('member')
         // ── 2. Ada internet → sesi backend + update petugas dari dashboard
-        //       admin ditarik di LATAR BELAKANG (tidak menunda login).
-        if (navigator.onLine) void establishOnlineSession(u, p)
+        //       admin ditarik SEKARANG (sinkron petugas baru).
+        if (navigator.onLine) {
+          void establishOnlineSession(u, p)
+          void syncOfficersToLocal(true)
+        }
         return
       }
 
@@ -103,6 +106,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
+        // Sinkron data petugas BARU SEKARANG agar bisa login di perangkat lain
+        if (navigator.onLine) void syncOfficersToLocal(true)
         onLogin('member')
         return
       }

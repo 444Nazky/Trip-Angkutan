@@ -189,14 +189,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               }}
               onBlur={() => plate.trim() && void runCheck(plate)}
               placeholder="B 1234 XY"
-              className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
             />
-            <button
-              onClick={() => openCamera('ocr')}
-              className="shrink-0 px-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 text-xs font-medium flex items-center gap-1.5 hover:bg-slate-100"
-            >
-              <Camera size={14} /> Scan
-            </button>
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1.5">{plateError}</p>}
           {(check || checkLoading) && (

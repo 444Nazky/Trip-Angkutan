@@ -1,35 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
-
-// ─── Connection Indicator ────────────────────────────────────────────────────────
-function ConnectionIndicator() {
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
-
-  return (
-    <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all ${
-      isOnline
-        ? 'bg-emerald-50 text-emerald-600'
-        : 'bg-slate-100 text-slate-500'
-    }`}>
-      {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-      {isOnline ? 'Online' : 'Offline'}
-    </div>
-  )
-}
 
 // ─── History Detail Screen ─────────────────────────────────────────────────────
 interface HistoryDetailScreenProps {
@@ -129,7 +102,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         <button onClick={() => go('history')} className="flex items-center gap-1.5 text-slate-500 text-[13px] hover:text-slate-700 font-medium">
           <ChevronLeft size={16} /> Riwayat
         </button>
-        <ConnectionIndicator />
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -349,28 +321,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   ? 'Menunggu koneksi untuk mengirim...'
                   : 'Data aman tersimpan di perangkat'}
           </p>
-        </div>
-      </div>
-
-      {/* Connection Info */}
-      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mt-3">
-        <p className="text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wide">Status Koneksi</p>
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${navigator.onLine ? 'bg-emerald-100' : 'bg-slate-200'}`}>
-            {navigator.onLine
-              ? <Wifi size={14} className="text-emerald-500" />
-              : <WifiOff size={14} className="text-slate-500" />}
-          </div>
-          <div>
-            <p className={`text-[12px] font-semibold ${navigator.onLine ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {navigator.onLine ? 'Terhubung ke server' : 'Tidak terhubung'}
-            </p>
-            <p className="text-[10px] text-slate-400">
-              {navigator.onLine
-                ? 'Data trip akan otomatis dikirim ke admin'
-                : 'Data trip tersimpan di lokal, otomatis terkirim saat online'}
-            </p>
-          </div>
         </div>
       </div>
     </div>

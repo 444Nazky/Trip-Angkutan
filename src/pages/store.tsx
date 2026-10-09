@@ -622,14 +622,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [draft, officer.name, commitTrip])
   /**
    * Kirim Saja (direct submit) untuk trip bermuatan yang sudah lengkap
-   * (foto kendaraan + foto bukti + swafoto). Sama seperti finishEmptyTrip,
+   * (foto kendaraan + foto bukti). Sama seperti finishEmptyTrip,
    * TIDAK melewati layar Trip Aktif/timer — langsung masuk antrean sync
    * dan petugas diarahkan ke Trip Selesai.
    */
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
-    if (!draft.photoUrl || !draft.selfieUrl) {
-      console.warn('[trip] finishMuatanTrip ditolak: foto bukti/swafoto belum lengkap')
+    if (!draft.photoUrl) {
+      console.warn('[trip] finishMuatanTrip ditolak: foto bukti trip belum diambil')
       return
     }
     const now = new Date()

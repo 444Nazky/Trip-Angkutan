@@ -65,6 +65,10 @@ async function handleRequest(req) {
 
 function isBundleUrl(url) {
   const path = url.pathname
+  // Navigasi '/' dkk. HARUS dianggap bundle URL — kalau tidak, request jatuh ke
+  // fetch() (bundle bawaan APK) dan update OTA tidak pernah kelihatan walau
+  // cache sudah terisi. index.html-nya diambil dari fallback di handleRequest.
+  if (path === '/' || path.endsWith('/')) return true
   if (/^\/index\.html$/.test(path)) return true
   if (/^\/(assets|chunk|main|styles|ota)\//.test(path)) return true
   if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff2|woff|ttf|eot)$/.test(path)) return true

@@ -398,6 +398,20 @@ async function removeStorage(version: string): Promise<void> {
   } catch { /* sudah tidak ada */ }
 }
 
+/** Buang SEMUA folder versi OTA kecuali `keep` — versi lama tidak menumpuk. */
+async function removeOtherVersions(keep: string): Promise<void> {
+  if (!isNative()) return
+  try {
+    const { files } = await Filesystem.readdir({ path: OTA_DIR, directory: Directory.Cache })
+    for (const f of files) {
+      if (f.type === 'directory' && f.name !== keep) {
+        await removeStorage(f.name)
+        console.log(`[ota] versi lama ${f.name} dihapus dari penyimpanan`)
+      }
+    }
+  } catch { /* folder belum ada */ }
+}
+
 function urlOf(path: string): string {
   return new URL(path, window.location.origin).href
 }
@@ -457,11 +471,29 @@ async function readMarker(version: string): Promise<VersionManifest | null> {
 /** Buang semua salinan bundle (unduhan parsial / reset). */
 async function discardBundle(version?: string): Promise<void> {
   try {
-    const cache = await caches.open(OTA_CACHE)
-    const keys = await cache.keys()
-    await Promise.all(keys.map(k => cache.delete(k)))
+    // FULL PURGE: hapus SEMUA OTA cache, bukan hanya prefix tertentu
+    const cacheNames = await caches.keys()
+    await Promise.all(cacheNames.map(n => caches.delete(n)))
   } catch { /* cache tidak tersedia */ }
   if (version) await removeStorage(version)
+}
+
+/** Bersihkan SEMUA direktori versi lama sebelum unduhan baru. */
+async function purgeAllOtaStorage(): Promise<void> {
+  // 1. Buang semua cache
+  try {
+    const names = await caches.keys()
+    await Promise.all(names.map(n => caches.delete(n)))
+  } catch { /* */ }
+  // 2. Buang semua versi di penyimpanan internal
+  if (isNative()) {
+    try {
+      const { files } = await Filesystem.readdir({ path: OTA_DIR, directory: Directory.Cache })
+      for (const f of files) {
+        if (f.type === 'directory') await removeStorage(f.name)
+      }
+    } catch { /* folder belum ada */ }
+  }
 }
 
 /**
@@ -519,11 +551,13 @@ export async function activateBundle(version: string, assets: string[]): Promise
 
     const cache = await caches.open(OTA_CACHE)
     for (const path of assets) {
-      const existing = await cache.match(urlOf(path))
-      if (existing) continue
+      // SELALU timpa dengan bundle versi INI. "Skip kalau sudah ada" membuat
+      // update kedua sukses secara status tapi isi cache masih versi lama
+      // (URL sama, beda isi) → UI tidak berubah sama sekali.
       const bytes = await readFromStorage(version, path)
-      if (!bytes) return false // sumber hilang → bundle tidak utuh
-      await putToCache(path, bytes)
+      if (bytes) await putToCache(path, bytes)
+      // Web (tanpa Filesystem): aset sudah ditulis langsung ke cache saat unduh.
+      else if (!(await cache.match(urlOf(path)))) return false
     }
     // Verifikasi ulang
     for (const path of assets) {
@@ -606,6 +640,7 @@ let controller: AbortController | undefined
 export async function checkForUpdate(
   currentVersion: string | undefined | null,
   onState?: (s: UpdateState) => void,
+  force = false,
 ): Promise<CheckResult> {
   const emit = (s: UpdateState) => { saveState(s); onState?.(s) }
   const local = currentVersion ?? (await getCurrentVersion()) ?? BUNDLED_VERSION
@@ -622,9 +657,15 @@ export async function checkForUpdate(
     }
 
     // 2a — pendinginan error biar tidak spam fetch saat jaringan goyang.
-    const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
-    if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
-      return { available: false }
+    // Cek MANUAL (force) melewati cooldown: user menekan tombol berarti dia
+    // memang ingin hasil sekarang, bukan "diam" tanpa keterangan.
+    if (force) {
+      try { localStorage.removeItem(LAST_ERROR_KEY) } catch { /* quota */ }
+    } else {
+      const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
+      if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
+        return { available: false }
+      }
     }
 
     // ── 2a — cek anti-stuck: bila state masih "downloading" atau "ready"
@@ -634,13 +675,18 @@ export async function checkForUpdate(
 
     const result = await fetchManifest(sig)
     if (!result.ok) {
-      // Silent fail: catat error tapi JANGAN emit status error
-      // Ini mencegah notifikasi "manifest tidak terjangkau" yang terus muncul
-      if (result.reason !== 'not-found') {
-        console.warn('[ota] cek gagal (silent):', result.reason)
-        localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+      // Silent fail untuk cek background: catat error tapi JANGAN emit status
+      // error (mencegah notifikasi "manifest tidak terjangkau" yang membingungkan).
+      // Cek manual (force) BOLEH tegas — user menekan tombol dan berhak tahu.
+      if (result.reason === 'not-found') {
+        emit({ status: 'idle', latestVersion: local })
+        return { available: false }
       }
-      emit({ status: 'idle', latestVersion: local })
+      console.warn('[ota] cek gagal:', result.reason, force ? '(manual)' : '(silent)')
+      localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+      emit(force
+        ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local }
+        : { status: 'idle', latestVersion: local })
       return { available: false }
     }
     const remote = result.manifest
@@ -657,16 +703,16 @@ export async function checkForUpdate(
     }
 
     emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
-    // Buang unduhan parsial versi ini. Bundle AKTIF tidak disentuh sampai
-    // aktivasi, supaya app yang sedang berjalan tetap utuh.
-    await removeStorage(remote.version)
+    // FULL PACKAGE UPDATE: purge SEMUA cache & versi lama SEBELUM mengunduh
+    // Ini menjamin update kedua dengan struktur chunk sama terdeteksi & diterapkan
+    await purgeAllOtaStorage()
 
     const downloaded: string[] = []
     const total = remote.assets.length
 
     for (let i = 0; i < total; i++) {
       if (sig.aborted) {
-        await removeStorage(remote.version)
+        await purgeAllOtaStorage()
         emit({ status: 'idle', latestVersion: local })
         return { available: false }
       }
@@ -677,7 +723,7 @@ export async function checkForUpdate(
         // update dibatalkan dengan aman (app tetap pakai bundle bawaan APK).
         if (!(await verifyAsset(bytes, asset, remote.integrity))) {
           console.warn('[ota] integritas aset tidak cocok, batalkan update:', asset)
-          await removeStorage(remote.version)
+          await purgeAllOtaStorage()
           localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
           emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
           return { available: false }
@@ -688,15 +734,15 @@ export async function checkForUpdate(
         downloaded.push(asset)
       } catch (err) {
         if (sig.aborted) {
-          await removeStorage(remote.version)
+          await purgeAllOtaStorage()
           emit({ status: 'idle', latestVersion: local })
           return { available: false }
         }
-        // Silent fail: bundle tidak lengkap → abort tanpa notifikasi
-        console.warn('[ota] unduhan gagal (silent):', asset)
-        await removeStorage(remote.version)
+        // Silent fail: bundle tidak lengkap → purge total, notifikasi error
+        console.warn('[ota] unduhan gagal:', asset)
+        await purgeAllOtaStorage()
         localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-        emit({ status: 'idle', latestVersion: local })
+        emit({ status: 'error', error: 'Gagal mengunduh paket pembaruan', latestVersion: local })
         return { available: false }
       }
       emit({
@@ -713,10 +759,11 @@ export async function checkForUpdate(
     return { available: true, version: remote.version, assets: remote.assets }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return { available: false }
-    // Silent fail total - tidak tampilkan notifikasi
-    console.warn('[ota] cek gagal total (silent):', err)
+    console.warn('[ota] cek gagal total:', err, force ? '(manual)' : '(silent)')
     localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-    emit({ status: 'idle', latestVersion: local })
+    emit(force
+      ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local }
+      : { status: 'idle', latestVersion: local })
     return { available: false }
   }
 }
@@ -743,30 +790,12 @@ export async function applyUpdate(): Promise<boolean> {
       return false
     }
 
-    // PENTING: Bersihkan cache lama SEBELUM menyimpan versi baru.
-    // Ini MUTLAK diperlukan agar service worker tidak salah mengambil file lama.
-    // Hapus SEMUA cache OTA lama (bukan hanya yang bukan OTA_CACHE).
-    try {
-      if (typeof caches !== 'undefined') {
-        const allCaches = await caches.keys()
-        const otaCaches = allCaches.filter(n => n.startsWith(CACHE_PREFIX) || n === OTA_CACHE)
-        await Promise.all(otaCaches.map(n => {
-          console.log(`[ota] menghapus cache lama: ${n}`)
-          return caches.delete(n)
-        }))
-      }
-    } catch (e) {
-      console.warn('[ota] gagal membersihkan cache lama:', e)
-    }
+    // PENTING: jangan sentuh OTA_CACHE di sini — activateBundle baru saja mengisinya
+    // dengan bundle BARU. Menghapusnya justru membuat service worker jatuh ke
+    // jaringan (bundle bawaan APK) sehingga update tidak pernah kelihatan.
 
-    // Hapus versi lama dari penyimpanan internal.
-    // Ini mencegah error "tidak ada perubahan" saat pull update kedua karena
-    // bundle lama tidak dibersihkan dan service worker salah mengambil file lama.
-    const oldVersion = await getCurrentVersion()
-    if (oldVersion && oldVersion !== BUNDLED_VERSION && oldVersion !== version) {
-      await removeStorage(oldVersion)
-      console.log(`[ota] versi lama ${oldVersion} dihapus dari penyimpanan`)
-    }
+    // Hapus versi lama dari penyimpanan internal (semua kecuali yang baru).
+    await removeOtherVersions(version)
 
     setCurrentVersion(version)
     await writeMarker(version, list)

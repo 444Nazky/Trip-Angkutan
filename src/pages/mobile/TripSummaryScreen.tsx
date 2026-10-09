@@ -27,6 +27,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     .filter(x => !x.v.photoUrl)
   const selfieTaken = !!draft.selfieUrl
   const selfieRequired = draft.condition === 'muatan'
+  const selfiePending = selfieRequired && !selfieTaken
   const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
 
   useEffect(() => {
@@ -71,9 +72,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const previewPhoto = draft.photoUrl
   const previewSelfie = draft.selfieUrl
   const thumbnailUrl = previewPhoto || (photoTaken && previewSelfie ? previewSelfie : undefined)
-  const selfiePending = selfieRequired && !selfieTaken
   const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
-  const mainDisabled = !allDocsComplete
   const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
   const goCapture = () => {
     if (actionType === 'photo') { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera'); return }
@@ -212,7 +211,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi Foto'}
           </button>
         )}
-        {/* Tampilkan thumbnail jika ada foto atau selfie yang sudah diambil */}
+        {/* Tampilkan thumbnail foto bukti trip yang sudah diambil */}
         {thumbnailUrl && (
           <img
             src={thumbnailUrl}
@@ -225,7 +224,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
       <button
         onClick={onMain}
-        disabled={mainDisabled}
+        disabled={!allDocsComplete}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />
