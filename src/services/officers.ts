@@ -14,7 +14,6 @@ export interface BackendOfficer {
   regions: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id: string }>
   is_active: number
-  /** Hash bcrypt PIN — untuk verifikasi PIN/password offline */
   pin_hash?: string | null
 }
 
@@ -44,15 +43,12 @@ function saveCache(officers: BackendOfficer[]) {
   } catch { /* quota */ }
 }
 
-/**
- * Fetch officers that share a region with the logged-in officer.
- * Uses the *officer* JWT (GET /officers/my-region) so the mobile session is
- * never replaced by an admin token just to read this list.
- *
- * `force = true` skips the 5-minute cache (used when the switch-account screen
- * opens, so status/region changes made in the admin dashboard show up
- * immediately).
- */
+
+
+
+
+
+
 export async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
   if (!force) {
     const cache = loadCache()
@@ -77,11 +73,9 @@ export async function fetchBackendOfficers(force = false): Promise<BackendOffice
   return result.data
 }
 
-// Convert backend officer to mobile format
 function toMobileOfficer(bo: BackendOfficer) {
   const primaryRegion = bo.regions?.[0]?.code ?? bo.region_id
   return {
-    // id tetap string agar cocok dengan id UUID maupun id lama "1".."5"
     id: String(bo.id),
     name: bo.name,
     username: bo.username || undefined,
