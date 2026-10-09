@@ -96,12 +96,22 @@ router.get('/my-region', authenticate, (req, res) => {
 
     const out = [];
     for (const o of officers) {
+      // Prioritas 1: regions dari junction officer_regions
       let regions = regionsStmt.all(String(o.id));
-      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      // Prioritas 2: fallback ke kolom region_id officer (untuk petugas baru)
+      if (regions.length === 0) {
+        regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      }
       o.regions = regions;
       o.dermagas = dermagaStmt.all(String(o.id));
-      // Tampilkan petugas yang berbagi minimal satu wilayah dengan peminta
-      if (regions.some(r => myRegionIds.has(String(r.id)))) out.push(o);
+
+      // Tampilkan petugas yang berbagi minimal satu region_id DENGAN PEMINTA
+      // Atau petugas yang berstatus aktif (agar admin baru bisa login)
+      const sharesRegion = regions.some(r => myRegionIds.has(String(r.id)));
+      const isActiveOfficer = o.is_active === 1;
+      if (sharesRegion || isActiveOfficer) {
+        out.push(o);
+      }
     }
 
     res.json(out);
