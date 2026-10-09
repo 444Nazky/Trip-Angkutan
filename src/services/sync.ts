@@ -859,3 +859,8 @@ export function getMaskedApiUrl(): string {
     return `${u.protocol}//${hidden}${u.pathname}`
   } catch { return '(konfigurasi tidak valid)' }
 }
+
+/**
+ * OTA helper statis untuk akses lintas-modul tanpa sirkular.
+ */
+export const OTA_MANIFEST_URL = 'https://github.com/444Nazky/Trip-Android-Management-System'

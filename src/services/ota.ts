@@ -95,6 +95,31 @@ async function isOnline(): Promise<boolean> {
   } catch { return navigator.onLine }
 }
 
+// ── Lifecycle toggle ─────────────────────────────────────────────────────────
+// Flag terpisah dari versi: bila disetされたが (value='1') aplikasi mulai,
+// service worker WAJIB serve bundle OTA aktif (bukan bundle bawaan APK).
+// Harus ada karena clear-data / reinstall bisa membuat perangkat lupa bahwa
+// bundle OTA pernah diaktifkan — flag ini juara "apakah bundle harus dijadikan
+// yang dikirim ke UI".
+export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
+
+/**
+ * Tandai bahwa bundle versi ini sudah diaktifkan (dipakai service worker).
+ * Dipakai main.tsx/ota boot: bila flag ada, panggil activateBundle() + reload
+ * saat start, bukan cuma menunggu tombol manual.
+ */
+export async function markBundlePersisted(): Promise<void> {
+  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
+}
+
+export async function clearPersistFlag(): Promise<void> {
+  try { localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY) } catch { /* quota */ }
+}
+
+export async function hasPersistFlag(): Promise<boolean> {
+  try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
+}
+
 // ── Util ─────────────────────────────────────────────────────────────────────
 
 function toBase64(bytes: Uint8Array): string {
@@ -122,9 +147,14 @@ type ManifestResult =
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   let res: Response
   try {
-    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+    // 2a — jangan pakai ?t=Date.now() yang buta: itu membuat request hampir
+    // sama tiap kali, dan HTTP cache/intermediary bisa return respons basi.
+    // Pakai GET polos + no-store + AbortSignal; saat perangkat "tarik update"
+    // atau aplikasi start, fetch ini selalu re-resolve ke manifest terkini.
+    res = await fetch(MANIFEST_URL, {
       signal,
       cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
     })
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') throw err
@@ -147,11 +177,15 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   }
 }
 
-// Bandingkan versi semver ATAU commit-hash. Returns true bila remote lebih baru.
+// Bandingkan versi. Format yang didukung:
+//   • "x.y.z"  (semver murni)
+//   • "x.y.z+<timestamp>" (hybrid; timestamp hanya jadi tie-breaker numerik)
+//   • commit-hash / opaque (pernah ditemukan di versi lama)
 export function isNewer(remote: string, local: string): boolean {
   if (!local) return true
+  if (!remote) return false
   if (remote === local) return false
-  // Format "x.y.z+<timestamp>": bandingkan timestamp build-nya dulu
+  // Hybrid semver+timestamp: bandingkan timestamp build-nya dulu
   const rt = /\+(\d+)/.exec(remote)?.[1]
   const lt = /\+(\d+)/.exec(local)?.[1]
   if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
@@ -164,11 +198,21 @@ export function isNewer(remote: string, local: string): boolean {
       const ln = parseInt(lm[i] ?? '0', 10)
       if (rn !== ln) return rn > ln
     }
-    // Semua angka sama (mis. "1.0" vs "1.0.0") → versi dianggap sama
+    // Semua segmen numerik sama → bandingkan panjang (mis. "1.0" vs "1.0.0")
     return remote.length > local.length
   }
   // Gaya commit-hash: remote lebih baru bila bukan prefiks local
   return !remote.startsWith(local)
+}
+
+/**
+ * Parse semver depan dari versi hybrid. Dipakai di UI untuk menampilkan
+ * versi yang manusiawi (mis. "1.0.2") tanpa timestamp.
+ */
+export function semverLabel(version: string): string {
+  if (!version) return '—'
+  const m = version.match(/^([\d.]+)/)
+  return m ? m[1] : version
 }
 
 /** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
@@ -329,6 +373,40 @@ async function discardBundle(version?: string): Promise<void> {
   if (version) await removeStorage(version)
 }
 
+/**
+ * 2a — anti-stuck: bersihkan state OTA yang macet (mis. sebagai akibat pull
+ * kedua yang gagal, atau bundle yang tidak utuh setelah clear-data).
+ * Dipanggil di awal checkForUpdate + dipanggil eksplisit saat start.
+ */
+async function clearStuckOtaState(): Promise<void> {
+  const state = getCachedState()
+  if (!state) return
+  const stuck = state.status === 'downloading' || (state.status === 'ready' && (!state.downloaded || state.downloaded.length === 0))
+  if (!stuck) return
+  // Hapus bundle parsial yang mungkin menahan cache basi.
+  await discardBundle(state.latestVersion)
+  saveState({ status: 'idle', latestVersion: state.latestVersion ?? await getCurrentVersion() ?? BUNDLED_VERSION })
+}
+
+/**
+ * Dipanggil saat app start (boot): bila perangkat pernah mengaktifkan bundle
+ * OTA (flag persist ada) tapi Cache Storage kosong (clear data / WebView reset),
+ * isi ulang dari penyimpanan internal + aktivasi ulang tanpa unduh ulang.
+ * Return true bila berhasil di-restore.
+ */
+export async function ensurePersistedBundleActive(): Promise<boolean> {
+  const persisted = await hasPersistFlag()
+  if (!persisted) return false
+  const ok = await restoreBundleFromStorage()
+  if (!ok) {
+    // Bundle tidak utuh → jangan biarkan app start dalam kondisi ambigu:
+    // hapus flag, biar aplikasi jatuh kembali ke bundle bawaan APK.
+    await clearPersistFlag()
+    await discardBundle(undefined)
+  }
+  return ok
+}
+
 // ── Aktivasi bundle ──────────────────────────────────────────────────────────
 
 /**
@@ -394,11 +472,28 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
 /**
  * Daftarkan service worker penyaji bundle OTA. Gagal registrasi TIDAK membuat
  * crash — aplikasi tetap berjalan dengan bundle bawaan.
+ *
+ * Setelah mendaftarkan ulang (mis. bundle aktif berubah), kirim message ke
+ * SW supaya self-heal: skip waiting, aktifkan versi baru, purge cache basi.
  */
-export function registerOtaServiceWorker(): void {
+export function registerOtaServiceWorker(forceRefresh = false): void {
   if (!('serviceWorker' in navigator)) return
   if (location.protocol === 'file:') return
-  navigator.serviceWorker.register('sw.js', { scope: '/' }).catch(err => {
+  navigator.serviceWorker.register('sw.js', { scope: '/' }).then(reg => {
+    if (forceRefresh) {
+      // Tunjuk ke versi terbaru yang baru saja diaktifkan
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing
+        if (!newWorker) return
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            newWorker.postMessage({ type: 'SKIP_WAITING' })
+          }
+        })
+      })
+    }
+  }).catch(err => {
     console.warn('[ota] service worker gagal didaftarkan:', err)
   })
 }
@@ -435,11 +530,16 @@ export async function checkForUpdate(
       return { available: false }
     }
 
-    // Skip cek jika baru saja gagal dalam 2 menit (cooldown)
+    // 2a — pendinginan error biar tidak spam fetch saat jaringan goyang.
     const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
     if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
       return { available: false }
     }
+
+    // ── 2a — cek anti-stuck: bila state masih "downloading" atau "ready"
+    // tapi bundle tidak utuh / sudah basi, reset ke idle sebelum cek lagi.
+    // Ini yang mencegah perangkat "diam" setelah pull kedua (status cor menetap).
+    await clearStuckOtaState()
 
     const result = await fetchManifest(sig)
     if (!result.ok) {
@@ -553,6 +653,8 @@ export async function applyUpdate(): Promise<boolean> {
     }
 
     setCurrentVersion(version)
+    await writeMarker(version, list)
+    await markBundlePersisted()
     saveState({ status: 'idle', latestVersion: version })
     // Bundle OTA baru diterapkan → minta penarikan roster petugas SEGERA saat
     // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin

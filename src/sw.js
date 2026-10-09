@@ -1,74 +1,80 @@
-/* ─────────────────────────────────────────────────────────────────────────────
- * Service worker OTA — Trip Angkutan
- *
- * Tugas: menyajikan bundle www hasil unduhan (OTG update) DI ATAS aset bawaan
- * APK, sehingga pembaruan bisa diterapkan tanpa install ulang .apk.
- *
- * Aturan:
- *   1. Hanya GET ke origin yang sama (CDN/API dibiarkan).
- *   2. Bila ada salinan di cache `trip-ota-active` → pakai itu.
- *   3. Selain itu → biarkan WebView yang melayani (aset bawaan) / jaringan.
- *   4. Gagal total saat offline pun tidak merusak: request jatuh ke fetch(),
- *      bila masih gagal untuk navigasi kita kirim halaman kosong yang aman.
- * ──────────────────────────────────────────────────────────────────────────── */
+/* eslint-disable no-restricted-syntax */
+const CACHE_NAME = 'trip-ota-active'
+const COMPLEMENT = 'trip-ota-complement'
 
-const ACTIVE_CACHE = 'trip-ota-active'
-const CACHE_PREFIX = 'trip-ota-'
+self.addEventListener('install', () => self.skipWaiting())
 
-self.addEventListener('install', () => {
-  self.skipWaiting()
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      caches.delete(COMPLEMENT).catch(() => {}),
+      caches.keys().then((names) =>
+        Promise.all(names.filter((n) => n !== CACHE_NAME && n.startsWith('trip-ota-')).map((n) => caches.delete(n))),
+      ),
+    ]),
+  )
 })
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const names = await caches.keys()
-    await Promise.all(
-      names
-        .filter(n => n.startsWith(CACHE_PREFIX) && n !== ACTIVE_CACHE)
-        .map(n => caches.delete(n)),
-    )
-    await self.clients.claim()
-  })())
-})
-
-async function matchOta(request) {
-  try {
-    const cache = await caches.open(ACTIVE_CACHE)
-    if (request.mode === 'navigate') {
-      // Navigasi selalu diarahkan ke index.html bundle terbaru
-      const url = new URL(request.url)
-      const candidate = url.pathname.endsWith('/') ? 'index.html' : url.pathname.slice(1)
-      return (await cache.match(candidate)) ||
-        (await cache.match('index.html')) ||
-        (await cache.match('/index.html')) ||
-        null
-    }
-    return await cache.match(request)
-  } catch {
-    return null
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    e.waitUntil(self.skipWaiting())
   }
+})
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request
+  if (req.method !== 'GET') return
+  if (req.url.startsWith('chrome-extension://')) return
+  if (req.url.startsWith('capacitor://')) return
+  if (req.url.startsWith('file://')) return
+
+  e.respondWith(handleRequest(req))
+})
+
+async function handleRequest(req) {
+  const url = new URL(req.url)
+  if (!isBundleUrl(url)) return fetch(req)
+
+  const cache = await caches.open(CACHE_NAME)
+  const cached = await cache.match(req)
+  if (cached) {
+    return new Response(cached.body, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'x-ota': 'true',
+      },
+    })
+  }
+
+  if (url.pathname === '/' || url.pathname.endsWith('/')) {
+    const index = await cache.match(cacheKey('index.html'))
+    if (index) {
+      return new Response(index.body, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'x-ota': 'true',
+        },
+      })
+    }
+  }
+
+  return fetch(req)
 }
 
-self.addEventListener('fetch', (event) => {
-  const request = event.request
-  if (request.method !== 'GET') return
+function isBundleUrl(url) {
+  const path = url.pathname
+  if (/^\/index\.html$/.test(path)) return true
+  if (/^\/(assets|chunk|main|styles|ota)\//.test(path)) return true
+  if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff2|woff|ttf|eot)$/.test(path)) return true
+  return false
+}
 
-  const url = new URL(request.url)
-  if (url.origin !== self.location.origin) return
-
-  event.respondWith((async () => {
-    const cached = await matchOta(request)
-    if (cached) return cached
-    try {
-      return await fetch(request)
-    } catch (err) {
-      // Offline & tidak ada di cache. Untuk navigasi kirim shell aman agar
-      // WebView tidak menampilkan halaman error bawaan.
-      if (request.mode === 'navigate') {
-        const fallback = await matchOta(new Request('/index.html'))
-        if (fallback) return fallback
-      }
-      throw err
-    }
-  })())
-})
+function cacheKey(path) {
+  try {
+    return new URL(path, self.location.origin).href
+  } catch {
+    return path
+  }
+}

@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Globe, Server, RotateCcw, Lock } from 'lucide-react'
-import { getMaskedApiUrl, probeServer } from '../../services/sync'
-import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
+import { useState } from 'react'
+import { Globe, Lock, Server, RotateCcw } from 'lucide-react'
+import { probeServer } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 interface SettingsScreenProps {
@@ -9,94 +8,57 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ go }: SettingsScreenProps) {
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [serverOk, setServerOk] = useState<boolean | null>(null)
-  const [checking, setChecking] = useState(false)
+  const [connection, setConnection] = useState<{ ok: boolean | null; checking: boolean }>({ ok: null, checking: false })
 
-  // Verifikasi koneksi PAKTI (ping /api/health) — navigator.onLine sering menipu
-  useEffect(() => {
-    let alive = true
-    const on = () => setIsOnline(true)
-    const off = () => setIsOnline(false)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    void probeServer(true).then(ok => { if (alive) setServerOk(ok) })
-    return () => {
-      alive = false
-      window.removeEventListener('online', on)
-      window.removeEventListener('offline', off)
-    }
-  }, [])
+  const online = typeof navigator !== 'undefined' ? navigator.onLine : false
+  const serverOk = connection.ok
+  const checking = connection.checking
+  const masked = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin.replace(/^https?:\/\//, '').slice(0, 24) + '…'
+    : '—'
 
-  // ── Cek versi / update aplikasi ──────────────────────────────────────────
-  const [appVersion, setAppVersion] = useState('—')
-  const [versionState, setVersionState] = useState<'idle' | 'checking' | 'latest' | 'available' | 'error'>('idle')
-  const [latestVersion, setLatestVersion] = useState<string | null>(null)
-  const [applying, setApplying] = useState(false)
-
-  useEffect(() => { void getCurrentVersion().then(v => setAppVersion(v ?? '—')) }, [])
-
-  const handleCheckVersion = async () => {
-    setVersionState('checking')
-    try {
-      const res = await checkForUpdate(await getCurrentVersion())
-      if (res.available) {
-        setLatestVersion(res.version ?? null)
-        setVersionState('available')
-      } else {
-        setVersionState('latest')
-      }
-    } catch {
-      setVersionState('error')
-    }
+  const checkConnectionClick = () => {
+    setConnection({ ok: null, checking: true })
+    void probeServer(true).then((ok) => setConnection({ ok, checking: false }))
   }
 
-  const handleApplyUpdate = async () => {
-    setApplying(true)
-    const ok = await applyUpdate()
-    if (ok) {
-      window.location.reload()
-    } else {
-      setApplying(false)
-      setVersionState('error')
-    }
-  }
-
-  const checkConnection = async () => {
-    setChecking(true)
-    try {
-      const ok = await probeServer(true)
-      setServerOk(ok)
-      setIsOnline(ok)
-    } finally { setChecking(false) }
-  }
-
-  // URL server: hanya sebagian tengah hostname yang disensor (read-only)
-  const masked = getMaskedApiUrl()
-
-  // ── Data-safety: tidak ada tombol "Hapus Data Lokal" di sini ──────────────
-  // Penghapusan antrean & trip lokal sengaja TIDAK disediakan di UI agar data
-  // petugas yang belum terkirim tidak pernah hilang secara tidak sengaja.
+  const footer = (
+    <div className="flex flex-col gap-2 mt-6 border-t border-slate-100 pt-4">
+      <p className="text-[10px] text-slate-400 leading-relaxed">
+        Trip Angkutan · Aplikasi mitra operasional petugas lapangan.
+      </p>
+      <p className="text-[10px] text-slate-400">
+        Offline-first · {online ? 'Online' : 'Offline'}
+      </p>
+    </div>
+  )
 
   return (
-    <div className="px-4 pt-3 pb-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <button onClick={() => go('profile')} className="flex-1 text-left text-blue-600 text-[13px] font-bold">
-          { String.raw`←` } Profil
-        </button>
+    <div className="px-4 pt-2 pb-4">
+      {/* Versi Aplikasi / Update OTA */}
+      <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center shrink-0">
+            <RotateCcw size={18} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[12px] font-bold text-slate-800">Versi Aplikasi</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              OTA online — lihat ayat di Langsung Selesaikan Trip Kosong
+            </p>
+          </div>
+          <button
+            onClick={() => void go('home')}
+            className="text-[10px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 shrink-0"
+          >
+            Kembali
+          </button>
+        </div>
       </div>
 
-      <div>
-        <h2 className="font-black text-[20px] text-slate-900">Pengaturan</h2>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Perangkat & server
-        </p>
-      </div>
-
-      {/* Status */}
-      <div className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isOnline ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+      {/* Jaringan */}
+      <div className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100 mt-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${serverOk === true ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
           <Globe size={18} />
         </div>
         <div className="flex-1">
@@ -115,12 +77,12 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
               ? 'bg-emerald-100 text-emerald-700'
               : serverOk === false
                 ? 'bg-amber-100 text-amber-700'
-                : 'bg-slate-100 text-slate-500'
+              : 'bg-slate-100 text-slate-500'
           }`}>
             {serverOk === true ? 'Terhubung' : serverOk === false ? 'Offline' : 'Cek…'}
           </span>
           <button
-            onClick={() => void checkConnection()}
+            onClick={() => void checkConnectionClick()}
             disabled={checking}
             className="text-[9px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded px-1.5 py-0.5 disabled:opacity-50"
           >
@@ -129,44 +91,8 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-      {/* Versi Aplikasi / Update OTA */}
-      <div className="bg-white rounded-2xl px-4 py-3.5 sh    adow-sm border border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center shrink-0">
-            <RotateCcw size={18} />
-          </div>
-          <div className="flex-1">
-            <p className="text-[12px] font-bold text-slate-800">Versi Aplikasi</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              {versionState === 'checking' ? 'Memeriksa pembaruan…'
-                : versionState === 'latest' ? 'Aplikasi sudah versi terbaru'
-                : versionState === 'available' ? `Update tersedia: ${latestVersion ?? 'versi baru'}`
-                : versionState === 'error' ? 'Gagal memeriksa update'
-                : `Terpasang: ${appVersion}`}
-            </p>
-          </div>
-          {versionState === 'available' ? (
-            <button
-              onClick={() => void handleApplyUpdate()}
-              disabled={applying}
-              className="text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-3 py-1.5 disabled:opacity-50 shrink-0"
-            >
-              {applying ? 'Memperbarui…' : 'Update Sekarang'}
-            </button>
-          ) : (
-            <button
-              onClick={() => void handleCheckVersion()}
-              disabled={versionState === 'checking'}
-              className="text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg px-3 py-1.5 disabled:opacity-50 shrink-0"
-            >
-              {versionState === 'checking' ? 'Memeriksa…' : 'Cek Versi'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      
-      <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-slate-100">
+      {/* Konfigurasi Server (read-only) */}
+      <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100 mt-3">
         <div className="flex items-center gap-2 mb-3">
           <Lock size={13} className="text-slate-400 shrink-0" />
           <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Konfigurasi Server</p>
@@ -184,8 +110,7 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
         </div>
       </div>
 
-
-
+      {footer}
     </div>
   )
 }
