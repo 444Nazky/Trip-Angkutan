@@ -2,8 +2,6 @@
 const CACHE_NAME = 'trip-ota-active'
 const COMPLEMENT = 'trip-ota-complement'
 
-const PRECOMMIT_FILES = new Set(['index.html', 'sw.js'])
-
 self.addEventListener('install', () => self.skipWaiting())
 
 self.addEventListener('activate', (e) => {
@@ -11,6 +9,9 @@ self.addEventListener('activate', (e) => {
     Promise.all([
       self.clients.claim(),
       caches.delete(COMPLEMENT).catch(() => {}),
+      caches.keys().then((names) =>
+        Promise.all(names.filter((n) => n !== CACHE_NAME && n.startsWith('trip-ota-')).map((n) => caches.delete(n))),
+      ),
     ]),
   )
 })
@@ -33,14 +34,10 @@ self.addEventListener('fetch', (e) => {
 
 async function handleRequest(req) {
   const url = new URL(req.url)
-
-  if (!isBundleUrl(url)) {
-    return fetch(req)
-  }
+  if (!isBundleUrl(url)) return fetch(req)
 
   const cache = await caches.open(CACHE_NAME)
   const cached = await cache.match(req)
-
   if (cached) {
     return new Response(cached.body, {
       headers: {
@@ -68,15 +65,15 @@ async function handleRequest(req) {
 
 function isBundleUrl(url) {
   const path = url.pathname
-  if (PRECOMMIT_FILES.has(url.filename || '')) return true
-  if (/^\/(?:assets|chunk|main|styles|ota)\//.test(path)) return true
+  if (/^\/index\.html$/.test(path)) return true
+  if (/^\/(assets|chunk|main|styles|ota)\//.test(path)) return true
   if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff2|woff|ttf|eot)$/.test(path)) return true
   return false
 }
 
 function cacheKey(path) {
   try {
-    return new URL(path, self.location.origin).toString()
+    return new URL(path, self.location.origin).href
   } catch {
     return path
   }
