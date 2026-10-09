@@ -1,21 +1,3 @@
-/**
- * UpdateNotifier Component
- * Runtime handler untuk notifikasi dan penerapan pembaruan web assets
- *
- * Fitur:
- * - Pengecekan versi & unduh di background (tanpa blocking UI)
- * - Pemberitahuan interaktif saat update siap diterapkan
- * - Hot-swap/reload runtime tanpa install ulang APK
- * - Progress download yang informatif
- * - Release notes untuk user
- * - Fallback aman jika OTA gagal
- *
- * Untuk web assets update (hot-swap):
- * - Bundle di-cache ke Capacitor Filesystem
- * - Service worker menyajikan bundle baru
- * - applyUpdate() mengaktifkan bundle → reload halaman
- */
-
 import { useEffect, useState, useCallback } from 'react'
 import { Download, RefreshCw, X, Check, AlertCircle, WifiOff } from 'lucide-react'
 import {
