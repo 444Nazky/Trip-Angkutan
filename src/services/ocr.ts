@@ -21,7 +21,7 @@ function toStandardFormat(text: string): string {
   // Convert to standard format: "B 1234 XY"
   const stripped = text.replace(/\s/g, '')
 
-  // Match: 1-2 letters + 1-4 numbers + 0-3 letters
+
   const match = stripped.match(/^([A-Z]{1,2})([0-9]{1,4})([A-Z]{0,3})$/)
   if (match) {
     const [, letters, numbers, suffix] = match
@@ -89,6 +89,8 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+
+// async function preprocessSrc(src: string): Promise<string> {
 async function preprocessSrc(src: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -105,10 +107,7 @@ async function preprocessSrc(src: string): Promise<string> {
   })
 }
 
-/**
- * OCR satu gambar → kandidat nomor plat.
- * Returns cleaned plate in standard format: "B 1234 XY"
- */
+// ocr 22
 export async function readPlateFromImage(image: Blob | string): Promise<string> {
   const src = typeof image === 'string' ? image : await blobToDataUrl(image)
 

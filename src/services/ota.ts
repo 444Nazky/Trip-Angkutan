@@ -28,19 +28,17 @@ const CACHE_PREFIX = 'trip-ota-'
 /** Folder penyimpanan internal bundle (Capacitor Filesystem, direktori Cache). */
 const OTA_DIR = 'trip-ota'
 const MARKER = '.complete.json'
-/** Cooldown setelah error sebelum retry */
+
+
 const ERROR_COOLDOWN_MS = 2 * 60 * 1000
 
 export interface VersionManifest {
   version: string
   assets: string[]
   minAppVersion?: string
-  /**
-   * Peta { "path/aset": "sha256-hex" } — DIPUBLISH oleh scripts/publish-ota-git.mjs.
-   * Bila ada, klien MEMVERIFIKASI tiap file unduhan; ketidakcocokan = manifest
-   * basi/unduhan rusak → update DIBATALKAN dengan aman (bukan "update palsu"
-   * yang sukses notifikasi tapi kode lama tetap jalan).
-   */
+
+  
+
   integrity?: Record<string, string>
 }
 

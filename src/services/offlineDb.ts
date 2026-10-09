@@ -1,13 +1,6 @@
 // ─── Offline-first Local Database ─────────────────────────────────────────────
 // Basis data lokal untuk mode offline:
-//   • Native (Android/iOS) → SQLite (@capacitor-community/sqlite)
-//   • Web / plugin belum   → fallback otomatis ke localStorage
-// Keduanya memakai API yang sama sehingga caller tidak perlu peduli backend.
-//
-// Tabel:
-//   officers     — daftar petugas satu dermaga/region (referensi untuk login
-//                  offline & layar Ganti Petugas)
-//   credentials  — hash PIN petugas (tidak pernah menyimpan PIN polos)
+
 
 import { Capacitor } from '@capacitor/core'
 import bcrypt from 'bcryptjs'

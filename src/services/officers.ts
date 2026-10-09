@@ -82,7 +82,7 @@ function toMobileOfficer(bo: BackendOfficer) {
     initials: bo.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     region: primaryRegion,
     regions: bo.regions?.map(r => r.code) ?? [primaryRegion],
-    pin: '', // Not exposed from backend for security
+    pin: '',
     status: bo.is_active ? 'Aktif' : 'Nonaktif',
     device: '-',
     trips: 0,
@@ -92,7 +92,8 @@ function toMobileOfficer(bo: BackendOfficer) {
   }
 }
 
-// Sync officers to local storage and return mobile-format list
+
+
 export async function syncOfficersToLocal(force = false): Promise<ReturnType<typeof toMobileOfficer>[]> {
   const backendOfficers = await fetchBackendOfficers(force)
   if (!backendOfficers.length) return []
