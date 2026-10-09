@@ -13,6 +13,7 @@ const dermagaRoutes = require('./routes/dermagas');
 const routeRoutes = require('./routes/routes');
 const reportRoutes = require('./routes/reports');
 const uploadRoutes = require('./routes/upload');
+const geofenceRoutes = require('./routes/geofences');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -44,6 +45,7 @@ app.use('/api/dermagas', dermagaRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/geofences', geofenceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

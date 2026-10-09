@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
-import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package, MapPinOff } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
+import { validateRouteForCurrentLocation, type GeofencePoint } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
 interface TripSummaryScreenProps {
@@ -13,6 +14,28 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle,
     finishEmptyTrip, finishMuatanTrip, removeDraftVehicle, editDraftVehicle,
   } = useApp()
+
+  // ── Geofence State ─────────────────────────────────────────────────
+  const [geofenceError, setGeofenceError] = useState<string | null>(null)
+  const [geofenceLoading, setGeofenceLoading] = useState(false)
+  const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
+
+  // Cek geofence saat mount
+  useEffect(() => {
+    if (!draft.routeCode) return
+    setGeofenceLoading(true)
+    setGeofenceError(null)
+    validateRouteForCurrentLocation(draft.routeCode)
+      .then(result => {
+        if (!result.valid) {
+          setGeofenceError(result.reason ?? 'Lokasi tidak valid')
+        }
+        setActiveGeofence(result.activePoint ?? null)
+        setGeofenceError(result.valid ? null : (result.reason ?? 'Lokasi tidak valid'))
+      })
+      .catch(() => setGeofenceError(null))
+      .finally(() => setGeofenceLoading(false))
+  }, [draft.routeCode])
 
   const allRoutes = activeRoutes()
   const route = allRoutes.find(r => r.code === draft.routeCode) ?? allRoutes[0]
@@ -55,6 +78,21 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     })
   }, [draft.vPhoto, draft.vPhotoUrl, draft.vPhotoCapturedAt, draft.vPhotoLatitude, draft.vPhotoLongitude, draft.vehicles, draft.vehiclePhotoTarget, patchDraft, patchDraftVehicle])
 
+  // ── Geofence Validation ─────────────────────────────────────────────
+  const handleGeofenceSubmit = async () => {
+    if (!draft.routeCode) return false
+    setGeofenceLoading(true)
+    setGeofenceError(null)
+    const result = await validateRouteForCurrentLocation(draft.routeCode)
+    setGeofenceLoading(false)
+    if (!result.valid) {
+      setGeofenceError(result.reason ?? 'Lokasi tidak valid')
+      return false
+    }
+    setActiveGeofence(result.activePoint ?? null)
+    return true
+  }
+
   const handleSubmit = () => {
     if (draft.condition === 'kosong') {
       startTrip()
@@ -79,7 +117,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     if (actionType === 'selfie') { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera'); return }
     if (actionType === 'vehicle') { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: draft.vehicles.findIndex(v => !v.photoUrl) }); go('camera') }
   }
-  const onMain = () => { if (allDocsComplete) handleSubmit() }
+  const onMain = async () => {
+    if (!allDocsComplete) return
+    const geoOk = await handleGeofenceSubmit()
+    if (!geoOk) return
+    handleSubmit()
+  }
 
   return (
     <div className="px-4 pt-2 pb-4">
@@ -186,6 +229,30 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ))}
       </div>
 
+      {/* ── Geofence Error Banner ── */}
+      {geofenceError && (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-4 mb-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+            <MapPinOff size={16} className="text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-red-700 mb-1">Lokasi Tidak Valid</p>
+            <p className="text-[12px] text-red-600">{geofenceError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Geofence Active Indicator ── */}
+      {activeGeofence && !geofenceError && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-4 flex items-center gap-2">
+          <MapPin size={14} className="text-blue-600" />
+          <p className="text-[12px] text-blue-700">
+            <span className="font-semibold">{activeGeofence.name}</span>
+            <span className="text-blue-500"> — hanya rute {activeGeofence.allowedRoutes.join(', ')}</span>
+          </p>
+        </div>
+      )}
+
       {/* SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif. */}
       <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${allDocsComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allDocsComplete ? 'bg-emerald-100' : 'bg-amber-100'}`}>
@@ -224,7 +291,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
       <button
         onClick={onMain}
-        disabled={!allDocsComplete}
+        disabled={!allDocsComplete || !!geofenceError || geofenceLoading}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />

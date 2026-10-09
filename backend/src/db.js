@@ -607,6 +607,22 @@ function initialize() {
   `);
 
   seedData();
+
+	  // Geofence points table
+	  db.run(`
+	    CREATE TABLE IF NOT EXISTS geofences (
+	      id TEXT PRIMARY KEY,
+	      name TEXT NOT NULL,
+	      dermaga_id TEXT,
+	      latitude REAL NOT NULL,
+	      longitude REAL NOT NULL,
+	      radius_meters INTEGER DEFAULT 100,
+	      allowed_routes TEXT NOT NULL DEFAULT '[]',
+	      enabled INTEGER DEFAULT 1,
+	      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	    )
+	  `);
   saveDb();
 }
 

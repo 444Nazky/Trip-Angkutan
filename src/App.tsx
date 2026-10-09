@@ -7,6 +7,7 @@ import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { getCurrentVersion, restoreBundleFromStorage } from "./services/ota"
+import { syncGeofencesFromBackend } from "./services/geofence"
 import UpdateNotifier from "./components/UpdateNotifier"
 
 function Shell() {
@@ -17,6 +18,7 @@ function Shell() {
     initializeSync()
     void initOfflineDb()
     void restoreBundleFromStorage()
+    void syncGeofencesFromBackend()
   }, [])
 
   // Initialize version reference untuk UpdateNotifier
