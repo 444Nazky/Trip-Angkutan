@@ -60,18 +60,15 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       finishEmptyTrip()
       go('trip-complete')
     } else {
-
       startTrip()
       finishMuatanTrip()
       go('trip-complete')
     }
   }
 
-
-  // Satu kartu foto gabungan + satu tombol utama.
+  // Satu kartu foto HANYA di sini (tidak ada kartu duplikat).
   const selfiePending = selfieRequired && !selfieTaken
   const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
-  // Tombol utama: terkunci sampai semua dokumentasi (termasuk swafoto) lengkap.
   const mainDisabled = !allDocsComplete
   const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
   const goCapture = () => {
@@ -186,14 +183,18 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ))}
       </div>
 
-      {/* Satu kartu foto gabungan — tidak ada kartu duplikat. */}
+      {/* SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif. */}
       <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${allDocsComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allDocsComplete ? 'bg-emerald-100' : 'bg-amber-100'}`}>
           <Camera size={16} className={allDocsComplete ? 'text-emerald-500' : 'text-amber-500'} />
         </div>
         <div className="flex-1 min-w-0">
           <p className={`text-[12px] font-bold ${allDocsComplete ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {allDocsComplete ? 'Foto kamera siap' : actionType === 'photo' ? 'Foto bukti trip belum diambil' : actionType === 'selfie' ? 'Swafoto penutup belum diambil' : 'Foto kendaraan belum lengkap'}
+            {allDocsComplete
+              ? 'Foto kamera siap'
+              : actionType === 'photo' ? 'Foto bukti trip belum diambil'
+              : actionType === 'selfie' ? 'Swafoto penutup belum diambil'
+              : 'Foto kendaraan belum lengkap'}
           </p>
           <p className={`text-[10px] ${allDocsComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
             {allDocsComplete ? 'Bukti trip tersimpan — siap dikirim' : 'Wajib diambil sebelum trip dikirim'}
@@ -208,7 +209,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           </button>
         )}
         {allDocsComplete && draft.photoUrl && (
-          <img src={draft.photoUrl} alt="Bukti Trip" className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0" />
+          <img
+            src={draft.photoUrl}
+            alt="Bukti Trip"
+            className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0"
+          />
         )}
       </div>
 

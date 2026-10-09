@@ -22,6 +22,7 @@ import {
   getCurrentVersion,
   checkForUpdate,
   applyUpdate,
+  resetOtaStorage,
   type UpdateState
 } from '../services/ota'
 
@@ -143,11 +144,12 @@ interface SheetProps {
   onApply: () => void
   onDismiss: () => void
   onRetry: () => void
+  onHardReset: () => void
   position: string
   zIndex: number
 }
 
-function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
+function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetProps) {
   const { status, error, latestVersion } = state
 
   // Tidak tampil jika idle atau checking
@@ -218,13 +220,22 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
    
           <div className="flex gap-2 mt-4">
             {status === 'error' && (
-              <button
-                onClick={onRetry}
-                className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-              >
-                <RefreshCw size={16} />
-                Coba Lagi
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={onRetry}
+                  className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} />
+                  Coba Lagi
+                </button>
+                <button
+                  onClick={onHardReset}
+                  className="flex-1 py-3.5 px-4 bg-slate-800 text-base hover:bg-slate-900 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} />
+                  Reset Update
+                </button>
+              </div>
             )}
 
             {status === 'ready' && (
@@ -246,12 +257,21 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
             )}
 
             {status === 'offline' && (
-              <button
-                onClick={onDismiss}
-                className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
-              >
-                Tutup
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={onDismiss}
+                  className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
+                >
+                  Tutup
+                </button>
+                <button
+                  onClick={onHardReset}
+                  className="flex-1 py-3.5 px-4 bg-slate-800 text-base hover:bg-slate-900 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} />
+                  Reset Koneksi
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -329,19 +349,33 @@ export default function UpdateNotifier({
     return () => window.removeEventListener('online', onOnline)
   }, [autoCheck, performCheck])
 
-  // Apply update and reload
+  // Terapkan update + paksa reload. Bila gagal, nyediakan opsi pemaksa reset OTA.
   const handleApply = useCallback(async () => {
     const success = await applyUpdate()
     if (success) {
       onUpdateApplied?.(currentVersion)
-      // Service worker will serve new bundle on reload
+      // Service worker akan serve bundle baru setelah reload.
       window.location.reload()
+    } else {
+      // Jika update macet / bundle tidak utuh, beri jalan keluar: reset OTA.
+      try {
+        await resetOtaStorage()
+        setState({ status: 'idle', latestVersion: await getCurrentVersion() ?? '0.0.0' })
+      } catch { /* best-effort */ }
     }
   }, [currentVersion, onUpdateApplied])
 
   // Dismiss update notification
   const handleDismiss = useCallback(() => {
     setState({ status: 'idle' })
+  }, [])
+
+  // Hard reset OTA: pakai ini bila perangkat macet di update lama / bundle tidak utuh.
+  const handleHardReset = useCallback(async () => {
+    try {
+      await resetOtaStorage()
+      setState({ status: 'idle', latestVersion: await getCurrentVersion() ?? '0.0.0' })
+    } catch { /* best-effort */ }
   }, [])
 
   // Retry failed update
@@ -376,6 +410,7 @@ export default function UpdateNotifier({
           onApply={handleApply}
           onDismiss={handleDismiss}
           onRetry={handleRetry}
+          onHardReset={handleHardReset}
           position={positionClass}
           zIndex={zIndex}
         />
@@ -425,6 +460,13 @@ export function useUpdateNotifier(options?: Omit<UpdateNotifierProps, 'onStateCh
     }
   }, [])
 
+  const hardReset = useCallback(async () => {
+    try {
+      await resetOtaStorage()
+      setState({ status: 'idle', latestVersion: await getCurrentVersion() ?? '0.0.0' })
+    } catch { /* best-effort */ }
+  }, [])
+
   return {
     state,
     isAvailable,
@@ -433,5 +475,6 @@ export function useUpdateNotifier(options?: Omit<UpdateNotifierProps, 'onStateCh
     apply,
     dismiss,
     refresh,
+    hardReset,
   }
 }

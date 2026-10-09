@@ -7,7 +7,7 @@
  *   1. git worktree add sementara ke origin/mobile
  *   2. hapus aset lama di root worktree yang berasal dari build sebelumnya
  *   3. salin isi www/ ke root worktree
- *   4. generate version.json (versi = short SHA origin/mobile + timestamp)
+ *   4. generate version.json (versi manusiawi berbasis short SHA + timestamp)
  *   5. commit & push origin HEAD:mobile
  */
 import { execSync } from 'node:child_process'
@@ -83,9 +83,14 @@ try {
   }
   fs.cpSync(WEB_DIR, TMP, { recursive: true })
 
-  // Versi murni angka naik-terus — cocok dengan SEMUA versi isNewer
-  // (lama maupun baru) yang membandingkan segmen numerik.
-  const version = String(Date.now())
+  // ── Versi manusiawi: SemVer "1.0.<build>" berbasis SHA short + timestamp ──
+  // Tetap monoton naik dan stabil dibaca manusia, tapi tetap bisa diurutkan
+  // oleh isNewer() (prefix SemVer diprioritaskan, timestamp jadi tie-breaker).
+  const short = run('git rev-parse --short=7 HEAD')
+  const ts = Date.now()
+  const build = (ts % 1_000_000)
+  const version = `1.0.${build}+${short}`
+
   const manifest = JSON.stringify({ version, assets, integrity }, null, 2)
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
@@ -95,9 +100,10 @@ try {
     console.log('Tidak ada perubahan aset — skip push.')
     process.exit(0)
   }
-  run(`git commit -m "chore(ota): bump version to ${version}"`, TMP)
+  run(`git commit -m "chore(ota): bump to ${version}"`, TMP)
   run(`git push origin HEAD:${BRANCH}`, TMP)
   console.log('✅ OTA assets + version.json pushed to', BRANCH)
+  console.log(`   version=${version}`)
 } finally {
   try { run(`git worktree remove --force ${TMP}`) } catch { /* */ }
   fs.rmSync(TMP, { recursive: true, force: true })

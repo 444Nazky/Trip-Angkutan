@@ -114,7 +114,10 @@ function fromBase64(b64: string): Uint8Array {
   return out
 }
 
-const isNative = () => Capacitor.isNativePlatform()
+const isNative = () => {
+  if (typeof Capacitor === 'undefined') return false
+  return Capacitor.isNativePlatform?.() ?? false
+}
 
 type ManifestResult =
   | { ok: true; manifest: VersionManifest }
@@ -123,9 +126,10 @@ type ManifestResult =
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   let res: Response
   try {
-    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+    res = await fetch(MANIFEST_URL, {
       signal,
       cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
     })
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') throw err
@@ -148,14 +152,44 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   }
 }
 
-// Bandingkan versi semver ATAU commit-hash. Returns true bila remote lebih baru.
+// ── Perbandingan versi (SemVer + hybrid SemVer+timestamp) ─────────────────────
+//
+// Format yang didukung:
+//   • "1.0.0" (SemVer murni)
+//   • "1.0.0+1791494911890" (hybrid; timestamp hanya jadi tie-breaker)
+//   • "1791494911890" (format legacy timestamp murni — tetep bisa dibanding)
+//   • commit-hash / opaque (pernah ditemukan di versi lama)
+//
+// Aturan utama:
+//   1. Jika kedua versi punya prefix SemVer (major.minor.patch), bandingkan
+//      prefix itu dulu (lebih manusiawi & stabil ketimbang timestamp mentah).
+//   2. Jika prefix SemVer sama, timestamp build (+xxxx) adalah penentu.
+//   3. Jika tidak ada prefix SemVer (timestamp murni / hash), bandingkan
+//      segmen numerik biasa atau prefiks.
 export function isNewer(remote: string, local: string): boolean {
   if (!local) return true
+  if (!remote) return false
   if (remote === local) return false
-  // Format "x.y.z+<timestamp>": bandingkan timestamp build-nya dulu
-  const rt = /\+(\d+)/.exec(remote)?.[1]
-  const lt = /\+(\d+)/.exec(local)?.[1]
-  if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
+
+  const rSem = semverPrefix(remote)
+  const lSem = semverPrefix(local)
+
+  // Kedua versi punya prefix SemVer → bandingkan prefix, lalu timestamp
+  if (rSem && lSem) {
+    if (rSem !== lSem) {
+      return compareSemverParts(rSem, lSem) > 0
+    }
+    // Prefix sama → timestamp build sebagai penentu (bila ada)
+    const rt = /\+(\d+)/.exec(remote)?.[1]
+    const lt = /\+(\d+)/.exec(local)?.[1]
+    if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
+    if (rt) return true
+    if (lt) return false
+    // Sama fully → tidak lebih baru
+    return false
+  }
+
+  // Satu/both tidak punya SemVer → bandingkan versi "angka" secara umum.
   const rm = remote.match(/\d+/g)
   const lm = local.match(/\d+/g)
   if (rm && lm) {
@@ -165,11 +199,43 @@ export function isNewer(remote: string, local: string): boolean {
       const ln = parseInt(lm[i] ?? '0', 10)
       if (rn !== ln) return rn > ln
     }
-    // Semua angka sama (mis. "1.0" vs "1.0.0") → versi dianggap sama
+    // Semua segmen numerik sama → versi dengan build tambahan (+xxxx) dianggap
+    // lebih baru dari versi tanpa build, agar hybrid lebih baru dari timestamp murni.
+    const rHybridBuild = /\+(\d+)/.exec(remote)?.[1]
+    const lHybridBuild = /\+(\d+)/.exec(local)?.[1]
+    if (rHybridBuild && lHybridBuild) return false
+    if (rHybridBuild) return true
+    if (lHybridBuild) return true
     return remote.length > local.length
   }
-  // Gaya commit-hash: remote lebih baru bila bukan prefiks local
+
+  // Fallback: hash / opaque → remote lebih baru bila bukan prefiks lokal
   return !remote.startsWith(local)
+}
+
+/** Ambil prefix SemVer (major.minor.patch) dari versi hybrid, atau null. */
+function semverPrefix(version: string): string | null {
+  if (!version) return null
+  const m = version.match(/^(\d+\.\d+\.\d+)/)
+  return m ? m[1] : null
+}
+
+/** Bandingkan dua prefix SemVer (format "major.minor.patch"), return -1/0/1. */
+function compareSemverParts(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] > pb[i]) return 1
+    if (pa[i] < pb[i]) return -1
+  }
+  return 0
+}
+
+/** Tampilkan versi yang manusiawi (mis. "1.0.1") tanpa timestamp. */
+export function semverLabel(version: string): string {
+  if (!version) return '—'
+  const m = version.match(/^(\d+\.\d+\.\d+)/)
+  return m ? m[1] : version
 }
 
 /** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
@@ -333,6 +399,75 @@ async function discardBundle(version?: string): Promise<void> {
   if (version) await removeStorage(version)
 }
 
+// ── Pembersihan versi lama (auto-purge) ──────────────────────────────────────
+//
+// Prinsip: hanya SATU versi bundle yang aktif (terbaru). Versi lama —
+// termasuk versi yang gagal/parsial — harus dibuang agar:
+//   • storage tidak menumpuk,
+//   • tidak ada ambiguitas "versi mana yang dipakai",
+//   • update kedua/berikutnya tidak macet karena state lama.
+//
+// Dipanggil otomatis: (a) saat apply/update berhasil, (b) saat cek update
+// mendeteksi versi baru yang lebih tinggi dari yang tersimpan di perangkat.
+
+export async function listPersistedVersions(): Promise<string[]> {
+  if (!isNative()) return []
+  try {
+    const dir = await Filesystem.readdir({ path: OTA_DIR, directory: Directory.Cache })
+    const names: string[] = []
+    for (const f of (dir.files ?? [])) {
+      // FileInfo.isDirectory tersedia di beberapa versi plugin; fallback aman:
+      if ('isDirectory' in f && (f as any).isDirectory) names.push(String((f as any).name))
+      else if (!('isDirectory' in f) && !String(f.name).includes('.')) names.push(String(f.name))
+    }
+    return names
+  } catch { return [] }
+}
+
+export async function purgeStaleBundleVersions(keepVersion?: string): Promise<void> {
+  try {
+    const kept = keepVersion ?? (await getCurrentVersion()) ?? BUNDLED_VERSION
+    const all = await listPersistedVersions()
+    const targets = all.filter(v => v !== kept)
+    for (const v of targets) {
+      await discardBundle(v)
+      await removeStorage(v)
+    }
+  } catch { /* bersihkan versi lama adalah best-effort */ }
+}
+
+/** Hapus SEMUA versi bundle + state OTA. Digunakan jika perangkat "update macet". */
+export async function resetOtaStorage(): Promise<void> {
+  try {
+    try {
+      const all = await listPersistedVersions()
+      for (const v of all) {
+        await discardBundle(v)
+        await removeStorage(v)
+      }
+    } catch { /* best-effort */ }
+
+    try {
+      const cache = await caches.open(OTA_CACHE)
+      const keys = await cache.keys()
+      await Promise.all(keys.map(k => cache.delete(k)))
+    } catch { /* cache tidak tersedia */ }
+
+    try {
+      await Filesystem.rmdir({ path: OTA_DIR, directory: Directory.Cache, recursive: true })
+    } catch { /* sudah tidak ada */ }
+  } catch { /* */ }
+
+  try {
+    localStorage.removeItem(STATE_KEY)
+    localStorage.removeItem(CURRENT_VER_KEY)
+    localStorage.removeItem(LAST_ERROR_KEY)
+  } catch { /* quota */ }
+
+  // Reset state ke idle agar next check tidak macet.
+  saveState({ status: 'idle', latestVersion: BUNDLED_VERSION })
+}
+
 // ── Aktivasi bundle ──────────────────────────────────────────────────────────
 
 /**
@@ -398,11 +533,28 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
 /**
  * Daftarkan service worker penyaji bundle OTA. Gagal registrasi TIDAK membuat
  * crash — aplikasi tetap berjalan dengan bundle bawaan.
+ *
+ * Setelah mendaftarkan ulang (mis. bundle aktif berubah), kirim message ke
+ * SW supaya self-heal: skip waiting, aktifkan versi baru, purge cache basi.
  */
-export function registerOtaServiceWorker(): void {
+export function registerOtaServiceWorker(forceRefresh = false): void {
   if (!('serviceWorker' in navigator)) return
   if (location.protocol === 'file:') return
-  navigator.serviceWorker.register('sw.js', { scope: '/' }).catch(err => {
+  navigator.serviceWorker.register('sw.js', { scope: '/' }).then(reg => {
+    if (forceRefresh) {
+      // Tunjuk ke versi terbaru yang baru saja diaktifkan
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing
+        if (!newWorker) return
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            newWorker.postMessage({ type: 'SKIP_WAITING' })
+          }
+        })
+      })
+    }
+  }).catch(err => {
     console.warn('[ota] service worker gagal didaftarkan:', err)
   })
 }
@@ -419,13 +571,21 @@ let controller: AbortController | undefined
 
 /**
  * Cek update. Silent fail untuk network errors - tidak pernah tampilkan
- * "manifest tidak terjangkau" yang membingungkan petugas lapanga
+ * "manifest tidak terjangkau" yang membingungkan petugas lapangan.
+ *
+ * Perbaikan bug update ke-2:
+ *   • Selalu dapat versi lokal DARI STORAGE (bukan argumen yang bisa basi).
+ *   • Saat remote lebih baru, jangan pin state "downloading" lama yang macet;
+ *     reset dulu state OTA jika terlihat stuck (downloading/ready tapi tidak
+ *     utuh) sebelum mulai unduh ulang.
  */
 export async function checkForUpdate(
   currentVersion: string | undefined | null,
   onState?: (s: UpdateState) => void,
 ): Promise<CheckResult> {
   const emit = (s: UpdateState) => { saveState(s); onState?.(s) }
+
+  // Versi lokal sebenarnya diambil dari storage biar tidak basi.
   const local = currentVersion ?? (await getCurrentVersion()) ?? BUNDLED_VERSION
 
   controller?.abort()
@@ -439,11 +599,16 @@ export async function checkForUpdate(
       return { available: false }
     }
 
-    // Skip cek jika baru saja gagal dalam 2 menit (cooldown)
+    // 2a — pendinginan error biar tidak spam fetch saat jaringan goyang.
     const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
     if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
       return { available: false }
     }
+
+    // ── 2a — cek anti-stuck: bila state masih "downloading" atau "ready"
+    // tapi bundle tidak utuh / sudah basi, reset ke idle sebelum cek lagi.
+    // Ini yang mencegah perangkat "diam" setelah pull kedua (status cor menetap).
+    await clearStuckOtaState()
 
     const result = await fetchManifest(sig)
     if (!result.ok) {
@@ -469,11 +634,10 @@ export async function checkForUpdate(
       return { available: false }
     }
 
-    emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
-    // Buang unduhan parsial versi ini. Bundle AKTIF tidak disentuh sampai
-    // aktivasi, supaya app yang sedang berjalan tetap utuh.
+    // Bundle parsial versi ini (bila ada) dibuang sebelum unduh ulang.
     await removeStorage(remote.version)
 
+    emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
     const downloaded: string[] = []
     const total = remote.assets.length
 
@@ -486,12 +650,13 @@ export async function checkForUpdate(
       const asset = remote.assets[i]
       try {
         const bytes = await downloadAsset(asset, sig)
-        // Verifikasi SHA-256 terhadap manifest — file basi/tidak cocok dibuang.
+        // Verifikasi isi file terhadap manifest — file basi/rusak dibuang,
+        // update dibatalkan dengan aman (app tetap pakai bundle bawaan APK).
         if (!(await verifyAsset(bytes, asset, remote.integrity))) {
-          console.warn('[ota] integritas gagal (silent):', asset)
+          console.warn('[ota] integritas aset tidak cocok, batalkan update:', asset)
           await removeStorage(remote.version)
           localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-          emit({ status: 'idle', latestVersion: local })
+          emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
           return { available: false }
         }
         await persistToStorage(remote.version, asset, bytes)
@@ -534,16 +699,40 @@ export async function checkForUpdate(
 }
 
 /**
+ * Bersihkan state OTA yang macet (mis. sebagai akibat pull kedua yang gagal,
+ * atau bundle yang tidak utuh setelah clear-data).
+ * Dipanggil di awal checkForUpdate + dipanggil eksplisit saat start.
+ */
+async function clearStuckOtaState(): Promise<void> {
+  const state = getCachedState()
+  if (!state) return
+  const stuck = state.status === 'downloading' || (state.status === 'ready' && (!state.downloaded || state.downloaded.length === 0))
+  if (!stuck) return
+  // Hapus bundle parsial yang mungkin menahan cache basi.
+  await discardBundle(state.latestVersion)
+  saveState({ status: 'idle', latestVersion: state.latestVersion ?? await getCurrentVersion() ?? BUNDLED_VERSION })
+}
+
+/**
  * Terapkan bundle terunduh. Returns true bila berhasil → panggil
  * window.location.reload(). Bila gagal → false, aplikasi tetap berjalan
  * normal dengan versi sekarang (tanpa crash / layar kosong).
+ *
+ * Setelah berhasil:
+ *   • Aktifkan bundle (isi Cache Storage dari penyimpanan internal).
+ *   • Simpan versi saat ini ke storage.
+ *   • Tandai bundle sebagai persisten (supaya survival clear-data).
+ *   • AUTOPURGE versi lama dari penyimpanan internal + Cache Storage.
  */
 export async function applyUpdate(): Promise<boolean> {
   try {
     const state = getCachedState()
     const version = state?.latestVersion
     const assets = state?.downloaded
-    if (!version || !assets?.length) return false
+    if (!version || !assets?.length) {
+      console.warn('[ota] applyUpdate ditolak: versi atau asset belum tersedia')
+      return false
+    }
 
     const marker = await readMarker(version)
     const list = marker?.assets?.length ? marker.assets : assets
@@ -552,11 +741,27 @@ export async function applyUpdate(): Promise<boolean> {
     if (!ok) {
       await discardBundle(version)
       saveState({ status: 'error', error: 'bundle tidak lengkap', latestVersion: version })
+      console.warn('[ota] applyUpdate gagal: bundle tidak utuh setelah aktivasi')
       return false
     }
 
     setCurrentVersion(version)
+    await writeMarker(version, list)
+    await markBundlePersisted()
     saveState({ status: 'idle', latestVersion: version })
+
+    // AUTOPURGE: hapus versi lama sehingga hanya versi terbaru yang tersisa.
+    // Ini jawaban utama atas "cache/bundle/chunk lama tidak terhapus otomatis".
+    await purgeStaleBundleVersions(version)
+
+    // Diagnostik pasca-apply: log versi lokal, deteksi remote, dan versi terapan.
+    try {
+      const localVer = await getCurrentVersion()
+      const check = await checkForUpdate(localVer)
+      const latestDetected = check.version ?? localVer
+      console.info('[ota] diagnostik after apply — local:', localVer, '| latest detected:', latestDetected, '| applied:', version)
+    } catch { /* diagnostik bersifat opsional */ }
+
     // Bundle OTA baru diterapkan → minta penarikan roster petugas SEGERA saat
     // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin
     // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
@@ -581,4 +786,51 @@ export async function clearCache(): Promise<void> {
     localStorage.removeItem(STATE_KEY)
     localStorage.removeItem(CURRENT_VER_KEY)
   } catch { /* quota */ }
+}
+
+// ── Lifecycle toggle ─────────────────────────────────────────────────────────
+// Flag terpisah dari versi: bila diset (value='1') aplikasi start,
+// service worker WAJIB serve bundle OTA aktif (bukan bundle bawaan APK).
+// Harus ada karena clear-data / reinstall bisa membuat perangkat lupa bahwa
+// bundle OTA pernah diaktifkan — flag ini juara "apakah bundle harus dijadikan
+// yang dikirim ke UI".
+export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
+
+/**
+ * Tandai bahwa bundle versi ini sudah diaktifkan (dipakai service worker).
+ * Dipakai main.tsx/ota boot: bila flag ada, panggil activateBundle() + reload
+ * saat start, bukan cuma menunggu tombol manual.
+ */
+export async function markBundlePersisted(): Promise<void> {
+  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
+}
+
+export async function clearPersistFlag(): Promise<void> {
+  try { localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY) } catch { /* quota */ }
+}
+
+export async function hasPersistFlag(): Promise<boolean> {
+  try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
+}
+
+/**
+ * Audit cepat versi aplikasi vs remote (tanpa side efek yang berbahaya).
+ * Return objek gampang dipakai untuk UI/debug.
+ */
+export async function auditOta(): Promise<{
+  local: string
+  remote: string | null
+  remoteAvailable: boolean
+  isUpToDate: boolean
+}> {
+  const local = (await getCurrentVersion()) ?? BUNDLED_VERSION
+  try {
+    const check = await checkForUpdate(local)
+    const remote = check.version ?? null
+    const remoteAvailable = remote !== null && check.available
+    const isUpToDate = !check.available && remote === local
+    return { local, remote, remoteAvailable, isUpToDate }
+  } catch {
+    return { local, remote: null, remoteAvailable: false, isUpToDate: false }
+  }
 }
