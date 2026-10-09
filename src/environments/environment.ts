@@ -24,5 +24,5 @@ export const environment = {
 // for the maximum range is 100m. and make sure to make it strict
 
 // for now this feature only available for region badau dermaga 1 first for the testing
-
-
+// add this settings on the admin dashboard too so the supervisor can customize and decide where the cordinate point or location placed.
+// 
