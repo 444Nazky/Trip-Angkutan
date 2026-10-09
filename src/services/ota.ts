@@ -743,7 +743,23 @@ export async function applyUpdate(): Promise<boolean> {
       return false
     }
 
-    // Hapus versi lama dari penyimpanan internal sebelum menyimpan versi baru.
+    // PENTING: Bersihkan cache lama SEBELUM menyimpan versi baru.
+    // Ini MUTLAK diperlukan agar service worker tidak salah mengambil file lama.
+    // Hapus SEMUA cache OTA lama (bukan hanya yang bukan OTA_CACHE).
+    try {
+      if (typeof caches !== 'undefined') {
+        const allCaches = await caches.keys()
+        const otaCaches = allCaches.filter(n => n.startsWith(CACHE_PREFIX) || n === OTA_CACHE)
+        await Promise.all(otaCaches.map(n => {
+          console.log(`[ota] menghapus cache lama: ${n}`)
+          return caches.delete(n)
+        }))
+      }
+    } catch (e) {
+      console.warn('[ota] gagal membersihkan cache lama:', e)
+    }
+
+    // Hapus versi lama dari penyimpanan internal.
     // Ini mencegah error "tidak ada perubahan" saat pull update kedua karena
     // bundle lama tidak dibersihkan dan service worker salah mengambil file lama.
     const oldVersion = await getCurrentVersion()
