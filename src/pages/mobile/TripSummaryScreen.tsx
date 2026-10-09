@@ -66,7 +66,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     }
   }
 
-  // Satu kartu foto HANYA di sini (tidak ada kartu duplikat).
+  // SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif.
+  // Prioritaskan selfie untuk trip muatan agar thumbnail selfie ditampilkan
+  const previewPhoto = draft.photoUrl
+  const previewSelfie = draft.selfieUrl
+  // Tampilkan selfie jika trip muatan dan selfie sudah diambil, selain itu tampilkan photo
+  const thumbnailUrl = selfieRequired && previewSelfie ? previewSelfie : previewPhoto
   const selfiePending = selfieRequired && !selfieTaken
   const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
   const mainDisabled = !allDocsComplete
@@ -208,11 +213,13 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi Foto'}
           </button>
         )}
-        {allDocsComplete && draft.photoUrl && (
+        {/* Tampilkan thumbnail jika ada foto atau selfie yang sudah diambil */}
+        {thumbnailUrl && (
           <img
-            src={draft.photoUrl}
+            src={thumbnailUrl}
             alt="Bukti Trip"
-            className="w-10 h-10 rounded-lg object-cover border border-emerald-200 shrink-0"
+            className="w-10 h-10 rounded-lg object-cover border shrink-0"
+            style={{ borderColor: allDocsComplete ? '#a7f3d0' : '#fde68a' }}
           />
         )}
       </div>

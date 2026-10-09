@@ -743,6 +743,15 @@ export async function applyUpdate(): Promise<boolean> {
       return false
     }
 
+    // Hapus versi lama dari penyimpanan internal sebelum menyimpan versi baru.
+    // Ini mencegah error "tidak ada perubahan" saat pull update kedua karena
+    // bundle lama tidak dibersihkan dan service worker salah mengambil file lama.
+    const oldVersion = await getCurrentVersion()
+    if (oldVersion && oldVersion !== BUNDLED_VERSION && oldVersion !== version) {
+      await removeStorage(oldVersion)
+      console.log(`[ota] versi lama ${oldVersion} dihapus dari penyimpanan`)
+    }
+
     setCurrentVersion(version)
     await writeMarker(version, list)
     await markBundlePersisted()

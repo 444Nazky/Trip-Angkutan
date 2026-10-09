@@ -23,6 +23,7 @@ import {
   checkForUpdate,
   applyUpdate,
   resetOtaStorage,
+  semverLabel,
   type UpdateState
 } from '../services/ota'
 
@@ -110,12 +111,14 @@ function CompactBadge({ state, onApply, onDismiss, position }: CompactBadgeProps
   // Hanya tampil saat state critical atau ready
   if (state.status !== 'ready') return null
 
+  const displayVersion = semverLabel(state.latestVersion ?? '')
+
   return (
     <div className={`fixed ${position} z-50 animate-in slide-in-from-bottom-2 fade-in duration-300`}>
       <div className="flex items-center gap-3 bg-slate-800/95 backdrop-blur-sm text-white rounded-full pl-4 pr-1 py-1.5 shadow-2xl border border-slate-700/50">
         <StatusIcon status={state.status} />
         <span className="text-sm font-medium">
-          Update {state.latestVersion} siap
+          Update {displayVersion} siap
         </span>
         <div className="flex items-center gap-1">
           <button
@@ -151,7 +154,8 @@ interface SheetProps {
 }
 
 function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: SheetProps) {
-  const { status, error, latestVersion } = state
+  const { status, error } = state
+  const displayVersion = semverLabel(state.latestVersion ?? '')
 
   // Tidak tampil jika idle atau checking
   if (status === 'idle' || status === 'checking') return null
@@ -182,10 +186,10 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: Sh
         {/* Content */}
         <div className="p-6">
           {/* Version info */}
-          {latestVersion && (
+          {state.latestVersion && (
             <div className="flex items-center gap-2 mb-3">
               <span className="text-slate-500 text-sm">Versi baru:</span>
-              <span className="font-mono font-semibold text-slate-800">{latestVersion}</span>
+              <span className="font-mono font-semibold text-slate-800">{displayVersion}</span>
             </div>
           )}
 
