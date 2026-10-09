@@ -22,6 +22,7 @@ import {
   getCurrentVersion,
   checkForUpdate,
   applyUpdate,
+  resetOtaStorage,
   type UpdateState
 } from '../services/ota'
 
@@ -88,8 +89,9 @@ function StatusIcon({ status }: { status: UpdateState['status'] }) {
     case 'ready':
       return <Check className={`${iconClass} text-green-500`} size={18} />
     case 'error':
-    case 'offline':
       return <AlertCircle className={`${iconClass} text-amber-500`} size={18} />
+    case 'offline':
+      return <WifiOff className={`${iconClass} text-slate-400`} size={18} />
     default:
       return <RefreshCw className={`${iconClass} text-slate-400`} size={18} />
   }
@@ -143,11 +145,12 @@ interface SheetProps {
   onApply: () => void
   onDismiss: () => void
   onRetry: () => void
+  doResetAndRetry: () => void
   position: string
   zIndex: number
 }
 
-function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
+function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: SheetProps) {
   const { status, error, latestVersion } = state
 
   // Tidak tampil jika idle atau checking
@@ -195,6 +198,12 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
           {status === 'error' && error && (
             <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm text-amber-700">{error}</p>
+              <button
+                onClick={() => { void resetOtaStorage(); doResetAndRetry() }}
+                className="mt-2 text-xs font-bold text-amber-800 bg-amber-200 hover:bg-amber-300 rounded-lg py-1.5 px-2 transition-colors"
+              >
+                Reset Update
+              </button>
             </div>
           )}
 
@@ -205,6 +214,12 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry }: SheetProps) {
               <p className="text-sm text-slate-600">
                 pastikan sudah terhubung ke jaringan intranet
               </p>
+              <button
+                onClick={() => { void resetOtaStorage(); doResetAndRetry() }}
+                className="mt-2 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg py-1.5 px-2 transition-colors"
+              >
+                Reset Koneksi
+              </button>
             </div>
           )}
 
@@ -376,6 +391,7 @@ export default function UpdateNotifier({
           onApply={handleApply}
           onDismiss={handleDismiss}
           onRetry={handleRetry}
+          doResetAndRetry={() => { void resetOtaStorage(); handleRetry() }}
           position={positionClass}
           zIndex={zIndex}
         />
@@ -425,6 +441,19 @@ export function useUpdateNotifier(options?: Omit<UpdateNotifierProps, 'onStateCh
     }
   }, [])
 
+  /**
+   * Hard reset OTA: hapus cache, state, dan bundle lama, lalu cek ulang.
+   * Digunakan saat perangkat "terupdate" tapi tetap tampak versi lama.
+   */
+  const hardReset = useCallback(async () => {
+    await resetOtaStorage()
+    setState({ status: 'idle' })
+    const currentVer = await getCurrentVersion()
+    if (currentVer) {
+      await checkForUpdate(currentVer, setState)
+    }
+  }, [])
+
   return {
     state,
     isAvailable,
@@ -433,5 +462,6 @@ export function useUpdateNotifier(options?: Omit<UpdateNotifierProps, 'onStateCh
     apply,
     dismiss,
     refresh,
+    hardReset,
   }
 }

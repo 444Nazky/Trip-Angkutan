@@ -120,6 +120,97 @@ export async function hasPersistFlag(): Promise<boolean> {
   try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
 }
 
+// ── Diagnostik & reset ───────────────────────────────────────────────────────
+
+/**
+ * Cek singkat kondisi OTA tanpa side-efek:
+ * - versi lokal saat ini (persisted / bundled)
+ * - apakah bundle aktif pernah diaktifkan
+ * - apakah manifiest remote lebih baru (bila reachable)
+ * - apakah cache OTA kosong / ada
+ *
+ * Dipakai untuk diagnostik saat update "terdeteksi tapi tidak berubah".
+ */
+export async function auditOta(): Promise<{
+  localVersion: string
+  remoteVersion: string | null
+  bundlePersisted: boolean
+  cacheActiveEntries: number
+  hasRemoteManifest: boolean
+}> {
+  const localVersion = (await getCurrentVersion()) ?? (await getCurrentVersion()) ?? BUNDLED_VERSION
+  const persisted = await hasPersistFlag()
+  let remoteVersion: string | null = null
+  let hasRemoteManifest = false
+
+  try {
+    const res = await fetch(MANIFEST_URL, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.version) {
+        remoteVersion = data.version
+        hasRemoteManifest = true
+      }
+    }
+  } catch { /* offline / timeout — bukan blocking */ }
+
+  let cacheActiveEntries = 0
+  try {
+    if (typeof caches !== 'undefined') {
+      const cache = await caches.open(OTA_CACHE)
+      const keys = await cache.keys()
+      cacheActiveEntries = keys.length
+    }
+  } catch { /* cache tidak tersedia */ }
+
+  return {
+    localVersion,
+    remoteVersion,
+    bundlePersisted: persisted,
+    cacheActiveEntries,
+    hasRemoteManifest,
+  }
+}
+
+/**
+ * Hapus semua state & bundle OTA — jawaban atas perangkat yang "terupdate"
+ * tapi tetap tampak versi lama / macet.
+ *
+ * Bersihkan:
+ *  - Cache Storage (OTA_CACHE + semua cache trip-ota-*)
+ *  - Penyimpanan internal Capacitor (direktori trip-ota, jadi semua versi)
+ *  - State OTA (trip.ota.state, trip.ota.currentVersion, trip.ota.lastError)
+ *  - Flag persist (trip.ota.persistActive)
+ *
+ * Setelah ini, app jatuh ke bundle bawaan APK / build asli.
+ */
+export async function resetOtaStorage(): Promise<void> {
+  // 1. Cache Storage
+  try {
+    const names = await caches.keys()
+    await Promise.all(
+      names.filter(n => n.startsWith(CACHE_PREFIX) || n === OTA_CACHE).map(n => caches.delete(n)),
+    )
+  } catch { /* cache tidak tersedia */ }
+
+  // 2. Penyimpanan internal — hapus SELURUH direktori trip-ota ("semua versi")
+  if (isNative()) {
+    try {
+      await Filesystem.rmdir({ path: OTA_DIR, directory: Directory.Cache, recursive: true })
+    } catch { /* sudah tidak ada / gagal — tidak fatal */ }
+  }
+
+  // 3. State OTA
+  try {
+    localStorage.removeItem(STATE_KEY)
+    localStorage.removeItem(CURRENT_VER_KEY)
+    localStorage.removeItem(LAST_ERROR_KEY)
+    localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY)
+  } catch { /* quota / tidak tersedia */ }
+
+  console.log('[ota] resetOtaStorage() selesai — bundle lama dibuang, state OTA di-reset')
+}
+
 // ── Util ─────────────────────────────────────────────────────────────────────
 
 function toBase64(bytes: Uint8Array): string {
@@ -660,6 +751,26 @@ export async function applyUpdate(): Promise<boolean> {
     // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin
     // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
     try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
+
+    // Diagnostik pasca-apply: cek versi lokal vs remote, status cache.
+    // Bukan blocking; hanya log untuk diagnostik "kenapa tidak berubah".
+    try {
+      const audit = await auditOta()
+      console.log(
+        '[ota] pasca-apply:',
+        'local=', audit.localVersion,
+        'remote=', audit.remoteVersion,
+        'persisted=', audit.bundlePersisted,
+        'cacheEntries=', audit.cacheActiveEntries,
+      )
+      if (audit.cacheActiveEntries === 0 && audit.hasRemoteManifest) {
+        console.warn(
+          '[ota] pasca-apply: cache aktif kosong padahal manifiest remote ada —',
+          'bundle tidak konsisten; perangkat mungkin perlu reset OTA / reload paksa.',
+        )
+      }
+    } catch { /* diagnostik gagal → tidak fatalkan apply */ }
+
     return true
   } catch (err) {
     console.warn('[ota] apply gagal:', err)
@@ -667,17 +778,7 @@ export async function applyUpdate(): Promise<boolean> {
   }
 }
 
-/** Hapus semua asset & state OTA. */
+/** Hapus semua asset & state OTA. Alias ringkas untuk resetOtaStorage(). */
 export async function clearCache(): Promise<void> {
-  try {
-    const version = getCachedState()?.latestVersion
-    await discardBundle(version)
-    if (isNative()) {
-      try { await Filesystem.rmdir({ path: OTA_DIR, directory: Directory.Cache, recursive: true }) } catch { /* */ }
-    }
-  } catch { /* */ }
-  try {
-    localStorage.removeItem(STATE_KEY)
-    localStorage.removeItem(CURRENT_VER_KEY)
-  } catch { /* quota */ }
+  await resetOtaStorage()
 }
