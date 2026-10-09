@@ -67,11 +67,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   }
 
   // SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif.
-  // Prioritaskan selfie untuk trip muatan agar thumbnail selfie ditampilkan
+  // THUMBNAIL: prioritaskan photoUrl, selfie hanya tampil setelah photo siap
   const previewPhoto = draft.photoUrl
   const previewSelfie = draft.selfieUrl
-  // Tampilkan selfie jika trip muatan dan selfie sudah diambil, selain itu tampilkan photo
-  const thumbnailUrl = selfieRequired && previewSelfie ? previewSelfie : previewPhoto
+  const thumbnailUrl = previewPhoto || (photoTaken && previewSelfie ? previewSelfie : undefined)
   const selfiePending = selfieRequired && !selfieTaken
   const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
   const mainDisabled = !allDocsComplete
