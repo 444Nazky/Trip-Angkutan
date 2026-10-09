@@ -53,10 +53,6 @@ const GEOFENCE_STORAGE_KEY = 'trip.geofence.points'
 
 const EARTH_RADIUS_METERS = 6371000
 
-/**
- * Hitung jarak antara dua titik koordinat menggunakan formula Haversine.
- * Returns jarak dalam meter.
- */
 export function calculateDistance(
   lat1: number,
   lon1: number,
@@ -80,9 +76,8 @@ export function calculateDistance(
   return EARTH_RADIUS_METERS * c
 }
 
-// ── Geofence Point Management ────────────────────────────────────────────────
 
-/** Ambil semua titik geofence dari localStorage */
+
 export function getStoredGeofencePoints(): GeofencePoint[] {
   try {
     const raw = localStorage.getItem(GEOFENCE_STORAGE_KEY)
@@ -104,10 +99,8 @@ export function saveGeofencePoints(points: GeofencePoint[]): void {
   }
 }
 
-/**
- * Default geofence points untuk pengujian.
- * Nanti bisa dikonfigurasi dari Admin Dashboard.
- */
+
+// geo default
 export function getDefaultGeofencePoints(): GeofencePoint[] {
   return [
     {
@@ -117,7 +110,7 @@ export function getDefaultGeofencePoints(): GeofencePoint[] {
       latitude: -6.1891005,
       longitude: 106.8371641,
       radiusMeters: 100,
-      allowedRoutes: ['SJRE-SBDZ', 'BDAU-SJRE'],
+      allowedRoutes: ['SJRE-SBDZ',],
       enabled: true,
     },
     {
@@ -127,33 +120,12 @@ export function getDefaultGeofencePoints(): GeofencePoint[] {
       latitude: -6.2389899548617285,
       longitude: 106.97475839406252,
       radiusMeters: 100,
-      allowedRoutes: ['SBDZ-SJRE', 'BDAU-SJRE'],
-      enabled: true,
-    },
-    {
-      id: 'sjre-d1',
-      name: 'Sijangkung Dermaga 1',
-      dermagaId: 'SJRE-D1',
-      latitude: -6.3078,
-      longitude: 106.7234,
-      radiusMeters: 100,
-      allowedRoutes: ['SJRE-SBDZ', 'SJRE-BDAU'],
-      enabled: true,
-    },
-    {
-      id: 'sbdz-d1',
-      name: 'Sabadi Dermaga 1',
-      dermagaId: 'SBDZ-D1',
-      latitude: -6.1456,
-      longitude: 106.8923,
-      radiusMeters: 100,
-      allowedRoutes: ['SBDZ-SJRE', 'BDAU-SJRE'],
+      allowedRoutes: ['SBDZ-SJRE',],
       enabled: true,
     },
   ]
 }
 
-/** Cek apakah titik geofence valid */
 export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
   const errors: string[] = []
 
@@ -170,18 +142,15 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
   return errors
 }
 
-// ── Position Checking ───────────────────────────────────────────────────────
 
-/**
- * Ambil posisi GPS perangkat saat ini.
- * Returns null jika gagal atau GPS tidak tersedia.
- */
+
+
 export async function getCurrentPosition(): Promise<{ lat: number; lon: number } | null> {
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000,
+      timeout: 100,
+      maximumAge: 3000,
     })
     if (!pos?.coords) return null
     return {
@@ -194,10 +163,7 @@ export async function getCurrentPosition(): Promise<{ lat: number; lon: number }
   }
 }
 
-/**
- * Cari titik geofence yang sedang aktif (dalam radius).
- * Returns null jika tidak ada titik yang cocok.
- */
+
 export function findActiveGeofencePoint(
   position: { lat: number; lon: number },
   points: GeofencePoint[],
@@ -219,28 +185,30 @@ export function findActiveGeofencePoint(
   return null
 }
 
-/**
- * Validasi apakah rute yang dipilih diperbolehkan di posisi saat ini.
- * Ini fungsi utama yang dipanggil sebelum submit trip.
- */
+
+
+
 export async function validateRouteForCurrentLocation(
   routeCode: string,
   points?: GeofencePoint[],
 ): Promise<ValidationResult> {
   const geofencePoints = points ?? getStoredGeofencePoints()
 
-  // Jika tidak ada titik geofence dikonfigurasi, izinkan semua
+
+  
   if (geofencePoints.length === 0 || geofencePoints.every(p => !p.enabled)) {
     return { valid: true }
   }
 
-  // Jika geofencing dimatikan sepenuhnya, izinkan semua
+
+  
   const anyEnabled = geofencePoints.some(p => p.enabled)
   if (!anyEnabled) {
     return { valid: true }
   }
 
-  // Ambil posisi GPS
+
+  
   const position = await getCurrentPosition()
 
   if (!position) {
@@ -250,7 +218,8 @@ export async function validateRouteForCurrentLocation(
     }
   }
 
-  // Cari titik geofence yang aktif
+
+  
   const activePoint = findActiveGeofencePoint(position, geofencePoints)
 
   if (!activePoint) {
