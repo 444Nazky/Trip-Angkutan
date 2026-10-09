@@ -15,12 +15,13 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
 
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-      <CloudOff size={10} /> Tersimpan di lokal
+      <CloudOff size={10} /> trip tersimpan
     </span>
   )
 }
 
-// ─── Connection Indicator ──────────────────────────────────────────────────────
+
+
 function ConnectionIndicator() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
@@ -34,6 +35,9 @@ function ConnectionIndicator() {
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
+
+
+
 
   return (
     <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all ${
@@ -75,7 +79,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         <ConnectionIndicator />
       </div>
 
-      {/* Summary Stats */}
+
+
+
       <div className="flex gap-2 text-[11px]">
         <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-semibold">
           <Cloud size={10} />
@@ -87,7 +93,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         </div>
       </div>
 
-      {/* Filter */}
+
+
+
       <div className="flex gap-2">
         {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong']] as [typeof filter, string][]).map(([k, l]) => (
           <button
@@ -113,6 +121,10 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             </p>
           </div>
         )}
+
+
+
+        
         {filtered.map(t => (
           <button
             key={t.id}

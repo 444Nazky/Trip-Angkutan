@@ -28,21 +28,20 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const isSynced = t?.synced === true
 
-  // Re-render saat isi antrean berubah (mis. foto diperbaiki → status macet lepas)
+
+  
+  
   const [, setQueueTick] = useState(0)
   useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
+
+
+
 
   const queue = getSyncQueue()
   const queueItem = t ? queue.find(q => q.trip.id === t.id) : undefined
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
-
-  // Preview lightbox dokumentasi
   const [preview, setPreview] = useState<DocPhoto | null>(null)
-
-  // Edit info kendaraan (plat/jenis/kategori) pada trip yang SUDAH terkirim.
-  // Menyimpan → patchVehiclePhoto → antrean lokal → otomatis dikirim ulang
-  // (backend memperbarui trip berdasarkan clientTripId, bukan membuat duplikat).
   const [editVehicle, setEditVehicle] = useState<number | null>(null)
   const [editPlate, setEditPlate] = useState('')
   const [editType, setEditType] = useState('')
