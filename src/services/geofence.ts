@@ -358,8 +358,23 @@ interface BackendGeofence {
   enabled: boolean
 }
 
+function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
+  return {
+    id: g.id,
+    name: g.name,
+    dermagaId: g.dermagaId,
+    latitude: g.latitude,
+    longitude: g.longitude,
+    radiusMeters: g.radiusMeters ?? 100,
+    allowedRoutes: g.allowedRoutes ?? [],
+    enabled: g.enabled !== false,
+  }
+}
+
 /**
  * Sinkronkan titik geofence dari backend ke lokal.
+ * Coba endpoint `/api/geofences/config` terlebih dahulu (Admin Dashboard),
+ * fallback ke `/geofences/sync` jika tidak tersedia.
  * Dipanggil saat start app dan saat admin memperbarui konfigurasi.
  */
 export async function syncGeofencesFromBackend(): Promise<void> {
@@ -370,26 +385,44 @@ export async function syncGeofencesFromBackend(): Promise<void> {
   } catch { /* */ }
 
   try {
-    const result = await api.get<{ geofences?: BackendGeofence[] }>('/geofences/sync')
+    // Coba endpoint config terlebih dahulu (dari Admin Dashboard)
+    let points: GeofencePoint[] = []
 
-    if (result.ok && Array.isArray(result.data?.geofences)) {
-      const points: GeofencePoint[] = result.data.geofences.map(g => ({
-        id: g.id,
-        name: g.name,
-        dermagaId: g.dermagaId,
-        latitude: g.latitude,
-        longitude: g.longitude,
-        radiusMeters: g.radiusMeters ?? 100,
-        allowedRoutes: g.allowedRoutes ?? [],
-        enabled: g.enabled !== false,
-      }))
-
-      if (points.length > 0) {
-        saveGeofencePoints(points)
-        localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
+    // Attempt 1: GET /api/geofences/config
+    const configResult = await api.get<{ geofences?: BackendGeofence[]; config?: BackendGeofence[] }>('/api/geofences/config')
+    if (configResult.ok) {
+      const geofences = configResult.data?.config ?? configResult.data?.geofences
+      if (Array.isArray(geofences) && geofences.length > 0) {
+        points = geofences.map(mapBackendToGeofence)
       }
     }
+
+    // Attempt 2: Fallback ke /geofences/sync
+    if (points.length === 0) {
+      const syncResult = await api.get<{ geofences?: BackendGeofence[] }>('/geofences/sync')
+      if (syncResult.ok && Array.isArray(syncResult.data?.geofences)) {
+        points = syncResult.data.geofences.map(mapBackendToGeofence)
+      }
+    }
+
+    // Simpan hanya jika ada data valid dari backend
+    if (points.length > 0) {
+      saveGeofencePoints(points)
+      localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
+    }
   } catch {
-    // Offline — pakai cache lokal
+    // Offline — pakai cache lokal (sudah ada di getStoredGeofencePoints)
   }
+}
+
+/**
+ * Paksa sinkronisasi geofence dari backend, abaikan cooldown.
+ * Berguna saat admin explicitly push update geofence.
+ */
+export async function forceSyncGeofencesFromBackend(): Promise<void> {
+  // Reset cooldown
+  try {
+    localStorage.removeItem(GEOFENCE_SYNC_KEY)
+  } catch { /* */ }
+  await syncGeofencesFromBackend()
 }

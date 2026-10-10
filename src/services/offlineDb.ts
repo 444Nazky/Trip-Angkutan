@@ -10,6 +10,7 @@ import {
   SEED_VERSION_KEY,
   seedRosterIfAbsent,
   seedRouteCacheIfAbsent,
+  seedGeofencePointsIfAbsent,
   type SeedOfficer,
 } from './seedData'
 
@@ -230,6 +231,7 @@ export function initOfflineDb(): Promise<LocalBackend> {
         await seedDefaultOfficers()
         seedRosterIfAbsent()
         seedRouteCacheIfAbsent()
+        seedGeofencePointsIfAbsent() // Tanam konfigurasi geofence Badau Dermaga 1 & 2
         try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch { /* quota */ }
       } catch (err) {
         console.warn('[offline-db] seed data bawaan gagal:', err)
@@ -446,5 +448,6 @@ export async function clearOfflineData(): Promise<void> {
     await seedDefaultOfficers()
     seedRosterIfAbsent()
     seedRouteCacheIfAbsent()
+    seedGeofencePointsIfAbsent() // Reset konfigurasi geofence Badau Dermaga 1 & 2
   } catch { /* dicoba lagi pada init berikutnya */ }
 }
