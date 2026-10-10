@@ -58,42 +58,23 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     })
   }, [draft.vPhoto, draft.vPhotoUrl, draft.vPhotoCapturedAt, draft.vPhotoLatitude, draft.vPhotoLongitude, draft.vehicles, draft.vehiclePhotoTarget, patchDraft, patchDraftVehicle])
 
+  // handleSubmit: langsung kirim, tanpa cek kondisi lagi — tombol disabled menjamin semua lengkap.
   const handleSubmit = () => {
     if (draft.condition === 'kosong') {
-      // Trip kosong: hanya butuh foto bukti, tanpa duration/vehicle details
-      // Foto wajib sudah diambil sebelum submit
-      if (!draft.photoUrl) {
-        // Redirect ke kamera jika foto belum diambil
-        patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
-        go('camera')
-        return
-      }
       startTrip()
       finishEmptyTrip()
       go('trip-complete')
     } else {
-      // Trip muatan: wajib foto bukti + foto kendaraan + swafoto penutup
-      if (!draft.photoUrl) {
-        patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
-        go('camera')
-        return
-      }
-      if (!draft.selfieUrl) {
-        patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' })
-        go('camera')
-        return
-      }
       startTrip()
       finishMuatanTrip()
       go('trip-complete')
     }
   }
 
-  // Satu kartu foto HANYA di sini (tidak ada kartu duplikat).
   const selfiePending = selfieRequired && !selfieTaken
   const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
   const mainDisabled = !allDocsComplete
-  const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
+  const mainText = draft.condition === 'kosong' ? 'Selesaikan' : 'Kirim Trip'
   const goCapture = () => {
     if (actionType === 'photo') { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera'); return }
     if (actionType === 'selfie') { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera'); return }
@@ -101,8 +82,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   }
   const onMain = () => { if (allDocsComplete) handleSubmit() }
 
-  return (
-    <div className="px-4 pt-2 pb-4">
+
+  return (    <div className="px-4 pt-2 pb-4">
       <button onClick={() => go(backTo)} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
         <ChevronLeft size={16} /> Kembali
       </button>

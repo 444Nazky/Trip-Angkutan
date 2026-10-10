@@ -14,7 +14,6 @@
 //   • Saat rilis OTA menambah petugas bawaan, naikkan SEED_VERSION — perangkat
 //     lama akan melengkapi daftar tanpa kehilangan data yang sudah tersimpan.
 
-import bcrypt from 'bcryptjs'
 
 /** Naikkan saat menambah/mengubah isi seed pada rilis OTA. */
 export const SEED_VERSION = 1
@@ -36,8 +35,6 @@ export interface SeedOfficer {
   id: string
   username: string
   name: string
-  /** bcrypt hash PIN (server-compatible) — PIN polos tidak pernah disimpan. */
-  pinHash: string
   /**
    * Status bawaan petugas: 1 = Aktif, 0 = Nonaktif.
    * Opsional (default 1) — rilis OTA dapat menanam petugas yang sudah
@@ -87,7 +84,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'f2984978-eca2-46a9-b1bc-07252e36dc95',
     username: 'rizkymaulana',
     name: 'Rizky Maulana',
-    pinHash: '$2a$10$MeDg2y0HEvPzss1a1gZnh.Jto58JA.I9fMg3wkAf2xCWgC6HhTW2q',
     regionId: REGIONS.ENTIKONG.id,
     regionName: REGIONS.ENTIKONG.name,
     regionCode: REGIONS.ENTIKONG.code,
@@ -97,7 +93,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0cb61d4b-b83f-42b0-8fc1-9dfb16d1675b',
     username: 'budisantoso',
     name: 'Budi Santoso',
-    pinHash: '$2a$10$MeDg2y0HEvPzss1a1gZnh.Jto58JA.I9fMg3wkAf2xCWgC6HhTW2q',
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -107,7 +102,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'd226ff51-f16f-4997-ac0c-fa4293824d1e',
     username: 'andipratama',
     name: 'Andi Pratama',
-    pinHash: '$2a$10$RgBlt3924WCbcw/mD5OmpeuZoz493izyJRt0zNjXTToSFVdQMZ5kC',
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -117,7 +111,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '8c9a1525-58ed-42ef-9c9a-91f7d1c53ef4',
     username: 'dewikusuma',
     name: 'Dewi Kusuma',
-    pinHash: '$2a$10$5JfIh1IdfLcjcW1W3Gna7OUUg3f/XDH0vm3925xO/kf3FJ6vGMxcW',
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -127,7 +120,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a0e458ec-5ddf-4958-a8fe-de30fce13158',
     username: 'sitirahayu',
     name: 'Siti Rahayu',
-    pinHash: '$2a$10$SET68CioakXByRCzJ44OCe4IXG5O92uO6xOEMALP9MCueaR6KThRW',
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -137,7 +129,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'c3a55842-6160-4c0b-8981-56819fbd7ef7',
     username: 'agungsuntoso',
     name: 'Agung Suntoso',
-    pinHash: '$2a$10$X62ajHIxJ4cGPts4d8elX.ZrwWREBGlsHoU/i7Qlk5kaWikWCRmJy',
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -147,7 +138,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '7e6016bc-6507-439a-93f1-784ac5b7d85c',
     username: 'rahmathidayat',
     name: 'Rahmat Hidayat',
-    pinHash: '$2a$10$ajN5h14TpdLSUeoG7KBLEeDeXoy0qweA3b9tRutbdkN.A0EYNpChi',
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -157,7 +147,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0d40614e-95d2-47ec-a92a-c9556efe85f8',
     username: 'hendragunawan',
     name: 'Hendra Gunawan',
-    pinHash: '$2a$10$ajN5h14TpdLSUeoG7KBLEeDeXoy0qweA3b9tRutbdkN.A0EYNpChi',
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -167,7 +156,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a862bdc6-d2e9-450f-9f4d-02b5817dd5a0',
     username: 'mayasari',
     name: 'Maya Sari',
-    pinHash: '$2a$10$ajN5h14TpdLSUeoG7KBLEeDeXoy0qweA3b9tRutbdkN.A0EYNpChi',
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -230,15 +218,15 @@ export function findSeedOfficer(identifier: string): SeedOfficer | null {
  * database lokal belum sempat terisi (mis. percobaan login pertama begitu
  * aplikasi dibuka) — tetap instan, tanpa jaringan.
  */
-export function verifySeedPin(identifier: string, pin: string): boolean {
-  const seed = findSeedOfficer(identifier)
-  if (!seed || !pin) return false
-  try {
-    if (seed.pinHash.startsWith('$2')) return bcrypt.compareSync(pin, seed.pinHash)
-    return seed.pinHash === pin
-  } catch {
-    return false
-  }
+/**
+ * Verifikasi PIN terhadap hash bawaan. Hash PIN tidak lagi disimpan di source code
+ * (keamanan: bcrypt hashes untuk PIN umum bisa di-crack). Verifikasi offline
+ * dlaam mengandalkan hash yang sudah di-cache dari server saat login online.
+ * Fungsi ini tetap dipertahankan untuk backward-compat bila device sudah punya
+ * data seed lama dengan hash tersimpan.
+ */
+export function verifySeedPin(_identifier: string, _pin: string): boolean {
+  return false
 }
 
 // ── Bentuk roster mobile (format identik toMobileOfficer) ────────────────────

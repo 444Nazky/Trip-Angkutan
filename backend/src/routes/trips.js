@@ -34,11 +34,14 @@ const validPhotoIndex = (value, files) =>
 
 const numericCoordinate = (value) => Number.isFinite(value) ? value : null;
 
+const crypto = require('crypto');
+
 // Generate trip number
 function generateTripNo() {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  // crypto.randomBytes is unpredictable; Math.random() is not
+  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
   return `TRP${dateStr}${random}`;
 }
 
@@ -97,7 +100,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       `).get(vehicle.vehicleType);
       const amount = masterTariff
         ? (vehicle.hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
-        : (vehicle.tariffAmount || 0);
+        : 0  // client tariffAmount ignored — server sets from master tariff;
       const photoIndex = vehiclePhotoIndexes[index];
       db.prepare(`
         INSERT INTO vehicles (

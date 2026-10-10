@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it')
+  process.exit(1)
+}
 
 // Attach req.user / req.officer if the JWT is valid
 function authenticate(req, res, next) {

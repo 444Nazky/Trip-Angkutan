@@ -169,13 +169,9 @@ async function seedDefaultOfficers(): Promise<void> {
             ],
           )
         }
-        const cred = await conn.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [s.id])
-        if (!cred.values?.length) {
-          await conn.run(
-            'INSERT INTO credentials (officer_id, pin_hash, updated_at) VALUES (?, ?, ?)',
-            [s.id, s.pinHash, now],
-          )
-        }
+        // Credential (PIN hash) seeding removed — hashes no longer shipped in source code.
+        // Officers must log in online once so the server provides the hash, or
+        // rely on cached credentials from a prior online session.
       }
       return
     } catch (err) {
@@ -202,14 +198,7 @@ async function seedDefaultOfficers(): Promise<void> {
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
 
-    const creds = lsCredentials()
-    let changed = false
-    for (const s of SEED_OFFICERS) {
-      if (creds[s.id]) continue // hash hasil sync admin tidak ditimpa
-      creds[s.id] = s.pinHash
-      changed = true
-    }
-    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
+    // Credential seeding removed — PIN hashes no longer in source code.
   } catch { /* quota — dicoba lagi pada init berikutnya */ }
 }
 

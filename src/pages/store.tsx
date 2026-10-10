@@ -270,6 +270,11 @@ export function tariffFor(vehicleType: string) {
 }
 
 export function nextTripId(trips: Trip[]): string {
+  // Use a UUID to avoid collisions across devices — backend deduplicates via this value.
+  // Fallback to sequential TRP-YYYY-NNNN for any legacy local trips that lack a UUID.
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
   let max = 0
   for (const t of trips) {
     const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)

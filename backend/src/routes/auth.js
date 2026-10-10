@@ -5,19 +5,30 @@ const jwt = require('jsonwebtoken');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
+const JWT_SECRET = (() => {
+  const s = process.env.JWT_SECRET
+  if (!s) {
+    console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it')
+    process.exit(1)
+  }
+  return s
+})()
 
 // Admin login (username/password) — issues a JWT with role: 'admin'
 //
 // Deteksi kredensial khusus admin, dua lapis:
 //   1. Hasil "Ganti Password" di dashboard (tabel admin_credentials, bcrypt)
 //      — diprioritaskan; setelah password diganti, password lama SUDAH MATI.
-//   2. Fallback default admin/admin123 (atau ADMIN_USERNAME/ADMIN_PASSWORD env)
+//   2. Env vars ADMIN_USERNAME + ADMIN_PASSWORD harus diset.
 router.post('/admin-login', (req, res) => {
   try {
     const { username, password } = req.body || {};
-    const adminUser = process.env.ADMIN_USERNAME || 'admin';
-    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminUser = process.env.ADMIN_USERNAME
+    const adminPass = process.env.ADMIN_PASSWORD
+
+    if (!adminUser || !adminPass) {
+      return res.status(500).json({ error: 'ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required' })
+    }
 
     let row = null;
     try { row = adminGetCredentials(); } catch (_) { row = null; }
@@ -33,8 +44,8 @@ router.post('/admin-login', (req, res) => {
         catch (_) { valid = false; }
       }
     } else {
-      // Belum pernah diganti → kredensial default/env.
-      valid = username === adminUser && password === adminPass;
+      // Tidak ada hash tersimpan dan tidak ada env — tolak (tidak ada fallback default)
+      return res.status(401).json({ error: 'Invalid admin credentials' })
     }
 
     if (!valid) {
@@ -110,75 +121,66 @@ router.post('/region-login', (req, res) => {
   }
 });
 
-// Member/officer login with username/password
-// Now uses username from officers table (migrated from hardcoded map)
-const OFFICER_USERNAME_MAP = {
-  'budi': 'Budi Santoso',
-  'andi': 'Andi Pratama',
-  'siti': 'Siti Rahayu',
-  'rizky': 'Rizky Maulana',
-  'dewi': 'Dewi Kusuma'
-};
-
+// Member/officer login with username + PIN (not shared password).
+// Requires officer to exist in DB with a configured PIN.
+// For devices that only have officerId + PIN (mobile app), use POST /auth/login instead.
 router.post('/member-login', (req, res) => {
   try {
-    const { username, password } = req.body || {};
-    const normalizedUsername = username?.toLowerCase();
-    const memberPass = process.env.MEMBER_PASSWORD || '123456';
+    const { username, pin } = req.body || {}
 
-    if (password !== memberPass) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (!username || !pin) {
+      return res.status(400).json({ error: 'Username and PIN are required' })
     }
 
-    // First try DB username field, fallback to legacy map
-    let officerName = null;
-    let officerUsername = normalizedUsername;
-
-    const officerByUsername = db.prepare(`SELECT * FROM officers WHERE LOWER(username) = ? AND is_active = 1`).get(normalizedUsername);
-    if (officerByUsername) {
-      officerName = officerByUsername.name;
-      officerUsername = officerByUsername.username?.toLowerCase() || normalizedUsername;
-    } else {
-      // Fallback to legacy map
-      officerName = OFFICER_USERNAME_MAP[normalizedUsername];
+    const normalizedUsername = String(username).toLowerCase().trim()
+    if (!normalizedUsername) {
+      return res.status(400).json({ error: 'Username is required' })
     }
 
-    if (!officerName) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Get full officer from database
     const officer = db.prepare(`
       SELECT o.*, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
-      WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
-    `).get(officerName);
+      WHERE LOWER(o.username) = ? AND o.is_active = 1
+    `).get(normalizedUsername)
 
     if (!officer) {
-      return res.status(401).json({ error: 'Officer not found in database' });
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    if (!officer.pin) {
+      return res.status(401).json({ error: 'PIN not configured for this officer' })
+    }
+
+    // Verify PIN against the bcrypt hash stored in the officers table
+    let validPin = false
+    try { validPin = bcrypt.compareSync(String(pin ?? ''), officer.pin) }
+    catch (_) { validPin = false }
+
+    if (!validPin) {
+      return res.status(401).json({ error: 'Invalid credentials' })
     }
 
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
       JWT_SECRET,
       { expiresIn: '24h' }
-    );
+    )
 
     res.json({
       token,
       officer: {
         id: String(officer.id),
         name: officer.name,
-        username: officer.username || officerUsername,
+        username: officer.username || normalizedUsername,
         regionId: officer.region_id,
         regionName: officer.region_name,
-        regionCode: officer.region_code
-      }
-    });
+        regionCode: officer.region_code,
+      },
+    })
   } catch (error) {
-    console.error('Member login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('Member login error:', error)
+    res.status(500).json({ error: 'Login failed' })
   }
 });
 
@@ -431,7 +433,7 @@ function adminSetCredentials(username, passwordHash) {
 // ── POST /auth/change-admin-password ────────────────────────────────────────────
 // Body: { currentPassword, newPassword }
 // Menyimpan password hash baru di SQLite, validasi password lama terhadap entry di tabel ini
-// atau terhadap default admin/admin123 di environment.
+// terhadap ADMIN_PASSWORD di environment.
 router.post(`/change-admin-password`, async (req, res) => {
   // Error di handler async TIDAK ditangkap Express 4 → unhandled rejection →
   // proses Node mati. Semua langkah dibungkus try agar balas 500, bukan crash.
@@ -453,7 +455,7 @@ router.post(`/change-admin-password`, async (req, res) => {
     if (storedHash) {
       try { valid = bcrypt.compareSync(currentPassword, storedHash) } catch (_) { valid = false }
     } else {
-      // credential default admin/admin123, atau ADMIN_PASSWORD di env
+      // ADMIN_PASSWORD di environment variable.
       const defAdminPass = process.env.ADMIN_PASSWORD ?? `admin123`
       valid = currentPassword === defAdminPass
     }
