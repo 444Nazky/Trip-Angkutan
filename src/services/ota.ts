@@ -119,6 +119,48 @@ const isNative = () => {
   return Capacitor.isNativePlatform?.() ?? false
 }
 
+/** Track assets untuk versi saat ini (full-bundle approach) */
+let CURRENT_VERSION_ASSETS: string[] | null = null
+
+/**
+ * AUTO-PURGE: Hapus semua versi bundle lama kecuali versi yang sedang diunduh.
+ * Dipanggil otomatis saat mendeteksi versi baru lebih tinggi.
+ *
+ * Prinsip: hanya SATU versi bundle yang aktif (terbaru).
+ * Versi lama - termasuk yang gagal/parsial - harus dibuang agar:
+ *   - storage tidak menumpuk
+ *   - tidak ada ambiguitas "versi mana yang dipakai"
+ *   - update kedua/berikutnya tidak macet karena state lama
+ */
+export async function autoPurgeLegacyVersions(currentVersion: string): Promise<void> {
+  try {
+    const all = await listPersistedVersions()
+    const versionsToRemove = all.filter(v => v !== currentVersion)
+
+    if (versionsToRemove.length === 0) {
+      console.info('[ota] Tidak ada versi lama untuk dibersihkan')
+      return
+    }
+
+    console.info(`[ota] Membersihkan ${versionsToRemove.length} versi lama: ${versionsToRemove.join(', ')}`)
+
+    for (const v of versionsToRemove) {
+      try {
+        // Hapus dari Cache Storage
+        await discardBundle(v)
+        // Hapus dari Filesystem storage
+        await removeStorage(v)
+      } catch (err) {
+        console.warn(`[ota] Gagal membersihkan versi ${v}:`, err)
+      }
+    }
+
+    console.info('[ota] Auto-purge selesai - hanya versi terbaru yang tersisa')
+  } catch (err) {
+    console.warn('[ota] Auto-purge gagal (best-effort):', err)
+  }
+}
+
 type ManifestResult =
   | { ok: true; manifest: VersionManifest }
   | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
@@ -599,21 +641,19 @@ export async function checkForUpdate(
       return { available: false }
     }
 
-    // 2a — pendinginan error biar tidak spam fetch saat jaringan goyang.
+    // Pendinginan error biar tidak spam fetch saat jaringan goyang.
     const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
     if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
       return { available: false }
     }
 
-    // ── 2a — cek anti-stuck: bila state masih "downloading" atau "ready"
+    // Anti-stuck: bila state masih "downloading" atau "ready"
     // tapi bundle tidak utuh / sudah basi, reset ke idle sebelum cek lagi.
-    // Ini yang mencegah perangkat "diam" setelah pull kedua (status cor menetap).
     await clearStuckOtaState()
 
     const result = await fetchManifest(sig)
     if (!result.ok) {
       // Silent fail: catat error tapi JANGAN emit status error
-      // Ini mencegah notifikasi "manifest tidak terjangkau" yang terus muncul
       if (result.reason !== 'not-found') {
         console.warn('[ota] cek gagal (silent):', result.reason)
         localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
@@ -629,13 +669,20 @@ export async function checkForUpdate(
     }
 
     if (!remote.assets.length) {
-      // Manifest kosong - tidak perlu notifikasi
       emit({ status: 'idle', latestVersion: local })
       return { available: false }
     }
 
+    // === AUTO-PURGE: Hapus versi lama sebelum unduh versi baru ===
+    // Ini mencegah penumpukan storage dan memastikan hanya 1 versi aktif
+    console.info(`[ota] Mendeteksi versi baru ${remote.version}, melakukan auto-purge versi lama`)
+    await autoPurgeLegacyVersions(remote.version)
+    
     // Bundle parsial versi ini (bila ada) dibuang sebelum unduh ulang.
     await removeStorage(remote.version)
+
+    // Track assets untuk versi ini
+    CURRENT_VERSION_ASSETS = remote.assets
 
     emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
     const downloaded: string[] = []
@@ -644,17 +691,18 @@ export async function checkForUpdate(
     for (let i = 0; i < total; i++) {
       if (sig.aborted) {
         await removeStorage(remote.version)
+        CURRENT_VERSION_ASSETS = null
         emit({ status: 'idle', latestVersion: local })
         return { available: false }
       }
       const asset = remote.assets[i]
       try {
         const bytes = await downloadAsset(asset, sig)
-        // Verifikasi isi file terhadap manifest — file basi/rusak dibuang,
-        // update dibatalkan dengan aman (app tetap pakai bundle bawaan APK).
+        // Verifikasi isi file terhadap manifest
         if (!(await verifyAsset(bytes, asset, remote.integrity))) {
           console.warn('[ota] integritas aset tidak cocok, batalkan update:', asset)
           await removeStorage(remote.version)
+          CURRENT_VERSION_ASSETS = null
           localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
           emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
           return { available: false }
@@ -666,12 +714,14 @@ export async function checkForUpdate(
       } catch (err) {
         if (sig.aborted) {
           await removeStorage(remote.version)
+          CURRENT_VERSION_ASSETS = null
           emit({ status: 'idle', latestVersion: local })
           return { available: false }
         }
-        // Silent fail: bundle tidak lengkap → abort tanpa notifikasi
+        // Silent fail: bundle tidak lengkap
         console.warn('[ota] unduhan gagal (silent):', asset)
         await removeStorage(remote.version)
+        CURRENT_VERSION_ASSETS = null
         localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
         emit({ status: 'idle', latestVersion: local })
         return { available: false }
@@ -690,7 +740,6 @@ export async function checkForUpdate(
     return { available: true, version: remote.version, assets: remote.assets }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return { available: false }
-    // Silent fail total - tidak tampilkan notifikasi
     console.warn('[ota] cek gagal total (silent):', err)
     localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
     emit({ status: 'idle', latestVersion: local })
