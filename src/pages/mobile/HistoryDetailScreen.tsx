@@ -66,6 +66,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
   // ── SELURUH foto dokumentasi trip ini — 1 foto bukti trip + 1 foto PER kendaraan
+  // Selfie (swafoto penutup) TIDAK dimasukkan ke galeri dokumentasi untuk menghindari duplikasi
+  // Selfie hanya disimpan di record trip dan ditampilkan di bagian terpisah jika perlu
   const photos: DocPhoto[] = [
     ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
     ...vehicles.map((v, i) => ({
@@ -75,6 +77,10 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       index: i,
     })).filter(p => !!p.url),
   ]
+  
+  // Selfie (swafoto penutup) - dipisahkan dari galeri dokumentasi
+  const selfieUrl = t.selfieUrl
+  const selfieCapturedAt = t.selfieCapturedAt
   const missingVehicles = vehicles
     .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!v.photoUrl }))
     .filter(x => !x.hasPhoto)
@@ -206,6 +212,26 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           )
         })}
       </div>
+
+      {/* Swafoto Penutup (hanya untuk trip muatan) */}
+      {selfieUrl && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+              Swafoto Penutup
+            </p>
+          </div>
+          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+            <img src={selfieUrl} alt="Swafoto Penutup" className="w-full h-32 object-cover" />
+            <div className="bg-slate-800 px-3 py-2 text-center">
+              <p className="text-white text-[10px] font-black">SWAFOTO PENUTUP</p>
+              <p className="text-slate-400 text-[9px] mt-0.5">
+                {selfieCapturedAt ? new Date(selfieCapturedAt).toLocaleString('id-ID') : ''}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Galeri dokumentasi — semua foto (trip + per kendaraan) */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
