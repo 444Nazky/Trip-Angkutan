@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Navigation } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
 import { useApp } from '../store'
+import type { GeofenceRule } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
 interface RouteSelectScreenProps {
@@ -25,6 +26,8 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   // Rute dari backend. selectedDockId null = popup dermaga terbuka, kosong. TIDAK fallback semua dock.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
   const [loading, setLoading] = useState(false)
+  const [geofenceRule, setGeofenceRule] = useState<GeofenceRule | null>(null)
+  const [geofenceError, setGeofenceError] = useState<string | null>(null)
 
   // Segarkan rute tiap layar dibuka (Master Rute admin terlihat langsung).
   useEffect(() => {
@@ -49,9 +52,38 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     ? draft.routeCode
     : null
 
+  // Hard-lock route berdasarkan geofence: jika koordinat cocok, hanya izinkan rute tertentu
+  // Route 2: Badau Dermaga 1 area (-6.1891005, 106.8371641) -> SJRE -> SBDZ
+  // Route 1: Badau Dermaga 2 area (-6.2389899548617285, 106.97475839406252) -> SBDZ -> SJRE
+  const getLockedRoute = (): string | null => {
+    // Implementasi sebenarnya menggunakan GPS klien + findActiveGeofenceRule
+    // Untuk demo, kita return null (tidak ada lock)
+    // return 'SJRE-SBDZ' // Contoh: lock ke rute SJRE-SBDZ
+    return null
+  }
+
+  const lockedRoute = getLockedRoute()
+  const isRouteLocked = lockedRoute !== null && list.some(r => r.code === lockedRoute)
+
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
-    if (!validSelected) return
+    if (!validSelected) {
+      // Jika ada rute yang di-lock, tampilkan info
+      if (isRouteLocked) {
+        const locked = list.find(r => r.code === lockedRoute)
+        if (locked) {
+          patchDraft({ routeCode: locked.code })
+          if (draft.condition === 'muatan') {
+            go('vehicle-form')
+          } else {
+            patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
+            go('camera')
+          }
+          return
+        }
+      }
+      return
+    }
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
@@ -95,6 +127,19 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
         <Map size={16} className="text-slate-600 shrink-0" />
       </div>
+
+      {/* Geofencing Lock Banner */}
+      {isRouteLocked && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+          <Navigation size={18} className="text-blue-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-[12px] font-bold text-blue-800">Rute Dikunci Otomatis</p>
+            <p className="text-[10px] text-blue-600 mt-1">
+              Berdasarkan lokasi Anda, rute dipaksa: <span className="font-semibold">{lockedRoute?.replace('-', ' → ')}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
