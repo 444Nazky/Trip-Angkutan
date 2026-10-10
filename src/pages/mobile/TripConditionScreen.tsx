@@ -42,6 +42,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
         <button
           onClick={() => {
             setCondition('kosong')
+            // Empty trip: wajib foto bukti 1 kamera, tanpa duration/vehicle form
             patchDraft({
               condition: 'kosong',
               vehicles: [],
@@ -51,6 +52,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               photoCapturedAt: undefined,
               photoLatitude: undefined,
               photoLongitude: undefined,
+              // Foto kendaraan TIDAK diperlukan untuk trip kosong
               vPhoto: false,
               vPhotoUrl: undefined,
               vPhotoCapturedAt: undefined,
@@ -58,6 +60,10 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               vPhotoLongitude: undefined,
               retakeTarget: undefined,
               cameraMode: 'photo',
+              // Kosongkan state selfie untuk trip kosong
+              selfieMode: undefined,
+              selfieUrl: undefined,
+              selfieCapturedAt: undefined,
             })
           }}
           className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('kosong')}`}
@@ -81,7 +87,30 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
         <button
           onClick={() => {
             setCondition('muatan')
-            patchDraft({ condition: 'muatan' })
+            // Muatan trip: wajib foto bukti + foto kendaraan + swafoto penutup
+            patchDraft({
+              condition: 'muatan',
+              // Reset semua state foto untuk trip muatan yang baru
+              photo: false,
+              photoUrl: undefined,
+              photoCapturedAt: undefined,
+              photoLatitude: undefined,
+              photoLongitude: undefined,
+              // Kendaraan dan fotonya akan diatur di layar input kendaraan
+              vehicles: [],
+              vehicleForm: { plate: '', type: '', category: '' },
+              vPhoto: false,
+              vPhotoUrl: undefined,
+              vPhotoCapturedAt: undefined,
+              vPhotoLatitude: undefined,
+              vPhotoLongitude: undefined,
+              // Swafoto penutup wajib di akhir trip
+              selfieMode: undefined,
+              selfieUrl: undefined,
+              selfieCapturedAt: undefined,
+              retakeTarget: undefined,
+              cameraMode: 'photo',
+            })
           }}
           className={`w-full rounded-3xl p-5 text-left border-2 transition-all ${borderClass('muatan')}`}
         >
@@ -101,11 +130,21 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
       </div>
 
       <button
-        onClick={() => go('route-select')}
+        onClick={() => {
+          if (!condition) return
+          // Validasi geofencing untuk trip kosong (wajib lokasi valid)
+          if (condition === 'kosong') {
+            // Trip kosong: lanjut ke route-select, foto akan diambil di layar berikutnya
+            go('route-select')
+            return
+          }
+          // Trip muatan: lanjut ke route-select
+          go('route-select')
+        }}
         disabled={!condition}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
-        {condition === 'muatan' ? 'Lanjut Pilih Rute' : condition === 'kosong' ? 'Lanjut Pilih Rute' : 'Pilih Status Muatan'}
+        {condition === 'kosong' ? 'Lanjut Pilih Rute' : condition === 'muatan' ? 'Lanjut Pilih Rute' : 'Pilih Status Muatan'}
       </button>
     </div>
   )

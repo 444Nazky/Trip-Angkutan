@@ -28,6 +28,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const selfieTaken = !!draft.selfieUrl
   const selfieRequired = draft.condition === 'muatan'
   const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
+  
+  // Track selfie separately untuk menghindari duplikasi di trip summary
+  const selfieInSummary = draft.condition === 'muatan' && !!draft.selfieUrl
+  const showSelfiePlaceholder = false // Selfie tidak ditampilkan di ringkasan - hanya di history detail
 
   useEffect(() => {
     // HANYA foto yang dimintan dari layar ini (vehiclePhotoTarget terpasang).
@@ -56,10 +60,29 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   const handleSubmit = () => {
     if (draft.condition === 'kosong') {
+      // Trip kosong: hanya butuh foto bukti, tanpa duration/vehicle details
+      // Foto wajib sudah diambil sebelum submit
+      if (!draft.photoUrl) {
+        // Redirect ke kamera jika foto belum diambil
+        patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
+        go('camera')
+        return
+      }
       startTrip()
       finishEmptyTrip()
       go('trip-complete')
     } else {
+      // Trip muatan: wajib foto bukti + foto kendaraan + swafoto penutup
+      if (!draft.photoUrl) {
+        patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
+        go('camera')
+        return
+      }
+      if (!draft.selfieUrl) {
+        patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' })
+        go('camera')
+        return
+      }
       startTrip()
       finishMuatanTrip()
       go('trip-complete')
