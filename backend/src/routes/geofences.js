@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { v4: uuidv4 } = require('uuid')
+const { randomUUID } = require('crypto');
 const { db } = require('../db')
 const { authenticate, requireAdmin } = require('../middleware/auth')
 
@@ -46,7 +46,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     if (!locationName || latitude == null || longitude == null) {
       return res.status(400).json({ error: 'locationName, latitude, longitude wajib' })
     }
-    const ruleId = id || uuidv4()
+    const ruleId = id || randomUUID()
     db.prepare(`
       INSERT INTO geofence_rules (id, location_name, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)

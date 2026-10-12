@@ -780,33 +780,7 @@ export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
 export async function markBundlePersisted(): Promise<void> {
   try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
 }
-
-export async function clearPersistFlag(): Promise<void> {
-  try { localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY) } catch { /* quota */ }
-}
-
-export async function hasPersistFlag(): Promise<boolean> {
-  try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
-}
-
 /**
  * Audit cepat versi aplikasi vs remote (tanpa side efek yang berbahaya).
  * Return objek gampang dipakai untuk UI/debug.
  */
-export async function auditOta(): Promise<{
-  local: string
-  remote: string | null
-  remoteAvailable: boolean
-  isUpToDate: boolean
-}> {
-  const local = (await getCurrentVersion()) ?? BUNDLED_VERSION
-  try {
-    const check = await checkForUpdate(local)
-    const remote = check.version ?? null
-    const remoteAvailable = remote !== null && check.available
-    const isUpToDate = !check.available && remote === local
-    return { local, remote, remoteAvailable, isUpToDate }
-  } catch {
-    return { local, remote: null, remoteAvailable: false, isUpToDate: false }
-  }
-}

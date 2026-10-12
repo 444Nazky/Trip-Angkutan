@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
@@ -53,7 +53,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     ).get(norm);
     if (dup) return res.status(409).json({ error: 'Plat sudah terdaftar' });
 
-    const id = uuidv4();
+    const id = randomUUID();
     const st = ['internal', 'lokal', 'eksternal'].includes(status) ? status : 'internal';
     db.prepare(`
       INSERT INTO vehicle_plates (id, plate, owner, origin_region_id, status)
@@ -159,7 +159,7 @@ router.post('/check', authenticate, (req, res) => {
       db.prepare(`
         INSERT INTO plate_scans (id, plate, status, origin_region_id, checkpoint_region_id, tariff_amount, officer_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(uuidv4(), norm, status, origin, checkpointRegionId, tariffAmount, req.user.officerId ?? null);
+      `).run(randomUUID(), norm, status, origin, checkpointRegionId, tariffAmount, req.user.officerId ?? null);
     } catch (e) { /* log boleh gagal tanpa membatalkan check */ }
 
     const originRow = origin ? db.prepare(`SELECT code FROM regions WHERE id = ?`).get(origin) : null;

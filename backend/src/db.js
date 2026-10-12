@@ -1,6 +1,6 @@
 const initSqlJs = require('sql.js').default;
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 // sql.js di lingkungan produksi (Railway/Docker) tidak menemukan file wasm
@@ -371,7 +371,7 @@ function ensureSpecRegions() {
     if (!region) {
       db.run(
         `INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)`,
-        [uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
+        [randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
       );
       region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
     }
@@ -388,7 +388,7 @@ function ensureSpecRegions() {
       let dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
       if (!dm) {
         db.run(`INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)`,
-          [uuidv4(), region.id, dname, dc]);
+          [randomUUID(), region.id, dname, dc]);
         dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
       }
       if (!dm) continue;
@@ -419,7 +419,7 @@ function ensureSpecRegions() {
         if (!exists) {
           db.run(
             `INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [uuidv4(), dm.id, r.name, r.from, r.to, r.distance, r.duration]
+            [randomUUID(), dm.id, r.name, r.from, r.to, r.distance, r.duration]
           );
         }
       }
@@ -449,7 +449,7 @@ function ensureSpecRegions() {
     if (!region) continue;
     let officer = q1(`SELECT id FROM officers WHERE name = ?`, [demo.name]);
     if (!officer) {
-      const id = uuidv4();
+      const id = randomUUID();
       db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
         [id, demo.name, hashedPin, region.id]);
       officer = { id };
@@ -657,7 +657,7 @@ function seedData() {
   // kebenaran yang juga melengkapi DB lama saat boot.
   const insertRegion = db.prepare('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)');
   for (const w of SPEC_WILAYAH) {
-    insertRegion.bind([uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
+    insertRegion.bind([randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
     insertRegion.step();
     insertRegion.reset();
   }
@@ -667,11 +667,11 @@ function seedData() {
 
   // Seed tariffs
   const tariffs = [
-    { id: uuidv4(), golongan: 'I', vehicle_type: 'Motor', loaded_tariff: 15000, empty_tariff: 8000 },
-    { id: uuidv4(), golongan: 'II', vehicle_type: 'Mobil', loaded_tariff: 45000, empty_tariff: 20000 },
-    { id: uuidv4(), golongan: 'III', vehicle_type: 'Truck Kecil', loaded_tariff: 120000, empty_tariff: 55000 },
-    { id: uuidv4(), golongan: 'IV', vehicle_type: 'Truck Sedang', loaded_tariff: 280000, empty_tariff: 130000 },
-    { id: uuidv4(), golongan: 'V', vehicle_type: 'Truck Besar', loaded_tariff: 450000, empty_tariff: 200000 },
+    { id: randomUUID(), golongan: 'I', vehicle_type: 'Motor', loaded_tariff: 15000, empty_tariff: 8000 },
+    { id: randomUUID(), golongan: 'II', vehicle_type: 'Mobil', loaded_tariff: 45000, empty_tariff: 20000 },
+    { id: randomUUID(), golongan: 'III', vehicle_type: 'Truck Kecil', loaded_tariff: 120000, empty_tariff: 55000 },
+    { id: randomUUID(), golongan: 'IV', vehicle_type: 'Truck Sedang', loaded_tariff: 280000, empty_tariff: 130000 },
+    { id: randomUUID(), golongan: 'V', vehicle_type: 'Truck Besar', loaded_tariff: 450000, empty_tariff: 200000 },
   ];
 
   const insertTariff = db.prepare('INSERT INTO tariffs (id, golongan, vehicle_type, loaded_tariff, empty_tariff) VALUES (?, ?, ?, ?, ?)');

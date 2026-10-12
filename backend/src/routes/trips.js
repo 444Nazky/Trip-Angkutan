@@ -3,7 +3,6 @@ const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
@@ -19,7 +18,7 @@ const { UPLOADS_DIR } = require('../uploads-dir');
 const uploadDocumentation = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-    filename: (_req, file, cb) => cb(null, `${uuidv4()}${photoExtension(file.mimetype) || '.jpg'}`),
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${photoExtension(file.mimetype) || '.jpg'}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024, files: 50 },
   fileFilter: (_req, file, cb) => {
@@ -91,7 +90,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
 
     const photoPaths = files.map(file => `/uploads/${file.filename}`);
 
-    const tripId = existingTrip ? existingTrip.id : uuidv4();
+    const tripId = existingTrip ? existingTrip.id : randomUUID();
     const noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
 
     const insertVehicle = (vehicle, index, id) => {
@@ -114,7 +113,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         numericCoordinate(vehicle.latitude), numericCoordinate(vehicle.longitude)
       );
       db.prepare(`INSERT INTO trip_vehicles (id, trip_id, vehicle_id) VALUES (?, ?, ?)`)
-        .run(uuidv4(), tripId, id);
+        .run(randomUUID(), tripId, id);
     };
 
     if (existingTrip) {
@@ -137,7 +136,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         db.prepare(`DELETE FROM trip_vehicles WHERE trip_id = ? AND vehicle_id = ?`).run(tripId, row.vehicle_id);
         db.prepare(`DELETE FROM vehicles WHERE id = ?`).run(row.vehicle_id);
       }
-      vehicles.forEach((vehicle, index) => insertVehicle(vehicle, index, uuidv4()));
+      vehicles.forEach((vehicle, index) => insertVehicle(vehicle, index, randomUUID()));
       return res.status(200).json({ id: tripId, noTrip, updated: true });
     }
 
@@ -156,7 +155,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       payload.startedAt || null, payload.completedAt || null, clientTripId || null
     );
 
-    vehicles.forEach((vehicle, index) => insertVehicle(vehicle, index, uuidv4()));
+    vehicles.forEach((vehicle, index) => insertVehicle(vehicle, index, randomUUID()));
 
     return res.status(201).json({ id: tripId, noTrip });
   } catch (error) {
@@ -176,7 +175,7 @@ router.post('/', authenticate, (req, res) => {
       return res.status(400).json({ error: 'statusMuatan wajib diisi' });
     }
 
-    const tripId = uuidv4();
+    const tripId = randomUUID();
     const noTrip = generateTripNo();
 
     // trips.dermaga_id wajib terisi, tapi klien mobile tidak pernah mengirim

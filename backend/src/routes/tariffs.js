@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
@@ -21,7 +21,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { golongan, vehicleType, loadedTariff, emptyTariff, description } = req.body;
 
-    const id = uuidv4();
+    const id = randomUUID();
     db.prepare(`
       INSERT INTO tariffs (id, golongan, vehicle_type, loaded_tariff, empty_tariff, description)
       VALUES (?, ?, ?, ?, ?, ?)

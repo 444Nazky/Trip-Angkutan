@@ -67,9 +67,8 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { region_id, name, code } = req.body;
-    const { v4: uuidv4 } = require('uuid');
-
-    const id = uuidv4();
+const { randomUUID } = require('crypto');
+    const id = randomUUID();
     db.prepare(`INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)`).run(id, region_id, name, code);
 
     const dermaga = db.prepare(`SELECT * FROM dermagas WHERE id = ?`).get(id);

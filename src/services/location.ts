@@ -44,10 +44,6 @@ function activeConfig(): GeofenceConfig {
 }
 
 /** Update konfigurasi geofence (dari Admin Dashboard sync) — dipersist juga ke cache lokal */
-export function updateGeofenceConfig(config: GeofenceConfig): void {
-  void persistSyncedConfig(config)
-}
-
 /** Dapatkan konfigurasi geofence saat ini */
 export function getGeofenceConfig(): GeofenceConfig {
   return activeConfig()
@@ -119,29 +115,9 @@ export async function getGeofencedLocation(): Promise<GeofenceLocationResult | n
 /**
  * Hitung jarak dari posisi saat ini ke koordinat target
  */
-export function distanceToTarget(
-  currentLat: number,
-  currentLon: number,
-  targetLat: number,
-  targetLon: number,
-): number {
-  return haversineDistance(currentLat, currentLon, targetLat, targetLon)
-}
-
 /**
  * Cek apakah dua koordinat dianggap "sama" dalam threshold tertentu
  */
-export function coordinatesMatch(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-  thresholdMeters: number = 100,
-): boolean {
-  const distance = haversineDistance(lat1, lon1, lat2, lon2)
-  return distance <= thresholdMeters
-}
-
 /**
  * Fungsi timeout helper untuk operasi geolocation
  */
@@ -176,18 +152,3 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 /**
  * Daftar koordinat geofence yang terkonfigurasi (untuk debugging/admin UI)
  */
-export function getConfiguredGeofenceLocations(): Array<{
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  radiusMeters: number
-}> {
-  return activeConfig().rules.map((rule) => ({
-    id: rule.id,
-    name: rule.locationName,
-    latitude: rule.latitude,
-    longitude: rule.longitude,
-    radiusMeters: rule.radiusMeters,
-  }))
-}

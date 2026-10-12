@@ -1,8 +1,4 @@
 // ─── Shared Types ─────────────────────────────────────────────────────────────
-
-export type AppMode = 'mobile' | 'admin'
-export type UserType = 'admin' | 'member'
-
 export type MobileScreen =
   | 'home'
   | 'route-select'
@@ -18,9 +14,6 @@ export type MobileScreen =
   | 'profile'
   | 'settings'
   | 'local-officers'
-
-export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'reports' | 'settings'
-
 export interface Region {
   id: string
   name: string

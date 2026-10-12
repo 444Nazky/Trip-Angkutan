@@ -312,11 +312,7 @@ let _queueCache: SyncItem[] = []
 void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 
 /** Error terakhir pada proses sinkron (null = bersih). */
-export function getLastSyncError(): string | null { return _lastError }
-
 /** true bila ada siklus sinkronisasi yang sedang berjalan. */
-export function isSyncInProgress(): boolean { return _syncing && Date.now() <= _lockDeadline }
-
 export function onSyncQueueChange(cb: QueueListener): () => void {
   queueListeners.push(cb)
   void dbCount('pending').then(n => {

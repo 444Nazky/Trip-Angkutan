@@ -91,12 +91,6 @@ function getBaseUrl(): string {
 }
 
 // Allow users to set custom API URL (for physical device testing)
-export function setApiBaseUrl(url: string) {
-  try {
-    localStorage.setItem(API_BASE_URL_KEY, url)
-  } catch { /* quota */ }
-}
-
 export function getApiBaseUrl(): string {
   return getBaseUrl()
 }

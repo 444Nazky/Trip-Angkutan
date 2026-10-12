@@ -124,10 +124,9 @@ router.get('/my-region', authenticate, (req, res) => {
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, pin, regionId, regionIds, dermagaIds } = req.body;
-    const { v4: uuidv4 } = require('uuid');
-
+const { randomUUID } = require('crypto');
     const hashedPin = bcrypt.hashSync(pin, 10);
-    const id = uuidv4();
+    const id = randomUUID();
 
     // regionIds (banyak) untuk many-to-many; regionId tunggal = fallback lama
     const ids = Array.isArray(regionIds) && regionIds.length > 0
