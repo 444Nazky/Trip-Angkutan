@@ -74,3 +74,17 @@ Thumbs.db
 android/keystore.properties
 *.keystore
 *.jks
+
+# Build output (jangan pernah di-commit lagi)
+/chunk-*.js
+/main-*.js
+/main-*.css
+/styles-*.css
+/3rdpartylicenses.txt
+/prerendered-routes.json
+/index.html
+/sw.js
+/version.json
+/*.apk
+/graphify-out/
+/archive/

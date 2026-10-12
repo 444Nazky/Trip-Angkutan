@@ -39,7 +39,11 @@
                 "output": "Assets"
               }
             ],
-            "styles": ["src/global.scss", "src/theme/variables.scss", "src/index.css"],
+            "styles": [
+              "src/global.scss",
+              "src/theme/variables.scss",
+              "src/index.css"
+            ],
             "scripts": []
           },
           "configurations": {
@@ -105,19 +109,6 @@
             "buildTarget": "app:build"
           }
         },
-        "test": {
-          "builder": "@angular/build:unit-test",
-          "options": {
-            "tsConfig": "tsconfig.spec.json",
-            "buildTarget": "::development",
-            "setupFiles": ["src/test-setup.ts"]
-          },
-          "configurations": {
-            "ci": {
-              "watch": false
-            }
-          }
-        },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {
@@ -131,19 +122,6 @@
     }
   },
   "cli": {
-    "schematicCollections": [
-      "@ionic/angular-toolkit"
-    ],
     "analytics": "97f52199-edbc-4496-9692-b51cd3da763a"
-  },
-  "schematics": {
-    "@ionic/angular-toolkit:component": {
-      "styleext": "scss",
-      "standalone": false
-    },
-    "@ionic/angular-toolkit:page": {
-      "styleext": "scss",
-      "standalone": false
-    }
   }
 }
