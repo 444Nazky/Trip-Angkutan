@@ -19,15 +19,15 @@ import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 
-// [OTA Audit] Lazy-load CapacitorHttp for native CORS-free requests
-// Falls back gracefully on web or if not available
+// [OTA Audit] CapacitorHttp kini bagian dari @capacitor/core (Cap 5+).
+// Paket @capacitor/http sudah deprecated/dihapus — impor langsung dari core,
+// fallback fetch tetap aman bila tidak tersedia (web).
 let _capacitorHttp: any = null
 async function getCapacitorHttp(): Promise<any> {
   if (_capacitorHttp) return _capacitorHttp
   try {
-    const m = await import('@capacitor/http')
-    // CapacitorHttp is the default export or a named export depending on version
-    _capacitorHttp = (m as any).CapacitorHttp ?? (m as any).default ?? m
+    const core = await import('@capacitor/core')
+    _capacitorHttp = (core as any).CapacitorHttp ?? null
   } catch {
     _capacitorHttp = null
   }
