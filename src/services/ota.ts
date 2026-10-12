@@ -236,14 +236,20 @@ type ManifestResult =
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   let res: Response
   try {
-    // 2a — jangan pakai ?t=Date.now() yang buta: itu membuat request hampir
-    // sama tiap kali, dan HTTP cache/intermediary bisa return respons basi.
-    // Pakai GET polos + no-store + AbortSignal; saat perangkat "tarik update"
-    // atau aplikasi start, fetch ini selalu re-resolve ke manifest terkini.
-    res = await fetch(MANIFEST_URL, {
+    // PURGE-FIRST: manifest HARUS selalu segar. Danau cache Webview/API
+    // agresif di APK native pernah menyajikan version.json basi sehingga
+    // update SEKUNDER (B→C) tidak terdeteksi. Kombinasi kunci:
+    //   ?t=Date.now()   → URL unik tiap cek (buta cache HTTP layer mana pun)
+    //   cache: 'no-store' + header Cache-Control: no-cache
+    //   → keduanya bilang "jangan pakai copy lama" ke WebView & intermediary.
+    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
       signal,
       cache: 'no-store',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
     })
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') throw err
@@ -259,6 +265,12 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
     const data = await res.json()
     if (!data || typeof data.version !== 'string' || !Array.isArray(data.assets)) {
       return { ok: false, reason: 'invalid' }
+    }
+    // Anchoring integrity: manifest tanpa `integrity` atau dengan hash kosong
+    // untuk sejumlah aset → tandai agar unduhan dibatalkan (partial-chunk
+    // mismatch yang dulu terjadi saat WebView mobile mengunduh parsial).
+    for (const asset of (data as VersionManifest).assets) {
+      if (typeof asset !== 'string' || !asset.length) return { ok: false, reason: 'invalid' }
     }
     return { ok: true, manifest: data as VersionManifest }
   } catch {
@@ -476,9 +488,15 @@ async function discardBundle(version?: string): Promise<void> {
   if (version) await removeStorage(version)
 }
 
-/** Bersihkan SEMUA direktori versi lama sebelum unduhan baru. */
+/**
+ * PURGE-FIRST: bersihkan SELURUH sisa versi lama SEBELUM unduhan baru —
+ * cache Storage, direktori internal OTA_DIR, DAN state localStorage
+ * (versi lama). Ini kunci perbaikan "update sekunder B→C gagal": tanpa
+ * purge penuh, Webview native bisa mempertahankan chunk V1.0.1 sehingga
+ * aktivasi V1.0.2 tampak berhasil tapi UI tetap lama.
+ */
 async function purgeAllOtaStorage(): Promise<void> {
-  // 1. Buang semua cache
+  // 1. Buang semua cache Storage (termasuk trip-ota-active + complement)
   try {
     const names = await caches.keys()
     await Promise.all(names.map(n => caches.delete(n)))
@@ -492,6 +510,11 @@ async function purgeAllOtaStorage(): Promise<void> {
       }
     } catch { /* folder belum ada */ }
   }
+  // 3. Buang state tersimpan (status downloading/ready basi + error cooldown)
+  try {
+    localStorage.removeItem(STATE_KEY)
+    localStorage.removeItem(LAST_ERROR_KEY)
+  } catch { /* */ }
 }
 
 /**
@@ -701,8 +724,9 @@ export async function checkForUpdate(
     }
 
     emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
-    // FULL PACKAGE UPDATE: purge SEMUA cache & versi lama SEBELUM mengunduh
-    // Ini menjamin update kedua dengan struktur chunk sama terdeteksi & diterapkan
+    // ── PURGE-FIRST (strategi mutlak): SEMUA cache, direktori OTA, dan state
+    // lama dibuang SEBELUM byte pertama diunduh. Tidak ada partial/chunk
+    // V1.0.1 yang bisa tersisa untuk bercampur dengan V1.0.2.
     await purgeAllOtaStorage()
 
     const downloaded: string[] = []

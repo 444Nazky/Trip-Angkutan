@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Download, RefreshCw, X, Check, AlertCircle, WifiOff } from 'lucide-react'
+import { hardReloadToNewBundle } from '../services/otaReload'
+import { Download, RefreshCw, X, Check, AlertCircle, WifiOff, Trash2 } from 'lucide-react'
 import {
   getCurrentVersion,
   checkForUpdate,
@@ -130,12 +131,12 @@ interface SheetProps {
   onApply: () => void
   onDismiss: () => void
   onRetry: () => void 
-  doResetAndRetry: () => void
+  onHardReset: () => void
   position: string
   zIndex: number
 }
 
-function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: SheetProps) {
+function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetProps) {
   const { status, error } = state
   const displayVersion = semverLabel(state.latestVersion ?? '')
 
@@ -185,7 +186,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: Sh
             <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm text-amber-700">{error}</p>
               <button
-                onClick={() => { void resetOtaStorage(); doResetAndRetry() }}
+                onClick={onHardReset}
                 className="mt-2 text-xs font-bold text-amber-800 bg-amber-200 hover:bg-amber-300 rounded-lg py-1.5 px-2 transition-colors"
               >
                 Reset Update
@@ -201,7 +202,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: Sh
                 pastikan sudah terhubung ke jaringan intranet
               </p>
               <button
-                onClick={() => { void resetOtaStorage(); doResetAndRetry() }}
+                onClick={onHardReset}
                 className="mt-2 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg py-1.5 px-2 transition-colors"
               >
                 Reset Koneksi
@@ -225,6 +226,21 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: Sh
               >
                 <RefreshCw size={16} />
                 Coba Lagi
+              </button>
+            )}
+
+            {/* Fallback lapangan: bersihkan SELURUH cache & OTA state, lalu
+                reload ke bundle bawaan APK. Ukur tampil untuk semua status
+                gagal/bermasalah agar petugas punya jalan belakang tanpa
+                "Clear Data" manual dari Setting Android. */}
+            {(status === 'error' || status === 'offline') && (
+              <button
+                onClick={onHardReset}
+                className="flex-1 py-3.5 px-4 bg-slate-200 text-base hover:bg-slate-300 active:scale-[0.98] text-slate-700 font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+                title="Hapus semua cache update & muat ulang aplikasi bersih"
+              >
+                <Trash2 size={16} />
+                Reset App Cache
               </button>
             )}
 
@@ -330,14 +346,16 @@ export default function UpdateNotifier({
     return () => window.removeEventListener('online', onOnline)
   }, [autoCheck, performCheck])
 
-  // Apply update and reload
+  // Apply update → activasi atomik → reload penuh
   const handleApply = useCallback(async () => {
+    setState(s => ({ ...s, status: 'downloading' }))
     const success = await applyUpdate()
-    if (success) {
-      onUpdateApplied?.(currentVersion)
-      // Service worker will serve new bundle on reload
-      window.location.reload()
+    if (!success) {
+      setState({ status: 'error', error: 'Gagal menerapkan pembaruan' })
+      return
     }
+    onUpdateApplied?.(currentVersion)
+    await hardReloadToNewBundle()
   }, [currentVersion, onUpdateApplied])
 
   // Dismiss update notification
@@ -349,6 +367,13 @@ export default function UpdateNotifier({
   const handleRetry = useCallback(() => {
     void performCheck()
   }, [performCheck])
+
+  // Fallback lapangan: purge penuh cache OTA + state, lalu reload bersih
+  // ke bundle bawaan APK (replacement bagi "Clear Data" manual Android).
+  const handleHardReset = useCallback(async () => {
+    await resetOtaStorage()
+    window.location.replace('/')
+  }, [])
 
   // Render based on state
   const shouldShowBadge = state.status === 'ready'
@@ -377,7 +402,7 @@ export default function UpdateNotifier({
           onApply={handleApply}
           onDismiss={handleDismiss}
           onRetry={handleRetry}
-          doResetAndRetry={() => { void resetOtaStorage(); handleRetry() }}
+          onHardReset={handleHardReset}
           position={positionClass}
           zIndex={zIndex}
         />
@@ -411,7 +436,7 @@ export function useUpdateNotifier(options?: Omit<UpdateNotifierProps, 'onStateCh
   const apply = useCallback(async () => {
     const success = await applyUpdate()
     if (success) {
-      window.location.reload()
+      await hardReloadToNewBundle()
     }
     return success
   }, [])
