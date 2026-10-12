@@ -3,8 +3,6 @@
 import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v1'
-const API_BASE_URL_KEY = 'trip.api.baseUrl.v1'
-
 export interface ApiError {
   message: string
   code?: string
@@ -69,19 +67,8 @@ function isMobileDevice(): boolean {
   return (window as any).cordova !== undefined
 }
 
-// Get current base URL (user-configurable for physical devices)
+// Get current base URL
 function getBaseUrl(): string {
-  // Custom URL HANYA berlaku di build development.
-  // Build produksi (`ng build` → environment.prod.ts) WAJIB selalu memakai
-  // endpoint resmi Railway — override lokal lama (mis. IP LAN sesi debug)
-  // tidak boleh mengalihkan data trip dari server produksi.
-  if (!environment.production) {
-    try {
-      const customUrl = localStorage.getItem(API_BASE_URL_KEY)
-      if (customUrl) return customUrl
-    } catch { /* ignore */ }
-  }
-
   // Use device-specific URL on mobile
   if (isMobileDevice() && environment.deviceApiBaseUrl) {
     return environment.deviceApiBaseUrl
@@ -90,7 +77,6 @@ function getBaseUrl(): string {
   return environment.apiBaseUrl
 }
 
-// Allow users to set custom API URL (for physical device testing)
 export function getApiBaseUrl(): string {
   return getBaseUrl()
 }
