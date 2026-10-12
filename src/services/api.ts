@@ -3,7 +3,6 @@
 import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v1'
-const API_BASE_URL_KEY = 'trip.api.baseUrl.v1'
 
 export interface ApiError {
   message: string
@@ -49,47 +48,9 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// Detect if running on a REAL mobile device.
-// Penting: window.Capacitor juga ikut terdefinisi di build web (platform 'web'),
-// jadi cek keberadaannya saja akan salah menganggap browser desktop sebagai
-// perangkat fisik → base URL jatuh ke deviceApiBaseUrl (host mati) dan login
-// menggantung. Yang benar: hanya native platform (Android/iOS) atau UA mobile.
-function isMobileDevice(): boolean {
-  // UA mobile → browser di HP/tablet (perlu IP host, bukan localhost)
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true
-
-  const cap = (window as any).Capacitor
-  // Hanya native (Android/iOS) yang dianggap perangkat fisik
-  if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true
-  if (cap && typeof cap.getPlatform === 'function') {
-    const platform = cap.getPlatform()
-    if (platform === 'android' || platform === 'ios') return true
-  }
-
-  return (window as any).cordova !== undefined
-}
-
-// Get current base URL (user-configurable for physical devices)
+// Get current base URL — semua build (dev & produksi) memakai endpoint Railway yang sama.
 function getBaseUrl(): string {
-  // Check if user set a custom URL
-  try {
-    const customUrl = localStorage.getItem(API_BASE_URL_KEY)
-    if (customUrl) return customUrl
-  } catch { /* ignore */ }
-
-  // Use device-specific URL on mobile
-  if (isMobileDevice() && environment.deviceApiBaseUrl) {
-    return environment.deviceApiBaseUrl
-  }
-
   return environment.apiBaseUrl
-}
-
-// Allow users to set custom API URL (for physical device testing)
-export function setApiBaseUrl(url: string) {
-  try {
-    localStorage.setItem(API_BASE_URL_KEY, url)
-  } catch { /* quota */ }
 }
 
 export function getApiBaseUrl(): string {

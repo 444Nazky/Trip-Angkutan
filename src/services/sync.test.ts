@@ -93,7 +93,6 @@ vi.mock('./api', () => ({
     },
   },
   getApiBaseUrl: () => 'http://api.test',
-  setApiBaseUrl: () => { /* no-op */ },
 }))
 
 vi.mock('@capacitor/geolocation', () => ({

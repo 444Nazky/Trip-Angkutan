@@ -127,9 +127,7 @@ interface StoreValue {
   setOfficerId: (id: string) => void
   refreshOfficers: (force?: boolean) => Promise<void>
   trips: Trip[]
-  commitTrip: (t: Trip, photos?: { dataUrl: string; mimeType: string }[], tripPhoto?: { dataUrl: string; mimeType: string } | undefined) => void
   tariffs: TariffRow[]
-  saveTariffs: (rows: TariffRow[]) => void
   officers: Officer[]
   saveOfficers: (rows: Officer[]) => void
   draft: Draft
@@ -147,7 +145,6 @@ interface StoreValue {
   finishEmptyTrip: () => void
   /** Direct submit trip bermuatan (swafoto lengkap) ke antrean, tanpa Trip Aktif. */
   finishMuatanTrip: () => void
-  markTripSynced: (id: string) => void
   /** Perbaiki foto bukti TRIP yang hilang/ambul-ulang dari Riwayat. */
   patchTripPhoto: (tripId: string, fields: Partial<Trip>) => void
   /** Perbaiki foto dokumentasi satu KENDARAAN tertentu dari Riwayat. */
@@ -159,7 +156,6 @@ interface StoreValue {
   beginVerify: (opts: { pendingOfficerId: string | null; intent: VerifyIntent }) => void
   clearVerify: () => void
 
-  activeDermagaId: string | null
   setActiveDermaga: (id: string | null) => void
 }
 
@@ -351,7 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
-  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
+  const [tariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => {
     const saved = load<Officer[]>(LS.officers, [])
     // DATA BAWAAN (seed): layar Ganti Petugas langsung terisi sejak instalasi
@@ -365,7 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
   const [pendingOfficerId, setPendingOfficerId] = useState<string | null>(null)
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
-  const [activeDermagaId, setActiveDermagaId] = useState<string | null>(null)
+  const [, setActiveDermagaId] = useState<string | null>(null)
 
   // Prefetch daftar petugas dipanggil dari `login()` (didefinisikan sebelum
   // refreshOfficers) — ref memutus urutan deklarasi tanpa TDZ.
@@ -683,7 +679,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setVerifyIntent(opts.intent)
   }, [])
   const clearVerify = useCallback(() => setPendingOfficerId(null), [])
-  const saveTariffs = useCallback((rows: TariffRow[]) => setTariffs(rows), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
   
@@ -767,20 +762,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(() => ({
     loggedIn, login, logout, userType,
     officer, setOfficerId, refreshOfficers,
-    trips, commitTrip,
-    tariffs, saveTariffs,
+    trips,
+    tariffs,
     officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
-    startTrip, finishEmptyTrip, finishMuatanTrip, markTripSynced,
+    startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
-    activeDermagaId, setActiveDermaga,
-  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, commitTrip, tariffs, saveTariffs, officers, saveOfficers,
+    setActiveDermaga,
+  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tariffs, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
-    startTrip, finishEmptyTrip, finishMuatanTrip, markTripSynced,
+    startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
-    activeDermagaId, setActiveDermaga])
+    setActiveDermaga])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }
