@@ -5,7 +5,16 @@ const jwt = require('jsonwebtoken');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
+// JWT_SECRET wajib dari environment — TANPA fallback.
+// Fallback literal mengekspos timing secret attacker (bisa forge token admin/officer).
+const JWT_SECRET = (() => {
+  const s = process.env.JWT_SECRET;
+  if (!s) {
+    console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it');
+    process.exit(1);
+  }
+  return s;
+})();
 
 // Admin login (username/password) — issues a JWT with role: 'admin'
 //

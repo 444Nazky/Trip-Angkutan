@@ -266,7 +266,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
                 </span>
               </button>
-            ))}r
+            ))}
             {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
             {!isEmptyTrip && missingVehicles.map(x => (
               <button

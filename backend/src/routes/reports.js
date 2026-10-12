@@ -39,11 +39,12 @@ router.get('/summary', authenticate, requireAdmin, (req, res) => {
       WHERE 1=1 ${dateFilter}
     `).get(...params);
 
-    // Total revenue (from external tariffs only)
+    // Total revenue — SELURUH tarif kendaraan yang dicatat (golongan bukan penanda
+    // 'Eksternal'; vehicle categories adalah kolom category, bukan golongan).
     const revenue = db.prepare(`
       SELECT COALESCE(SUM(v.tariff_amount), 0) as total FROM vehicles v
       JOIN trips t ON v.trip_id = t.id
-      WHERE v.golongan = 'Eksternal' ${dateFilter}
+      WHERE 1=1 ${dateFilter}
     `).get(...params);
 
     res.json({
