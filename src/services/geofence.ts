@@ -7,10 +7,9 @@
 
 import { api } from './api'
 
-// ── DEV MODE: Fallback Mock Location ─────────────────────────────────────────
-// Koordinat Dermaga 1 Badau — digunakan saat GPS gagal/timeout di VS Code Browser
-const DEV_MODE_FALLBACK_LAT = -6.1891005
-const DEV_MODE_FALLBACK_LON = 106.8371641
+// Catatan: mock-location hardcoded (koordinat Badau Dermaga 1) sudah DIHAPUS.
+// GPS gagal = lokasi tidak terverifikasi (null) → rute tetap tersembunyi;
+// tidak ada lagi koordinat tetap yang bisa meloloskan validasi geofence.
 
 export interface GeofenceRule {
   /** ID unik rule */
