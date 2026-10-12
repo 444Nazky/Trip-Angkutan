@@ -3,6 +3,7 @@ const cors = require('cors');
 const dbModule = require('./db');
 const authRoutes = require('./routes/auth');
 const tripRoutes = require('./routes/trips');
+const geofenceRoutes = require('./routes/geofences');
 const vehicleRoutes = require('./routes/vehicles');
 const tariffRoutes = require('./routes/tariffs');
 const regionTariffRoutes = require('./routes/region-tariffs');
@@ -42,6 +43,7 @@ app.use('/api/officers', officerRoutes);
 app.use('/api/regions', regionRoutes);
 app.use('/api/dermagas', dermagaRoutes);
 app.use('/api/routes', routeRoutes);
+app.use('/api/geofences', geofenceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/upload', uploadRoutes);
 

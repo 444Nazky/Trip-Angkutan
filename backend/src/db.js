@@ -174,7 +174,8 @@ function migrate() {
     )
   `);
 
-  relaxTripsDermagaNotNull();
+  relaxTripsDermagaNotNull()
+  migrateGeofences()
   for (const [table, column, definition] of [
     ['trips', 'foto_captured_at', 'TEXT'],
     ['trips', 'foto_latitude', 'REAL'],
@@ -205,6 +206,29 @@ function migrate() {
 // tersinkron. SQLite tidak mendukung ALTER COLUMN, jadi tabel dibangun ulang
 // dengan kolom nullable. FK tidak di-enforce (PRAGMA foreign_keys = 0) dan
 // dermaga_id tidak dipakai di query laporan mana pun, jadi aman.
+function migrateGeofences() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS geofence_rules (
+      id TEXT PRIMARY KEY,
+      location_name TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters REAL DEFAULT 100,
+      allowed_route_codes TEXT DEFAULT '',
+      allowed_directions TEXT DEFAULT '',
+      description TEXT DEFAULT ''
+    )`)
+  } catch (e) { /* already exists */ }
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS geofence_config (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )`)
+    db.run(`INSERT OR IGNORE INTO geofence_config (key, value) VALUES ('defaultRadiusMeters', '100')`)
+    db.run(`INSERT OR IGNORE INTO geofence_config (key, value) VALUES ('maxAccuracyMeters', '100')`)
+  } catch (e) { /* already exists */ }
+}
+
 function relaxTripsDermagaNotNull() {
   try {
     const col = dbWrapper.prepare(`PRAGMA table_info(trips)`).all()
