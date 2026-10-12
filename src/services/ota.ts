@@ -19,6 +19,21 @@ import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 
+// [OTA Audit] Lazy-load CapacitorHttp for native CORS-free requests
+// Falls back gracefully on web or if not available
+let _capacitorHttp: any = null
+async function getCapacitorHttp(): Promise<any> {
+  if (_capacitorHttp) return _capacitorHttp
+  try {
+    const m = await import('@capacitor/http')
+    // CapacitorHttp is the default export or a named export depending on version
+    _capacitorHttp = (m as any).CapacitorHttp ?? (m as any).default ?? m
+  } catch {
+    _capacitorHttp = null
+  }
+  return _capacitorHttp
+}
+
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
 const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
 
@@ -142,7 +157,16 @@ export async function auditOta(): Promise<{
   let hasRemoteManifest = false
 
   try {
-    const res = await fetch(MANIFEST_URL, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+    // [OTA Audit] Use nativeFetch for CORS-free request on native platforms
+    // Use AbortController timeout instead of AbortSignal.timeout for broader compatibility
+    const ac = new AbortController()
+    const timeout = setTimeout(() => ac.abort(), 4000)
+    let res: Response
+    try {
+      res = await nativeFetch(MANIFEST_URL, { cache: 'no-store', signal: ac.signal })
+    } finally {
+      clearTimeout(timeout)
+    }
     if (res.ok) {
       const data = await res.json()
       if (data?.version) {
@@ -206,7 +230,7 @@ export async function resetOtaStorage(): Promise<void> {
     localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY)
   } catch { /* quota / tidak tersedia */ }
 
-  console.log('[ota] resetOtaStorage() selesai — bundle lama dibuang, state OTA di-reset')
+  console.log('[OTA Audit] resetOtaStorage() selesai — bundle lama dibuang, state OTA di-reset')
 }
 
 // ── Util ─────────────────────────────────────────────────────────────────────
@@ -229,6 +253,55 @@ function fromBase64(b64: string): Uint8Array {
 
 const isNative = () => Capacitor.isNativePlatform()
 
+/**
+ * [OTA Audit] HTTP fetch helper that prefers CapacitorHttp on native (avoids CORS)
+ * Falls back to regular fetch on web or if CapacitorHttp unavailable.
+ */
+async function nativeFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const mergedOptions = {
+    ...options,
+    // Always add cache-busting and prevent stale responses
+    headers: {
+      ...options.headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    },
+  }
+
+  // Try CapacitorHttp first on native platforms (CORS-free)
+  if (isNative()) {
+    try {
+      const capHttp = await getCapacitorHttp()
+      if (capHttp) {
+        // [OTA Audit] CapacitorHttp uses native HTTP client, CORS-free
+        const response = await capHttp.request({
+          url,
+          method: (mergedOptions.method as string) || 'GET',
+          headers: mergedOptions.headers as Record<string, string>,
+          connectTimeout: 10000, // 10 second timeout
+        })
+        // Convert CapacitorHttp response to Fetch Response-like object
+        return new Response(response.data, {
+          status: response.status,
+          statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+          headers: new Headers(
+            Object.entries(response.headers || {}).reduce((acc, [k, v]) => {
+              acc[k] = Array.isArray(v) ? v.join(', ') : String(v)
+              return acc
+            }, {} as Record<string, string>)
+          ),
+        })
+      }
+    } catch (err) {
+      // [OTA Audit] CapacitorHttp failed, fall through to regular fetch
+      console.log('[OTA Audit] CapacitorHttp unavailable, using fallback fetch')
+    }
+  }
+
+  // Fallback to regular fetch
+  return fetch(url, mergedOptions)
+}
+
 type ManifestResult =
   | { ok: true; manifest: VersionManifest }
   | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
@@ -236,19 +309,17 @@ type ManifestResult =
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   let res: Response
   try {
-    // PURGE-FIRST: manifest HARUS selalu segar. Danau cache Webview/API
+    // [OTA Audit] PURGE-FIRST: manifest HARUS selalu segar. Danau cache Webview/API
     // agresif di APK native pernah menyajikan version.json basi sehingga
     // update SEKUNDER (B→C) tidak terdeteksi. Kombinasi kunci:
     //   ?t=Date.now()   → URL unik tiap cek (buta cache HTTP layer mana pun)
-    //   cache: 'no-store' + header Cache-Control: no-cache
+    //   nativeFetch with cache-busting headers
     //   → keduanya bilang "jangan pakai copy lama" ke WebView & intermediary.
-    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+    res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, {
       signal,
       cache: 'no-store',
       headers: {
         'Accept': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
       },
     })
   } catch (err) {
@@ -316,14 +387,15 @@ export function semverLabel(version: string): string {
   return m ? m[1] : version
 }
 
-/** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
+/** [OTA Audit] Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
  *  seret sesaat (429/throttle); tanpa retry, 1 gagal = 20 file dibuang. */
 async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): Promise<Uint8Array> {
   let lastErr: unknown
   for (let n = 0; n < attempts; n++) {
     if (signal.aborted) throw new DOMException('aborted', 'AbortError')
     try {
-      const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
+      // [OTA Audit] Use nativeFetch for CORS-free downloads on native
+      const res = await nativeFetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
       if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
       if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
       const buf = await res.arrayBuffer()
@@ -416,7 +488,7 @@ async function removeOtherVersions(keep: string): Promise<void> {
     for (const f of files) {
       if (f.type === 'directory' && f.name !== keep) {
         await removeStorage(f.name)
-        console.log(`[ota] versi lama ${f.name} dihapus dari penyimpanan`)
+        console.log(`[OTA Audit] versi lama ${f.name} dihapus dari penyimpanan`)
       }
     }
   } catch { /* folder belum ada */ }
@@ -489,32 +561,45 @@ async function discardBundle(version?: string): Promise<void> {
 }
 
 /**
- * PURGE-FIRST: bersihkan SELURUH sisa versi lama SEBELUM unduhan baru —
+ * [OTA Audit] PURGE-FIRST: bersihkan SELURUH sisa versi lama SEBELUM unduhan baru —
  * cache Storage, direktori internal OTA_DIR, DAN state localStorage
  * (versi lama). Ini kunci perbaikan "update sekunder B→C gagal": tanpa
  * purge penuh, Webview native bisa mempertahankan chunk V1.0.1 sehingga
  * aktivasi V1.0.2 tampak berhasil tapi UI tetap lama.
  */
 async function purgeAllOtaStorage(): Promise<void> {
+  console.log('[OTA Audit] PURGE-FIRST: Memulai pembersihan total cache...')
+
   // 1. Buang semua cache Storage (termasuk trip-ota-active + complement)
+  let cacheCount = 0
   try {
     const names = await caches.keys()
+    cacheCount = names.length
     await Promise.all(names.map(n => caches.delete(n)))
+    console.log(`[OTA Audit] PURGE-FIRST: Menghapus ${cacheCount} cache Storage`)
   } catch { /* */ }
+
   // 2. Buang semua versi di penyimpanan internal
   if (isNative()) {
     try {
       const { files } = await Filesystem.readdir({ path: OTA_DIR, directory: Directory.Cache })
-      for (const f of files) {
-        if (f.type === 'directory') await removeStorage(f.name)
+      const dirs = files.filter(f => f.type === 'directory')
+      console.log(`[OTA Audit] PURGE-FIRST: Menemukan ${dirs.length} direktori versi di penyimpanan internal`)
+      for (const f of dirs) {
+        await removeStorage(f.name)
+        console.log(`[OTA Audit] PURGE-FIRST: Menghapus direktori versi ${f.name}`)
       }
     } catch { /* folder belum ada */ }
   }
+
   // 3. Buang state tersimpan (status downloading/ready basi + error cooldown)
   try {
     localStorage.removeItem(STATE_KEY)
     localStorage.removeItem(LAST_ERROR_KEY)
+    console.log('[OTA Audit] PURGE-FIRST: State OTA dibersihkan')
   } catch { /* */ }
+
+  console.log('[OTA Audit] PURGE-FIRST: Pembersihan selesai - siap untuk download baru')
 }
 
 /**
@@ -586,7 +671,7 @@ export async function activateBundle(version: string, assets: string[]): Promise
     }
     return true
   } catch (err) {
-    console.warn('[ota] aktivasi gagal:', err)
+    console.warn('[OTA Audit] aktivasi gagal:', err)
     return false
   }
 }
@@ -640,7 +725,7 @@ export function registerOtaServiceWorker(forceRefresh = false): void {
       })
     }
   }).catch(err => {
-    console.warn('[ota] service worker gagal didaftarkan:', err)
+    console.warn('[OTA Audit] service worker gagal didaftarkan:', err)
   })
 }
 
@@ -703,7 +788,7 @@ export async function checkForUpdate(
         emit({ status: 'idle', latestVersion: local })
         return { available: false }
       }
-      console.warn('[ota] cek gagal:', result.reason, force ? '(manual)' : '(silent)')
+      console.warn('[OTA Audit] cek gagal:', result.reason, force ? '(manual)' : '(silent)')
       localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
       emit(force
         ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local }
@@ -713,10 +798,13 @@ export async function checkForUpdate(
     const remote = result.manifest
 
     if (!isNewer(remote.version, local)) {
+      console.log(`[OTA Audit] Versi tidak lebih baru: local=${local}, remote=${remote.version}`)
       emit({ status: 'idle', latestVersion: local })
       return { available: false, version: local }
     }
 
+    // [OTA Audit] Update tersedia
+    console.log(`[OTA Audit] Update tersedia: local=${local} → remote=${remote.version}`)
     if (!remote.assets.length) {
       // Manifest kosong - tidak perlu notifikasi
       emit({ status: 'idle', latestVersion: local })
@@ -724,9 +812,10 @@ export async function checkForUpdate(
     }
 
     emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
-    // ── PURGE-FIRST (strategi mutlak): SEMUA cache, direktori OTA, dan state
+    // [OTA Audit] PURGE-FIRST (strategi mutlak): SEMUA cache, direktori OTA, dan state
     // lama dibuang SEBELUM byte pertama diunduh. Tidak ada partial/chunk
     // V1.0.1 yang bisa tersisa untuk bercampur dengan V1.0.2.
+    console.log(`[OTA Audit] Memulai download versi ${remote.version} (${remote.assets.length} file)`)
     await purgeAllOtaStorage()
 
     const downloaded: string[] = []
@@ -741,10 +830,12 @@ export async function checkForUpdate(
       const asset = remote.assets[i]
       try {
         const bytes = await downloadAsset(asset, sig)
+        // [OTA Audit] Log download progress
+        console.log(`[OTA Audit] Downloaded ${i + 1}/${total}: ${asset}`)
         // Verifikasi isi file terhadap manifest — file basi/rusak dibuang,
         // update dibatalkan dengan aman (app tetap pakai bundle bawaan APK).
         if (!(await verifyAsset(bytes, asset, remote.integrity))) {
-          console.warn('[ota] integritas aset tidak cocok, batalkan update:', asset)
+          console.warn('[OTA Audit] integritas aset tidak cocok, batalkan update:', asset)
           await purgeAllOtaStorage()
           localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
           emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
@@ -761,7 +852,7 @@ export async function checkForUpdate(
           return { available: false }
         }
         // Silent fail: bundle tidak lengkap → purge total, notifikasi error
-        console.warn('[ota] unduhan gagal:', asset)
+        console.warn('[OTA Audit] unduhan gagal:', asset)
         await purgeAllOtaStorage()
         localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
         emit({ status: 'error', error: 'Gagal mengunduh paket pembaruan', latestVersion: local })
@@ -781,7 +872,7 @@ export async function checkForUpdate(
     return { available: true, version: remote.version, assets: remote.assets }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return { available: false }
-    console.warn('[ota] cek gagal total:', err, force ? '(manual)' : '(silent)')
+    console.warn('[OTA Audit] cek gagal total:', err, force ? '(manual)' : '(silent)')
     localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
     emit(force
       ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local }
@@ -828,12 +919,11 @@ export async function applyUpdate(): Promise<boolean> {
     // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
     try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
 
-    // Diagnostik pasca-apply: cek versi lokal vs remote, status cache.
-    // Bukan blocking; hanya log untuk diagnostik "kenapa tidak berubah".
+    // [OTA Audit] Diagnostik pasca-apply: cek versi lokal vs remote, status cache.
     try {
       const audit = await auditOta()
       console.log(
-        '[ota] pasca-apply:',
+        '[OTA Audit] pasca-apply:',
         'local=', audit.localVersion,
         'remote=', audit.remoteVersion,
         'persisted=', audit.bundlePersisted,
@@ -841,7 +931,7 @@ export async function applyUpdate(): Promise<boolean> {
       )
       if (audit.cacheActiveEntries === 0 && audit.hasRemoteManifest) {
         console.warn(
-          '[ota] pasca-apply: cache aktif kosong padahal manifiest remote ada —',
+          '[OTA Audit] pasca-apply: cache aktif kosong padahal manifes remote ada —',
           'bundle tidak konsisten; perangkat mungkin perlu reset OTA / reload paksa.',
         )
       }
@@ -849,7 +939,7 @@ export async function applyUpdate(): Promise<boolean> {
 
     return true
   } catch (err) {
-    console.warn('[ota] apply gagal:', err)
+    console.warn('[OTA Audit] apply gagal:', err)
     return false
   }
 }

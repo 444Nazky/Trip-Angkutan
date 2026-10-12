@@ -174,14 +174,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && list.length === 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800 mb-4">
-          {dockName
-            ? `Tidak ada rute untuk ${dockName}. Hubungi admin untuk menambahkan rute.`
-            : 'Pilih dermaga untuk melihat rute.'}
-        </div>
-      )}
 
       <div className="space-y-2.5 mb-5">
         {!loading && list.map(r => {

@@ -418,7 +418,7 @@ function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
 
 /**
  * Sinkronkan titik geofence dari backend ke lokal.
- * Coba endpoint `/api/geofences/config` terlebih dahulu (Admin Dashboard),
+ * Coba endpoint `/geofences/config` terlebih dahulu (Admin Dashboard),
  * fallback ke `/geofences/sync` jika tidak tersedia.
  * Dipanggil saat start app dan saat admin memperbarui konfigurasi.
  */
@@ -433,8 +433,9 @@ export async function syncGeofencesFromBackend(): Promise<void> {
     // Coba endpoint config terlebih dahulu (dari Admin Dashboard)
     let points: GeofencePoint[] = []
 
-    // Attempt 1: GET /api/geofences/config
-    const configResult = await api.get<{ geofences?: BackendGeofence[]; config?: BackendGeofence[] }>('/api/geofences/config')
+    // Attempt 1: GET /geofences/config (Admin Dashboard endpoint)
+    // NOTE: path does NOT include /api prefix — baseUrl already ends with /api
+    const configResult = await api.get<{ geofences?: BackendGeofence[]; config?: BackendGeofence[] }>('/geofences/config')
     if (configResult.ok) {
       const geofences = configResult.data?.config ?? configResult.data?.geofences
       if (Array.isArray(geofences) && geofences.length > 0) {
