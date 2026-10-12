@@ -1,0 +1,41 @@
+{
+  "version": "1.0.1+1791793786440",
+  "assets": [
+    "3rdpartylicenses.txt",
+    "assets/css/main-MQJYYVWI.css",
+    "assets/css/styles-TBVRL7Y7.css",
+    "assets/guest-profile.jpeg",
+    "assets/icon/favicon.png",
+    "assets/js/chunk-BdSkDnxF.js",
+    "assets/js/chunk-BgLtinEu.js",
+    "assets/js/chunk-Bv164SNf.js",
+    "assets/js/chunk-DOuIIpxz.js",
+    "assets/js/chunk-Dy3ySTAw.js",
+    "assets/js/chunk-PzMF91W8.js",
+    "assets/js/chunk-lR6Z9uM4.js",
+    "assets/js/main-BC4TC43C.js",
+    "assets/karyamas_clean.png",
+    "index.html",
+    "prerendered-routes.json",
+    "sw.js"
+  ],
+  "integrity": {
+    "3rdpartylicenses.txt": "0b4cf0cb37025710135f304e627de8e49ce8cf75ff1e588b53f5fa59f5b07906",
+    "assets/css/main-MQJYYVWI.css": "6add7a76091b8ff9e0237cc69b8632195bcacdb563bee8553bbe3a12bd057844",
+    "assets/css/styles-TBVRL7Y7.css": "2e075bec5d546c8611fa9605f6646ebefb5c5c6238cd3e8e5753f006369e301f",
+    "assets/guest-profile.jpeg": "4d457f5e68c75a864cf3f7db345dda2e9eaf1ff2b9d9ca04fe75ba7e2cb846aa",
+    "assets/icon/favicon.png": "e820db45563316ad63b8557a3cb9a681a9f59faf899c250393113fcbe885d2cd",
+    "assets/js/chunk-BdSkDnxF.js": "569d43f689f74a0843c60cf9571ac2396affc8f0a3d22c01ff2b840ba7aa52ff",
+    "assets/js/chunk-BgLtinEu.js": "284ebfe49269d4dc4cb96e3d4ad1c8a66d49450397fc6881eb61212b772912ff",
+    "assets/js/chunk-Bv164SNf.js": "0a2d529516c887d1e6a21cdca8a772ba4d0f9b29178f1407bdba7095442bc5c3",
+    "assets/js/chunk-DOuIIpxz.js": "6efa42bc4796b0c71b431f6d9826a9cb2382cd49456efce112a83d71c0435c60",
+    "assets/js/chunk-Dy3ySTAw.js": "8414fae93e3d030b21a0e0b7e61910c85734f4537990be680f02e8eab7e24224",
+    "assets/js/chunk-PzMF91W8.js": "f364ef43d1e9d587526bfba6ae7f8736b5e7168ce56da35bc62649a23afab6bc",
+    "assets/js/chunk-lR6Z9uM4.js": "ffd6f5b0ac55247983fe30847fa2e7aac80c88d5ef5889a23e1626ecaea7fde3",
+    "assets/js/main-BC4TC43C.js": "5ab65de6cbb6b29058987e021e787342b8bc7bd8e8c9cdcff1d0b9a869225068",
+    "assets/karyamas_clean.png": "5ab163307bc32d9362d62313eb27331e836aae29c0a869467f9325939e01246c",
+    "index.html": "22d6fe0553d32a80f2d37486af141da014df49d5a5452c07c18f0d21ae42f3b1",
+    "prerendered-routes.json": "a79ddcc8a115190e9c19479ed36914741a7d1db74f0a1153529efc80725505fe",
+    "sw.js": "ebfb9b2b191a4723397d3a1d3f6ce750a698ae183784f59b0a5595bfd331a928"
+  }
+}
