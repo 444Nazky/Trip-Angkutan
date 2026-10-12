@@ -5,11 +5,12 @@
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
 
-// ── DEV MODE: Fallback Mock Location ─────────────────────────────────────────
-// Koordinat Dermaga 1 Badau — digunakan saat GPS gagal/timeout di VS Code Browser
-const DEV_MODE_FALLBACK_LAT = -6.1891005
-const DEV_MODE_FALLBACK_LON = 106.8371641
-const DEV_MODE_FALLBACK_ACCURACY = 5 // Simulasi GPS akurat 5 meter
+// ── TIDAK ADA mock location ──────────────────────────────────────────────────
+// Sebelumnya ada DEV_MODE_FALLBACK ke koordinat Badau Dermaga 1 yang dipakai
+// setiap kali GPS gagal/izin ditolak. Efeknya berbahaya: petugas di region mana
+// pun yang GPS-nya mati akan "terlihat" berada di Badau sehingga lolos validasi
+// geofence. GPS gagal = lokasi TIDAK TERVERIFIKASI (return null) → rute tetap
+// tersembunyi dan input trip diblokir, sesuai kebijakan strict.
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -88,12 +89,12 @@ export function calculateDistance(
 export function getStoredGeofencePoints(): GeofencePoint[] {
   try {
     const raw = localStorage.getItem(GEOFENCE_STORAGE_KEY)
-    if (!raw) return getDefaultGeofencePoints()
+    if (!raw) return []
     const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return getDefaultGeofencePoints()
+    if (!Array.isArray(parsed)) return []
     return parsed
   } catch {
-    return getDefaultGeofencePoints()
+    return []
   }
 }
 
@@ -107,32 +108,15 @@ export function saveGeofencePoints(points: GeofencePoint[]): void {
 }
 
 
-// geo default (koordinat area pengujian Badau — konsisten dengan ketentuan)
+// ── TANPA titik geofence hardcoded ──────────────────────────────────────────
+// Sumber kebenaran tunggal adalah Master Rute di Admin Dashboard, disinkronkan
+// via syncGeofencesFromBackend() → GET /api/geofences. Sebelumnya di sini ada
+// koordinat Badau Dermaga 1 & 2 yang di-hardcode; itu membuat rute palsu di
+// region lain (Entikong/Belitung/Kelapa Kampit) dan menutupi kegagalan sync.
+// Fungsi dipertahankan (dipakai untuk paritas antar-branch) tapi mengembalikan
+// daftar KOSONG: tanpa config dari backend = tidak ada area yang dianggap sah.
 export function getDefaultGeofencePoints(): GeofencePoint[] {
-  return [
-    {
-      // Titik area Rute 2 → hanya trayek SJRE→SBDZ
-      id: 'badau-d1',
-      name: 'Badau Dermaga 1',
-      dermagaId: 'BADAU-D1',
-      latitude: -6.1891005,
-      longitude: 106.8371641,
-      radiusMeters: 100,
-      allowedRoutes: ['SJRE-SBDZ'],
-      enabled: true,
-    },
-    {
-      // Titik area Rute 1 → hanya trayek SBDZ→SJRE
-      id: 'badau-d2',
-      name: 'Badau Dermaga 2',
-      dermagaId: 'BADAU-D2',
-      latitude: -6.2389899548617285,
-      longitude: 106.97475839406252,
-      radiusMeters: 100,
-      allowedRoutes: ['SBDZ-SJRE'],
-      enabled: true,
-    },
-  ]
+  return []
 }
 
 export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
@@ -157,54 +141,22 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
 
 
 export async function getCurrentPosition(): Promise<{ lat: number; lon: number; accuracy?: number | null } | null> {
-  // ── DEV MODE: Fallback Mock Location ─────────────────────────────────────
-  // Jika import.meta.env.DEV aktif, langsung gunakan koordinat Dermaga 1
-  // Ini bypass error GPS di VS Code Simple Browser / WebView
-  if (typeof import.meta !== 'undefined' && (import.meta as { dev?: boolean }).dev) {
-    console.log('[geofence] DEV MODE: Menggunakan fallback mock location Dermaga 1')
-    return {
-      lat: DEV_MODE_FALLBACK_LAT,
-      lon: DEV_MODE_FALLBACK_LON,
-      accuracy: DEV_MODE_FALLBACK_ACCURACY,
-    }
-  }
-
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 3000,
     })
-    if (!pos?.coords) {
-      // ── GPS gagal → DEV fallback ─────────────────────────────────────────
-      if (typeof import.meta !== 'undefined') {
-        console.log('[geofence] GPS gagal → DEV MODE fallback ke Dermaga 1')
-        return {
-          lat: DEV_MODE_FALLBACK_LAT,
-          lon: DEV_MODE_FALLBACK_LON,
-          accuracy: DEV_MODE_FALLBACK_ACCURACY,
-        }
-      }
-      return null
-    }
+    if (!pos?.coords) return null
     return {
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
       accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
     }
   } catch (err) {
+    // GPS gagal / izin ditolak / timeout → null (lokasi tidak terverifikasi).
+    // Jangan pernah mengembalikan koordinat hardcoded apa pun.
     console.warn('[geofence] Gagal mendapatkan posisi GPS:', err)
-    // ── Error GPS (izin ditolak/timeout) → DEV fallback ───────────────────
-    // VS Code Simple Browser sering menolak/timeout izin GPS
-    // Gunakan koordinat Dermaga 1 agar UI "Di Luar Area Geofence" langsung terbuka
-    if (typeof import.meta !== 'undefined') {
-      console.log('[geofence] GPS error → DEV MODE fallback ke Dermaga 1')
-      return {
-        lat: DEV_MODE_FALLBACK_LAT,
-        lon: DEV_MODE_FALLBACK_LON,
-        accuracy: DEV_MODE_FALLBACK_ACCURACY,
-      }
-    }
     return null
   }
 }
@@ -243,14 +195,24 @@ export async function validateRouteForCurrentLocation(
   // semua kegagalan lokasi = BLOCK ALL.
   const strict = geofencePoints.some(p => p.enabled !== false && p.strictEnforceOutsideArea !== false)
 
-  if (geofencePoints.length === 0 || geofencePoints.every(p => !p.enabled)) {
-    // Tanpa titik geofence aktif: hanya block bila mode strict disimpan.
-    return { valid: !strict, blocked: strict, reason: strict ? 'Geofence belum dikonfigurasi — input trip diblokir' : undefined }
+  // Tanpa titik geofence sama sekali → lokasi tidak terverifikasi, trip BLOCKED.
+  // (Kebijakan disamakan dengan RouteSelectScreen & getActiveGeofenceSnapshot:
+  //  rute hanya boleh dipakai setelah lokasi terbukti berada di titik resmi.)
+  if (geofencePoints.length === 0) {
+    return {
+      valid: false,
+      blocked: true,
+      reason: 'Geofence belum dikonfigurasi admin (Master Rute) — input trip diblokir sampai titik lokasi didaftarkan',
+    }
   }
 
   const anyEnabled = geofencePoints.some(p => p.enabled)
-  if (!anyEnabled) {
-    return { valid: !strict, blocked: strict, reason: strict ? 'Geofence nonaktif — input trip diblokir' : undefined }
+  if (!anyEnabled || geofencePoints.every(p => !p.enabled)) {
+    return {
+      valid: false,
+      blocked: true,
+      reason: 'Titik geofence dinonaktifkan admin — input trip diblokir',
+    }
   }
 
   const position = await getCurrentPosition()
@@ -327,27 +289,46 @@ export async function validateRouteForCurrentLocation(
 const GEOFENCE_SYNC_KEY = 'trip.geofence.lastSync'
 const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000 // 15 menit
 
+/**
+ * Kontrak respons ACTUAL dari GET /api/geofences (endpoint backend geofences.js):
+ *   { id, locationName, latitude, longitude, radiusMeters,
+ *     allowedRouteCodes: string[], allowedDirections: string[], description }
+ * Toleransi camelCase/snake_case & field opsional agar kompatibel dengan
+ * versi backend lama maupun baru.
+ */
 interface BackendGeofence {
   id: string
-  name: string
+  locationName?: string
+  name?: string
+  latitude: number | string
+  longitude: number | string
+  radiusMeters?: number
+  allowedRouteCodes?: string[] | string
+  allowedRoutes?: string[]
   dermagaId?: string
-  latitude: number
-  longitude: number
-  radiusMeters: number
-  allowedRoutes: string[]
-  enabled: boolean
+  description?: string
+  enabled?: boolean
   strictEnforceOutsideArea?: boolean
+}
+
+function toStringArray(v: string[] | string | undefined): string[] {
+  if (Array.isArray(v)) return v.map(s => String(s).trim()).filter(Boolean)
+  if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean)
+  return []
 }
 
 function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
   return {
-    id: g.id,
-    name: g.name,
+    id: String(g.id),
+    name: String(g.locationName ?? g.name ?? 'Titik Geofence'),
     dermagaId: g.dermagaId,
-    latitude: g.latitude,
-    longitude: g.longitude,
-    radiusMeters: g.radiusMeters ?? 100,
-    allowedRoutes: g.allowedRoutes ?? [],
+    latitude: Number(g.latitude),
+    longitude: Number(g.longitude),
+    radiusMeters: Number(g.radiusMeters) > 0 ? Number(g.radiusMeters) : 100,
+    // Backend mengirim allowedRouteCodes; fallback ke allowedRoutes (versi lama)
+    allowedRoutes: toStringArray(g.allowedRouteCodes).length > 0
+      ? toStringArray(g.allowedRouteCodes)
+      : toStringArray(g.allowedRoutes),
     enabled: g.enabled !== false,
     strictEnforceOutsideArea: g.strictEnforceOutsideArea !== false,
   }
@@ -367,32 +348,26 @@ export async function syncGeofencesFromBackend(): Promise<void> {
   } catch { /* */ }
 
   try {
-    // Coba endpoint config terlebih dahulu (dari Admin Dashboard)
-    let points: GeofencePoint[] = []
+    // Endpoint sebenarnya: GET /api/geofences → array rule hasil CRUD Master Rute
+    // (versi lama menembak /geofences/config & /geofences/sync yang TIDAK ADA di
+    // backend, sehingga sync selalu gagal diam-diam dan app terpaksa memakai
+    // titik hardcoded Badau. Sekarang endpoint benar + mapping field benar.)
+    const result = await api.get<BackendGeofence[]>('/geofences')
+    if (!result.ok || !Array.isArray(result.data)) return
 
-    // Attempt 1: GET /geofences/config (Admin Dashboard endpoint)
-    // NOTE: path does NOT include /api prefix — baseUrl already ends with /api
-    const configResult = await api.get<{ geofences?: BackendGeofence[]; config?: BackendGeofence[] }>('/geofences/config')
-    if (configResult.ok) {
-      const geofences = configResult.data?.config ?? configResult.data?.geofences
-      if (Array.isArray(geofences) && geofences.length > 0) {
-        points = geofences.map(mapBackendToGeofence)
-      }
-    }
+    const points = result.data
+      .map(mapBackendToGeofence)
+      .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
 
-    // Attempt 2: Fallback ke /geofences/sync
     if (points.length === 0) {
-      const syncResult = await api.get<{ geofences?: BackendGeofence[] }>('/geofences/sync')
-      if (syncResult.ok && Array.isArray(syncResult.data?.geofences)) {
-        points = syncResult.data.geofences.map(mapBackendToGeofence)
-      }
+      // Backend belum punya titik: JANGAN pakai default/hardcoded, dan jangan
+      // hapus cache lama (offline-first) — cukup tandai sudah sync.
+      localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
+      return
     }
 
-    // Simpan hanya jika ada data valid dari backend
-    if (points.length > 0) {
-      saveGeofencePoints(points)
-      localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
-    }
+    saveGeofencePoints(points)
+    localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
   } catch {
     // Offline — pakai cache lokal (sudah ada di getStoredGeofencePoints)
   }
@@ -418,10 +393,21 @@ export async function getActiveGeofenceSnapshot(
   const geofencePoints = points ?? getStoredGeofencePoints()
   const strict = geofencePoints.some(p => p.enabled && p.strictEnforceOutsideArea !== false)
 
+  // Belum ada titik sama sekali (admin belum mengisi Master Rute / belum sync):
+  // lokasi TIDAK BISA diverifikasi → rute tetap disembunyikan, tapi pesannya
+  // harus jelas (bukan "di luar area", karena tidak ada area yang didefinisikan).
+  if (geofencePoints.length === 0) {
+    return {
+      valid: false,
+      blocked: true,
+      reason: 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi',
+    }
+  }
+
   if (geofencePoints.every(p => !p.enabled)) {
     return strict
       ? { valid: false, blocked: true, reason: 'Geofence nonaktif — input trip diblokir' }
-      : { valid: true }
+      : { valid: false, blocked: true, reason: 'Titik geofence dinonaktifkan admin — input trip diblokir' }
   }
 
   const position = await getCurrentPosition()

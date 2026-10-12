@@ -15,7 +15,6 @@
 //     lama akan melengkapi daftar tanpa kehilangan data yang sudah tersimpan.
 
 import bcrypt from 'bcryptjs'
-import { saveGeofencePoints, type GeofencePoint } from './geofence'
 
 /** Naikkan saat menambah/mengubah isi seed pada rilis OTA. */
 export const SEED_VERSION = 1
@@ -25,8 +24,6 @@ export const SEED_VERSION_KEY = 'trip.officers.seedVersion'
 const ROSTER_KEY = 'trip.officers.v1'
 /** Kunci cache rute per dermaga (sama dengan milik auth.ts). */
 const ROUTES_KEY = 'trip.auth.routes.v1'
-/** Kunci geofence points di localStorage (sama dengan milik geofence.ts). */
-const GEOFENCE_KEY = 'trip.geofence.points'
 
 export interface SeedDermaga {
   id: string
@@ -329,62 +326,17 @@ export function seedRouteCacheIfAbsent(): void {
   } catch { /* quota / data rusak — abaikan */ }
 }
 
-// ── Geofence Seed Data ───────────────────────────────────────────────────
-
 /**
- * Konfigurasi default titik geofencing Badau Dermaga 1 & 2.
- * Koordinat akurat dengan radius 100m untuk validasi GPS ketat.
- */
-export const SEED_GEOFENCE_POINTS: GeofencePoint[] = [
-  {
-    id: 'badau-d1',
-    name: 'Badau Dermaga 1',
-    dermagaId: '10724ce5-f710-4ef6-a383-8710bc5b451f', // DERMAGA.BADAU_D1.id
-    latitude: -6.1891005,
-    longitude: 106.8371641,
-    radiusMeters: 100,
-    allowedRoutes: ['SJRE-SBDZ'],
-    enabled: true,
-  },
-  {
-    id: 'badau-d2',
-    name: 'Badau Dermaga 2',
-    dermagaId: 'f3401fb6-116e-4cde-9579-a8010e90e964', // DERMAGA.BADAU_D2.id
-    latitude: -6.2389899548617285,
-    longitude: 106.97475839406252,
-    radiusMeters: 100,
-    allowedRoutes: ['SBDZ-SJRE'],
-    enabled: true,
-  },
-]
-
-/**
- * Tanam konfigurasi geofence bawaan ke localStorage — hanya jika belum ada.
- * Dipanggil saat init aplikasi untuk memastikan titik geofence tersedia offline.
- * Data dari Admin Dashboard (via syncGeofencesFromBackend) tidak pernah ditimpa.
+ * TIDAK ADA seeding geofence lagi.
+ *
+ * Titik geofence adalah data operasional milik Admin Dashboard (Master Rute),
+ * jadi sumber kebenaran tunggal adalah backend — ditarik via
+ * syncGeofencesFromBackend() (GET /api/geofences) dan disimpan sebagai cache
+ * offline. Sebelumnya fungsi ini menyuntikkan koordinat Badau hardcoded yang
+ * (a) memunculkan titik palsu di region lain, dan (b) menutupi kegagalan sync.
+ *
+ * Dipertahankan sebagai no-op agar pemanggil lama (offlineDb) tetap kompatibel.
  */
 export function seedGeofencePointsIfAbsent(): void {
-  try {
-    const raw = localStorage.getItem(GEOFENCE_KEY)
-    // Jika belum ada data geofence, simpan seed default
-    if (!raw) {
-      saveGeofencePoints(SEED_GEOFENCE_POINTS)
-      return
-    }
-    // Jika ada, periksa apakah perlu di-seed untuk dermaga Badau
-    const existing: GeofencePoint[] = JSON.parse(raw)
-    if (!Array.isArray(existing) || existing.length === 0) {
-      saveGeofencePoints(SEED_GEOFENCE_POINTS)
-      return
-    }
-    // Seed-only: tambahkan titik Badau jika belum ada
-    const hasBadauD1 = existing.some(p => p.id === 'badau-d1')
-    const hasBadauD2 = existing.some(p => p.id === 'badau-d2')
-    if (!hasBadauD1 || !hasBadauD2) {
-      const merged = [...existing]
-      if (!hasBadauD1) merged.push(SEED_GEOFENCE_POINTS[0])
-      if (!hasBadauD2) merged.push(SEED_GEOFENCE_POINTS[1])
-      saveGeofencePoints(merged)
-    }
-  } catch { /* quota / data rusak — abaikan */ }
+  /* no-op sengaja: geofence hanya dari Admin Dashboard */
 }

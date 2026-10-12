@@ -5,7 +5,7 @@ import {
   getCurrentVersion,
   checkForUpdate,
   applyUpdate,
-  resetOtaStorage,
+  resetAppCacheFully,
   semverLabel,
   type UpdateState
 } from '../services/ota'
@@ -42,13 +42,13 @@ const positionClasses = {
 
 // ─── Progress bar component ────────────────────────────────────────────────────
 
-function ProgressBar({ progress }: { progress?: number }) {
+function ProgressBar({ progress, detail }: { progress?: number; detail?: string }) {
   if (progress === undefined) return null
 
   return (
     <div className="mt-2">
       <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>Mengunduh...</span>
+        <span>{detail ?? 'Mengunduh paket penuh…'}</span>
         <span>{progress}%</span>
       </div>
       <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
@@ -139,6 +139,8 @@ interface SheetProps {
 function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetProps) {
   const { status, error } = state
   const displayVersion = semverLabel(state.latestVersion ?? '')
+  const activeVersion = state.activeVersion ? semverLabel(state.activeVersion) : null
+  const [resetting, setResetting] = useState(false)
 
   // Tidak tampil jika idle atau checking
   if (status === 'idle' || status === 'checking') return null
@@ -168,17 +170,32 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetP
 
         {/* Content */}
         <div className="p-6">
-          {/* Version info */}
-        {state.latestVersion && (
+          {/* Version info — perpindahan versi dibuat eksplisit */}
+          {state.latestVersion && (
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-slate-500 text-sm">Versi baru:</span>
+              <span className="text-slate-500 text-sm">
+                {activeVersion && activeVersion !== displayVersion ? 'Versi:' : 'Versi baru:'}
+              </span>
+              {activeVersion && activeVersion !== displayVersion && (
+                <>
+                  <span className="font-mono text-slate-400 text-sm">{activeVersion}</span>
+                  <span className="text-slate-400">→</span>
+                </>
+              )}
               <span className="font-mono font-semibold text-slate-800">{displayVersion}</span>
             </div>
           )}
 
           {/* Progress bar */}
           {state.status === 'downloading' && (
-            <ProgressBar progress={state.progress} />
+            <ProgressBar progress={state.progress} detail="Membersihkan cache lama & mengunduh paket penuh…" />
+          )}
+
+          {status === 'downloading' && (
+            <p className="mt-1 text-xs text-slate-400">
+              Jangan tutup aplikasi. Cache versi lama dihapus lebih dulu, lalu seluruh berkas
+              diunduh ulang sebagai satu paket utuh.
+            </p>
           )}
 
           {/* Error message */}
@@ -229,21 +246,6 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetP
               </button>
             )}
 
-            {/* Fallback lapangan: bersihkan SELURUH cache & OTA state, lalu
-                reload ke bundle bawaan APK. Ukur tampil untuk semua status
-                gagal/bermasalah agar petugas punya jalan belakang tanpa
-                "Clear Data" manual dari Setting Android. */}
-            {(status === 'error' || status === 'offline') && (
-              <button
-                onClick={onHardReset}
-                className="flex-1 py-3.5 px-4 bg-slate-200 text-base hover:bg-slate-300 active:scale-[0.98] text-slate-700 font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-                title="Hapus semua cache update & muat ulang aplikasi bersih"
-              >
-                <Trash2 size={16} />
-                Reset App Cache
-              </button>
-            )}
-
             {status === 'ready' && (
               <>
                 <button
@@ -271,6 +273,23 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetP
               </button>
             )}
           </div>
+
+          {/* Fallback lapangan — SELALU tersedia (bukan hanya saat error/offline).
+              Menghapus seluruh cache OTA + registrasi Service Worker lalu memuat
+              ulang aplikasi, pengganti "Clear Data" manual dari Setting Android.
+              Dipakai saat unduhan menggantung / jaringan timeout berulang. */}
+          <button
+            onClick={async () => {
+              setResetting(true)
+              try { await onHardReset() } finally { setResetting(false) }
+            }}
+            disabled={resetting}
+            className="mt-3 w-full py-2.5 px-4 bg-white border border-slate-200 text-sm hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60 text-slate-500 font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+            title="Hapus semua cache pembaruan & muat ulang aplikasi dari bundel bawaan"
+          >
+            <Trash2 size={15} />
+            {resetting ? 'Membersihkan cache…' : 'Reset App Cache'}
+          </button>
         </div>
       </div>
     </div>
@@ -346,7 +365,7 @@ export default function UpdateNotifier({
     return () => window.removeEventListener('online', onOnline)
   }, [autoCheck, performCheck])
 
-  // Apply update → activasi atomik → reload penuh
+  // Apply update → aktivasi atomik (bundle terverifikasi) → reload ber-versi
   const handleApply = useCallback(async () => {
     setState(s => ({ ...s, status: 'downloading' }))
     const success = await applyUpdate()
@@ -354,8 +373,10 @@ export default function UpdateNotifier({
       setState({ status: 'error', error: 'Gagal menerapkan pembaruan' })
       return
     }
-    onUpdateApplied?.(currentVersion)
-    await hardReloadToNewBundle()
+    const applied = await getCurrentVersion()
+    if (applied) setCurrentVersion(applied)
+    onUpdateApplied?.(applied ?? currentVersion)
+    await hardReloadToNewBundle(applied ?? undefined)
   }, [currentVersion, onUpdateApplied])
 
   // Dismiss update notification
@@ -368,11 +389,12 @@ export default function UpdateNotifier({
     void performCheck()
   }, [performCheck])
 
-  // Fallback lapangan: purge penuh cache OTA + state, lalu reload bersih
-  // ke bundle bawaan APK (replacement bagi "Clear Data" manual Android).
+  // Fallback lapangan: purge SELURUH cache OTA + state + registrasi Service
+  // Worker, lalu reload bersih ke bundel bawaan APK (pengganti "Clear Data"
+  // manual dari Setting Android).
   const handleHardReset = useCallback(async () => {
-    await resetOtaStorage()
-    window.location.replace('/')
+    await resetAppCacheFully()
+    await hardReloadToNewBundle()
   }, [])
 
   // Render based on state

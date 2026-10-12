@@ -8,9 +8,18 @@
  *   2. hapus ALL chunk/main/styles/asset/ota lama dari tree publish
  *   3. salin www/ ke ota/ dan root untuk kompatibilitas aplikasi lama
  *   4. generate version.json (versi = semver+timestamp; hash SHA-256 per file)
+ *   5. commit + push (manifest di-`git add -f`, lihat catatan di bawah)
+ *
+ * ⚠️  PENTING — `.gitignore` cabang ini mengabaikan `/version.json`, `/index.html`,
+ * `/sw.js`, `/chunk-*.js`, `/main-*.js`, `/styles-*.css` (aturan "Build output",
+ * commit e3fe52c). Akibatnya `git add -A` TIDAK pernah men-stage manifest,
+ * sehingga version.json hilang dari cabang publish dan SEMUA klien menerima 404
+ * → sistem OTA diam total ("update tidak pernah muncul"). Karena itu berkas
+ * wajib itu di-stage secara eksplisit dengan `git add -f`.
  */
 
 import { execSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -93,21 +102,29 @@ try {
   }
 
   // Integritas: hitung ulang SHA-256 aset nyata yang ada di tree publish.
+  // WAJIB lengkap — klien (ota.ts) memverifikasi tiap berkas terhadap daftar ini
+  // dan menganggap manifest tanpa integrity sebagai "tidak terverifikasi".
   const integrity = {}
-  try {
-    const crypto = await import('node:crypto')
-    for (const name of manifestAssets) {
-      const full = path.join(TMP, name)
-      if (!fs.statSync(full).isFile()) continue
-      const bytes = fs.readFileSync(full)
-      integrity[name] = crypto.createHash('sha256').update(bytes).digest('hex')
-    }
-  } catch { /* opsional — publish tetap lanjut */ }
+  for (const name of manifestAssets) {
+    const full = path.join(TMP, name)
+    if (!fs.statSync(full).isFile()) continue
+    integrity[name] = crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
+  }
+  const missingHash = manifestAssets.filter(name => !integrity[name])
+  if (missingHash.length) {
+    console.error(`❌ ${missingHash.length} aset tanpa hash (contoh: ${missingHash.slice(0, 3).join(', ')}). Publikasi dibatalkan.`)
+    process.exit(1)
+  }
 
   const manifest = JSON.stringify({ version, assets: manifestAssets, integrity }, null, 2)
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
   run('git add -A', TMP)
+  // Manifest & entry point WAJIB ikut walau diabaikan .gitignore — tanpa ini
+  // klien menerima 404 pada version.json dan tidak akan pernah melihat rilis.
+  for (const must of ['version.json', 'index.html', 'sw.js']) {
+    if (fs.existsSync(path.join(TMP, must))) run(`git add -f ${must}`, TMP)
+  }
   const dirty = run('git status --porcelain', TMP)
   if (!dirty) {
     console.log('Tidak ada perubahan aset — skip push.')

@@ -77,14 +77,15 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
   }, [])
 
-  // Skenario C: BLOCK ALL — kosongkan seluruh daftar rute saat terblokir.
-  // Kunci mutlak: bila petugas berada di dalam titik geofence, HANYA rute
-  // yang diizinkan titik itu yang tampil & bisa dipilih (radius max 100m).
-  const list = geoStatus === 'blocked'
+  // GATE: rute DISEMBUNYIKAN sampai GPS berhasil memeriksa titik geofence.
+  // - 'checking' → daftar kosong (user hanya melihat spinner status)
+  // - 'blocked'  → daftar kosong SELAMA GPS belum membuktikan lokasi valid
+  // - 'inside'   → hanya rute yang diizinkan titik geofence yang tampil
+  const list = geoStatus === 'checking' || geoStatus === 'blocked'
     ? []
     : activeGeofence
       ? dermagaFiltered.filter(r => activeGeofence.allowedRoutes.includes(r.code))
-      : dermagaFiltered
+      : []
 
   // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
@@ -213,8 +214,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
       <button
         onClick={handleContinue}
-        // Skenario C: seluruh tombol lanjutkan mati saat terblokir geofence
-        disabled={!validSelected || geoStatus === 'blocked'}
+        disabled={!validSelected || geoStatus !== 'inside' || activeGeofence === null}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
         {!draft.condition

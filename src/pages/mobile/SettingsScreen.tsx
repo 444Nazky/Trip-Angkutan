@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, RefreshCw, MapPin, Globe, Wifi, WifiOff, Server, CheckCircle } from 'lucide-react'
 import { probeServer } from '../../services/sync'
+import { hardReloadToNewBundle } from '../../services/otaReload'
 import {
   getCurrentVersion,
   checkForUpdate,
@@ -68,7 +69,9 @@ export default function SettingsScreen({ go }: SettingsScreenProps) {
   const applyNow = async () => {
     setNote('Menerapkan update…')
     if (await applyUpdate()) {
-      window.location.reload()
+      // Reload ber-versi (bukan reload biasa): WebView tidak boleh menyajikan
+      // index.html lama dari cache HTTP-nya sendiri.
+      await hardReloadToNewBundle((await getCurrentVersion()) ?? undefined)
     } else {
       setUpdateVersion(null)
       setNote('Gagal menerapkan update')
