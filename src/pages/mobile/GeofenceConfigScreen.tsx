@@ -22,6 +22,7 @@ interface DraftPoint {
   longitude: string
   radiusMeters: string
   allowedRoutes: string
+  strictEnforceOutsideArea: boolean
 }
 
 const emptyDraft: DraftPoint = {
@@ -31,6 +32,7 @@ const emptyDraft: DraftPoint = {
   longitude: '',
   radiusMeters: '100',
   allowedRoutes: '',
+  strictEnforceOutsideArea: true,
 }
 
 /** Parse "SJRE-SBDZ, SBDZ-SJRE" → ['SJRE-SBDZ','SBDZ-SJRE'] (tanpa duplikat). */
@@ -79,6 +81,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       longitude: String(p.longitude),
       radiusMeters: String(p.radiusMeters),
       allowedRoutes: p.allowedRoutes.join(', '),
+      strictEnforceOutsideArea: p.strictEnforceOutsideArea !== false,
     })
     setEditingId(p.id)
     setShowForm(true)
@@ -94,6 +97,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     radiusMeters: Number(draft.radiusMeters),
     allowedRoutes: parseRoutes(draft.allowedRoutes),
     enabled: base?.enabled ?? true,
+    strictEnforceOutsideArea: draft.strictEnforceOutsideArea,
   })
 
   const saveDraft = () => {
@@ -201,14 +205,27 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                 placeholder="Radius (meter)"
                 inputMode="numeric"
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-              />
-              <input
-                value={draft.allowedRoutes}
-                onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
-                placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
-                className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-              />
+              />            <input
+              value={draft.allowedRoutes}
+              onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
+              placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
+              className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
+            />
             </div>
+            <label className="flex items-center justify-between bg-white rounded-xl border border-slate-300 px-3 py-2.5">
+              <span className="text-[12px] text-slate-700 font-semibold">
+                Strict Enforce Outside Area
+                <span className="block text-[10px] font-normal text-slate-500">
+                  Aktif = di luar area / GPS buruk memblokir SEMUA input trip
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={draft.strictEnforceOutsideArea}
+                onChange={e => setDraft({ ...draft, strictEnforceOutsideArea: e.target.checked })}
+                className="w-5 h-5 accent-blue-600 shrink-0"
+              />
+            </label>
             {error && <p className="text-[12px] text-red-600 font-semibold">{error}</p>}
             <div className="flex gap-2 pt-1">
               <button
@@ -270,6 +287,9 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                     ))}
                     {!p.enabled && (
                       <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Nonaktif</span>
+                    )}
+                    {p.strictEnforceOutsideArea === false && (
+                      <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">Non-strict</span>
                     )}
                     {p.id === activeId && (
                       <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Anda di sini</span>
