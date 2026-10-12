@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package, MapPinOff, RefreshCw } from 'lucide-react'
+import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package, MapPinOff } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation, type GeofencePoint } from '../../services/geofence'
@@ -15,15 +15,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     finishEmptyTrip, finishMuatanTrip, removeDraftVehicle, editDraftVehicle,
   } = useApp()
 
-  // ── Photo State (Separated) ─────────────────────────────────────────
+  // ── Photo State — HANYA Foto Bukti Trip (tanpa Swafoto) ───────────
   const hasTripPhoto = !!draft.photoUrl
-  const hasClosingSelfie = !!draft.selfieUrl
-  const selfieRequired = draft.condition === 'muatan'
-  const selfiePending = selfieRequired && !hasClosingSelfie
-
-  // Loading state for photo capture
-  const [photoLoading, setPhotoLoading] = useState(false)
-  const [connectionWarning, setConnectionWarning] = useState<string | null>(null)
 
   // ── Geofence State ─────────────────────────────────────────────────
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
@@ -31,7 +24,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const [geofenceLoading, setGeofenceLoading] = useState(false)
   const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
 
-  // Cek geofence saat mount + pollingulat setiap 20 detik (real-time strict)
+  // Cek geofence saat mount + polling setiap 20 detik (real-time strict)
   useEffect(() => {
     if (!draft.routeCode) return
     let alive = true
@@ -70,7 +63,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const vehiclesMissingPhoto = vehicles
     .map((v, i) => ({ v, i, label: unitLabel(vehicles, i) }))
     .filter(x => !x.v.photoUrl)
-  const allDocsComplete = hasTripPhoto && vehiclesMissingPhoto.length === 0 && (!selfieRequired || hasClosingSelfie)
 
   useEffect(() => {
     // HANYA foto yang dimintan dari layar ini (vehiclePhotoTarget terpasang).
@@ -127,20 +119,19 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     }
   }
 
-  // SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif.
-  // THUMBNAIL: prioritaskan photoUrl, selfie hanya tampil setelah photo siap
-  const previewPhoto = draft.photoUrl
-  const previewSelfie = draft.selfieUrl
-  const thumbnailUrl = previewPhoto || (photoTaken && previewSelfie ? previewSelfie : undefined)
-  const actionType = !photoTaken ? 'photo' : selfiePending ? 'selfie' : vehiclesMissingPhoto.length > 0 ? 'vehicle' : 'done'
-  const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan Trip Kosong' : 'Kirim Saja'
+  // ── Foto Bukti Trip Logic ───────────────────────────────────────────
+  // Ambil foto bukti trip (HANYA 1 FOTO)
   const goCapture = () => {
-    if (actionType === 'photo') { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera'); return }
-    if (actionType === 'selfie') { patchDraft({ selfieMode: true, cameraFrom: 'trip-summary', cameraMode: 'photo', cameraReturn: 'trip-summary' }); go('camera'); return }
-    if (actionType === 'vehicle') { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: draft.vehicles.findIndex(v => !v.photoUrl) }); go('camera') }
+    patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
+    go('camera')
   }
+
+  // Submit — aktif setelah foto bukti trip terambil
+  const canSubmit = hasTripPhoto && vehiclesMissingPhoto.length === 0
+  const mainText = draft.condition === 'kosong' ? 'Langsung Selesaikan' : 'Kirim Sekarang'
+
   const onMain = async () => {
-    if (!allDocsComplete) return
+    if (!canSubmit) return
     const geoOk = await handleGeofenceSubmit()
     if (!geoOk) return
     handleSubmit()
@@ -289,44 +280,51 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             <Camera size={20} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-slate-900 font-semibold text-[14px]">Foto Bukti Trip</p>
-            <p className="text-slate-500 text-xs">Pastikan foto jelas & kendaraan terlihat</p>
+            <p className="text-slate-900 font-semibold text-[14px]">
+              {hasTripPhoto ? 'Foto Bukti Trip' : 'Foto bukti trip belum diambil'}
+            </p>
+            <p className="text-slate-500 text-xs">
+              {hasTripPhoto ? 'Bukti foto tersimpan' : 'Pastikan foto jelas & kendaraan terlihat'}
+            </p>
           </div>
-          {actionType !== 'done' && (
+          {!hasTripPhoto ? (
             <button
               onClick={goCapture}
               className="text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 text-xs font-semibold hover:bg-blue-50 transition-colors shrink-0"
             >
-              {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi'}
+              Ambil Foto
             </button>
-          )}
-          {actionType === 'done' && (
-            <span className="text-emerald-600 text-[11px] font-semibold bg-emerald-50 px-3 py-1.5 rounded-full shrink-0">
-              Selesai
-            </span>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <button
+                onClick={goCapture}
+                className="text-blue-600 border border-blue-200 rounded-full px-3 py-1.5 text-xs font-semibold hover:bg-blue-50 transition-colors"
+              >
+                Ubah
+              </button>
+            </div>
           )}
         </div>
         {/* Thumbnail foto */}
-        {thumbnailUrl && (
+        {hasTripPhoto && draft.photoUrl && (
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-3">
             <img
-              src={thumbnailUrl}
+              src={draft.photoUrl}
               alt="Bukti Trip"
               className="w-14 h-14 rounded-xl object-cover border border-slate-200"
             />
             <div className="flex-1">
-              <p className="text-[12px] font-medium text-slate-700">Bukti foto tersimpan</p>
-              <p className="text-[11px] text-slate-400">Siap untuk dikirim</p>
+              <p className="text-[12px] font-medium text-slate-700">Siap untuk dikirim</p>
+              <p className="text-[11px] text-slate-400">1 foto bukti trip</p>
             </div>
-            <span className="w-3 h-3 rounded-full bg-emerald-400 shrink-0" />
           </div>
         )}
       </div>
 
       <button
         onClick={onMain}
-        // Skenario C: submit mati total selama blocked — tanpa toleransi
-        disabled={!allDocsComplete || !!geofenceError || geofenceLoading || geofenceBlocked}
+        disabled={!canSubmit || !!geofenceError || geofenceLoading || geofenceBlocked}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />
