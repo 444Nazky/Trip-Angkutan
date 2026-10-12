@@ -281,10 +281,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-slate-900 font-semibold text-[14px]">
-              {hasTripPhoto ? 'Foto Bukti Trip' : 'Foto bukti trip belum diambil'}
+              {hasTripPhoto ? 'Foto Bukti Trip' : 'Foto bukti trip'}
             </p>
             <p className="text-slate-500 text-xs">
-              {hasTripPhoto ? 'Bukti foto tersimpan' : 'Pastikan foto jelas & kendaraan terlihat'}
+              {hasTripPhoto ? 'Bukti foto tersimpan' : 'Ambil foto selfie seluruh kendaraan sebelum mengirim trip'}
             </p>
           </div>
           {!hasTripPhoto ? (

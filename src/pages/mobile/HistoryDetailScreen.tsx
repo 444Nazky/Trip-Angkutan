@@ -310,7 +310,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
         <div className="flex-1">
           <p className={`text-[12px] font-bold ${isSynced ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {isSynced ? 'Berhasil terkirim ke Server' : 'Masih menunggu koneksi, tersimpan di lokal'}
+            {isSynced ? 'Data trip berhasil terkirim' : 'Masih menunggu koneksi, tersimpan di lokal'}
           </p>
           <p className={`text-[10px] ${isSynced ? 'text-emerald-600' : 'text-amber-600'}`}>
             {isSynced
