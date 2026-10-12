@@ -31,10 +31,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <img src="/assets/guest-profile.jpeg" alt={officer.name} className="w-16 h-16 rounded-2xl object-cover" />
           <div className="min-w-0">
             <p className="text-white font-bold text-[16px] leading-tight">{officer.name}</p>
-            <p className="text-slate-400 text-[12px] mt-0.5">{String(officer.id).padStart(3, '0')}</p>
+            <p className="text-blue-400 text-[12px] mt-0.5">@{officer.username || officer.name.toLowerCase().replace(/\s+/g, '')}</p>
             <div className="flex items-center gap-1.5 mt-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-emerald-400 text-[11px] font-bold">{officer.region} · {officer.status}</span>
+              <span className="text-emerald-400 text-[11px] font-bold">REGION : {officer.region}</span>
             </div>
           </div>
         </div>

@@ -276,39 +276,44 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         </div>
       )}
 
-      {/* SATU KARTU FOTO — dinamis: hijau + thumbnail saat siap, tombol utama aktif. */}
-      <div className={`rounded-2xl p-4 border mb-4 flex items-center gap-3 ${allDocsComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allDocsComplete ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-          <Camera size={16} className={allDocsComplete ? 'text-emerald-500' : 'text-amber-500'} />
+      {/* FOTO BUKTI TRIP — Card Minimalis */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-50 text-blue-600 rounded-xl p-3">
+            <Camera size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-slate-900 font-semibold text-[14px]">Foto Bukti Trip</p>
+            <p className="text-slate-500 text-xs">Pastikan foto jelas & kendaraan terlihat</p>
+          </div>
+          {actionType !== 'done' && (
+            <button
+              onClick={goCapture}
+              className="text-blue-600 border border-blue-200 rounded-full px-4 py-1.5 text-xs font-semibold hover:bg-blue-50 transition-colors shrink-0"
+            >
+              {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi'}
+            </button>
+          )}
+          {actionType === 'done' && (
+            <span className="text-emerald-600 text-[11px] font-semibold bg-emerald-50 px-3 py-1.5 rounded-full shrink-0">
+              Selesai
+            </span>
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className={`text-[12px] font-bold ${allDocsComplete ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {allDocsComplete
-              ? 'Foto kamera siap'
-              : actionType === 'photo' ? 'Foto bukti trip belum diambil'
-              : actionType === 'selfie' ? 'Swafoto penutup belum diambil'
-              : 'Foto kendaraan belum lengkap'}
-          </p>
-          <p className={`text-[10px] ${allDocsComplete ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {allDocsComplete ? 'Bukti trip tersimpan — siap dikirim' : 'Wajib diambil sebelum trip dikirim'}
-          </p>
-        </div>
-        {actionType !== 'done' && (
-          <button
-            onClick={goCapture}
-            className="text-[11px] font-black text-amber-700 bg-amber-100 rounded-xl px-3 py-2 shrink-0"
-          >
-            {actionType === 'photo' ? 'Ambil Foto' : actionType === 'selfie' ? 'Ambil Swafoto' : 'Lengkapi Foto'}
-          </button>
-        )}
-        {/* Tampilkan thumbnail foto bukti trip yang sudah diambil */}
+        {/* Thumbnail foto */}
         {thumbnailUrl && (
-          <img
-            src={thumbnailUrl}
-            alt="Bukti Trip"
-            className="w-10 h-10 rounded-lg object-cover border shrink-0"
-            style={{ borderColor: allDocsComplete ? '#a7f3d0' : '#fde68a' }}
-          />
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-3">
+            <img
+              src={thumbnailUrl}
+              alt="Bukti Trip"
+              className="w-14 h-14 rounded-xl object-cover border border-slate-200"
+            />
+            <div className="flex-1">
+              <p className="text-[12px] font-medium text-slate-700">Bukti foto tersimpan</p>
+              <p className="text-[11px] text-slate-400">Siap untuk dikirim</p>
+            </div>
+            <span className="w-3 h-3 rounded-full bg-emerald-400 shrink-0" />
+          </div>
         )}
       </div>
 

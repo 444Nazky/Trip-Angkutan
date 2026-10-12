@@ -1,17 +1,19 @@
 
+
+
+
 export const environment = {
   production: false,
-
-
-  apiBaseUrl: 'http://localhost:3000/api',
-
-  deviceApiBaseUrl: 'http://192.168.1.100:3000/api',
+  
+  apiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
+  deviceApiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
 
   geolocation: {
-    rute1: 'https://www.google.com/maps?q=-6.2389899548617285,106.97475839406252',
-    rute2: 'https://www.google.com/maps?q=-6.1891005,106.8371641',
+    rule1: 'https://www.google.com/maps?q=-6.2389899548617285,106.97475839406252',
+    rule2: 'https://www.google.com/maps?q=-6.1891005,106.8371641',
   },
 };
+
 
 // geofencing based on location coordinates, for example: if the user is within a certain radius of a specific location, 
 // the app can trigger certain actions or notifications. This can be useful for location-based services, such as sending alerts when a user enters or leaves a designated area.
