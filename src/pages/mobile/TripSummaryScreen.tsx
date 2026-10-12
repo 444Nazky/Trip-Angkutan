@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package, MapPinOff } from 'lucide-react'
+import { ChevronLeft, Camera, Play, Truck, ImageOff, Pencil, Trash2, MapPin, Package, MapPinOff, RefreshCw } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation, type GeofencePoint } from '../../services/geofence'
@@ -14,6 +14,16 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     draft, officer, trips, resetDraft, startTrip, patchDraft, patchDraftVehicle,
     finishEmptyTrip, finishMuatanTrip, removeDraftVehicle, editDraftVehicle,
   } = useApp()
+
+  // ── Photo State (Separated) ─────────────────────────────────────────
+  const hasTripPhoto = !!draft.photoUrl
+  const hasClosingSelfie = !!draft.selfieUrl
+  const selfieRequired = draft.condition === 'muatan'
+  const selfiePending = selfieRequired && !hasClosingSelfie
+
+  // Loading state for photo capture
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const [connectionWarning, setConnectionWarning] = useState<string | null>(null)
 
   // ── Geofence State ─────────────────────────────────────────────────
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
@@ -56,15 +66,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const tripId = nextTripId(trips)
   const vehicles = draft.vehicles
   const conditionLabel = draft.condition === 'muatan' ? 'Ada Muatan' : 'Kosong'
-  const photoTaken = draft.photo
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const vehiclesMissingPhoto = vehicles
     .map((v, i) => ({ v, i, label: unitLabel(vehicles, i) }))
     .filter(x => !x.v.photoUrl)
-  const selfieTaken = !!draft.selfieUrl
-  const selfieRequired = draft.condition === 'muatan'
-  const selfiePending = selfieRequired && !selfieTaken
-  const allDocsComplete = photoTaken && vehiclesMissingPhoto.length === 0 && (!selfieRequired || selfieTaken)
+  const allDocsComplete = hasTripPhoto && vehiclesMissingPhoto.length === 0 && (!selfieRequired || hasClosingSelfie)
 
   useEffect(() => {
     // HANYA foto yang dimintan dari layar ini (vehiclePhotoTarget terpasang).
