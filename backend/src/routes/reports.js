@@ -151,59 +151,6 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
 
 // Rekapitulasi terpusat per wilayah operasional (region + dermaga).
 // Trip dari petugas BERBEDA tetapi satu region/dermaga digabung jadi satu baris;
-// nama & username petugas tetap tercatat sebagai metadata (bukan pemecah baris).
-router.get('/recap', authenticate, requireAdmin, (req, res) => {
-  try {
-    const { sql: filterSql, params } = buildFilters(req.query);
-
-    const rows = db.prepare(`
-      SELECT t.region_id, r.name AS region_name, r.code AS region_code,
-        t.dermaga_id, d.name AS dermaga_name, d.code AS dermaga_code,
-        COUNT(*) AS trip_count,
-        COALESCE(SUM((SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id)), 0) AS vehicle_count,
-        COALESCE(SUM((SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id)), 0) AS revenue,
-        MIN(t.created_at) AS first_trip_at,
-        MAX(t.created_at) AS last_trip_at
-      FROM trips t
-      JOIN regions r ON t.region_id = r.id
-      LEFT JOIN dermagas d ON t.dermaga_id = d.id
-      WHERE 1=1
-      ${filterSql}
-      GROUP BY t.region_id, t.dermaga_id
-      ORDER BY r.name, d.code
-    `).all(...params);
-
-    // Metadata petugas per kelompok — siapa saja yang menyumbang trip,
-    // beserta username-nya (dicatat, bukan dipakai untuk memecah baris).
-    const offStmt = db.prepare(`
-      SELECT t.region_id, t.dermaga_id, o.name, o.username
-      FROM trips t
-      JOIN officers o ON t.officer_id = o.id
-      WHERE 1=1
-      ${filterSql}
-      GROUP BY t.region_id, t.dermaga_id, o.id
-      ORDER BY o.name
-    `);
-    const key = (regionId, dermagaId) => `${regionId}|${dermagaId || ''}`;
-    const officersByGroup = new Map();
-    for (const row of offStmt.all(...params)) {
-      const k = key(row.region_id, row.dermaga_id);
-      if (!officersByGroup.has(k)) officersByGroup.set(k, []);
-      officersByGroup.get(k).push({ name: row.name, username: row.username || null });
-    }
-
-    const recap = rows.map(row => ({
-      ...row,
-      officers: officersByGroup.get(key(row.region_id, row.dermaga_id)) || [],
-    }));
-
-    res.json(recap);
-  } catch (error) {
-    console.error('Recap error:', error);
-    res.status(500).json({ error: 'Failed to build recap' });
-  }
-});
-
 // Daftar opsi filter laporan (golongan + jenis kendaraan dari master tarif)
 router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
   try {
@@ -220,61 +167,6 @@ router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
     res.json({ golongan, vehicleTypes });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch filter options' });
-  }
-});
-
-// Export trips as CSV (simple implementation) — revenue included, admin-only
-router.get('/trips/export', authenticate, requireAdmin, (req, res) => {
-  try {
-    const { sql: filterSql, params } = buildFilters(req.query);
-
-    const query = `
-      SELECT t.no_trip, t.status_muatan, t.route_from, t.route_to, t.keterangan, t.created_at,
-        r.name as region_name, r.code as region_code,
-        ${placeNameSubquery('t.route_from')} as route_from_name,
-        ${placeNameSubquery('t.route_to')} as route_to_name,
-        o.name as officer_name,
-        (SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id) as vehicle_count,
-        (SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id) as revenue
-      FROM trips t
-      JOIN regions r ON t.region_id = r.id
-      LEFT JOIN officers o ON t.officer_id = o.id
-      WHERE 1=1
-    ` + filterSql + ' ORDER BY t.created_at DESC';
-
-    const trips = db.prepare(query).all(...params);
-
-    const headers = [
-      'No Trip', 'Tanggal (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan',
-      'Petugas', 'Status Muatan', 'Kategori', 'Unit', 'Pendapatan'
-    ];
-    const rows = trips.map(t => [
-      t.no_trip,
-      t.created_at,
-      t.region_name ? `${t.region_name} (${t.region_code})` : '',
-      t.route_from_name ? `${t.route_from_name} (${t.route_from})` : (t.route_from || ''),
-      t.route_to_name ? `${t.route_to_name} (${t.route_to})` : (t.route_to || ''),
-      t.officer_name || '',
-      t.status_muatan,
-      t.keterangan || '-',
-      t.vehicle_count,
-      t.revenue || 0
-    ]);
-
-    const csv = [headers, ...rows].map(row =>
-      row.map(cell => {
-        const s = String(cell ?? '');
-        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      }).join(',')
-    ).join('\n');
-
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename=trips-report.csv');
-    // BOM agar Excel membaca UTF-8 dengan benar
-    res.send('\uFEFF' + csv);
-  } catch (error) {
-    console.error('Export error:', error);
-    res.status(500).json({ error: 'Failed to export' });
   }
 });
 

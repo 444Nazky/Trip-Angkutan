@@ -202,46 +202,6 @@ router.post('/', authenticate, (req, res) => {
   }
 });
 
-// Add vehicle to trip
-router.post('/:tripId/vehicles', authenticate, (req, res) => {
-  try {
-    const { tripId } = req.params;
-    const { noPolisi, vehicleType, golongan, hasLoad, tariffAmount, fotoPath, latitude, longitude } = req.body;
-
-    // Prices are owned by admins: the server computes the amount from the
-    // master tariff whenever the vehicle type matches. The client-sent
-    // amount is only a fallback (legacy/offline data).
-    const masterTariff = db.prepare(`
-      SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
-    `).get(vehicleType);
-
-    const amount = masterTariff
-      ? (hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
-      : (tariffAmount || 0);
-
-    const vehicleId = uuidv4();
-    db.prepare(`
-      INSERT INTO vehicles (id, no_polisi, vehicle_type, golongan, trip_id, has_load, tariff_id, tariff_amount, foto_path, latitude, longitude)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      vehicleId, noPolisi, vehicleType, golongan, tripId,
-      hasLoad ? 1 : 0, masterTariff ? masterTariff.id : null, amount,
-      fotoPath, latitude, longitude
-    );
-
-    // Link to trip
-    db.prepare(`
-      INSERT INTO trip_vehicles (id, trip_id, vehicle_id)
-      VALUES (?, ?, ?)
-    `).run(uuidv4(), tripId, vehicleId);
-
-    res.status(201).json({ id: vehicleId, noPolisi });
-  } catch (error) {
-    console.error('Add vehicle error:', error);
-    res.status(500).json({ error: 'Failed to add vehicle' });
-  }
-});
-
 // Get trips — officers see their region, admins see everything
 router.get('/', authenticate, (req, res) => {
   try {
@@ -274,33 +234,6 @@ router.get('/', authenticate, (req, res) => {
     res.json(trips);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch trips' });
-  }
-});
-
-// Get trip detail
-router.get('/:id', authenticate, (req, res) => {
-  try {
-    const trip = db.prepare(`
-      SELECT t.*, o.name as officer_name
-      FROM trips t
-      JOIN officers o ON t.officer_id = o.id
-      WHERE t.id = ?
-    `).get(req.params.id);
-
-    if (!trip) {
-      return res.status(404).json({ error: 'Trip not found' });
-    }
-
-    const vehicles = db.prepare(`
-      SELECT v.*, tv.id as trip_vehicle_id
-      FROM vehicles v
-      JOIN trip_vehicles tv ON v.id = tv.vehicle_id
-      WHERE tv.trip_id = ?
-    `).all(req.params.id);
-
-    res.json({ ...trip, vehicles });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch trip' });
   }
 });
 
