@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Navigation } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Navigation, Loader2, ShieldAlert, RefreshCw } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
+import { getGeofencedLocation, getGeofenceConfig } from '../../services/location'
+import { findActiveGeofenceRule, getHardLockedRoute, type GeofenceRule } from '../../services/geofence'
 import { useApp } from '../store'
-import type { GeofenceRule } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
 interface RouteSelectScreenProps {
@@ -29,6 +30,36 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const [geofenceRule, setGeofenceRule] = useState<GeofenceRule | null>(null)
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
 
+  // ── GEOFENCE-FIRST GATE ────────────────────────────────────────────────────
+  // Rute TIDAK ditampilkan sebelum pemeriksaan lokasi selesai: ambil GPS fix,
+  // cocokkan ke titik geofence aktif (config hasil sync admin), lalu:
+  //   • di dalam titik → lock rute yang diizinkan (hanya rute tsb tampil)
+  //   • GPS gagal / bocor → error state, tombol "Coba Lagi"; RUTE DISEMBUNYIKAN
+  // Rute tanpa gate = petugas bisa pilih rute salah sebelum validasi selesai.
+  const geoConfig = getGeofenceConfig()
+  const gateRequired = geoConfig.rules.length > 0 // tanpa rule → wajar tampil semua
+  const [geoStatus, setGeoStatus] = useState<'pending' | 'ok' | 'error'>(gateRequired ? 'pending' : 'ok')
+
+  const runGeoCheck = async () => {
+    if (!gateRequired) { setGeoStatus('ok'); return }
+    setGeoStatus('pending')
+    setGeofenceError(null)
+    const loc = await getGeofencedLocation()
+    if (!loc) {
+      setGeofenceError('Lokasi GPS tidak terbaca. Aktifkan GPS/literan dan coba lagi — rute tampil setelah lokasi terverifikasi.')
+      setGeoStatus('error')
+      return
+    }
+    const rule = findActiveGeofenceRule(loc.latitude, loc.longitude, getGeofenceConfig(), loc.accuracy)
+    setGeofenceRule(rule)
+    setGeoStatus('ok')
+  }
+
+  useEffect(() => {
+    void runGeoCheck()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Segarkan rute tiap layar dibuka (Master Rute admin terlihat langsung).
   useEffect(() => {
     let alive = true
@@ -45,25 +76,25 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     : []
 
   const isEmptyTrip = draft.condition === 'kosong'
-  const list = dermagaFiltered
+
+  // Hard-lock route berdasarkan hasil geofence nyata (bukan stub lagi):
+  // saat petugas di dalam titik geofence, hanya rute yang diizinkan tampil.
+  // (Dideklarasi SEBELUM 'list' yang memakainya.)
+  const lockedRoute = getHardLockedRoute(geofenceRule)
+
+  // GATE: saat geofence memeriksa (pending) / gagal (error), RUTE DISEMBUNYIKAN.
+  // Saat lock aktif, hanya rute yang diizinkan titik geofence yang tampil.
+  const list = geoStatus !== 'ok'
+    ? []
+    : lockedRoute
+      ? dermagaFiltered.filter(r => r.code === lockedRoute)
+      : dermagaFiltered
+  const isRouteLocked = lockedRoute !== null && list.some(r => r.code === lockedRoute)
 
   // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
     ? draft.routeCode
     : null
-
-  // Hard-lock route berdasarkan geofence: jika koordinat cocok, hanya izinkan rute tertentu
-  // Route 2: Badau Dermaga 1 area (-6.1891005, 106.8371641) -> SJRE -> SBDZ
-  // Route 1: Badau Dermaga 2 area (-6.2389899548617285, 106.97475839406252) -> SBDZ -> SJRE
-  const getLockedRoute = (): string | null => {
-    // Implementasi sebenarnya menggunakan GPS klien + findActiveGeofenceRule
-    // Untuk demo, kita return null (tidak ada lock)
-    // return 'SJRE-SBDZ' // Contoh: lock ke rute SJRE-SBDZ
-    return null
-  }
-
-  const lockedRoute = getLockedRoute()
-  const isRouteLocked = lockedRoute !== null && list.some(r => r.code === lockedRoute)
 
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
@@ -127,6 +158,32 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
         <Map size={16} className="text-slate-600 shrink-0" />
       </div>
+
+      {/* GEOFENCE GATE: loading & error — rute disembunyikan hingga lokasi terverifikasi */}
+      {gateRequired && geoStatus === 'pending' && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 mb-4 flex items-center gap-3 text-[12px] text-blue-800">
+          <Loader2 size={16} className="animate-spin text-blue-600 shrink-0" />
+          <div>
+            <p className="font-bold">Memeriksa lokasi Anda…</p>
+            <p className="text-[10px] text-blue-600 mt-0.5">Validasi geofencing berjalan — daftar rute muncul setelah titik lokasi terverifikasi.</p>
+          </div>
+        </div>
+      )}
+      {gateRequired && geoStatus === 'error' && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 mb-4 flex items-start gap-3 text-[12px] text-red-800">
+          <ShieldAlert size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">Lokasi belum terverifikasi</p>
+            <p className="text-[10px] text-red-600 mt-0.5">{geofenceError}</p>
+            <button
+              onClick={() => void runGeoCheck()}
+              className="mt-2 flex items-center gap-1.5 bg-red-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-red-700 active:scale-95 transition-all"
+            >
+              <RefreshCw size={12} /> Coba Lagi
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Geofencing Lock Banner */}
       {isRouteLocked && (

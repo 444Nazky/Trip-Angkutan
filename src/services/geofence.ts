@@ -1,9 +1,16 @@
 // ─── Geofencing & Route Validation Config ──────────────────────────────────────
 // Konfigurasi lokasi geofencing untuk validasi rute dinamis berdasarkan
-// koordinat GPS petugas. Rules ini siap disinkronkan dari Admin Dashboard.
+// koordinat GPS petugas. Rules ini disinkronkan dari Admin Dashboard.
 //
 // Radius maksimum: 100 meter (high-accuracy GPS)
 // Coordinate format: { latitude: number, longitude: number }
+
+import { api } from './api'
+
+// ── DEV MODE: Fallback Mock Location ─────────────────────────────────────────
+// Koordinat Dermaga 1 Badau — digunakan saat GPS gagal/timeout di VS Code Browser
+const DEV_MODE_FALLBACK_LAT = -6.1891005
+const DEV_MODE_FALLBACK_LON = 106.8371641
 
 export interface GeofenceRule {
   /** ID unik rule */
@@ -158,4 +165,77 @@ export function getHardLockedRoute(
     return activeRule.allowedRouteCodes[0]
   }
   return null
+}
+
+// ── Sync dari Backend ────────────────────────────────────────────────────
+
+const GEOFENCE_CACHE_KEY = 'trip.geofence.config.v1'
+
+function isGeofenceConfig(x: unknown): x is GeofenceConfig {
+  if (!x || typeof x !== 'object') return false
+  const cfg = x as GeofenceConfig
+  return typeof cfg.maxAccuracyMeters === 'number' &&
+    typeof cfg.defaultRadiusMeters === 'number' &&
+    Array.isArray(cfg.rules)
+}
+
+/** Muat config terakhir yang tersimpan lokal (cache offline). */
+export function loadCachedGeofenceConfig(): GeofenceConfig {
+  try {
+    const raw = localStorage.getItem(GEOFENCE_CACHE_KEY)
+    const cfg = raw ? JSON.parse(raw) : null
+    if (isGeofenceConfig(cfg)) return cfg
+  } catch { /* corrupt → pakai default */ }
+  return DEFAULT_GEOFENCE_CONFIG
+}
+
+function persistGeofenceConfig(config: GeofenceConfig): void {
+  try { localStorage.setItem(GEOFENCE_CACHE_KEY, JSON.stringify(config)) } catch { /* quota */ }
+}
+
+/**
+ * Tarik konfigurasi geofence terbaru dari backend (hasil CRUD Admin Dashboard)
+ * dan simpan cache lokal. Return true bila fetch berhasil.
+ */
+export async function syncGeofenceConfig(): Promise<boolean> {
+  try {
+    const res = await api.get<unknown>('/geofences')
+    if (!res.ok || !Array.isArray(res.data)) return false
+
+    // Bentuk respons backend: array rule → konversi jadi GeofenceConfig
+    const remoteRules = (res.data as unknown[]).filter(isGeofenceRuleShape) as GeofenceRule[]
+    if (remoteRules.length === 0) {
+      // Backend belum punya rule — pertahankan cache, jangan reset ke default
+      return true
+    }
+    applyGeofenceConfig({
+      ...loadCachedGeofenceConfig(),
+      rules: remoteRules,
+    })
+    return true
+  } catch { return false }
+}
+
+function isGeofenceRuleShape(x: unknown): x is GeofenceRule {
+  if (!x || typeof x !== 'object') return false
+  const r = x as Record<string, unknown>
+  return typeof r['id'] === 'string' &&
+    typeof r['locationName'] === 'string' &&
+    typeof r['latitude'] === 'number' &&
+    typeof r['longitude'] === 'number'
+}
+
+/** Terapkan config baru ke state runtime & persist ke localStorage. */
+export function applyGeofenceConfig(config: GeofenceConfig): void {
+  if (!isGeofenceConfig(config)) return
+  currentConfigRef = config
+  persistGeofenceConfig(config)
+}
+
+let currentConfigRef: GeofenceConfig | null = null
+
+/** Getter global — pakai ini untuk menghindari import circular dengan location.ts. */
+export function currentConfig(): GeofenceConfig {
+  if (!currentConfigRef) currentConfigRef = loadCachedGeofenceConfig()
+  return currentConfigRef
 }

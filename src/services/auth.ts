@@ -683,8 +683,10 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
     })))
     // Simpan hash PIN server supaya PIN bisa diverifikasi OFFLINE untuk
     // semua petugas di wilayah, bukan hanya yang pernah login di perangkat ini.
+    // AWAITED (bukan fire-and-forget): bila app ditutup sebelum hash tersimpan,
+    // petugas baru admin-created tak bisa login offline — inilah bug utama.
     for (const o of officers) {
-      if (o.pin_hash) void setPinHash(String(o.id), o.pin_hash)
+      if (o.pin_hash) try { await setPinHash(String(o.id), o.pin_hash) } catch { /* lanjut */ }
     }
   } catch { /* db belum siap — cache di bawah tetap jalan */ }
 

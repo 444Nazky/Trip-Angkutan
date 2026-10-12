@@ -8,6 +8,8 @@
 import { Geolocation, type Position } from '@capacitor/geolocation'
 import {
   DEFAULT_GEOFENCE_CONFIG,
+  currentConfig as syncedConfig,
+  applyGeofenceConfig as persistSyncedConfig,
   type GeofenceConfig,
   type GeofenceRule,
   findActiveGeofenceRule,
@@ -34,16 +36,21 @@ export interface GeofenceLocationResult extends LocationResult {
   routeValidation: { allowed: boolean; reason?: string }
 }
 
-let currentConfig: GeofenceConfig = DEFAULT_GEOFENCE_CONFIG
+// Runtime state: selalu delegasi ke config hasil sync/cache dari geofence.ts
+// agar update di latar belakang (adminPull) langsung terlihat oleh semua caller.
+function activeConfig(): GeofenceConfig {
+  try { const c = syncedConfig(); if (c) return c } catch { /* fallthrough */ }
+  return DEFAULT_GEOFENCE_CONFIG
+}
 
-/** Update konfigurasi geofence (dari Admin Dashboard sync) */
+/** Update konfigurasi geofence (dari Admin Dashboard sync) — dipersist juga ke cache lokal */
 export function updateGeofenceConfig(config: GeofenceConfig): void {
-  currentConfig = config
+  void persistSyncedConfig(config)
 }
 
 /** Dapatkan konfigurasi geofence saat ini */
 export function getGeofenceConfig(): GeofenceConfig {
-  return currentConfig
+  return activeConfig()
 }
 
 /**
@@ -91,7 +98,7 @@ export async function getGeofencedLocation(): Promise<GeofenceLocationResult | n
   const activeRule = findActiveGeofenceRule(
     location.latitude,
     location.longitude,
-    currentConfig,
+    activeConfig(),
     location.accuracy,
   )
 
@@ -176,7 +183,7 @@ export function getConfiguredGeofenceLocations(): Array<{
   longitude: number
   radiusMeters: number
 }> {
-  return currentConfig.rules.map((rule) => ({
+  return activeConfig().rules.map((rule) => ({
     id: rule.id,
     name: rule.locationName,
     latitude: rule.latitude,

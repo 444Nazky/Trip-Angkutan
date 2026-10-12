@@ -10,6 +10,7 @@
 // 3. Pull deactivation (admin disables officer → mobile removes from local cache)
 
 import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes } from './auth'
+import { syncGeofenceConfig } from './geofence'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ export function syncOnResume(force = false): void {
   void cacheDockOfficers(officer?.id)
   const dermaga = getStoredDermaga()
   if (dermaga?.id) void syncDermagaOfficersToDb(dermaga.id)
+  // Konfigurasi geofencing terbaru dari Admin Dashboard → validasi rute offline
+  void syncGeofenceConfig()
   // Master Rute terbaru dari Web Admin → dipakai offline di layar Pilih Rute
   void refreshStoredRoutes().catch(() => null)
 }

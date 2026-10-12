@@ -20,7 +20,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const tripId = nextTripId(trips)
   const vehicles = draft.vehicles
   const conditionLabel = draft.condition === 'muatan' ? 'Ada Muatan' : 'Kosong'
-  const photoTaken = draft.photo
+  const photoTaken = !!draft.photoUrl // sumber kebenaran = data foto (draft.photo bisa basi: flag dari kondisi awal, photoUrl diisi kamera)
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const vehiclesMissingPhoto = vehicles
     .map((v, i) => ({ v, i, label: unitLabel(vehicles, i) }))

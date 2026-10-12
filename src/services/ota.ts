@@ -140,10 +140,15 @@ type ManifestResult =
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   let res: Response
   try {
-    res = await fetch(MANIFEST_URL, {
+    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
       signal,
       cache: 'no-store',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        // Eksplisit minta tanpa cache — WebView lama bisa mengabai 'no-store'
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
     })
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') throw err
@@ -259,7 +264,11 @@ async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): P
   for (let n = 0; n < attempts; n++) {
     if (signal.aborted) throw new DOMException('aborted', 'AbortError')
     try {
-      const res = await fetch(ASSETS_BASE + path, { signal, cache: 'no-store' })
+      const res = await fetch(`${ASSETS_BASE}${path}?t=${Date.now()}`, {
+        signal,
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      })
       if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
       if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
       const buf = await res.arrayBuffer()
