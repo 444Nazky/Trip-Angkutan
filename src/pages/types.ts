@@ -18,6 +18,7 @@ export type MobileScreen =
   | 'profile'
   | 'settings'
   | 'local-officers'
+  | 'geofence-config'
 
 export type AdminTab = 'overview' | 'tariff' | 'plates' | 'officers' | 'reports' | 'settings'
 

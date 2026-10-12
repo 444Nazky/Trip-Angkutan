@@ -24,6 +24,12 @@ export interface GeofencePoint {
   allowedRoutes: string[]
   /** Apakah geofence aktif */
   enabled: boolean
+  /**
+   * STRICT: bila true (default), berada di LUAR geofence / GPS mati /
+   * akurasi > radius → BLOCK ALL (semua input trip diblok, tanpa toleransi).
+   * Bila false, di luar area tetap valid (perilaku lembut, dipilih admin).
+   */
+  strictEnforceOutsideArea?: boolean
 }
 
 export interface GeofenceState {
@@ -41,8 +47,17 @@ export interface GeofenceState {
 
 export interface ValidationResult {
   valid: boolean
+  /**
+   * BLOCK ALL: seluruh input trip terkunci — di luar geofence, GPS mati,
+   * akurasi buruk (> radius), atau sembarang aturan strict lain.
+   */
+  blocked?: boolean
   reason?: string
   activePoint?: GeofencePoint
+  /** Jarak meter ke titik aktif (untuk UI) */
+  distanceMeters?: number
+  /** Akurasi GPS terakhir dalam meter (null bila tidak diketahui) */
+  accuracyMeters?: number | null
 }
 
 // ── Storage Key ──────────────────────────────────────────────────────────────
@@ -100,27 +115,29 @@ export function saveGeofencePoints(points: GeofencePoint[]): void {
 }
 
 
-// geo default
+// geo default (koordinat area pengujian Badau — konsisten dengan ketentuan)
 export function getDefaultGeofencePoints(): GeofencePoint[] {
   return [
     {
+      // Titik area Rute 2 → hanya trayek SJRE→SBDZ
       id: 'badau-d1',
       name: 'Badau Dermaga 1',
       dermagaId: 'BADAU-D1',
       latitude: -6.1891005,
       longitude: 106.8371641,
       radiusMeters: 100,
-      allowedRoutes: ['SJRE-SBDZ',],
+      allowedRoutes: ['SJRE-SBDZ'],
       enabled: true,
     },
     {
+      // Titik area Rute 1 → hanya trayek SBDZ→SJRE
       id: 'badau-d2',
       name: 'Badau Dermaga 2',
       dermagaId: 'BADAU-D2',
       latitude: -6.2389899548617285,
       longitude: 106.97475839406252,
       radiusMeters: 100,
-      allowedRoutes: ['SBDZ-SJRE',],
+      allowedRoutes: ['SBDZ-SJRE'],
       enabled: true,
     },
   ]
@@ -134,6 +151,8 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
     errors.push('Latitude harus antara -90 dan 90')
   if (typeof point.longitude !== 'number' || point.longitude < -180 || point.longitude > 180)
     errors.push('Longitude harus antara -180 dan 180')
+  // Radius 10m–10km, standar operasional 100m. Perubahan radius hanya lewat
+  // Admin Dashboard — bukan hardcode di kode sumber (ketentuan dinamis).
   if (typeof point.radiusMeters !== 'number' || point.radiusMeters < 10 || point.radiusMeters > 10000)
     errors.push('Radius harus antara 10m dan 10km')
   if (!Array.isArray(point.allowedRoutes) || point.allowedRoutes.length === 0)
@@ -145,17 +164,18 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
 
 
 
-export async function getCurrentPosition(): Promise<{ lat: number; lon: number } | null> {
+export async function getCurrentPosition(): Promise<{ lat: number; lon: number; accuracy?: number | null } | null> {
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 100,
+      timeout: 10000,
       maximumAge: 3000,
     })
     if (!pos?.coords) return null
     return {
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
+      accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
     }
   } catch (err) {
     console.warn('[geofence] Gagal mendapatkan posisi GPS:', err)
@@ -193,54 +213,76 @@ export async function validateRouteForCurrentLocation(
   points?: GeofencePoint[],
 ): Promise<ValidationResult> {
   const geofencePoints = points ?? getStoredGeofencePoints()
+  // STRICT default: kecuali admin menonaktif flag di titik mana pun,
+  // semua kegagalan lokasi = BLOCK ALL.
+  const strict = geofencePoints.some(p => p.enabled !== false && p.strictEnforceOutsideArea !== false)
 
-
-  
   if (geofencePoints.length === 0 || geofencePoints.every(p => !p.enabled)) {
-    return { valid: true }
+    // Tanpa titik geofence aktif: hanya block bila mode strict disimpan.
+    return { valid: !strict, blocked: strict, reason: strict ? 'Geofence belum dikonfigurasi — input trip diblokir' : undefined }
   }
 
-
-  
   const anyEnabled = geofencePoints.some(p => p.enabled)
   if (!anyEnabled) {
-    return { valid: true }
+    return { valid: !strict, blocked: strict, reason: strict ? 'Geofence nonaktif — input trip diblokir' : undefined }
   }
 
-
-  
   const position = await getCurrentPosition()
 
+  // ── Skenario C: GPS mati / izin ditolak → BLOCK ALL (strict) ──
   if (!position) {
-    return {
-      valid: false,
-      reason: 'Tidak dapat mendapatkan posisi GPS. Pastikan GPS aktif dan izin lokasi diberikan.',
-    }
+    return strict
+      ? { valid: false, blocked: true, reason: 'GPS tidak tersedia atau izin lokasi ditolak — input trip diblokir' }
+      : { valid: false, reason: 'Tidak dapat mendapatkan posisi GPS. Pastikan GPS aktif dan izin lokasi diberikan.' }
   }
 
+  // ── Skenario C: akurasi buruk (> radius ketat, 100m) → BLOCK ALL ──
+  const isActiveStrict = geofencePoints.some(p => p.enabled && p.strictEnforceOutsideArea !== false)
+  if (position.accuracy != null && position.accuracy > 100) {
+    return isActiveStrict
+      ? { valid: false, blocked: true, reason: `Akurasi GPS terlalu rendah (±${Math.round(position.accuracy)}m > 100m) — input trip diblokir`, accuracyMeters: position.accuracy }
+      : { valid: false, reason: 'Akurasi GPS terlalu rendah. Buka area terbuka lalu coba lagi.', accuracyMeters: position.accuracy }
+  }
 
-  
   const activePoint = findActiveGeofencePoint(position, geofencePoints)
 
+  // ── Skenario C: di luar seluruh geofence → BLOCK ALL (strict) ──
   if (!activePoint) {
-    return {
-      valid: false,
-      reason:
-        'Anda tidak berada di lokasi yang diizinkan untuk input trip. Mendeteksi Anda di luar area dermaga yang terdaftar.',
-    }
+    return isActiveStrict
+      ? { valid: false, blocked: true, reason: 'Di luar Area Geofence Resmi — seluruh input trip diblokir', accuracyMeters: position.accuracy }
+      : {
+          valid: false,
+          reason:
+            'Anda tidak berada di lokasi yang diizinkan untuk input trip. Mendeteksi Anda di luar area dermaga yang terdaftar.',
+        }
   }
+
+  const activeDistance = calculateDistance(
+    position.lat,
+    position.lon,
+    activePoint.latitude,
+    activePoint.longitude,
+  )
 
   // Cek apakah rute diperbolehkan di titik ini
   if (!activePoint.allowedRoutes.includes(routeCode)) {
     const allowedList = activePoint.allowedRoutes.join(', ')
     return {
       valid: false,
+      blocked: isActiveStrict,
       reason: `Rute ${routeCode} tidak diizinkan di lokasi ini (${activePoint.name}). Rute yang diperbolehkan: ${allowedList}`,
       activePoint,
+      distanceMeters: activeDistance,
+      accuracyMeters: position.accuracy,
     }
   }
 
-  return { valid: true, activePoint }
+  return {
+    valid: true,
+    activePoint,
+    distanceMeters: activeDistance,
+    accuracyMeters: position.accuracy,
+  }
 }
 
 /**
@@ -254,6 +296,7 @@ export async function getDistanceToNearestPoint(
   const position = await getCurrentPosition()
 
   if (!position) return null
+  if (geofencePoints.length === 0) return null
 
   let nearest: { point: GeofencePoint; distance: number } | null = null
 
@@ -356,6 +399,7 @@ interface BackendGeofence {
   radiusMeters: number
   allowedRoutes: string[]
   enabled: boolean
+  strictEnforceOutsideArea?: boolean
 }
 
 function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
@@ -368,6 +412,7 @@ function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
     radiusMeters: g.radiusMeters ?? 100,
     allowedRoutes: g.allowedRoutes ?? [],
     enabled: g.enabled !== false,
+    strictEnforceOutsideArea: g.strictEnforceOutsideArea !== false,
   }
 }
 
@@ -425,4 +470,50 @@ export async function forceSyncGeofencesFromBackend(): Promise<void> {
     localStorage.removeItem(GEOFENCE_SYNC_KEY)
   } catch { /* */ }
   await syncGeofencesFromBackend()
+}
+
+// ── Baca posisi aktif + titik geofence untuk UI dashboard ─────────────────
+
+export async function getActiveGeofenceSnapshot(
+  points?: GeofencePoint[],
+): Promise<ValidationResult> {
+  const geofencePoints = points ?? getStoredGeofencePoints()
+  const strict = geofencePoints.some(p => p.enabled && p.strictEnforceOutsideArea !== false)
+
+  if (geofencePoints.every(p => !p.enabled)) {
+    return strict
+      ? { valid: false, blocked: true, reason: 'Geofence nonaktif — input trip diblokir' }
+      : { valid: true }
+  }
+
+  const position = await getCurrentPosition()
+  // GPS mati / izin ditolak → BLOCK ALL (strict)
+  if (!position) {
+    return strict
+      ? { valid: false, blocked: true, reason: 'GPS tidak tersedia atau izin lokasi ditolak — input trip diblokir' }
+      : { valid: false, reason: 'Posisi GPS tidak tersedia' }
+  }
+
+  // Akurasi buruk (> 100m) → BLOCK ALL (strict)
+  if (position.accuracy != null && position.accuracy > 100) {
+    return strict
+      ? { valid: false, blocked: true, reason: `Akurasi GPS terlalu rendah (±${Math.round(position.accuracy)}m > 100m) — input trip diblokir`, accuracyMeters: position.accuracy }
+      : { valid: false, reason: 'Akurasi GPS terlalu rendah', accuracyMeters: position.accuracy }
+  }
+
+  const activePoint = findActiveGeofencePoint(position, geofencePoints)
+  // Di luar seluruh geofence → BLOCK ALL (strict)
+  if (!activePoint) {
+    return strict
+      ? { valid: false, blocked: true, reason: 'Di luar Area Geofence Resmi — seluruh input trip diblokir', accuracyMeters: position.accuracy }
+      : { valid: false, reason: 'Tidak berada di dalam area geofence', accuracyMeters: position.accuracy }
+  }
+
+  const distanceMeters = calculateDistance(
+    position.lat,
+    position.lon,
+    activePoint.latitude,
+    activePoint.longitude,
+  )
+  return { valid: true, activePoint, distanceMeters, accuracyMeters: position.accuracy }
 }

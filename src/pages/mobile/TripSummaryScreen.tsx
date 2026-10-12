@@ -17,24 +17,37 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   // ── Geofence State ─────────────────────────────────────────────────
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
+  const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
   const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
 
-  // Cek geofence saat mount
+  // Cek geofence saat mount + pollingulat setiap 20 detik (real-time strict)
   useEffect(() => {
     if (!draft.routeCode) return
-    setGeofenceLoading(true)
-    setGeofenceError(null)
-    validateRouteForCurrentLocation(draft.routeCode)
-      .then(result => {
-        if (!result.valid) {
-          setGeofenceError(result.reason ?? 'Lokasi tidak valid')
-        }
-        setActiveGeofence(result.activePoint ?? null)
-        setGeofenceError(result.valid ? null : (result.reason ?? 'Lokasi tidak valid'))
-      })
-      .catch(() => setGeofenceError(null))
-      .finally(() => setGeofenceLoading(false))
+    let alive = true
+    const routeCode = draft.routeCode
+    if (!routeCode) return
+    const run = () => {
+      setGeofenceLoading(true)
+      setGeofenceError(null)
+      validateRouteForCurrentLocation(routeCode)
+        .then(result => {
+          if (!alive) return
+          setGeofenceBlocked(result.blocked === true)
+          setActiveGeofence(result.activePoint ?? null)
+          setGeofenceError(result.valid ? null : (result.reason ?? 'Lokasi tidak valid'))
+        })
+        .catch(() => { if (alive) setGeofenceError(null) })
+        .finally(() => { if (alive) setGeofenceLoading(false) })
+    }
+    run()
+    const timer = window.setInterval(run, 20000)
+    window.addEventListener('focus', run)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', run)
+    }
   }, [draft.routeCode])
 
   const allRoutes = activeRoutes()
@@ -86,9 +99,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     const result = await validateRouteForCurrentLocation(draft.routeCode)
     setGeofenceLoading(false)
     if (!result.valid) {
+      // Skenario C: blocked total — simpan flag agar banner merah tampil
+      setGeofenceBlocked(result.blocked === true)
       setGeofenceError(result.reason ?? 'Lokasi tidak valid')
       return false
     }
+    setGeofenceBlocked(false)
     setActiveGeofence(result.activePoint ?? null)
     return true
   }
@@ -231,19 +247,26 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
       {/* ── Geofence Error Banner ── */}
       {geofenceError && (
-        <div className="rounded-xl bg-red-50 border border-red-200 p-4 mb-4 flex items-start gap-3">
+        <div className="rounded-xl bg-red-50 border border-red-300 p-4 mb-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
             <MapPinOff size={16} className="text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-bold text-red-700 mb-1">Lokasi Tidak Valid</p>
+            <p className="text-[13px] font-bold text-red-700 mb-1">
+              {geofenceBlocked ? 'Di luar Area Geofence Resmi' : 'Lokasi Tidak Valid'}
+            </p>
             <p className="text-[12px] text-red-600">{geofenceError}</p>
+            {geofenceBlocked && (
+              <p className="text-[11px] text-red-500 mt-1">
+                Seluruh tombol kirim dipatikan sampai Anda berada di dalam area resmi.
+              </p>
+            )}
           </div>
         </div>
       )}
 
       {/* ── Geofence Active Indicator ── */}
-      {activeGeofence && !geofenceError && (
+      {activeGeofence && !geofenceError && !geofenceBlocked && (
         <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-4 flex items-center gap-2">
           <MapPin size={14} className="text-blue-600" />
           <p className="text-[12px] text-blue-700">
@@ -291,7 +314,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
       <button
         onClick={onMain}
-        disabled={!allDocsComplete || !!geofenceError || geofenceLoading}
+        // Skenario C: submit mati total selama blocked — tanpa toleransi
+        disabled={!allDocsComplete || !!geofenceError || geofenceLoading || geofenceBlocked}
         className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-[13px] hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Play size={15} fill="white" />

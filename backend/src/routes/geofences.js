@@ -12,7 +12,7 @@ const router = Router()
 router.get('/sync', (req, res) => {
   try {
     const geofences = db.prepare(`
-      SELECT id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled
+      SELECT id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside
       FROM geofences
       WHERE enabled = 1
     `).all()
@@ -26,12 +26,44 @@ router.get('/sync', (req, res) => {
       radiusMeters: g.radius_meters,
       allowedRoutes: JSON.parse(g.allowed_routes || '[]'),
       enabled: true,
+      strictEnforceOutsideArea: g.strict_enforce_outside !== 0,
     }))
 
     res.json({ success: true, geofences: result })
   } catch (err) {
     console.error('[geofence] sync error:', err)
     res.status(500).json({ success: false, error: 'Gagal mengambil data geofence' })
+  }
+})
+
+// ── Public: GET /api/geofences/config — seluruh rule & konfigurasi geofence
+// dinamis dari SQLite, dipakai mobile saat boot & sinkronisasi. Tanpa auth
+// agar perangkat offline-first dapat menarik aturan sebelum login.
+router.get('/config', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside
+      FROM geofences
+      ORDER BY name
+    `).all()
+
+    const config = rows.map(g => ({
+      id: g.id,
+      name: g.name,
+      dermagaId: g.dermaga_id,
+      latitude: g.latitude,
+      longitude: g.longitude,
+      radiusMeters: g.radius_meters,
+      allowedRoutes: JSON.parse(g.allowed_routes || '[]'),
+      enabled: Boolean(g.enabled),
+      strictEnforceOutsideArea: g.strict_enforce_outside !== 0,
+      updatedAt: g.updated_at,
+    }))
+
+    res.json({ success: true, config, geofences: config })
+  } catch (err) {
+    console.error('[geofence] config error:', err)
+    res.status(500).json({ success: false, error: 'Gagal mengambil konfigurasi geofence' })
   }
 })
 
@@ -44,7 +76,7 @@ router.use(requireAdmin)
 router.get('/', (req, res) => {
   try {
     const geofences = db.prepare(`
-      SELECT id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, created_at, updated_at
+      SELECT id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside, created_at, updated_at
       FROM geofences
       ORDER BY name
     `).all()
@@ -58,6 +90,7 @@ router.get('/', (req, res) => {
       radiusMeters: g.radius_meters,
       allowedRoutes: JSON.parse(g.allowed_routes || '[]'),
       enabled: Boolean(g.enabled),
+      strictEnforceOutsideArea: g.strict_enforce_outside !== 0,
       createdAt: g.created_at,
       updatedAt: g.updated_at,
     }))
@@ -73,7 +106,7 @@ router.get('/', (req, res) => {
 // Tambah titik geofence baru
 
 router.post('/', (req, res) => {
-  const { id, name, dermagaId, latitude, longitude, radiusMeters, allowedRoutes, enabled = true } = req.body
+  const { id, name, dermagaId, latitude, longitude, radiusMeters, allowedRoutes, strictEnforceOutsideArea = true, enabled = true } = req.body
 
   // Validasi
   if (!id || !name || latitude == null || longitude == null) {
@@ -94,8 +127,8 @@ router.post('/', (req, res) => {
     }
 
     db.prepare(`
-      INSERT INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name,
@@ -105,6 +138,7 @@ router.post('/', (req, res) => {
       radiusMeters,
       JSON.stringify(allowedRoutes),
       enabled ? 1 : 0,
+      strictEnforceOutsideArea ? 1 : 0,
     )
 
     res.json({ success: true, id })
@@ -119,7 +153,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const { id } = req.params
-  const { name, dermagaId, latitude, longitude, radiusMeters, allowedRoutes, enabled } = req.body
+  const { name, dermagaId, latitude, longitude, radiusMeters, allowedRoutes, strictEnforceOutsideArea, enabled } = req.body
 
   try {
     const existing = db.prepare('SELECT * FROM geofences WHERE id = ?').get(id)
@@ -137,7 +171,7 @@ router.put('/:id', (req, res) => {
 
     db.prepare(`
       UPDATE geofences
-      SET name = ?, dermaga_id = ?, latitude = ?, longitude = ?, radius_meters = ?, allowed_routes = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP
+      SET name = ?, dermaga_id = ?, latitude = ?, longitude = ?, radius_meters = ?, allowed_routes = ?, enabled = ?, strict_enforce_outside = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       name ?? existing.name,
@@ -147,6 +181,7 @@ router.put('/:id', (req, res) => {
       radiusMeters ?? existing.radius_meters,
       allowedRoutes ? JSON.stringify(allowedRoutes) : existing.allowed_routes,
       enabled !== undefined ? (enabled ? 1 : 0) : existing.enabled,
+      strictEnforceOutsideArea !== undefined ? (strictEnforceOutsideArea ? 1 : 0) : existing.strict_enforce_outside,
       id,
     )
 

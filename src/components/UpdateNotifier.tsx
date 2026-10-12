@@ -129,7 +129,7 @@ interface SheetProps {
   state: UpdateState
   onApply: () => void
   onDismiss: () => void
-  onRetry: () => void
+  onRetry: () => void 
   doResetAndRetry: () => void
   position: string
   zIndex: number
@@ -168,7 +168,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, doResetAndRetry }: Sh
         {/* Content */}
         <div className="p-6">
           {/* Version info */}
-          {state.latestVersion && (
+        {state.latestVersion && (
             <div className="flex items-center gap-2 mb-3">
               <span className="text-slate-500 text-sm">Versi baru:</span>
               <span className="font-mono font-semibold text-slate-800">{displayVersion}</span>

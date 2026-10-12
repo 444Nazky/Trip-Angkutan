@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, MapPinOff, Ruler, Clock, Anchor, Lock } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
+import { getActiveGeofenceSnapshot, type GeofencePoint } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -42,7 +43,48 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     : []
 
   const isEmptyTrip = draft.condition === 'kosong'
-  const list = dermagaFiltered
+  // ── Geofence real-time: titik aktif mengunci rute yang boleh dipilih ──
+  const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
+  const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked'>('checking')
+  const [geoReason, setGeoReason] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const run = () => {
+      void getActiveGeofenceSnapshot().then(result => {
+        if (!alive) return
+        if (result.valid && result.activePoint) {
+          setActiveGeofence(result.activePoint)
+          setGeoStatus('inside')
+          setGeoReason(null)
+        } else {
+          // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
+          setActiveGeofence(null)
+          setGeoStatus('blocked')
+          setGeoReason(result.reason ?? 'Di luar Area Geofence Resmi')
+        }
+      })
+    }
+    run()
+    const timer = window.setInterval(run, 15000)
+    window.addEventListener('focus', run)
+    window.addEventListener('online', run)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', run)
+      window.removeEventListener('online', run)
+    }
+  }, [])
+
+  // Skenario C: BLOCK ALL — kosongkan seluruh daftar rute saat terblokir.
+  // Kunci mutlak: bila petugas berada di dalam titik geofence, HANYA rute
+  // yang diizinkan titik itu yang tampil & bisa dipilih (radius max 100m).
+  const list = geoStatus === 'blocked'
+    ? []
+    : activeGeofence
+      ? dermagaFiltered.filter(r => activeGeofence.allowedRoutes.includes(r.code))
+      : dermagaFiltered
 
   // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
@@ -52,6 +94,8 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
     if (!validSelected) return
+    // Guard akhir sebelum lanjut: kunci mutlak geofence.
+    if (activeGeofence && !activeGeofence.allowedRoutes.includes(validSelected)) return
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
@@ -95,6 +139,32 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
         <Map size={16} className="text-slate-600 shrink-0" />
       </div>
+
+      {/* ── Status geofence real-time ── */}
+      {geoStatus === 'checking' && (
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3 flex items-center gap-2 text-[12px] text-slate-500">
+          <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Memeriksa lokasi GPS...
+        </div>
+      )}
+      {geoStatus === 'inside' && activeGeofence && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-3 flex items-center gap-2">
+          <Lock size={13} className="text-blue-600 shrink-0" />
+          <p className="text-[12px] text-blue-700">
+            <span className="font-semibold">{activeGeofence.name}</span>
+            <span className="text-blue-500"> — rute dikunci ke {activeGeofence.allowedRoutes.join(', ')} (radius {activeGeofence.radiusMeters}m)</span>
+          </p>
+        </div>
+      )}
+      {geoStatus === 'blocked' && (
+        <div className="rounded-xl bg-red-50 border border-red-300 p-3 mb-3 flex items-start gap-2">
+          <MapPinOff size={14} className="text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[12px] font-bold text-red-700">Di luar Area Geofence Resmi</p>
+            <p className="text-[11px] text-red-600">{geoReason ?? 'Seluruh pilihan trayek terkunci'} — pindah ke dermaga resmi untuk input trip.</p>
+          </div>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -151,7 +221,8 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
       <button
         onClick={handleContinue}
-        disabled={!validSelected}
+        // Skenario C: seluruh tombol lanjutkan mati saat terblokir geofence
+        disabled={!validSelected || geoStatus === 'blocked'}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
         {!draft.condition

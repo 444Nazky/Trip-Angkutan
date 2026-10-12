@@ -15,6 +15,7 @@ import ProfileScreen from './ProfileScreen'
 import SettingsScreen from './SettingsScreen'
 import LocalOfficersScreen from './LocalOfficersScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
+import GeofenceConfigScreen from './GeofenceConfigScreen'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
@@ -75,6 +76,7 @@ export default function MobileApp() {
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     settings: <SettingsScreen go={go} />,
+    'geofence-config': <GeofenceConfigScreen go={go} />,
     'local-officers': <LocalOfficersScreen go={go} />,
   }
 

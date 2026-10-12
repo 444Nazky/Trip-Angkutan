@@ -69,6 +69,10 @@ async function loadDb() {
   if (fs.existsSync(DB_PATH)) {
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
+    // DB lama bisa belum punya OFFICERS dst. (skema berubah): buat ulang
+    // seluruh skema idempotent SEBELUM migrate/seed agar INSERT seed tidak
+    // gagal "no such table". CREATE TABLE IF NOT EXISTS = aman untuk DB baru.
+    initialize();
   } else {
     db = new SQL.Database();
     initialize();
@@ -86,6 +90,10 @@ function migrate() {
   } catch (e) {
     // column already exists — nothing to do
   }
+
+  // Jawab "no such table" di DB lama/hasil salinan: semua CREATE TABLE
+  // idempotent dijalankan tanpa syarat agar skema selalu lengkap sebelum seed.
+  initialize();
 
   // Kolom login petugas. DB lama (dibuat sebelum revisi login per-username)
   // tidak punya kolom ini → query /auth/member-login gagal dengan
@@ -606,24 +614,95 @@ function initialize() {
     )
   `);
 
+  // Many-to-many petugas ↔ region.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS officer_regions (
+      officer_id TEXT NOT NULL,
+      region_id TEXT NOT NULL,
+      PRIMARY KEY (officer_id, region_id),
+      FOREIGN KEY (officer_id) REFERENCES officers(id),
+      FOREIGN KEY (region_id) REFERENCES regions(id)
+    )
+  `);
+
+  // Log transaksi scan plat (jejak penarifan).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS plate_scans (
+      id TEXT PRIMARY KEY,
+      plate TEXT NOT NULL,
+      status TEXT NOT NULL,
+      origin_region_id TEXT,
+      checkpoint_region_id TEXT,
+      tariff_amount INTEGER DEFAULT 0,
+      officer_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Geofence points table — dibuat SEBELUM seedData agar
+  // seedDefaultGeofences (di akhir initialize) selalu menemukan tabelnya.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS geofences (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      dermaga_id TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER DEFAULT 100,
+      allowed_routes TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER DEFAULT 1,
+      strict_enforce_outside INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   seedData();
 
-	  // Geofence points table
-	  db.run(`
-	    CREATE TABLE IF NOT EXISTS geofences (
-	      id TEXT PRIMARY KEY,
-	      name TEXT NOT NULL,
-	      dermaga_id TEXT,
-	      latitude REAL NOT NULL,
-	      longitude REAL NOT NULL,
-	      radius_meters INTEGER DEFAULT 100,
-	      allowed_routes TEXT NOT NULL DEFAULT '[]',
-	      enabled INTEGER DEFAULT 1,
-	      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	    )
-	  `);
+  // Migrasi DB lama: kolom strict_enforce_outside
+	  try {
+	    db.run(`ALTER TABLE geofences ADD COLUMN strict_enforce_outside INTEGER DEFAULT 1`);
+	  } catch (e) { /* kolom sudah ada */ }
+	  seedDefaultGeofences();
   saveDb();
+}
+
+// Seed default koordinat Dermaga 1 & Dermaga 2 (idempotent — bawaan aktif
+// otomatis setelah boot, sesuai Skenario A & B spesifikasi strict geofencing).
+function seedDefaultGeofences() {
+  const defaults = [
+    {
+      id: 'badau-d1',
+      name: 'Badau Dermaga 1',
+      dermaga_id: 'BADAU-D1',
+      latitude: -6.1891005,
+      longitude: 106.8371641,
+      radius_meters: 100,
+      allowed_routes: ['SJRE-SBDZ'], // Skenario A: kunci SJRE → SBDZ
+    },
+    {
+      id: 'badau-d2',
+      name: 'Badau Dermaga 2',
+      dermaga_id: 'BADAU-D2',
+      latitude: -6.2389899548617285,
+      longitude: 106.97475839406252,
+      radius_meters: 100,
+      allowed_routes: ['SBDZ-SJRE'], // Skenario B: kunci SBDZ → SJRE
+    },
+  ];
+  const check = db.prepare('SELECT id FROM geofences LIMIT 1');
+  const hasAny = check.step();
+  check.free();
+  if (hasAny) return;
+  const ins = db.prepare(`
+    INSERT INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
+  `);
+  for (const g of defaults) {
+    ins.run([g.id, g.name, g.dermaga_id, g.latitude, g.longitude, g.radius_meters, JSON.stringify(g.allowed_routes)]);
+  }
+  ins.free();
+  console.log('[geofence] Seed default: Badau Dermaga 1 & 2 (SJRE-SBDZ / SBDZ-SJRE, radius 100m, strict)');
 }
 
 function seedData() {
@@ -633,6 +712,10 @@ function seedData() {
   const result = stmt.getAsObject();
   stmt.free();
   if (result.count > 0) return;
+
+  // Kolom password dibutuhkan seed region (ensureSpecRegions menambah kolom
+  // ini SETELAH seed — di DB baru kolomnya belum ada saat insert pertama).
+  try { db.run('ALTER TABLE regions ADD COLUMN password TEXT'); } catch (e) { /* sudah ada */ }
 
   // Seed 3 wilayah operasional (Revisi #3). Dermaga, rute dua arah, petugas
   // contoh, dan password wilayah dibuat oleh ensureSpecRegions() — satu sumber
