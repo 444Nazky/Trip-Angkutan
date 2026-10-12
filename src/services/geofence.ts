@@ -39,38 +39,17 @@ export interface GeofenceConfig {
   rules: GeofenceRule[]
 }
 
-/** Konfigurasi geofencing default untuk Badau Dermaga 1 & 2 area */
+/**
+ * Konfigurasi geofence default — KOSONG (rules dari backend/admin).
+ * Default sebelumnya memuat koordinat Badau hardcoded; di region lain
+ * (Entikong, Belitung, Kelapa Kampit) itu membingungkan petugas (rule palsu
+ * memaksa rute yang salah). Config sebenarnya di-sync via syncGeofenceConfig()
+ * saat online; tanpa sync = tanpa rule, tanpa paksaan rute.
+ */
 export const DEFAULT_GEOFENCE_CONFIG: GeofenceConfig = {
   maxAccuracyMeters: 100,
   defaultRadiusMeters: 100,
-  rules: [
-    // ── Route 2: Badau Dermaga 1 area ──────────────────────────────────────
-    // Koordinat: -6.1891005, 106.8371641
-    // Saat petugas berada di area ini, rute dipaksa: SJRE -> SBDZ
-    {
-      id: 'badau-d1-route2',
-      locationName: 'Badau Dermaga 1',
-      latitude: -6.1891005,
-      longitude: 106.8371641,
-      radiusMeters: 100,
-      allowedRouteCodes: ['SJRE-SBDZ'],
-      allowedDirections: ['SJRE → SBDZ'],
-      description: 'Route 2: Petugas di area Badau Dermaga 1 dipaksa menggunakan rute SJRE -> SBDZ',
-    },
-    // ── Route 1: Badau Dermaga 2 area ──────────────────────────────────────
-    // Koordinat: -6.2389899548617285, 106.97475839406252
-    // Saat petugas berada di area ini, rute dipaksa: SBDZ -> SJRE
-    {
-      id: 'badau-d2-route1',
-      locationName: 'Badau Dermaga 2',
-      latitude: -6.2389899548617285,
-      longitude: 106.97475839406252,
-      radiusMeters: 100,
-      allowedRouteCodes: ['SBDZ-SJRE'],
-      allowedDirections: ['SBDZ → SJRE'],
-      description: 'Route 1: Petugas di area Badau Dermaga 2 dipaksa menggunakan rute SBDZ -> SJRE',
-    },
-  ],
+  rules: [],
 }
 
 /**
@@ -106,8 +85,10 @@ export function isWithinGeofence(
 ): { matched: boolean; distance: number; inRadius: boolean } {
   const distance = haversineDistance(lat, lon, rule.latitude, rule.longitude)
   const inRadius = distance <= rule.radiusMeters
-  // Hanya match bila GPS cukup akurat (within maxAccuracy meters)
-  const matched = inRadius && distance <= maxAccuracy + rule.radiusMeters
+  // Match = dalam radius SAJA. Formula lama (maxAccuracy + radiusMeters)
+  // MEMPERLEBAR zona aman jadi radius + akurasi GPS — petugas 120m dari
+  // pusat lolos padahal seharusnya di luar. Zona tidak boleh melebar.
+  const matched = inRadius
   return { matched, distance, inRadius }
 }
 

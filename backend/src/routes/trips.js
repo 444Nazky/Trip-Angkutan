@@ -40,7 +40,7 @@ function generateTripNo() {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
   // crypto.randomBytes is unpredictable; Math.random() is not
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
+  const random = crypto.randomBytes(4).toString('hex').toUpperCase();  // 4 bytes = ~4 miliar kombinasi
   return `TRP${dateStr}${random}`;
 }
 
@@ -97,9 +97,13 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       const masterTariff = db.prepare(`
         SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
       `).get(vehicle.vehicleType);
-      const amount = masterTariff
-        ? (vehicle.hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
-        : 0  // client tariffAmount ignored — server sets from master tariff;
+      // Amount yang DIBAYAR petugas = source of truth (mobile yang pegang kas).
+      // Master tariff hanya fallback kalau mobile tidak mengirim amount valid.
+      const amount = (typeof vehicle.tariffAmount === 'number' && vehicle.tariffAmount > 0)
+        ? vehicle.tariffAmount
+        : (masterTariff
+            ? (vehicle.hasLoad ? masterTariff.loaded_tariff : masterTariff.empty_tariff)
+            : 0);
       const photoIndex = vehiclePhotoIndexes[index];
       db.prepare(`
         INSERT INTO vehicles (

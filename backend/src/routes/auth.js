@@ -401,7 +401,7 @@ router.post(`/change-admin-password`, async (req, res) => {
       try { valid = bcrypt.compareSync(currentPassword, storedHash) } catch (_) { valid = false }
     } else {
       // ADMIN_PASSWORD di environment variable.
-      const defAdminPass = process.env.ADMIN_PASSWORD ?? `admin123`
+      const defAdminPass = process.env.ADMIN_PASSWORD ?? null
       valid = currentPassword === defAdminPass
     }
 
