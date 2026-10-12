@@ -17,9 +17,8 @@ router.get('/', (req, res) => {
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, code } = req.body;
-    const { v4: uuidv4 } = require('uuid');
-
-    const id = uuidv4();
+const { randomUUID } = require('crypto');
+    const id = randomUUID();
     db.prepare(`INSERT INTO regions (id, name, code) VALUES (?, ?, ?)`).run(id, name, code);
 
     res.status(201).json({ id, name, code });

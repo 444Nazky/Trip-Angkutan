@@ -241,11 +241,6 @@ export function initOfflineDb(): Promise<LocalBackend> {
   }
   return initPromise
 }
-
-export function getBackend(): LocalBackend {
-  return backend
-}
-
 function lsOfficers(): OfficerRow[] {
   try {
     const raw = localStorage.getItem(LS_OFFICERS)

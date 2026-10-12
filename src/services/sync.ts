@@ -87,7 +87,6 @@ type SyncedListener = (tripId: string) => void
 let queueListeners: QueueListener[] = []
 let syncedListeners: SyncedListener[] = []
 let _pendingCount = 0
-let _lastError: string | null = null
 
 // ── State koneksi (ping aktif) ───────────────────────────────────────────────
 let _pingOk = false
@@ -312,11 +311,7 @@ let _queueCache: SyncItem[] = []
 void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 
 /** Error terakhir pada proses sinkron (null = bersih). */
-export function getLastSyncError(): string | null { return _lastError }
-
 /** true bila ada siklus sinkronisasi yang sedang berjalan. */
-export function isSyncInProgress(): boolean { return _syncing && Date.now() <= _lockDeadline }
-
 export function onSyncQueueChange(cb: QueueListener): () => void {
   queueListeners.push(cb)
   void dbCount('pending').then(n => {
@@ -598,7 +593,6 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     // ✅ HANYA HTTP 200/201 → item boleh keluar dari antrean
     if (res.ok) {
-      _lastError = null
       return { syncId, success: true }
     }
 
@@ -691,7 +685,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   if (result.success) {
     // ✅ SERVER KONFIRMASI (200/201) — baru item keluar dari antrean
     await removeItem(item.syncId)
-    _lastError = null
     notifyQueueListeners()
     notifySyncedListeners(item.trip.id)
     return
@@ -706,7 +699,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
     needsAttention: result.permanent ? true : item.needsAttention,
   }
   await writeItem(updated)
-  _lastError = updated.lastError ?? null
 
   // Jaringan → retry cepat (< 2 dtk) untuk beberapa percobaan pertama agar
   // pulih seketika; setelah itu naik ke exponential backoff agar tidak membanjiri.
@@ -756,7 +748,6 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
     const sessionOk = await ensureSessionForQueue()
     if (!sessionOk) {
       // Jangan kirim tanpa sesi — tunda dengan pesan yang jelas untuk petugas.
-      _lastError = 'Sesi berakhir — silakan login ulang. Data antrean tetap aman.'
       scheduleRetry(MAX_BACKOFF_MS)
       return
     }
@@ -767,7 +758,6 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
       await processItem(item, opts?.retryAll ?? false)
     }
   } catch (err) {
-    _lastError = err instanceof Error ? err.message : 'Proses sinkron terganggu'
     console.warn('[sync] siklus terputus:', err)
   } finally {
     releaseLock()
@@ -849,18 +839,6 @@ export async function syncNow(): Promise<{ synced: number; failed: number; busy?
 
 // ── Base URL helpers ─────────────────────────────────────────────────────────
 export function getApiBaseUrl(): string { return readApiBaseUrl() }
-
-export function getMaskedApiUrl(): string {
-  try {
-    const u = new URL(getApiBaseUrl())
-    const hidden = u.hostname.length > 8
-      ? `${u.hostname.slice(0, 4)}…${u.hostname.slice(-4)}`
-      : `${u.hostname.slice(0, 2)}…${u.hostname.slice(-2)}`
-    return `${u.protocol}//${hidden}${u.pathname}`
-  } catch { return '(konfigurasi tidak valid)' }
-}
-
 /**
  * OTA helper statis untuk akses lintas-modul tanpa sirkular.
  */
-export const OTA_MANIFEST_URL = 'https://github.com/444Nazky/Trip-Android-Management-System'

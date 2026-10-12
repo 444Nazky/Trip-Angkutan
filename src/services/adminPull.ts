@@ -14,15 +14,6 @@ import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStored
 import { syncGeofencesFromBackend } from './geofence'
 
 // ── Types ──────────────────────────────────────────────────────
-
-export interface AdminOfficer {
-  id: string
-  name: string
-  username?: string
-  /** HANYA petugas yang akan dipakai. */
-  is_active: number
-}
-
 /** Sinkronisasi data admin ke localStorage (mobile) dengan HANYA petugas terkait, caching hasil admin. */
 
 // ── Sync pull on resume ─────────────────────────────────────

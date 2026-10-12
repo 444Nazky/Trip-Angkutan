@@ -37,20 +37,6 @@ export interface GeofencePoint {
    */
   strictEnforceOutsideArea?: boolean
 }
-
-export interface GeofenceState {
-  /** Posisi GPS saat ini (null jika belum tersedia) */
-  currentPosition: { lat: number; lon: number } | null
-  /** Titik geofence yang sedang aktif (dalam radius) */
-  activePoint: GeofencePoint | null
-  /** Semua titik geofence terkonfigurasi */
-  points: GeofencePoint[]
-  /** Error terakhir (mis. GPS ditolak) */
-  error: string | null
-  /** Apakah GPS sedang dimuat */
-  loading: boolean
-}
-
 export interface ValidationResult {
   valid: boolean
   /**
@@ -329,102 +315,13 @@ export async function validateRouteForCurrentLocation(
  * Hitung jarak dari posisi saat ini ke titik geofence terdekat.
  * Berguna untuk menampilkan info ke pengguna.
  */
-export async function getDistanceToNearestPoint(
-  points?: GeofencePoint[],
-): Promise<{ point: GeofencePoint; distance: number } | null> {
-  const geofencePoints = points ?? getStoredGeofencePoints()
-  const position = await getCurrentPosition()
-
-  if (!position) return null
-  if (geofencePoints.length === 0) return null
-
-  let nearest: { point: GeofencePoint; distance: number } | null = null
-
-  for (const point of geofencePoints) {
-    if (!point.enabled) continue
-
-    const distance = calculateDistance(
-      position.lat,
-      position.lon,
-      point.latitude,
-      point.longitude,
-    )
-
-    if (!nearest || distance < nearest.distance) {
-      nearest = { point, distance }
-    }
-  }
-
-  return nearest
-}
-
 // ── CRUD Operations ─────────────────────────────────────────────────────────
 
 /** Tambah titik geofence baru */
-export function addGeofencePoint(point: GeofencePoint): { success: boolean; error?: string } {
-  const errors = isValidGeofencePoint(point)
-  if (errors.length > 0) {
-    return { success: false, error: errors.join('; ') }
-  }
-
-  const points = getStoredGeofencePoints()
-
-  // Cek duplikasi ID
-  if (points.some(p => p.id === point.id)) {
-    return { success: false, error: 'ID titik geofence sudah ada' }
-  }
-
-  points.push(point)
-  saveGeofencePoints(points)
-
-  return { success: true }
-}
-
 /** Perbarui titik geofence */
-export function updateGeofencePoint(
-  id: string,
-  updates: Partial<GeofencePoint>,
-): { success: boolean; error?: string } {
-  const points = getStoredGeofencePoints()
-  const index = points.findIndex(p => p.id === id)
-
-  if (index === -1) {
-    return { success: false, error: 'Titik geofence tidak ditemukan' }
-  }
-
-  const merged = { ...points[index], ...updates }
-  const errors = isValidGeofencePoint(merged)
-  if (errors.length > 0) {
-    return { success: false, error: errors.join('; ') }
-  }
-
-  points[index] = merged
-  saveGeofencePoints(points)
-
-  return { success: true }
-}
-
 /** Hapus titik geofence */
-export function deleteGeofencePoint(id: string): void {
-  const points = getStoredGeofencePoints().filter(p => p.id !== id)
-  saveGeofencePoints(points)
-}
-
 /** Toggle aktif/nonaktif titik geofence */
-export function toggleGeofencePoint(id: string, enabled: boolean): void {
-  const points = getStoredGeofencePoints()
-  const point = points.find(p => p.id === id)
-  if (point) {
-    point.enabled = enabled
-    saveGeofencePoints(points)
-  }
-}
-
 /** Reset ke default geofence points */
-export function resetGeofenceToDefaults(): void {
-  saveGeofencePoints(getDefaultGeofencePoints())
-}
-
 // ── Backend Sync ──────────────────────────────────────────────────────────
 
 const GEOFENCE_SYNC_KEY = 'trip.geofence.lastSync'

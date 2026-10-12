@@ -217,13 +217,6 @@ export function parseRp(s: string): number {
 export function formatRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
-
-export function compactRp(n: number): string {
-  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.0', '')}jt`
-  if (n >= 1_000) return `${Math.round(n / 1_000)}rb`
-  return String(n)
-}
-
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
 export function fmtDate(d: Date): string {
@@ -237,17 +230,6 @@ export function fmtTime(d: Date): string {
 export function fmtClock(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-
-export function durationToSeconds(s: string): number {
-  const h = /(\d+)j/.exec(s)
-  const m = /(\d+)m/.exec(s)
-  return ((h ? parseInt(h[1], 10) : 0) * 60 + (m ? parseInt(m[1], 10) : 0)) * 60
-}
-
-export function kmNumber(s: string): number {
-  return parseInt(s, 10) || 0
-}
-
 export function fmtElapsed(totalSec: number): string {
   const h = Math.floor(totalSec / 3600)
   const m = Math.floor((totalSec % 3600) / 60)

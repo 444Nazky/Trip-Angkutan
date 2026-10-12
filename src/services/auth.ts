@@ -61,34 +61,10 @@ export interface LoginResponse {
 }
 
 // ── Revisi #4: login wilayah (langkah 1) ───────────────────────────────────
-export interface RegionInfo { id: string; name: string; code: string }
-export interface RegionOfficer { id: string; name: string }
-
 /**
  * Login wilayah: kode region + password region (contoh BADAU / badau123).
  * Berhasil → daftar petugas wilayah tsb (tanpa PIN) untuk langkah berikutnya.
  */
-export async function regionLogin(
-  regionCode: string,
-  password: string,
-): Promise<{
-  success: boolean
-  error?: string
-  region?: RegionInfo
-  officers?: RegionOfficer[]
-}> {
-  const result = await api.post<{ region: RegionInfo; officers: RegionOfficer[] }>(
-    '/auth/region-login',
-    { regionCode, password },
-  )
-
-  if (!result.ok || !result.data) {
-    return { success: false, error: result.error?.message || 'Backend tidak terjangkau' }
-  }
-
-  return { success: true, region: result.data.region, officers: result.data.officers }
-}
-
 // ── Rute petugas (dari login PIN / pilih dermaga) ─────────────────────────────
 export interface UiRoute {
   code: string
@@ -505,11 +481,6 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
 
   return false
 }
-
-export function isLoggedIn(): boolean {
-  return api.isAuthenticated && !!getStoredOfficer()
-}
-
 // Decode the stored JWT payload without verification (UI-level checks only)
 function jwtPayload(): { role?: string; officerId?: string | number } | null {
   const token = api.token
@@ -804,13 +775,4 @@ export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void>
 }
 
 /** Hapus data petugas dermaga dari storage (logout/pergantian akun). */
-export async function clearDermagaOfficersFromDb(dermagaId?: string): Promise<void> {
-  if (!dermagaId) return
-  try { localStorage.removeItem(`trip.dermaga.officers.${dermagaId}`) } catch {}
-}
-
 /** Ambil daftar petugas satu dermaga dari localStorage (hasil sync terbaru). */
-export function getDermagaOfficersFromStorage(dermagaId: string): StoredOfficer[] {
-  try { return JSON.parse(localStorage.getItem(`trip.dermaga.officers.${dermagaId}`) ?? '[]') }
-  catch { return [] }
-}

@@ -299,24 +299,6 @@ router.post('/select-dermaga', authenticate, (req, res) => {
   }
 });
 
-// Get officers by region (for device lock)
-router.get('/officers/:regionCode', (req, res) => {
-  try {
-    const { regionCode } = req.params;
-
-    const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE r.code = ? AND o.is_active = 1
-    `).all(regionCode);
-
-    res.json(officers);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch officers' });
-  }
-});
-
 // Terbitkan ulang token petugas dari klaim terbaru di database, tanpa PIN.
 // Dipakai mobile setelah sinkronisasi petugas: jika admin memindahkan wilayah
 // atau menonaktifkan akun, trip berikutnya harus memakai klaim terbaru.
@@ -353,43 +335,6 @@ router.post('/refresh', authenticate, (req, res) => {
   } catch (error) {
     console.error('Token refresh error:', error);
     res.status(500).json({ error: 'Token refresh failed' });
-  }
-});
-
-// Verify token
-router.get('/verify', (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ valid: false });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    const officer = db.prepare(`
-      SELECT o.*, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE o.id = ?
-    `).get(decoded.officerId);
-
-    if (!officer) {
-      return res.status(401).json({ valid: false });
-    }
-
-    res.json({
-      valid: true,
-      officer: {
-        id: String(officer.id),
-        name: officer.name,
-        regionId: officer.region_id,
-        regionName: officer.region_name,
-        regionCode: officer.region_code
-      }
-    });
-  } catch (error) {
-    res.status(401).json({ valid: false });
   }
 });
 

@@ -46,9 +46,8 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { dermaga_id, name, route_from, route_to, distance, duration } = req.body;
-    const { v4: uuidv4 } = require('uuid');
-
-    const id = uuidv4();
+const { randomUUID } = require('crypto');
+    const id = randomUUID();
     db.prepare(`
       INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration)
       VALUES (?, ?, ?, ?, ?, ?, ?)

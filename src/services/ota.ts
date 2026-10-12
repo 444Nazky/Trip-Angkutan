@@ -124,11 +124,6 @@ export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
 export async function markBundlePersisted(): Promise<void> {
   try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
 }
-
-export async function clearPersistFlag(): Promise<void> {
-  try { localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY) } catch { /* quota */ }
-}
-
 export async function hasPersistFlag(): Promise<boolean> {
   try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
 }
@@ -623,19 +618,6 @@ async function clearStuckOtaState(): Promise<void> {
  * isi ulang dari penyimpanan internal + aktivasi ulang tanpa unduh ulang.
  * Return true bila berhasil di-restore.
  */
-export async function ensurePersistedBundleActive(): Promise<boolean> {
-  const persisted = await hasPersistFlag()
-  if (!persisted) return false
-  const ok = await restoreBundleFromStorage()
-  if (!ok) {
-    // Bundle tidak utuh → jangan biarkan app start dalam kondisi ambigu:
-    // hapus flag, biar aplikasi jatuh kembali ke bundle bawaan APK.
-    await clearPersistFlag()
-    await discardBundle(undefined)
-  }
-  return ok
-}
-
 // ── Aktivasi bundle ──────────────────────────────────────────────────────────
 
 /**
@@ -945,6 +927,3 @@ export async function applyUpdate(): Promise<boolean> {
 }
 
 /** Hapus semua asset & state OTA. Alias ringkas untuk resetOtaStorage(). */
-export async function clearCache(): Promise<void> {
-  await resetOtaStorage()
-}

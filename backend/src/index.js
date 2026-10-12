@@ -3,7 +3,6 @@ const cors = require('cors');
 const dbModule = require('./db');
 const authRoutes = require('./routes/auth');
 const tripRoutes = require('./routes/trips');
-const vehicleRoutes = require('./routes/vehicles');
 const tariffRoutes = require('./routes/tariffs');
 const regionTariffRoutes = require('./routes/region-tariffs');
 const plateRoutes = require('./routes/plates');
@@ -12,7 +11,6 @@ const regionRoutes = require('./routes/regions');
 const dermagaRoutes = require('./routes/dermagas');
 const routeRoutes = require('./routes/routes');
 const reportRoutes = require('./routes/reports');
-const uploadRoutes = require('./routes/upload');
 const geofenceRoutes = require('./routes/geofences');
 
 const app = express();
@@ -35,7 +33,6 @@ app.use((req, _res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/trips', tripRoutes);
-app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/tariffs', tariffRoutes);
 app.use('/api/region-tariffs', regionTariffRoutes);
 app.use('/api/plates', plateRoutes);
@@ -44,7 +41,6 @@ app.use('/api/regions', regionRoutes);
 app.use('/api/dermagas', dermagaRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/geofences', geofenceRoutes);
 
 // Health check
