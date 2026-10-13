@@ -40,16 +40,55 @@ const h = vi.hoisted(() => ({
   connected: true,
   /** Berkas durable: `${DIRECTORY}|${path}` → byte mentah. */
   fs: new Map<string, Uint8Array>(),
-  /** "Server" OTA: versi → path → isi teks. */
-  server: new Map<string, Map<string, string>>(),
+  /** "Server" OTA: versi → path → isi (teks atau byte biner). */
+  server: new Map<string, Map<string, string | Uint8Array>>(),
   integrity: {} as Record<string, Record<string, string>>,
   /** `${versi}|${path}` yang sengaja dikirim rusak oleh server. */
   corrupt: new Set<string>(),
   remoteVersion: '0.0.0',
+  /** CapacitorHttp aktif (seperti di APK). false = plugin tak tersedia. */
+  capHttpOn: true,
+  /** Argumen tiap panggilan CapacitorHttp.request — untuk memastikan
+   *  `responseType:'arraybuffer'` benar-benar dipakai di jalur biner. */
+  capHttpCalls: [] as { url: string; responseType?: string }[],
+  /** Hitungan permintaan ASET (bukan manifest) — untuk membuktikan tidak ada
+   *  unduh ulang saat staging sudah utuh. */
+  assetHits: 0,
+  /** Resolusi URL → berkas; dipasang di beforeEach (dipakai fetch & CapacitorHttp). */
+  serve: null as null | ((url: string) => { status: number; bytes: Uint8Array; contentType: string }),
 }))
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => h.native },
+  /**
+   * Tiruan SETIA plugin CapacitorHttp (HttpRequestHandler.java):
+   *   • Content-Type application/json → data = objek hasil parseJSON
+   *   • responseType 'arraybuffer'/'blob' → data = base64 (readStreamAsBase64)
+   *   • selain itu (DEFAULT = TEXT) → data = STRING hasil dekode UTF-8
+   *     (readStreamAsString) — inilah yang merusak PNG/JPEG bila kode memakai
+   *     jalur native tanpa meminta arraybuffer.
+   */
+  CapacitorHttp: {
+    async request(options: { url: string; responseType?: string }) {
+      h.capHttpCalls.push({ url: options.url, responseType: options.responseType })
+      if (!h.capHttpOn || !h.serve) throw new Error('CapacitorHttp tidak tersedia')
+      const { status, bytes, contentType } = h.serve(options.url)
+      const dec = new TextDecoder()
+      const encB64 = (b: Uint8Array): string => {
+        let bin = ''
+        for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000))
+        return btoa(bin)
+      }
+      const responseType = contentType.includes('application/json') ? 'json' : options.responseType
+      if (responseType === 'json') {
+        return { status, headers: {}, url: options.url, data: JSON.parse(dec.decode(bytes)) }
+      }
+      if (responseType === 'arraybuffer' || responseType === 'blob') {
+        return { status, headers: {}, url: options.url, data: encB64(bytes) }
+      }
+      return { status, headers: {}, url: options.url, data: dec.decode(bytes) }
+    },
+  },
 }))
 
 vi.mock('@capacitor/filesystem', () => {
@@ -157,8 +196,14 @@ async function cachedText(cacheName: string, path: string): Promise<string | nul
 
 // ── "Server" OTA + fetch tiruan ──────────────────────────────────────────────
 
-async function sha256(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text)
+const utf8 = new TextEncoder()
+
+/** Byte nyata sebuah "berkas server" (string → byte UTF-8). */
+function bytesOfFile(file: string | Uint8Array): Uint8Array {
+  return typeof file === 'string' ? utf8.encode(file) : file
+}
+
+async function sha256Bytes(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
     bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
@@ -166,45 +211,65 @@ async function sha256(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** Publikasikan satu rilis: aset + integrity + manifest. */
-async function release(version: string, files: Record<string, string>): Promise<void> {
+/**
+ * Publikasikan satu rilis: aset + integrity + manifest.
+ * Nilai boleh byte mentah (Uint8Array) — dipakai untuk menguji aset BINER
+ * (PNG/JPEG) yang bukan UTF-8, persis seperti bundel nyata aplikasi.
+ */
+async function release(version: string, files: Record<string, string | Uint8Array>): Promise<void> {
   const map = new Map(Object.entries(files))
   h.server.set(version, map)
   const integrity: Record<string, string> = {}
-  for (const [path, text] of map) integrity[path] = await sha256(text)
+  for (const [path, file] of map) integrity[path] = await sha256Bytes(bytesOfFile(file))
   h.integrity[version] = integrity
   h.remoteVersion = version
+}
+
+/** Resolusi URL → berkas. Dipakai fetch WebView DAN tiruan CapacitorHttp. */
+function serve(url: string) {
+  const parsed = new URL(url)
+  const clean = parsed.origin + parsed.pathname
+
+  // Manifest — versi yang sedang "dirilis" di server.
+  if (clean === MANIFEST_URL) {
+    if (h.remoteVersion === '0.0.0') return { status: 404, bytes: utf8.encode('belum ada rilis'), contentType: 'text/plain' }
+    const map = h.server.get(h.remoteVersion)
+    if (!map) return { status: 404, bytes: utf8.encode('tidak ada'), contentType: 'text/plain' }
+    const manifest = JSON.stringify({
+      version: h.remoteVersion,
+      assets: [...map.keys()],
+      integrity: h.integrity[h.remoteVersion],
+    })
+    // GitHub raw menyajikan .json sebagai text/plain (diverifikasi dengan curl),
+    // jadi klien TIDAK boleh bergantung pada Content-Type application/json.
+    return { status: 200, bytes: utf8.encode(manifest), contentType: 'text/plain; charset=utf-8' }
+  }
+
+  // Aset bundle — versi diambil dari parameter `ota=` (pembeda anti-cache).
+  if (clean.startsWith(ASSETS_BASE)) {
+    h.assetHits++
+    const version = parsed.searchParams.get('ota') ?? h.remoteVersion
+    const path = decodeURIComponent(clean.slice(ASSETS_BASE.length))
+    const file = h.server.get(version)?.get(path)
+    if (file == null) return { status: 404, bytes: utf8.encode(`hilang: ${path}`), contentType: 'text/plain' }
+    if (h.corrupt.has(`${version}|${path}`)) {
+      const base = typeof file === 'string' ? file : 'bin'
+      return { status: 200, bytes: utf8.encode(`RUSAK-${base}`), contentType: 'text/plain' }
+    }
+    const contentType = /\.(png|jpe?g|gif|ico|woff2?)$/i.test(path)
+      ? `image/${path.split('.').pop()}`
+      : 'text/plain; charset=utf-8'
+    return { status: 200, bytes: bytesOfFile(file), contentType }
+  }
+
+  return { status: 404, bytes: utf8.encode('tidak dikenal'), contentType: 'text/plain' }
 }
 
 function makeFetch() {
   return vi.fn(async (input: unknown): Promise<Response> => {
     const url = typeof input === 'string' ? input : String((input as Request).url ?? input)
-    const parsed = new URL(url)
-    const clean = parsed.origin + parsed.pathname
-
-    // Manifest — versi yang sedang "dirilis" di server.
-    if (clean === MANIFEST_URL) {
-      if (h.remoteVersion === '0.0.0') return new Response('belum ada rilis', { status: 404 })
-      const map = h.server.get(h.remoteVersion)
-      if (!map) return new Response('tidak ada', { status: 404 })
-      return new Response(JSON.stringify({
-        version: h.remoteVersion,
-        assets: [...map.keys()],
-        integrity: h.integrity[h.remoteVersion],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    }
-
-    // Aset bundle — versi diambil dari parameter `ota=` (pembeda anti-cache).
-    if (clean.startsWith(ASSETS_BASE)) {
-      const version = parsed.searchParams.get('ota') ?? h.remoteVersion
-      const path = decodeURIComponent(clean.slice(ASSETS_BASE.length))
-      const text = h.server.get(version)?.get(path)
-      if (text == null) return new Response(`hilang: ${path}`, { status: 404 })
-      if (h.corrupt.has(`${version}|${path}`)) return new Response(`RUSAK-${text}`, { status: 200 })
-      return new Response(text, { status: 200 })
-    }
-
-    return new Response('tidak dikenal', { status: 404 })
+    const { status, bytes, contentType } = serve(url)
+    return new Response(bytes.slice().buffer as ArrayBuffer, { status, headers: { 'Content-Type': contentType } })
   })
 }
 
@@ -221,6 +286,10 @@ async function updateTo(version: string, from: string | null): Promise<UpdateSta
 beforeEach(() => {
   h.native = true
   h.connected = true
+  h.capHttpOn = true
+  h.capHttpCalls = []
+  h.assetHits = 0
+  h.serve = serve
   h.fs.clear()
   h.server.clear()
   h.corrupt.clear()
@@ -239,6 +308,17 @@ describe('isNewer', () => {
     expect(isNewer('1.0.979521+1791527033132', '1.0.979521+1791527033132')).toBe(false)
     expect(isNewer('1.0.0+1000', '0.0.0')).toBe(true)
     expect(isNewer('1.0.2+1791527033132', '1.0.1+1791526573552')).toBe(true)
+  })
+
+  it('SEMVER diprioritaskan, timestamp hanya tiebreak (jam mesin rilis bisa meleset)', () => {
+    // Semver lebih rendah walau timestamp lebih besar → BUKAN update.
+    expect(isNewer('1.0.3+9999999999999', '1.0.4+1')).toBe(false)
+    // Semver lebih tinggi walau timestamp lebih kecil → update.
+    expect(isNewer('1.0.4+1', '1.0.3+9999999999999')).toBe(true)
+    // Semver sama → timestamp yang menentukan.
+    expect(isNewer('1.0.4+2', '1.0.4+1')).toBe(true)
+    expect(isNewer('1.0.4+1', '1.0.4+2')).toBe(false)
+    expect(isNewer('1.0.4+1', '1.0.4')).toBe(true)
   })
 })
 
@@ -395,5 +475,82 @@ describe('ketahanan perangkat', () => {
     expect(await getCurrentVersion()).toBe('0.0.0')
     expect(await readActiveMeta()).toBeNull()
     expect(localStorage.getItem('trip.ota.persistActive')).toBeNull()
+  })
+})
+
+// ── Aset BINER lewat jalur native (CapacitorHttp) ────────────────────────────
+//
+// Bug lapangan yang paling fatal: HttpRequestHandler.DEFAULT = TEXT membaca
+// stream sebagai STRING UTF-8 (readStreamAsString), sehingga PNG/JPEG rusak
+// menjadi U+FFFD lalu di-encode ulang → SHA-256 tak pernah cocok → SEMUA update
+// berhenti di "Verifikasi berkas gagal". Bundel nyata selalu memuat 3 aset biner
+// (guest-profile.jpeg, karyamas_clean.png, favicon.png), jadi tanpa tes ini
+// jalur yang dipakai APK nyata tidak pernah tercakup.
+
+describe('aset biner di APK (CapacitorHttp)', () => {
+  /** Byte mirip PNG: mengandung 0xFF/0xFE/0x80 yang BUKAN UTF-8 valid. */
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0x00, 0xfe, 0x80, 0xc3, 0x28])
+
+  async function cachedBytes(cacheName: string, path: string): Promise<Uint8Array | null> {
+    const cache = await cachesApi().open(cacheName)
+    const res = await cache.match(new URL(path, window.location.origin).href)
+    return res ? new Uint8Array(await res.arrayBuffer()) : null
+  }
+
+  it('aset biner terunduh UTUH (bukan hasil dekode UTF-8) & update sukses', async () => {
+    await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'assets/logo.png': PNG })
+    await updateTo('1.0.1', null)
+
+    // Unduhan aset di native WAJIB meminta byte, bukan teks.
+    const assetCalls = h.capHttpCalls.filter(c => c.url.includes('/ota/'))
+    expect(assetCalls.length).toBeGreaterThan(0)
+    expect(assetCalls.every(c => c.responseType === 'arraybuffer')).toBe(true)
+
+    // Byte tersimpan identik dengan yang dipublikasikan.
+    expect([...(await cachedBytes(versionCacheName('1.0.1'), 'assets/logo.png'))!]).toEqual([...PNG])
+    expect([...(h.fs.get('DATA|ota/1.0.1/assets/logo.png') ?? [])]).toEqual([...PNG])
+    expect(await getCurrentVersion()).toBe('1.0.1')
+  })
+
+  it('update KEDUA dengan aset biner juga mulus — bukan "sekali pakai"', async () => {
+    const PNG2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x10, 0xff, 0x00, 0x01, 0xfe])
+    await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'assets/logo.png': PNG })
+    await updateTo('1.0.1', null)
+
+    // TANPA clear data / reset apa pun di antara dua rilis.
+    await release('1.0.2', { 'index.html': '<html>v1.0.2</html>', 'assets/logo.png': PNG2 })
+    await updateTo('1.0.2', '1.0.1')
+
+    expect(await getCurrentVersion()).toBe('1.0.2')
+    expect([...(await cachedBytes(versionCacheName('1.0.2'), 'assets/logo.png'))!]).toEqual([...PNG2])
+  })
+
+  it('plugin CapacitorHttp tidak tersedia → fallback fetch WebView tetap byte utuh', async () => {
+    h.capHttpOn = false
+    await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'assets/logo.png': PNG })
+    await updateTo('1.0.1', null)
+
+    expect([...(await cachedBytes(versionCacheName('1.0.1'), 'assets/logo.png'))!]).toEqual([...PNG])
+  })
+})
+
+// ── Efisiensi siklus berkala (jaringan lapangan) ─────────────────────────────
+
+describe('siklus cek berkala', () => {
+  it('state "ready" tidak dihapus & tidak diunduh ulang sebelum pengguna menerapkan', async () => {
+    await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'main-aaa.js': 'console.log("1.0.1")' })
+
+    expect((await checkForUpdate(null, () => {}, true)).available).toBe(true)
+    const hitsAfterFirst = h.assetHits
+    expect(hitsAfterFirst).toBeGreaterThan(0)
+
+    // Pemeriksaan berkala berikutnya (mis. 30 menit) SEBELUM "Terapkan" ditekan.
+    const states: UpdateState[] = []
+    const res = await checkForUpdate(null, s => states.push(s), true)
+
+    expect(res.available).toBe(true)
+    expect(states.at(-1)?.status).toBe('ready')
+    expect(h.assetHits).toBe(hitsAfterFirst) // tidak ada unduhan ulang
+    expect(await cachedText(versionCacheName('1.0.1'), 'index.html')).toBe('<html>v1.0.1</html>')
   })
 })

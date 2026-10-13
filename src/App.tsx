@@ -47,12 +47,21 @@ function Shell() {
     return () => { sub?.remove?.() }
   }, [])
 
-  if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
-  if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
+  const isAdminSession = loggedIn && userType === 'admin'
+
+  // Sesi admin tidak memakai shell mobile — dipulihkan di effect (dulu logout()
+  // dipanggil saat render, padahal render boleh berjalan berkali-kali).
+  useEffect(() => {
+    if (isAdminSession) logout()
+  }, [isAdminSession, logout])
 
   return (
     <div className="app-root bg-slate-50">
-      {/* UpdateNotifier menangani semua state OTA: check, download, ready, error, offline */}
+      {/* UpdateNotifier menangani semua state OTA: check, download, ready, error, offline.
+          Sengaja dirender di LUAR gerbang login: sebelumnya komponen ini berada
+          SETELAH `if (!loggedIn) return <LoginPage/>`, sehingga perangkat yang
+          berhenti di layar login (mis. token kedaluwarsa) TIDAK PERNAH memeriksa
+          versi baru — rilis baru jadi tidak terdeteksi sampai ada yang login. */}
       <UpdateNotifier
         autoCheck={true}
         initialDelay={5000}
@@ -60,7 +69,9 @@ function Shell() {
         position="bottom-right"
         onUpdateApplied={(v) => console.log('[App] Update applied:', v)}
       />
-      <MobileApp />
+      {loggedIn && !isAdminSession
+        ? <MobileApp />
+        : <LoginPage onLogin={() => login('member')} />}
     </div>
   )
 }

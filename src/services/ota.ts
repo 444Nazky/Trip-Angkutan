@@ -392,7 +392,11 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
           headers: mergedOptions.headers as Record<string, string>,
           connectTimeout: 10000,
         })
-        return new Response(response.data, {
+        // Plugin mem-parse badan JSON sendiri (Content-Type application/json);
+        // GitHub raw memakai text/plain sehingga `data` tetap string. Keduanya
+        // harus jadi body Response yang valid — objek di-JSON-kan kembali.
+        const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+        return new Response(body, {
           status: response.status,
           statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
           headers: new Headers(
@@ -481,11 +485,16 @@ export function isNewer(remote: string, local: string): boolean {
   if (!local) return true
   if (!remote) return false
   if (remote === local) return false
-  const rt = /\+(\d+)/.exec(remote)?.[1]
-  const lt = /\+(\d+)/.exec(local)?.[1]
-  if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
-  const rm = remote.match(/\d+/g)
-  const lm = local.match(/\d+/g)
+
+  // SEMVER dulu; `+<timestamp>` hanya TIEBREAK.
+  // Dulu timestamp dibandingkan lebih dulu, sehingga rilis dari mesin yang jamnya
+  // tertinggal terbaca "tidak lebih baru" selamanya (update tak pernah terdeteksi)
+  // dan downgrade yang disengaja terbaca sebagai upgrade.
+  const base = (v: string) => v.split('+')[0]
+  const rb = base(remote)
+  const lb = base(local)
+  const rm = rb.match(/\d+/g)
+  const lm = lb.match(/\d+/g)
   if (rm && lm) {
     const max = Math.max(rm.length, lm.length)
     for (let i = 0; i < max; i++) {
@@ -493,9 +502,15 @@ export function isNewer(remote: string, local: string): boolean {
       const ln = parseInt(lm[i] ?? '0', 10)
       if (rn !== ln) return rn > ln
     }
-    return remote.length > local.length
+  } else if (rb !== lb) {
+    return !rb.startsWith(lb)
   }
-  return !remote.startsWith(local)
+
+  const rt = /\+(\d+)/.exec(remote)?.[1]
+  const lt = /\+(\d+)/.exec(local)?.[1]
+  if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
+  if (rt && !lt) return true
+  return false
 }
 
 export function semverLabel(version: string): string {
@@ -505,10 +520,64 @@ export function semverLabel(version: string): string {
 }
 
 /**
+ * Ambil BYTE MENTAH satu berkas bundle.
+ *
+ * Di native WAJIB lewat CapacitorHttp dengan `responseType: 'arraybuffer'`.
+ * Bawaan plugin adalah `ResponseType.DEFAULT = TEXT`
+ * (HttpRequestHandler.readData → readStreamAsString), sehingga PNG/JPEG bukan
+ * UTF-8 dirusak menjadi U+FFFD lalu di-encode ulang oleh `new Response(data)`
+ * → SHA-256 tidak pernah cocok → update selalu berhenti di
+ * "Verifikasi berkas gagal" di APK release. Untuk arraybuffer, native
+ * mengembalikan base64 (readStreamAsBase64), jadi hasilnya didekode eksplisit
+ * (`fromBase64`) — bukan diumpankan sebagai teks ke `new Response()`.
+ * Bila plugin malah mem-parse respons sebagai JSON (Content-Type
+ * application/json), jalur native dilepas ke fetch WebView di bawah.
+ */
+async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array> {
+  if (isNative()) {
+    try {
+      const capHttp = await getCapacitorHttp()
+      if (capHttp) {
+        const response = await capHttp.request({
+          url,
+          method: 'GET',
+          responseType: 'arraybuffer',
+          connectTimeout: 15000,
+          readTimeout: 30000,
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        })
+        if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
+        if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status} saat unduh`)
+        const data = response.data
+        if (typeof data === 'string' && data.length) {
+          const bytes = fromBase64(data)
+          if (bytes.byteLength) return bytes
+        }
+        throw new Error('data native kosong/tak terduga')
+      }
+    } catch (err) {
+      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
+      console.warn('[OTA] CapacitorHttp gagal — fallback ke fetch WebView:', err)
+    }
+  }
+
+  const res = await fetch(url, { signal, cache: 'no-store' })
+  if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const buf = await res.arrayBuffer()
+  if (!buf.byteLength) throw new Error('File kosong')
+  return new Uint8Array(buf)
+}
+
+/**
  * Unduh satu berkas bundle.
  * URL unik per percobaan (`?ota=<versi>&t=<ts>&n=<attempt>`) — inilah yang
  * membuat CDN/WebView TIDAK bisa menyajikan salinan lama untuk nama file tetap
  * seperti index.html (penyebab "integritas tidak cocok" dulu).
+ * Isi diambil sebagai byte mentah lewat `fetchBytes()` (aman untuk gambar).
  */
 async function downloadAsset(
   version: string,
@@ -521,12 +590,9 @@ async function downloadAsset(
     if (signal.aborted) throw new DOMException('aborted', 'AbortError')
     try {
       const url = `${ASSETS_BASE}${path}?ota=${encodeURIComponent(version)}&t=${Date.now()}&n=${n}`
-      const res = await nativeFetch(url, { signal, cache: 'no-store' })
-      if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
-      const buf = await res.arrayBuffer()
-      if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
-      return new Uint8Array(buf)
+      const bytes = await fetchBytes(url, signal)
+      if (!bytes.byteLength) throw new Error(`File kosong: ${path}`)
+      return bytes
     } catch (err) {
       if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
       lastErr = err
@@ -797,7 +863,10 @@ export async function auditOta(): Promise<{
     const timeout = setTimeout(() => ac.abort(), 4000)
     let res: Response
     try {
-      res = await nativeFetch(MANIFEST_URL, { cache: 'no-store', signal: ac.signal })
+      // `?t=` juga di sini: tanpa cache-buster, diagnostik bisa melaporkan versi
+      // remote BASI (GitHub raw mengirim cache-control max-age) dan menyembunyikan
+      // rilis yang sebenarnya sudah ada.
+      res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
     } finally {
       clearTimeout(timeout)
     }
@@ -928,6 +997,27 @@ export async function checkForUpdate(
       console.log(`[OTA] Versi tidak lebih baru: local=${local}, remote=${remote.version}`)
       emit({ status: 'idle', latestVersion: local, activeVersion: local })
       return { available: false, version: local }
+    }
+
+    // Versi ini SUDAH terunduh & terverifikasi penuh? Jangan purge/unduh ulang.
+    // Dulu pemeriksaan berkala (30 menit) menghapus staging yang utuh lalu
+    // mengunduh ulang SEMUA berkas setiap kali petugas belum menekan "Terapkan"
+    // — di jaringan lapangan yang buruk ini tampak seperti "update gagal terus".
+    const staged = getCachedState()
+    if (
+      staged?.status === 'ready' &&
+      staged.latestVersion === remote.version &&
+      (staged.downloaded?.length ?? 0) === remote.assets.length
+    ) {
+      console.log(`[OTA] ${remote.version} sudah terunduh & terverifikasi — menunggu aksi pengguna`)
+      emit({
+        status: 'ready',
+        progress: 100,
+        downloaded: remote.assets,
+        latestVersion: remote.version,
+        activeVersion: local,
+      })
+      return { available: true, version: remote.version, assets: remote.assets }
     }
 
     console.log(`[OTA] Update tersedia: ${local} → ${remote.version} (${remote.assets.length} berkas)`)
