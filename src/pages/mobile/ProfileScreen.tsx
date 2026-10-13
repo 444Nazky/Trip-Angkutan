@@ -72,8 +72,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   return (
     <div className="min-h-full bg-slate-50 px-4 pb-8 pt-4 space-y-4">
       <div>
-        <p className="text-[11px] font-medium text-slate-400">AKUN & APLIKASI</p>
-        <h2 className="mt-1 text-xl font-bold text-slate-900">Profil</h2>
+        <h2 className="mt-1 text-xl font-bold text-slate-900">Profil Petugas</h2>
       </div>
 
       <section className="bg-[#0F172A] rounded-3xl p-5 mb-4">
@@ -137,7 +136,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <button
             onClick={() => void (updateVersion ? applyNow() : checkForAppUpdate())}
             disabled={checkingUpdate}
-            className="rounded-lg bg-slate-900 px-3 py-2 text-[10px] font-semibold text-white transition-colors hover:bg-slate-700 disabled:bg-slate-300"
+            className="rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
           >
             {checkingUpdate ? <RefreshCw size={12} className="animate-spin" /> : updateVersion ? 'Pasang' : 'Periksa'}
           </button>

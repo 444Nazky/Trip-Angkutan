@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil } from 'lucide-react'
+import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
@@ -66,6 +66,21 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     go('home')
   }
 
+  const handleAddVehicle = () => {
+    patchDraft({
+      vehicleForm: { plate: '', type: '', category: '' },
+      editVehicleIndex: null,
+      vPhoto: false,
+      vPhotoUrl: undefined,
+      vPhotoCapturedAt: undefined,
+      vPhotoLatitude: undefined,
+      vPhotoLongitude: undefined,
+      vehiclePhotoTarget: undefined,
+      cameraReturn: undefined,
+    })
+    go('vehicle-form')
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-md">
@@ -80,39 +95,39 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         </header>
 
         <main className="space-y-4 p-4">
-          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <section className="rounded-2xl bg-[#0F172A] p-4 text-white shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white">
                   <Truck size={18} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">ID Trip</p>
-                  <p className="font-mono text-sm font-semibold text-slate-900">{nextTripId(trips)}</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/60">ID Trip</p>
+                  <p className="font-mono text-sm font-semibold text-white">{nextTripId(trips)}</p>
                 </div>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-white">
                 {draft.condition === 'kosong' ? 'Kosong' : 'Muatan'}
               </span>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-              <div className="mb-2 flex items-center gap-2 text-slate-500">
-                <MapPin size={14} />
+            <div className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+              <div className="mb-2 flex items-center gap-2 text-white/60">
+                <MapPin size={14} className="text-emerald-400" />
                 <span className="text-[10px] font-medium uppercase tracking-[0.16em]">Rute</span>
               </div>
-              <p className="text-sm font-semibold text-slate-900">{route.from} <span className="text-slate-400">→</span> {route.to}</p>
-              <p className="mt-1 text-[11px] text-slate-500">{route.code}</p>
+              <p className="text-sm font-semibold text-white">{route.from} <span className="text-white/50">→</span> {route.to}</p>
+              <p className="mt-1 text-[11px] text-white/60">{route.code}</p>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-              <div className="rounded-xl bg-slate-50 p-2.5 ring-1 ring-slate-200">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-slate-400">Tanggal</p>
-                <p className="mt-1 font-medium text-slate-700">{fmtDate(new Date())}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-xl bg-white/5 p-2.5 ring-1 ring-white/10">
+                <p className="text-[9px] uppercase tracking-[0.16em] text-white/50">Tanggal</p>
+                <p className="mt-1 font-medium text-white">{fmtDate(new Date())}</p>
               </div>
-              <div className="rounded-xl bg-slate-50 p-2.5 ring-1 ring-slate-200">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-slate-400">Waktu</p>
-                <p className="mt-1 font-medium text-slate-700">{fmtTime(new Date())}</p>
+              <div className="rounded-xl bg-white/5 p-2.5 ring-1 ring-white/10">
+                <p className="text-[9px] uppercase tracking-[0.16em] text-white/50">Waktu</p>
+                <p className="mt-1 font-medium text-white">{fmtTime(new Date())}</p>
               </div>
             </div>
           </section>
@@ -123,7 +138,17 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 <Package size={14} className="text-slate-500" />
                 <h3 className="text-sm font-semibold text-slate-800">Kendaraan</h3>
               </div>
-              <span className="text-[10px] text-slate-400">{vehicles.length} unit</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400">{vehicles.length} unit</span>
+                {draft.condition !== 'kosong' && (
+                  <button
+                    onClick={handleAddVehicle}
+                    className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.98]"
+                  >
+                    <Plus size={12} /> Tambah
+                  </button>
+                )}
+              </div>
             </div>
 
             {vehicles.length === 0 ? (
