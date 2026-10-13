@@ -37,7 +37,6 @@ const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Io
 
 const h = vi.hoisted(() => ({
   native: true,
-  connected: true,
   /** Berkas durable: `${DIRECTORY}|${path}` → byte mentah. */
   fs: new Map<string, Uint8Array>(),
   /** "Server" OTA: versi → path → isi (teks atau byte biner). */
@@ -144,10 +143,6 @@ vi.mock('@capacitor/filesystem', () => {
     },
   }
 })
-
-vi.mock('@capacitor/network', () => ({
-  Network: { getStatus: async () => ({ connected: h.connected }) },
-}))
 
 vi.mock('./adminPull', () => ({ FORCE_ROSTER_SYNC_KEY: 'trip.sync.forceRoster' }))
 
@@ -285,7 +280,6 @@ async function updateTo(version: string, from: string | null): Promise<UpdateSta
 
 beforeEach(() => {
   h.native = true
-  h.connected = true
   h.capHttpOn = true
   h.capHttpCalls = []
   h.assetHits = 0

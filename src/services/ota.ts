@@ -54,7 +54,6 @@
 
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
-import { Network } from '@capacitor/network'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 import { isDevMode } from './runtimeEnv'
 
@@ -123,11 +122,17 @@ function saveState(s: UpdateState): void {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(s)) } catch { /* quota */ }
 }
 
-async function isOnline(): Promise<boolean> {
-  try {
-    const { connected } = await Network.getStatus()
-    return connected
-  } catch { return navigator.onLine }
+/**
+ * Apakah perangkat punya koneksi? Memakai `navigator.onLine` (bawaan WebView).
+ * Sebelumnya lewat plugin native @capacitor/network; ketelitian tambahannya tidak
+ * sepadan dengan satu plugin native untuk SATU pemanggilan, dan kegagalan
+ * "koneksi ada tapi internet mati" tetap tertangani: fetch manifest gagal → jalur
+ * error/cooldown, bukan macet. Kegagalan yang berbahaya (mengaku offline padahal
+ * online) praktis tidak terjadi pada navigator.onLine — ia hanya false bila tidak
+ * ada antarmuka jaringan sama sekali.
+ */
+function isOnline(): boolean {
+  try { return navigator.onLine !== false } catch { return true }
 }
 
 // ── Lifecycle flag ───────────────────────────────────────────────────────────
