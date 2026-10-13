@@ -288,7 +288,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetP
             title="Hapus semua cache pembaruan & muat ulang aplikasi dari bundel bawaan"
           >
             <Trash2 size={15} />
-            {resetting ? 'Membersihkan cache…' : 'Reset App Cache'}
+            {resetting ? 'Membersihkan cache…' : 'Reset & Paksa Pembaruan'}
           </button>
         </div>
       </div>

@@ -264,9 +264,10 @@ npx cap sync android && (cd android && ./gradlew assembleRelease)
 ```
 
 ### Pemulihan lapangan
-- Tombol **Reset App Cache** (`resetAppCacheFully()`) di layar Profil / sheet update =
-  pengganti "Clear Data" manual Android: purge semua cache OTA + state + registrasi SW,
-  lalu reload bersih ke bundel bawaan APK.
+- Tombol **Reset & Paksa Pembaruan** (`resetAppCacheFully()`) di sheet update — selalu
+  tersedia di semua status (termasuk saat unduhan menggantung) = pengganti "Clear Data"
+  manual Android: purge semua cache OTA + state + registrasi Service Worker, lalu reload
+  bersih ke bundel bawaan APK.
 - Bila verifikasi gagal, update dibatalkan dan cooldown error hanya **2 menit** —
   siklus cek berkala berikutnya (30 menit) atau tombol manual akan mencoba lagi.
 
