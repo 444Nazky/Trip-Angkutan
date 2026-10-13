@@ -533,28 +533,25 @@ export function semverLabel(version: string): string {
 async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array> {
   if (isNative()) {
     try {
-      const capHttp = await getCapacitorHttp()
-      if (capHttp) {
-        const response = await capHttp.request({
-          url,
-          method: 'GET',
-          responseType: 'arraybuffer',
-          connectTimeout: 15000,
-          readTimeout: 30000,
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-          },
-        })
-        if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
-        if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status} saat unduh`)
-        const data = response.data
-        if (typeof data === 'string' && data.length) {
-          const bytes = fromBase64(data)
-          if (bytes.byteLength) return bytes
-        }
-        throw new Error('data native kosong/tak terduga')
+      const response = await CapacitorHttp.request({
+        url,
+        method: 'GET',
+        responseType: 'arraybuffer',
+        connectTimeout: 15000,
+        readTimeout: 30000,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      })
+      if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
+      if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status} saat unduh`)
+      const data = response.data
+      if (typeof data === 'string' && data.length) {
+        const bytes = fromBase64(data)
+        if (bytes.byteLength) return bytes
       }
+      throw new Error('data native kosong/tak terduga')
     } catch (err) {
       if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
       console.warn('[OTA] CapacitorHttp gagal — fallback ke fetch WebView:', err)
