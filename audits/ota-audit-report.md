@@ -154,3 +154,68 @@ appears → #3. If `Verifikasi berkas gagal` appears → #1.
 - `02 - Mistakes/`: *OTA Gagal Update di APK — CapacitorHttp ResponseType TEXT*
 - Log book harian: `Intern/log book/2026-10-13.md` (Sesi 8)
 - README.md proyek: bagian **🔄 OTA Update System**
+
+---
+
+## Part A — Status eksekusi (13 Okt 2026) + koreksi klaim audit
+
+Setiap butir diverifikasi ulang terhadap tree sebelum dikerjakan. **Enam klaim audit
+terbukti tidak akurat** dan dikoreksi (kolom Catatan) — bukan dieksekusi mentah.
+
+| # | Butir audit | Status | Catatan / koreksi |
+|---|-------------|--------|-------------------|
+| 1 | Hapus `backend/node_modules` (940 berkas) | ✅ untrack + .gitignore | Sesuai keputusan user: **file tetap di disk**, hanya keluar dari index. Reproduksi: `npm ci`. |
+| 2 | Hapus `backend/data/*.db` + backups | ➖ tidak ada | Klaim basi: **0 berkas ter-track** (hanya ada di worktree lain). `backend/data/` tetap dimasukkan .gitignore untuk masa depan. |
+| 3 | Hapus `backend/uploads/*.jpg` (39) | ✅ untrack + .gitignore | File tetap di disk. |
+| 4 | Satukan logika purge (`deleteOtaCaches`) | ✅ sebagian | Disatukan di ota.ts (2 salinan → 1). `sw.js` TIDAK bisa impor modul TS (worker terpisah, dimuat apa adanya) — aturannya tetap terpisah dan itu wajar. |
+| 5 | Hapus `getCapacitorHttp()` | ✅ | `CapacitorHttp` diimpor statis. |
+| 6 | Buang dependency `@capacitor/network` | ✅ | Satu pemanggilan → `navigator.onLine`. Plugin native ikut lepas dari proyek Android. Trade-off: deteksi "WiFi tanpa internet" lebih kasar; kegagalannya tertangani jalur error/cooldown. |
+| 7 | Hapus fitur SW tanpa produsen | ✅ `ota_bypass`, `PURGE_ALL` | Keduanya benar tak punya pengirim + tesnya dihapus. **TAPI** pembersihan sisa v3 (`trip-ota-active`, `trip-ota-complement`) DIPERTAHANKAN: itu migrasi, bukan fitur — "tanpa produsen" justru normal untuk target purge. |
+| 8 | Hapus `activateBundle()` alias | ⏸️ dipertahankan | Dipakai `ota.test.ts` sebagai API aktivasi; menghapusnya berarti tes menembus API internal. Biaya nol. |
+| 9 | `auditOta()` DEV early-return | ✅ | Ekor fungsi tidak lagi disalin (~30 baris). |
+| 10 | `nativeFetch` header rebuild | ✅ | `new Headers(response.headers)`. |
+| 11 | Props `UpdateNotifier` yagni | ✅ | `minAppVersion`, `zIndex`, `onStateChange`, `onUpdateApplied` dihapus (tidak berfungsi / tak ada pemakai yang butuh). |
+| 12 | `App.tsx latestVersionRef` | ✅ | Ditulis, tak pernah dibaca → dihapus bersama import `getCurrentVersion`. |
+| 13 | Hapus 9 "dead export" | ✅ 7 export + 1 fungsi | **Koreksi:** hanya `getDefaultGeofencePoints` & `clearOfflineData` yang benar-benar 0 referensi. Tujuh lainnya dipakai internal → cukup dilepas kata `export`-nya. `getDefaultGeofencePoints` DIPERTAHANKAN karena komentarnya menyatakan sengaja dijaga untuk paritas antar-branch. |
+| 14 | `sleep()`/`delay()` ganda | ✅ | `sleep` diekspor dari ota.ts, `delay` di otaReload dihapus. |
+| 15 | `environment.ts` pair + komentar prosa | ✅ komentar; ⏸️ pair | Komentar 15 baris dihapus. Penggabungan 2 berkas env butuh perubahan `fileReplacements` di angular.json → ditahan agar tidak menyentuh pipeline build tanpa alasan mendesak. |
+| 16 | `devModeSkipRemote()` ganda | ✅ | `isDevMode()` di `services/runtimeEnv.ts` menggantikan TIGA salinan (ota, geofence, RouteSelectScreen) yang syaratnya tidak identik. |
+| 17 | `isNavigation()` klausa mubazir | ✅ | `'/'` sudah tercakup `endsWith('/')`. |
+| 18 | Hapus vendoring skills | ✅ untrack + .gitignore | 31 berkas (`.agents`, `.claude`, `.kilo`, `skills-lock.json`) keluar dari index, **tetap di disk** sesuai keputusan user. |
+| 19 | Hapus tumpukan dokumen (~1.500 baris) | ✅ sebagian | **Koreksi:** hanya `Architecture.md` + `System-Design.md` yang benar-benar duplikat (digabung → satu berkas, penomoran heading diperbaiki). `Structure.md` (341 baris) & `ALUR_APLIKASI.md` (334) memuat detail yang TIDAK ada di README; `PRD.md`, `Concept.md`, `AUDIT-OFFLINE-FIRST.md`, `OFFLINE-FIRST-ARCHITECTURE.md`, `OTA-UPDATE-SYSTEM.md` juga unik menurut isinya → dipertahankan. Tidak ada dokumen yang dihapus tanpa isinya tercakup di tempat lain. |
+| 20 | `UpdateState.downloaded` + `readMarker()` dua sumber | ✅ | Penanda jadi satu-satunya sumber, dan kini juga hidup di localStorage saat web (dulu native-only — itulah sebab salinan kedua ada). Salinan `downloaded` dihapus. |
+
+### Dua bug nyata yang tertangkap saat eksekusi (bukan bagian audit)
+1. **Pembersihan penanda web memakai `Object.keys(localStorage)`** — pada Storage
+   berbasis Map (shim test, polyfill) array-nya KOSONG tanpa error, sehingga key
+   menumpuk diam-diam. Diganti iterasi portabel `length` + `key(i)` (mundur).
+2. **Jalur web tidak punya penanda & tidak pernah diuji** — kini ada test siklus
+   penuh dua rilis beruntun tanpa native, yang langsung menangkap kebocoran di atas.
+
+### Hasil terukur
+| Metrik | Sebelum | Sesudah |
+|--------|---------|---------|
+| Berkas ter-track | 1.322 | 307 |
+| Dependency runtime | 18 | 15 (−`@capacitor/network`, +2 → devDependencies) |
+| Aset bundel OTA | 17 | 15 (chunk rxjs/@angular-compiler hilang) |
+| Dokumen arsitektur ganda | 2 | 1 |
+| Guard DEV tersalin | 3 | 1 |
+
+### Verifikasi (exit status ditangkap)
+- `npx tsc --noEmit` → **exit 0** setiap batch.
+- `npx vitest run` → **78/78 lulus** (7 berkas) setelah seluruh batch (2 tes fitur SW
+  yang dihapus ikut dibuang, 1 tes mode web baru ditambahkan).
+- `npm run build` → **exit 0**; aset turun 17 → 15 dengan verifikasi referensi
+  `index.html` lulus.
+- Bundel OTA terbit diverifikasi terhadap CDN nyata: **15/15 hash cocok**, seluruh
+  referensi `index.html` ada di manifest, penanda perbaikan biner + tombol
+  "Reset & Paksa Pembaruan" ADA di bundel terbit DAN di dalam APK.
+- APK release dibangun ulang: **`Aplikasi Trip-release.apk` (1.0.3 / versionCode 4)**,
+  memuat seluruh 15 berkas manifest.
+
+### Catatan lingkungan
+Selama sesi ini ada sesi/agen lain yang meng-commit di working tree yang sama
+(pesan commit `innit`, `readme`, `ota`, `runtime`, `services ota`) dan menjalankan
+`publish-ota-git.mjs` sendiri. Karena itu sebagian perubahan batch ini masuk ke
+commit dengan pesan dari sesi tersebut — isinya tetap terverifikasi, tetapi
+atribusi pesan commit tidak bisa dijamin bersih per batch.
