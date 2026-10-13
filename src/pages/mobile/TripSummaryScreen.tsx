@@ -85,7 +85,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur-sm">
-          <button onClick={() => go(backTo)} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+          <button onClick={() => go(backTo)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-600">
             <ChevronLeft size={18} />
           </button>
           <div>
@@ -143,7 +143,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 {draft.condition !== 'kosong' && (
                   <button
                     onClick={handleAddVehicle}
-                    className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.98]"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.98]"
                   >
                     <Plus size={12} /> Tambah
                   </button>
@@ -172,14 +172,14 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                       ) : (
                         <button
                           onClick={() => { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: i }); go('camera') }}
-                          className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200"
+                          className="rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-medium text-slate-600 transition-colors hover:bg-white"
                         >
                           Foto
                         </button>
                       )}
                       <button
                         onClick={() => { editDraftVehicle(i); go('vehicle-form') }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-white"
                         aria-label={`Edit kendaraan ${v.plate}`}
                         title="Edit kendaraan"
                       >
@@ -192,7 +192,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             )}
           </section>
 
-          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <section className={`rounded-2xl border bg-white p-4 shadow-sm ${hasTripPhoto ? 'border-slate-200 ring-1 ring-slate-100' : 'border-amber-300 ring-1 ring-amber-100'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${hasTripPhoto ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-600'}`}>
@@ -200,12 +200,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Foto Bukti</p>
-                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'diperlukan'}</p>
+                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'ambil foto bukti trip sebelum submit'}</p>
                 </div>
               </div>
               <button
                 onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera') }}
-                className={`rounded-lg px-3 py-1.5 text-[11px] font-medium ${hasTripPhoto ? 'bg-slate-100 text-slate-700' : 'bg-slate-900 text-white'}`}
+                className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors ${hasTripPhoto ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
               >
                 {hasTripPhoto ? 'Ubah' : 'Ambil'}
               </button>
@@ -227,11 +227,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             <button
               onClick={handleSubmit}
               disabled={!canSubmit || !!geofenceError || geofenceBlocked}
-              className="w-full rounded-2xl bg-slate-900 py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+              className="w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {draft.condition === 'kosong' ? 'Selesaikan' : 'Kirim Trip'}
             </button>
-            <button onClick={handleBatal} className="w-full rounded-xl bg-white py-2.5 text-sm font-medium text-slate-500 ring-1 ring-slate-200">
+            <button onClick={handleBatal} className="w-full rounded-xl border border-slate-200 bg-transparent py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-white">
               Batal
             </button>
           </div>

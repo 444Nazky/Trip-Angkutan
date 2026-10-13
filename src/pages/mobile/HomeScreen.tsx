@@ -102,7 +102,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Sinkronisasi — tombol PAKSA SINKRONISASI manual petugas */}
+
       {(busy || pendingCount > 0 || !!syncState) && (
         <button
           onClick={() => { void handleSync() }}
@@ -151,8 +151,8 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       {/* Stats */}
       <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
-          { label: 'Trip', val: String(myTrips.length), sub: 'Total tercatat', color: 'blue' },
-          { label: 'Kendaraan', val: String(units.size), sub: 'Unit unik', color: 'slate' },
+          { label: 'Trip', val: String(myTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
+          { label: 'Kendaraan', val: String(units.size), sub: 'Total Unit Tercatat', color: 'slate' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
             <p className={`text-[22px] font-black ${s.color === 'blue' ? 'text-blue-600' : 'text-slate-900'}`}>{s.val}</p>

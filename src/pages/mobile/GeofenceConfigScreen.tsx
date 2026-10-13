@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, X, RefreshCw } from 'lucide-react'
+import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
   isValidGeofencePoint,
-  forceSyncGeofencesFromBackend,
   getActiveGeofenceSnapshot,
   type GeofencePoint,
 } from '../../services/geofence'
@@ -51,8 +50,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const [draft, setDraft] = useState<DraftPoint>(emptyDraft)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [syncNote, setSyncNote] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -130,30 +127,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     commit(points.map(p => (p.id === id ? { ...p, enabled: !p.enabled } : p)))
   }
 
-  const syncNow = async () => {
-    setSyncing(true)
-    setSyncNote(null)
-    try {
-      const result = await forceSyncGeofencesFromBackend()
-      setPoints(getStoredGeofencePoints())
-      // Laporkan hasil SEBENARNYA — jangan pernah bilang "berhasil" saat gagal,
-      // karena itu menyembunyikan masalah token/jaringan dan menyalahkan perangkat.
-      setSyncNote(
-        result.reason === 'ok'
-          ? `Konfigurasi terbaru diterima — ${result.count} titik aktif`
-          : result.reason === 'empty'
-            ? 'Server terhubung, tetapi Admin belum punya titik geofence di Master Rute'
-            : result.reason === 'unauthorized'
-              ? 'Sesi server belum siap — masuk ulang atau coba lagi beberapa saat'
-              : 'Gagal menghubungi server — periksa jaringan',
-      )
-    } catch {
-      setSyncNote('Gagal sinkron — periksa koneksi')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   return (
     <div className="min-h-full bg-white">
       <div className="flex items-center px-4 py-3 border-b border-slate-200">
@@ -164,23 +137,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       </div>
 
       <div className="px-4 py-5 space-y-4">
-        <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-          <p className="text-[12px] text-slate-600 leading-relaxed">
-            Titik geofence membatasi input trip berdasarkan koordinat GPS dengan radius yang ditentukan (mis. 100m).
-            Sumber resminya adalah <span className="font-semibold">Master Rute di Admin Dashboard</span>; daftar di bawah
-            adalah salinan lokal (agar tetap jalan saat offline). Tekan tombol untuk menarik konfigurasi terbaru.
-          </p>
-          <button
-            onClick={() => void syncNow()}
-            disabled={syncing || !isAdmin}
-            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-blue-600 disabled:text-slate-400"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            Tarik dari Server Admin
-          </button>
-          {syncNote && <p className="text-[12px] text-slate-500 mt-1">{syncNote}</p>}
-        </div>
-
         {/* ── Form tambah / ubah ── */}
         {showForm && isAdmin && (
           <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4 space-y-3">
@@ -337,9 +293,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
-              Belum ada titik geofence tersimpan di perangkat ini. Selama konfigurasi belum ditarik dari
-              server admin, <span className="font-bold">input trip diblokir</span> (lokasi tidak dapat diverifikasi).
-              Sambungkan ke jaringan lalu tekan <span className="font-semibold">Tarik dari Server Admin</span>.
+              Belum ada titik geofence tersimpan di perangkat ini. Input trip dapat diblokir sampai lokasi berhasil diverifikasi.
             </div>
           )}
         </div>
