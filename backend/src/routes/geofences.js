@@ -19,6 +19,12 @@ function numericCoordinate(value) {
 function validLatLng(lat, lng) {
   return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 }
+/** Radius wajib bilangan real 1–10000 meter; di luar itu → fallback 100 (default). */
+function clampRadius(value) {
+  const n = numericCoordinate(value);
+  if (n === null || n < 1 || n > 10000) return 100;
+  return n;
+}
 
 // ── Resolve short-link Google Maps (server-side, bebas CORS) ─────────────────
 // GET /api/geofences/resolve-link?url=https://maps.app.goo.gl/xxxx
@@ -49,6 +55,18 @@ router.get('/resolve-link', authenticate, async (req, res) => {
   const raw = String(req.query.url || '').trim();
   if (!/^https?:\/\//i.test(raw)) {
     return res.status(400).json({ error: 'url wajib berupa http(s) URL' });
+  }
+  // ── SSRF guard: hanya host resmi Google Maps short-link yang boleh di-fetch ──
+  // Tanpa ini endpoint bisa dipakai memindai host internal (localhost, 169.254.169.254, dll).
+  let host = '';
+  try {
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return res.status(400).json({ error: 'url tidak valid' });
+  }
+  const ALLOWED_HOST_RE = /(^|\.)(goo\.gl|g\.co|google\.com|maps\.app\.goo\.gl)$/i;
+  if (!ALLOWED_HOST_RE.test(host)) {
+    return res.status(400).json({ error: 'Hanya link Google Maps (goo.gl / maps.app.goo.gl / google.com) yang didukung' });
   }
   try {
     const response = await fetch(raw, {
@@ -82,7 +100,7 @@ function shape(rows) {
     locationName: r.location_name,
     latitude: Number(r.latitude),
     longitude: Number(r.longitude),
-    radiusMeters: Number(r.radius_meters) || 100,
+    radiusMeters: clampRadius(r.radius_meters),
     allowedRouteCodes: String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean),
     allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
     description: r.description ?? '',
@@ -123,7 +141,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
       String(locationName).trim(),
       lat,
       lng,
-      numericCoordinate(radiusMeters) || 100,
+      clampRadius(radiusMeters),
       Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
       Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
       description ? String(description) : '',
@@ -159,7 +177,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
     if (b.locationName !== undefined) { sets.push('location_name = ?'); args.push(String(b.locationName).trim()); }
     if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
     if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
-    if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(numericCoordinate(b.radiusMeters) || 100); }
+    if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
     if (b.allowedRouteCodes !== undefined) {
       sets.push('allowed_route_codes = ?');
       args.push(Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes));

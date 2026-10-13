@@ -20,6 +20,9 @@ const DEV_MODE_FALLBACK_ACCURACY = 5 // Simulasi GPS akurat 5 meter
  *   – 'test' (vitest) → DIMATI, supaya tes mengukur jalur produksi yang asli
  *     (pemanggilan GPS native + kebijakan blokir), bukan mock location.
  *   – 'production'    → mati otomatis lewat syarat DEV.
+ *
+ * CATATAN: Fallback DEV HANYA dipakai JIKA GPS real gagal/timeout.
+ * Fungsi getCurrentPosition() akan SELALU coba GPS real duluan.
  */
 function devMockLocationAllowed(): boolean {
   const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
@@ -195,17 +198,10 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
 // ── IMPLEMENTASI MENTAH (diawali requestGpsFix) ──────────────────────────────
 // Pembungkus ber-cache ada DI BAWAH fungsi ini: lihat getCurrentPosition().
 async function requestGpsFix(): Promise<GpsFix | null> {
-  // ── DEV MODE: Fallback Mock Location ─────────────────────────────────────
-  // HANYA aktif saat import.meta.env.DEV === true (ionic serve / dev build).
-  // Production build: DEV = false, fallback ini TIDAK pernah aktif.
-  if (devMockLocationAllowed()) {
-    console.log('[geofence] DEV MODE: Menggunakan fallback mock location Dermaga 1')
-    return {
-      lat: DEV_MODE_FALLBACK_LAT,
-      lon: DEV_MODE_FALLBACK_LON,
-      accuracy: DEV_MODE_FALLBACK_ACCURACY,
-    }
-  }
+  // ── SELALU coba GPS real duluan ────────────────────────────────────────────
+  // DEV MODE fallback HANYA aktif jika GPS real gagal/timeout/ditolak.
+  // Ini memungkinkan testing di VS Code Simple Browser untuk mendeteksi apakah
+  // GPS hardware bisa diakses atau tidak (untuk debugging).
 
   try {
     const pos = await Geolocation.getCurrentPosition({
@@ -214,6 +210,7 @@ async function requestGpsFix(): Promise<GpsFix | null> {
       maximumAge: FIX_MAX_AGE_MS,
     })
     if (!pos?.coords) {
+      console.warn('[geofence] GPS: coords null')
       // ── GPS gagal → DEV fallback jika DEV mode ─────────────────────────
       if (devMockLocationAllowed()) {
         console.log('[geofence] GPS gagal → DEV MODE fallback ke Dermaga 1')
@@ -225,6 +222,7 @@ async function requestGpsFix(): Promise<GpsFix | null> {
       }
       return null
     }
+    console.log(`[geofence] GPS real: ${pos.coords.latitude}, ${pos.coords.longitude} (±${pos.coords.accuracy}m)`)
     return {
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
