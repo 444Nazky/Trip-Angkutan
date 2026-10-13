@@ -115,8 +115,42 @@ Determining test: install a release APK, publish, then capture
 `adb logcat | grep OTA` on a cold start **before** logging in. If no `[OTA]` line
 appears → #3. If `Verifikasi berkas gagal` appears → #1.
 
-## Pending (blocked on sign-off, per brief)
+---
 
-- `02 - Mistakes/` entry
-- daily Obsidian log book update
-- README.md update
+## Status per 13 Okt 2026 — Part B diremediasi (APK 1.0.3 / OTA 1.0.11)
+
+| # | Temuan | Status | Perbaikan |
+|---|--------|--------|-----------|
+| 1 | `nativeFetch` merusak aset biner → verifikasi SHA-256 selalu gagal | ✅ FIX | `fetchBytes()`: CapacitorHttp `responseType:'arraybuffer'` + decode `fromBase64()`, fallback ke fetch WebView |
+| 2 | Unduh ulang paket penuh tiap siklus 30 menit bila "Terapkan" belum ditekan | ✅ FIX | short-circuit: `status==='ready'` + `latestVersion` sama + jumlah berkas cocok → langsung `ready` tanpa purge/unduh |
+| 3 | Cek versi hanya berjalan setelah login | ✅ FIX | `UpdateNotifier` dirender di luar gerbang `if (!loggedIn)` (`App.tsx`) |
+| 4 | `auditOta()` fetch manifest tanpa `?t=` | ✅ FIX | ditambah `?t=${Date.now()}` |
+| 5 | `isNewer()` membandingkan `+timestamp` sebelum semver | ✅ FIX | semver dulu; timestamp hanya tiebreak |
+| 6 | DEV mode tidak bisa mereproduksi alur | ⏸️ DITERIMA | `devModeSkipRemote()` tetap, tetapi hanya aktif saat `DEV && MODE==='development'` (vitest & produksi tidak terpengaruh) |
+| 7 | Apply masih manual (belum ada forced update) | ⏸️ BACKLOG | butuh keputusan UX (auto-apply + hitung mundur) |
+| 8 | Dua UI menggerakkan satu state OTA global | ⏸️ BACKLOG | perlu satu store OTA bersama |
+
+### Bukti verifikasi (exit status ditangkap)
+- `npx tsc --noEmit` → **exit 0**.
+- `npx vitest run` → **79/79 lulus** (7 berkas), termasuk 5 test baru: aset biner jalur native,
+  update KEDUA dengan aset biner, fallback tanpa plugin, `isNewer` semver-first, dan anti-unduh-ulang.
+- Falsifikasi test: `responseType` diubah ke `'text'` → test biner **GAGAL** (bukti test punya gigi), lalu dipulihkan.
+- Verifikasi live CDN: **17/17 hash aset `origin/mobile` cocok** dengan manifest; bundel terbit memuat
+  penanda `fallback ke fetch WebView`.
+- APK `1.0.3` (versionCode 4): bundel di dalam APK **identik byte-per-byte** dengan `www/` hasil build (17/17).
+
+### Limitasi yang masih ada
+1. **Staleness CDN ≤5 menit** — `raw.githubusercontent` mengirim `cache-control: max-age:300` dan `?t=`
+   TIDAK menembus cache CDN. Klien bisa membaca manifest lama sekali, gagal (cooldown error 2 menit),
+   lalu pulih di siklus berikutnya.
+2. **Publish beruntun < 5 menit berisiko** — publish MENGHAPUS chunk ber-hash lama dari tree, sehingga
+   manifest yang masih ter-cache CDN bisa menunjuk berkas yang sudah tidak ada → satu siklus gagal.
+3. **APK baru selalu menarik OTA sekali** (localStorage kosong → versi lokal `0.0.0`). Normal, sekaligus
+   menjadi uji jalur update pada instalasi bersih.
+4. Belum ada verifikasi otomatis siklus update beruntun **di perangkat Android** — perlu
+   `adb logcat | grep OTA` sesuai bagian "Not verified" di atas.
+
+## Dokumentasi terkait
+- `02 - Mistakes/`: *OTA Gagal Update di APK — CapacitorHttp ResponseType TEXT*
+- Log book harian: `Intern/log book/2026-10-13.md` (Sesi 8)
+- README.md proyek: bagian **🔄 OTA Update System**

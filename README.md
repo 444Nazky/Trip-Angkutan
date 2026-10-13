@@ -215,6 +215,74 @@ npx cap run android
 
 ---
 
+## 🔄 OTA Update System (tanpa Play Store)
+
+Aplikasi menarik bundel web terbaru langsung dari branch publikasi `mobile`
+(GitHub raw) — petugas tidak perlu memasang APK baru. Arsitekturnya
+**purge-first / full-package**: setiap rilis mengunduh SELURUH berkas (bukan
+potongan/chunk) dan setiap berkas diverifikasi SHA-256 terhadap manifest.
+
+### Alur di perangkat
+1. Manifest `version.json` diambil **selalu segar** (`?t=<timestamp>` + header
+   `Cache-Control: no-store`) sehingga tidak ada salinan basi yang dibaca.
+2. Versi dibandingkan **semver lebih dulu** (`1.0.11+<timestamp>`); timestamp
+   hanya tiebreak — jam mesin yang meleset tidak bisa lagi menyembunyikan rilis.
+3. Bila remote lebih baru: purge SEMUA versi lain (Cache Storage, `Directory.Data`,
+   key lama). Versi yang **sedang aktif tetap utuh** sampai versi baru lulus verifikasi.
+4. Unduh SELURUH berkas → verifikasi hash per berkas. Gagal di langkah mana pun =
+   staging dibuang, aplikasi tetap jalan di versi lama (tidak pernah setengah jalan).
+5. Setelah 100% utuh: tulis penanda versi aktif (switch atomik) → reload ber-versi
+   (`/?ota=<versi>`) yang melewati HTTP cache WebView.
+6. Service Worker hanya menyajikan berkas dari **cache versi aktif**; bila cache
+   dibersihkan OS, bundel dibangun ulang dari penyimpanan durable saat boot (self-heal).
+7. Cek versi berjalan **sejak boot, termasuk di layar login** (perangkat dengan sesi
+   kedaluwarsa tidak lagi "buta" terhadap rilis baru).
+
+> ⚠️ Aset biner (`assets/*.jpeg`, `*.png`) wajib diunduh lewat `CapacitorHttp` dengan
+> `responseType: 'arraybuffer'` lalu didekode dari base64. Jalur bawaan plugin
+> (`ResponseType.DEFAULT = TEXT`) membaca stream sebagai string UTF-8 → byte gambar
+> rusak → SHA-256 tidak cocok → update SELALU berhenti di "Verifikasi berkas gagal".
+
+### Versi & publikasi rilis
+
+| Hal | Nilai |
+|-----|-------|
+| Versi OTA | `<semver>+<timestamp>` di `version.json` branch `mobile` (naik otomatis tiap publish) |
+| Versi APK | `android/app/build.gradle` → `versionName` / `versionCode` |
+| Manifest & aset | `https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/…` |
+
+```bash
+# 1. Build web (naikkan versionName/versionCode bila perlu)
+npm run build
+
+# 2. Publish bundel + version.json ke branch OTA
+node scripts/publish-ota-git.mjs
+
+# 3. Export APK release
+npx cap sync android && (cd android && ./gradlew assembleRelease)
+# → android/app/build/outputs/apk/release/Aplikasi Trip-release.apk
+```
+
+### Pemulihan lapangan
+- Tombol **Reset App Cache** (`resetAppCacheFully()`) di layar Profil / sheet update =
+  pengganti "Clear Data" manual Android: purge semua cache OTA + state + registrasi SW,
+  lalu reload bersih ke bundel bawaan APK.
+- Bila verifikasi gagal, update dibatalkan dan cooldown error hanya **2 menit** —
+  siklus cek berkala berikutnya (30 menit) atau tombol manual akan mencoba lagi.
+
+### Catatan operasional
+- `raw.githubusercontent.com` di-cache CDN (`cache-control: max-age=300`) dan `?t=`
+  **tidak** menembus cache CDN: rilis baru bisa terlihat hingga ±5 menit setelah publish.
+- Publish MENGHAPUS chunk ber-hash lama dari tree. Karena itu, hindari publish beruntun
+  dalam < 5 menit — klien yang masih membaca manifest CDN lama bisa gagal sekali (lalu
+  pulih sendiri di siklus berikutnya).
+- Setelah APK baru dipasang, versi lokal terbaca `0.0.0` (localStorage kosong) sehingga
+  aplikasi menarik bundel OTA sekali. Ini normal dan sekaligus jadi uji jalur update.
+
+Laporan audit & perbaikan lengkap: [`audits/ota-audit-report.md`](audits/ota-audit-report.md).
+
+---
+
 ## Alur Aplikasi Mobile (Petugas Lapangan)
 
 ### 1. Inisiasi Awal & Login
