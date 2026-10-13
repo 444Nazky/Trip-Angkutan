@@ -9,6 +9,12 @@
  *   3. salin isi www/ ke root worktree
  *   4. generate version.json (versi manusiawi berbasis short SHA + timestamp)
  *   5. commit & push origin HEAD:mobile
+ *
+ * ⚠️  PENTING — `.gitignore` repo ini mengabaikan `/version.json`, `/index.html`,
+ * `/sw.js`, `/chunk-*.js`, `/main-*.js`, `/styles-*.css` (aturan "Build output").
+ * Akibatnya `git add -A` TIDAK pernah men-stage manifest → version.json hilang
+ * dari cabang publish dan semua klien menerima 404 ("update tidak pernah
+ * muncul"). Karena itu berkas wajib di-stage eksplisit dengan `git add -f`.
  */
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -74,8 +80,14 @@ try {
   assertIndexConsistent(assets)
 
   // Peta integritas SHA-256 — klien memverifikasi setiap file unduhan.
+  // WAJIB lengkap: tanpa hash, klien hanya bisa memastikan file "tidak kosong".
   const integrity = {}
   for (const asset of assets) integrity[asset] = sha256File(path.join(WEB_DIR, asset))
+  const missingHash = assets.filter(a => !integrity[a])
+  if (missingHash.length) {
+    console.error(`❌ ${missingHash.length} aset tanpa hash (contoh: ${missingHash.slice(0, 3).join(', ')}). Publikasi dibatalkan.`)
+    process.exit(1)
+  }
 
   // Bersihkan aset build lama di root worktree agar tidak menumpuk
   for (const top of fs.readdirSync(WEB_DIR)) {
@@ -95,6 +107,11 @@ try {
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
   run('git add -A', TMP)
+  // Manifest & entry point WAJIB ikut walau diabaikan .gitignore — tanpa ini
+  // klien menerima 404 pada version.json dan tidak akan pernah melihat rilis.
+  for (const must of ['version.json', 'index.html', 'sw.js']) {
+    if (fs.existsSync(path.join(TMP, must))) run(`git add -f ${must}`, TMP)
+  }
   const dirty = run('git status --porcelain', TMP)
   if (!dirty) {
     console.log('Tidak ada perubahan aset — skip push.')

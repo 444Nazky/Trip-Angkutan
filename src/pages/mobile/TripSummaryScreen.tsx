@@ -141,7 +141,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         ) : vehicles.map((v, i) => (
           <div key={`${v.plate}-${i}`} className={`flex items-center gap-3 ${i > 0 ? 'pt-3 border-t border-slate-100 mt-3' : ''}`}>
             {v.photoUrl ? (
-              <img src={v.photoUrl} alt={`Foto ${unitLabel(vehicles, i)}`} className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
+              <img src={v.photoUrl} alt={`Foto ${unitLabel(vehicles, i)}`} loading="lazy" decoding="async" className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" />
             ) : (
               <div className="w-9 h-9 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0"><ImageOff size={14} className="text-amber-500" /></div>
             )}

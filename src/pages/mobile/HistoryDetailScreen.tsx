@@ -131,7 +131,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
               <div className="flex items-center gap-3">
                 {v.photoUrl ? (
                   <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
-                    <img src={v.photoUrl} alt={`Foto ${label}`} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                    <img src={v.photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
                   </button>
                 ) : (
                   <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
@@ -222,7 +222,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             </p>
           </div>
           <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-            <img src={selfieUrl} alt="Swafoto Penutup" className="w-full h-32 object-cover" />
+            <img src={selfieUrl} alt="Swafoto Penutup" loading="lazy" decoding="async" className="w-full h-32 object-cover" />
             <div className="bg-slate-800 px-3 py-2 text-center">
               <p className="text-white text-[10px] font-black">SWAFOTO PENUTUP</p>
               <p className="text-slate-400 text-[9px] mt-0.5">
@@ -273,7 +273,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 onClick={() => setPreview(p)}
                 className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 text-left active:scale-[0.98] transition-transform"
               >
-                <img src={p.url} alt={p.label} className="w-full h-28 object-cover" />
+                <img src={p.url} alt={p.label} loading="lazy" decoding="async" className="w-full h-28 object-cover" />
                 <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5">
                   <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
                 </span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Package, Truck } from 'lucide-react'
 import { useApp } from '../store'
+import { getCurrentPositionHighAccuracy } from '../../services/location'
 import type { MobileScreen } from '../types'
 
 interface TripConditionScreenProps {
@@ -11,6 +12,14 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const { draft, patchDraft } = useApp()
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
   useEffect(() => { setCondition(draft.condition) }, [draft.condition])
+
+  // ── Pemanasan GPS ──────────────────────────────────────────────────────────
+  // Layar berikutnya (Pilih Rute) butuh fix lokasi untuk gerbang geofence.
+  // Mulai SEKARANG saat petugas memilih kondisi trip, supaya saat layar rute
+  // dibuka fix sudah tersedia → pemeriksaan instan, tanpa jeda pemanasan penerima
+  // GNSS (bisa 1–10 dtk). Hasil sengaja diabaikan; kalau gagal, layar rute
+  // tetap mengambil sendiri.
+  useEffect(() => { void getCurrentPositionHighAccuracy() }, [])
 
   const bgForCondition = (key: string) => {
     if (condition !== key) return 'bg-slate-100'

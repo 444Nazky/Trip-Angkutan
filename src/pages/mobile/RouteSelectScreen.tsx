@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Navigation, Loader2, ShieldAlert, RefreshCw } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
 import { getGeofencedLocation, getGeofenceConfig } from '../../services/location'
-import { findActiveGeofenceRule, getHardLockedRoute, type GeofenceRule } from '../../services/geofence'
+import { findActiveGeofenceRule, getHardLockedRoute, syncGeofenceConfig, type GeofenceRule } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -41,7 +41,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const [geoStatus, setGeoStatus] = useState<'pending' | 'ok' | 'error'>(gateRequired ? 'pending' : 'ok')
 
   const runGeoCheck = async () => {
-    if (!gateRequired) { setGeoStatus('ok'); return }
+    // Baca config SEGAR setiap kali (bukan variabel render yang bisa basi setelah
+    // sync geofence mengisi rule di latar belakang).
+    if (getGeofenceConfig().rules.length === 0) { setGeoStatus('ok'); return }
     setGeoStatus('pending')
     setGeofenceError(null)
     const loc = await getGeofencedLocation()
@@ -57,6 +59,22 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
   useEffect(() => {
     void runGeoCheck()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── SELF-HEAL: rule belum ada = sync belum pernah berhasil (biasanya karena
+  // percobaan pertama terjadi SEBELUM token siap → 401). Tanpa ini, gate gagal-
+  // terbuka: semua rute tampil tanpa kunci geofence, dan tidak ada yang pernah
+  // menarik konfigurasi lagi sampai app di-resume. Tarik sekarang, lalu ulangi
+  // pemeriksaan — begitu rule masuk, kunci rute ikut aktif di layar ini juga.
+  useEffect(() => {
+    let alive = true
+    if (getGeofenceConfig().rules.length > 0) return
+    void syncGeofenceConfig().then(ok => {
+      if (!alive || !ok) return
+      if (getGeofenceConfig().rules.length > 0) void runGeoCheck()
+    })
+    return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

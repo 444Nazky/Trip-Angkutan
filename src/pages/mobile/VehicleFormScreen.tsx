@@ -284,7 +284,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {draft.vehicles.map((v, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                {v.photoUrl && <img src={v.photoUrl} alt={`Foto ${unitLabel(draft.vehicles, i)}`} className="w-8 h-8 rounded-md object-cover" />}
+                {v.photoUrl && <img src={v.photoUrl} alt={`Foto ${unitLabel(draft.vehicles, i)}`} loading="lazy" decoding="async" className="w-8 h-8 rounded-md object-cover" />}
                 <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded shrink-0">
                   {unitLabel(draft.vehicles, i)}
                 </span>
