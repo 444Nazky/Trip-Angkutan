@@ -56,6 +56,7 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Network } from '@capacitor/network'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
+import { isDevMode } from './runtimeEnv'
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
@@ -421,22 +422,9 @@ type ManifestResult =
  * apa pun (WebView, Fastly/GitHub raw) tidak bisa menyajikan version.json basi
  * — penyebab utama update sekunder tidak terdeteksi.
  */
-/**
- * DEV mode yang sah untuk memotong jaringan GitHub (CORS di localhost).
- * Sama seperti di services/geofence.ts: harus DEV=true DAN MODE='development'.
- * Vitest menyetel DEV=true dengan MODE='test' → jalur ini TIDAK boleh aktif,
- * kalau tidak semua tes siklus rilis (V1→V2→V3) buntu di "manifest not-found".
- */
-function devModeSkipRemote(): boolean {
-  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
-  if (!env?.DEV) return false
-  if (env.MODE && env.MODE !== 'development') return false
-  return true
-}
-
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   // DEV MODE: Skip fetch ke GitHub jika di development (CORS block di localhost)
-  if (devModeSkipRemote()) {
+  if (isDevMode()) {
     console.log('[OTA] DEV MODE: Skip fetch manifest dari GitHub (menghindari CORS)')
     return { ok: false, reason: 'not-found' }
   }
@@ -827,7 +815,7 @@ export async function auditOta(): Promise<{
   // DEV MODE tidak mem-fetch GitHub (CORS di localhost). Tidak ada return awal di
   // sini: bagian ekor (hitung entri cache versi aktif) sama untuk kedua mode,
   // dulu blok ini menyalin seluruh ekor fungsi (~30 baris) hanya untuk itu.
-  if (devModeSkipRemote()) {
+  if (isDevMode()) {
     console.log('[OTA] DEV MODE: Skip audit fetch dari GitHub (menghindari CORS)')
   } else {
     try {

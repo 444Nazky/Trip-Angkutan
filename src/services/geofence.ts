@@ -14,21 +14,14 @@ const DEV_MODE_FALLBACK_LON = 106.8371641
 const DEV_MODE_FALLBACK_ACCURACY = 5 // Simulasi GPS akurat 5 meter
 
 /**
- * Bolehkah mock location DEV dipakai?
- * • `import.meta.env.DEV` harus true (build produksi → false / env tidak ada).
- * • `import.meta.env.MODE` juga harus 'development' (atau tidak terdefinisi):
- *   – 'test' (vitest) → DIMATI, supaya tes mengukur jalur produksi yang asli
- *     (pemanggilan GPS native + kebijakan blokir), bukan mock location.
- *   – 'production'    → mati otomatis lewat syarat DEV.
+ * Bolehkah mock location DEV dipakai? Aturan mode ada di services/runtimeEnv.ts
+ * (satu definisi untuk OTA, geofence, dan layar pilih rute).
  *
  * CATATAN: Fallback DEV HANYA dipakai JIKA GPS real gagal/timeout.
  * Fungsi getCurrentPosition() akan SELALU coba GPS real duluan.
  */
 function devMockLocationAllowed(): boolean {
-  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
-  if (!env?.DEV) return false
-  if (env.MODE && env.MODE !== 'development') return false
-  return true
+  return isDevMode()
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────

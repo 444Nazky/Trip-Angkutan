@@ -10,12 +10,7 @@ import {
 } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
-
-// ── DEV MODE: Check if we're in development mode ─────────────────────────────────
-const isDevMode = (): boolean => {
-  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
-  return env?.DEV === true && (env.MODE === undefined || env.MODE === 'development')
-}
+import { isDevMode } from '../../services/runtimeEnv'
 
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
