@@ -9,10 +9,11 @@
 //   2. Bila berkas tidak ada di cache versi aktif → ambil dari jaringan
 //      (bundle bawaan APK). Tidak pernah mengambil dari cache versi lain.
 //   3. Saat aktivasi SW, semua cache versi selain yang aktif dibersihkan.
-//   4. Permintaan dengan `ota_bypass=1` selalu lewat jaringan (dipakai saat
-//      proses OTA agar tidak pernah dilayani cache basi).
 //
-// Pesan dari halaman: SKIP_WAITING · PURGE_ALL · SET_ACTIVE {version}
+// Pesan dari halaman: SKIP_WAITING · SET_ACTIVE {version}. Unduhan OTA tidak
+// melewati SW sama sekali (URL-nya beda origin), jadi tidak butuh jalur bypass
+// khusus — jalur lama (`ota_bypass=1`, `PURGE_ALL`) dihapus karena tak ada yang
+// mengirimnya.
 
 const META_CACHE = 'trip-ota-meta'
 const META_KEY = '__active__.json'
@@ -49,13 +50,6 @@ self.addEventListener('message', (event) => {
     event.waitUntil(self.skipWaiting())
     return
   }
-  if (data.type === 'PURGE_ALL') {
-    event.waitUntil((async () => {
-      const names = await caches.keys()
-      await Promise.all(names.map((n) => caches.delete(n)))
-    })())
-    return
-  }
   if (data.type === 'SET_ACTIVE' && typeof data.version === 'string') {
     // Halaman normalnya menulis meta sendiri; pesan ini hanya jalur cadangan.
     event.waitUntil((async () => {
@@ -78,8 +72,6 @@ self.addEventListener('fetch', (event) => {
   let url
   try { url = new URL(req.url) } catch { return }
   if (url.origin !== self.location.origin) return
-  // Bypass eksplisit (dipakai proses OTA).
-  if (url.searchParams.get('ota_bypass') === '1') return
 
   if (!isBundleUrl(url)) return
   event.respondWith(handleRequest(req, url))
@@ -109,7 +101,8 @@ function withNoStore(res, contentType) {
 }
 
 function isNavigation(url) {
-  return url.pathname === '/' || url.pathname.endsWith('/') || /\/index\.html$/.test(url.pathname)
+  // `'/'` sudah tercakup endsWith('/') — klausa pertama dulu mubazir.
+  return url.pathname.endsWith('/') || /\/index\.html$/.test(url.pathname)
 }
 
 /** Cocokkan tanpa query (cache disimpan di URL kanonik). */
