@@ -528,6 +528,33 @@ describe('aset biner di APK (CapacitorHttp)', () => {
   })
 })
 
+// ── Mode web (tanpa plugin native) ───────────────────────────────────────────
+//
+// Dulu jalur web tidak punya PENANDA rilis sama sekali, sehingga daftar berkas
+// harus disalin di UpdateState.downloaded — dua sumber yang bisa berbeda dan
+// tidak pernah diuji. Kini penanda juga hidup di localStorage saat web, jadi
+// siklus penuh (dua rilis beruntun) bisa diuji tanpa perangkat native.
+
+describe('mode web (tanpa native)', () => {
+  it('siklus penuh berjalan dan penanda tersimpan di localStorage', async () => {
+    h.native = false
+
+    await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'main-aaa.js': 'console.log("1.0.1")' })
+    await updateTo('1.0.1', null)
+    expect(await getCurrentVersion()).toBe('1.0.1')
+    expect(localStorage.getItem('trip.ota.marker.1.0.1')).toBeTruthy()
+
+    // Rilis kedua — tanpa clear data, hanya penanda yang jadi acuan.
+    await release('1.0.2', { 'index.html': '<html>v1.0.2</html>', 'main-bbb.js': 'console.log("1.0.2")' })
+    await updateTo('1.0.2', '1.0.1')
+
+    expect(await getCurrentVersion()).toBe('1.0.2')
+    expect(await cachedText(versionCacheName('1.0.2'), 'index.html')).toBe('<html>v1.0.2</html>')
+    // Penanda versi lama ikut terbersihkan.
+    expect(localStorage.getItem('trip.ota.marker.1.0.1')).toBeNull()
+  })
+})
+
 // ── Efisiensi siklus berkala (jaringan lapangan) ─────────────────────────────
 
 describe('siklus cek berkala', () => {

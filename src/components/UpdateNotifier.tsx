@@ -19,16 +19,8 @@ export interface UpdateNotifierProps {
   checkInterval?: number
   /** Delay sebelum check pertama dalam ms (default: 5 detik) */
   initialDelay?: number
-  /** Minimal versi app yang diperlukan untuk update ini */
-  minAppVersion?: string
-  /** Callback saat state berubah */
-  onStateChange?: (state: UpdateState) => void
-  /** Callback saat update berhasil diterapkan */
-  onUpdateApplied?: (version: string) => void
   /** Posisi notifikasi: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' */
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
-  /** Z-index override jika diperlukan */
-  zIndex?: number
 }
 
 // ─── Posisi styling ───────────────────────────────────────────────────────────
@@ -133,7 +125,6 @@ interface SheetProps {
   onRetry: () => void 
   onHardReset: () => void
   position: string
-  zIndex: number
 }
 
 function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetProps) {
@@ -146,7 +137,7 @@ function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetP
   if (status === 'idle' || status === 'checking') return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200" style={{ zIndex: 100 }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-4 flex items-center justify-between">
@@ -302,10 +293,7 @@ export default function UpdateNotifier({
   autoCheck = true,
   checkInterval = 30 * 60 * 1000,
   initialDelay = 5000,
-  onStateChange,
-  onUpdateApplied,
   position = 'bottom-right',
-  zIndex = 50,
 }: UpdateNotifierProps) {
   const [state, setState] = useState<UpdateState>({ status: 'idle' })
   const [currentVersion, setCurrentVersion] = useState<string>('0.0.0')
@@ -319,11 +307,6 @@ export default function UpdateNotifier({
       }
     })
   }, [])
-
-  // Notify parent of state changes
-  useEffect(() => {
-    onStateChange?.(state)
-  }, [state, onStateChange])
 
   // Check for updates
   const performCheck = useCallback(async () => {
@@ -375,9 +358,8 @@ export default function UpdateNotifier({
     }
     const applied = await getCurrentVersion()
     if (applied) setCurrentVersion(applied)
-    onUpdateApplied?.(applied ?? currentVersion)
     await hardReloadToNewBundle(applied ?? undefined)
-  }, [currentVersion, onUpdateApplied])
+  }, [currentVersion])
 
   // Dismiss update notification
   const handleDismiss = useCallback(() => {
@@ -426,7 +408,6 @@ export default function UpdateNotifier({
           onRetry={handleRetry}
           onHardReset={handleHardReset}
           position={positionClass}
-          zIndex={zIndex}
         />
       )}
     </>

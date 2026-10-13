@@ -67,6 +67,25 @@ const OTA_META_CACHE = 'trip-ota-meta'
 const VERSION_CACHE_PREFIX = 'trip-ota-v'
 /** Penanda versi aktif di dalam OTA_META_CACHE. */
 const META_ACTIVE_KEY = '__active__.json'
+/** Key penanda rilis terstaging (dipakai saat tidak native / web). */
+const MARKER_KEY_PREFIX = 'trip.ota.marker.'
+
+/**
+ * Iterasi key localStorage lewat Storage API (`length` + `key(i)`), BUKAN
+ * `Object.keys(localStorage)`. Storage yang diimplementasikan sebagai Map
+ * (mis. shim in-memory di vitest.setup.ts, atau polyfill) tidak punya key
+ * enumerable sehingga `Object.keys` mengembalikan array KOSONG tanpa error —
+ * loop pembersihan akan diam-diam tidak melakukan apa pun. Iterasi mundur agar
+ * aman saat key dihapus di tengah loop.
+ */
+function forEachStorageKey(fn: (key: string) => void): void {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key) fn(key)
+    }
+  } catch { /* akses localStorage ditolak */ }
+}
 
 /** Direktori penyimpanan DURABLE (Directory.Data) — sumber kebenaran bundle. */
 const OTA_DIR = 'ota'
@@ -89,7 +108,6 @@ export interface UpdateState {
   progress?: number
   error?: string
   latestVersion?: string
-  downloaded?: string[]
   /** Versi yang sedang menyajikan aplikasi saat ini. */
   activeVersion?: string
 }
@@ -261,11 +279,21 @@ async function readFromStorage(version: string, path: string): Promise<Uint8Arra
   } catch { return null }
 }
 
+/**
+ * Penanda rilis terstaging — SATU sumber daftar berkas + hash untuk sebuah versi.
+ * Native: berkas di Directory.Data. Web: localStorage (dulu web tidak punya penanda
+ * sama sekali, sehingga daftar berkas harus disalin di UpdateState.downloaded — dua
+ * sumber yang bisa berbeda; salinan itu kini dihapus).
+ */
 async function writeMarker(version: string, assets: string[], integrity?: Record<string, string>): Promise<void> {
-  if (!isNative()) return
+  const data = JSON.stringify({ version, assets, integrity, savedAt: Date.now() })
+  if (!isNative()) {
+    try { localStorage.setItem(MARKER_KEY_PREFIX + version, data) } catch { /* quota */ }
+    return
+  }
   await Filesystem.writeFile({
     path: `${OTA_DIR}/${version}/${MARKER}`,
-    data: JSON.stringify({ version, assets, integrity, savedAt: Date.now() }),
+    data,
     directory: Directory.Data,
     encoding: Encoding.UTF8,
     recursive: true,
@@ -273,7 +301,13 @@ async function writeMarker(version: string, assets: string[], integrity?: Record
 }
 
 async function readMarker(version: string): Promise<VersionManifest | null> {
-  if (!isNative()) return null
+  if (!version) return null
+  if (!isNative()) {
+    try {
+      const raw = localStorage.getItem(MARKER_KEY_PREFIX + version)
+      return raw ? (JSON.parse(raw) as VersionManifest) : null
+    } catch { return null }
+  }
   try {
     const res = await Filesystem.readFile({
       path: `${OTA_DIR}/${version}/${MARKER}`,
@@ -289,7 +323,10 @@ async function removeVersionStorage(version: string): Promise<void> {
   if (typeof caches !== 'undefined') {
     try { await caches.delete(versionCacheName(version)) } catch { /* */ }
   }
-  if (!isNative()) return
+  if (!isNative()) {
+    try { localStorage.removeItem(MARKER_KEY_PREFIX + version) } catch { /* quota */ }
+    return
+  }
   try {
     await Filesystem.rmdir({ path: `${OTA_DIR}/${version}`, directory: Directory.Data, recursive: true })
   } catch { /* tidak ada */ }
@@ -338,6 +375,18 @@ async function deleteOtaCaches(keep: Iterable<string> = []): Promise<void> {
 export async function purgeOtherVersions(keep: string[] = []): Promise<void> {
   await deleteOtaCaches([OTA_META_CACHE, ...keep, ...keep.map(versionCacheName)])
 
+  // Mode web: penanda rilis ada di localStorage — buang yang versinya tidak disimpan
+  // (tanpa ini penanda setiap rilis menumpuk selamanya).
+  if (!isNative()) {
+    const keepVersions = new Set(keep)
+    forEachStorageKey(key => {
+      if (!key.startsWith(MARKER_KEY_PREFIX)) return
+      if (keepVersions.has(key.slice(MARKER_KEY_PREFIX.length))) return
+      localStorage.removeItem(key)
+    })
+    return
+  }
+
   if (!isNative()) return
   // Direktori versi durable yang bukan versi yang disimpan
   try {
@@ -361,8 +410,10 @@ export async function purgeOtherVersions(keep: string[] = []): Promise<void> {
 async function clearStuckOtaState(): Promise<void> {
   const state = getCachedState()
   if (!state) return
+  // "ready" tanpa penanda = staging menggantung (unduhan putus di tengah).
+  const marker = state.status === 'ready' ? await readMarker(state.latestVersion ?? '') : null
   const stuck = state.status === 'downloading' ||
-    (state.status === 'ready' && (!state.downloaded || state.downloaded.length === 0))
+    (state.status === 'ready' && !marker?.assets?.length)
   if (!stuck) return
   // Buang HANYA staging yang menggantung. Versi yang sedang aktif (meta / versi
   // lokal) tidak pernah disentuh — kalau tersentuh, SW kehilangan bahan untuk
@@ -764,6 +815,10 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
  */
 export async function resetOtaStorage(): Promise<void> {
   await deleteOtaCaches()
+  // Penanda rilis (mode web) — semua dibuang, tidak ada versi yang disisakan.
+  forEachStorageKey(key => {
+    if (key.startsWith(MARKER_KEY_PREFIX)) localStorage.removeItem(key)
+  })
 
   if (isNative()) {
     for (const [path, directory] of [[OTA_DIR, Directory.Data], [LEGACY_OTA_DIR, Directory.Cache]] as const) {
@@ -970,16 +1025,14 @@ export async function checkForUpdate(
     // mengunduh ulang SEMUA berkas setiap kali petugas belum menekan "Terapkan"
     // — di jaringan lapangan yang buruk ini tampak seperti "update gagal terus".
     const staged = getCachedState()
-    if (
-      staged?.status === 'ready' &&
-      staged.latestVersion === remote.version &&
-      (staged.downloaded?.length ?? 0) === remote.assets.length
-    ) {
+    const stagedMarker = staged?.status === 'ready' && staged.latestVersion === remote.version
+      ? await readMarker(remote.version)
+      : null
+    if (stagedMarker?.assets?.length === remote.assets.length) {
       console.log(`[OTA] ${remote.version} sudah terunduh & terverifikasi — menunggu aksi pengguna`)
       emit({
         status: 'ready',
         progress: 100,
-        downloaded: remote.assets,
         latestVersion: remote.version,
         activeVersion: local,
       })
@@ -1060,7 +1113,6 @@ export async function checkForUpdate(
     emit({
       status: 'ready',
       progress: 100,
-      downloaded: remote.assets,
       latestVersion: remote.version,
       activeVersion: local,
     })
@@ -1084,13 +1136,12 @@ export async function checkForUpdate(
  */
 export async function applyUpdate(): Promise<boolean> {
   try {
-    const state = getCachedState()
-    const version = state?.latestVersion
-    const assets = state?.downloaded
-    if (!version || !assets?.length) return false
+    const version = getCachedState()?.latestVersion
+    if (!version) return false
 
-    const marker = await readMarker(version)
-    const list = marker?.assets?.length ? marker.assets : assets
+    // Penanda = satu-satunya sumber daftar berkas versi ini.
+    const list = (await readMarker(version))?.assets
+    if (!list?.length) return false
 
     const ok = await activateStagedBundle(version, list)
     if (!ok) {

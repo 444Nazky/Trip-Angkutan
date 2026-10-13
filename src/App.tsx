@@ -61,7 +61,6 @@ function Shell() {
         initialDelay={5000}
         checkInterval={30 * 60 * 1000}
         position="bottom-right"
-        onUpdateApplied={(v) => console.log('[App] Update applied:', v)}
       />
       {loggedIn && !isAdminSession
         ? <MobileApp />
