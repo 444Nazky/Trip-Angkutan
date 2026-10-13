@@ -435,6 +435,9 @@ const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000 // 15 menit (dilewati bila force)
  */
 export const GEOFENCE_UPDATED_EVENT = 'trip:geofence-updated'
 
+/** Event saat backend balas 401 → UI menampilkan layar login ulang (bukan stuck). */
+export const GEOFENCE_AUTH_EXPIRED_EVENT = 'trip:geofence-auth-expired'
+
 export interface GeofenceSyncResult {
   ok: boolean
   /** Jumlah titik geofence yang tersimpan di perangkat setelah sync. */
@@ -517,14 +520,23 @@ export async function syncGeofencesFromBackend(opts: { force?: boolean } = {}): 
   }
 
   try {
+    // Tanpa token (belum login / sudah dibersihkan setelah 401) → jangan menembak
+    // endpoint ber-`authenticate`: hanya menghasilkan spam 401 di console dan
+    // membuat device tampak "stuck". Layar login & event SESSION_READY yang akan
+    // memicu sync ulang setelah token ada.
+    if (!api.isAuthenticated) {
+      return { ok: false, count: cachedCount(), reason: 'unauthorized' }
+    }
     const result = await api.get<BackendGeofence[]>('/geofences')
     if (!result.ok || !Array.isArray(result.data)) {
-      // 401 = token belum siap/kedaluwarsa → pemanggil boleh mencoba lagi nanti
-      return {
-        ok: false,
-        count: cachedCount(),
-        reason: result.error?.code === '401' ? 'unauthorized' : 'network',
+      // 401 = token kedaluwarsa/invalid → beri tahu UI supaya menampilkan layar
+      // login ulang (bukan diam-diam "stuck"). Permintaan yang gagal TIDAK membuang
+      // antrean trip maupun cache geofence lokal.
+      if (result.error?.code === '401') {
+        try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
+        return { ok: false, count: cachedCount(), reason: 'unauthorized' }
       }
+      return { ok: false, count: cachedCount(), reason: 'network' }
     }
 
     const points = result.data

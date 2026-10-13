@@ -7,7 +7,7 @@ import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { getCurrentVersion, restoreBundleFromStorage } from "./services/ota"
-import { syncGeofencesFromBackend } from "./services/geofence"
+import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
 import UpdateNotifier from "./components/UpdateNotifier"
 
 function Shell() {
@@ -20,6 +20,18 @@ function Shell() {
     void restoreBundleFromStorage()
     void syncGeofencesFromBackend()
   }, [])
+
+  // Token kedaluwarsa/invalid (server balas 401) → kembalikan ke layar login
+  // (LoginPage menanganinya via PinVerifyScreen) agar petugas bisa memulihkan
+  // sesi sendiri — bukan diam-diam "stuck" dengan banner "belum terkirim".
+  useEffect(() => {
+    const onAuthExpired = () => {
+      console.warn('[App] Sesi backend invalid (401) → kembali ke layar login')
+      logout()
+    }
+    window.addEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+    return () => window.removeEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+  }, [logout])
 
   // Initialize version reference untuk UpdateNotifier
   useEffect(() => {

@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('./api', () => ({
   api: {
+    // api.isAuthenticated diakses syncGeofencesFromBackend (guard 401)
+    isAuthenticated: true,
     async get(path: string) {
       h.paths.push(path)
       return h.response
