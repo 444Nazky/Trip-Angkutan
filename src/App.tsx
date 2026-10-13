@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { App as CapacitorApp } from "@capacitor/app"
 import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
@@ -6,13 +6,12 @@ import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
-import { getCurrentVersion, restoreBundleFromStorage } from "./services/ota"
+import { restoreBundleFromStorage } from "./services/ota"
 import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
 import UpdateNotifier from "./components/UpdateNotifier"
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
-  const latestVersionRef = useRef<string | null>(null)
 
   useEffect(() => {
     initializeSync()
@@ -33,13 +32,8 @@ function Shell() {
     return () => window.removeEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
   }, [logout])
 
-  // Initialize version reference untuk UpdateNotifier
+  // Foreground resume: cek OTA ditangani UpdateNotifier; di sini cukup sync data.
   useEffect(() => {
-    getCurrentVersion().then(v => {
-      if (v) latestVersionRef.current = v
-    })
-
-    // Listen untuk foreground resume - UpdateNotifier akan handle auto-check
     let sub: { remove?: () => void } | undefined
     CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) syncOnResume()

@@ -144,7 +144,7 @@ function seedPayload(s: SeedOfficer): Record<string, unknown> {
  *     ikut melengkapi daftar perangkat lama (lihat SEED_VERSION).
  *
  * FUNGSI INI TIDAK BOLEH memanggil initOfflineDb() — dipanggil dari dalam
- * inisialisasi (maupun setelah clearOfflineData ketika init sudah selesai).
+ * inisialisasi (dipanggil dari initOfflineDb saat init selesai).
  */
 async function seedDefaultOfficers(): Promise<void> {
   const now = Date.now()
@@ -423,26 +423,4 @@ export async function verifyPin(officerId: string, pin: string): Promise<boolean
   }
   // Legacy: nilai tersimpan belum berupa hash
   return stored === pin || stored === `plain:${pin}`
-}
-
-/** Hapus seluruh data offline (dipanggil saat logout/reset). */
-export async function clearOfflineData(): Promise<void> {
-  await initOfflineDb()
-  if (backend === 'sqlite' && conn) {
-    try {
-      await conn.execute('DELETE FROM officers; DELETE FROM credentials;')
-    } catch { /* fallback di bawah */ }
-  }
-  try {
-    localStorage.removeItem(LS_CREDENTIALS)
-  } catch { /* quota */ }
-
-  // Tanam ULANG data bawaan setelah reset — aplikasi selalu punya kredensial
-  // offline (seed) meski penyimpanan dibersihkan pengguna.
-  try {
-    await seedDefaultOfficers()
-    seedRosterIfAbsent()
-    seedRouteCacheIfAbsent()
-    seedGeofencePointsIfAbsent() // Reset konfigurasi geofence Badau Dermaga 1 & 2
-  } catch { /* dicoba lagi pada init berikutnya */ }
 }

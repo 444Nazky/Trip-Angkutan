@@ -177,7 +177,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
 
 // ── Rute master bawaan (per dermaga, dua arah — identik dengan server) ───────
 
-export const SEED_ROUTES: Record<string, SeedRoute[]> = {
+const SEED_ROUTES: Record<string, SeedRoute[]> = {
   [DERMAGA.BADAU_D1.id]: [
     { id: `seed:${DERMAGA.BADAU_D1.id}:SJRE-SBDZ`, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
     { id: `seed:${DERMAGA.BADAU_D1.id}:SBDZ-SJRE`, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
@@ -259,7 +259,7 @@ export interface SeedMobileOfficer {
   dermagaAccess: SeedDermaga[]
 }
 
-export function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
+function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
   const active = (s.isActive ?? 1) === 1
   return {
     id: s.id,

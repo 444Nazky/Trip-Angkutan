@@ -88,7 +88,7 @@ const GEOFENCE_STORAGE_KEY = 'trip.geofence.points'
 
 const EARTH_RADIUS_METERS = 6371000
 
-export function calculateDistance(
+function calculateDistance(
   lat1: number,
   lon1: number,
   lat2: number,
@@ -300,7 +300,7 @@ export async function getCurrentPosition(): Promise<GpsFix | null> {
   return pending
 }
 
-export function findActiveGeofencePoint(
+function findActiveGeofencePoint(
   position: { lat: number; lon: number },
   points: GeofencePoint[],
 ): GeofencePoint | null {

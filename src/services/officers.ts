@@ -49,7 +49,7 @@ function saveCache(officers: BackendOfficer[]) {
 
 
 
-export async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
+async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
   if (!force) {
     const cache = loadCache()
     if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {

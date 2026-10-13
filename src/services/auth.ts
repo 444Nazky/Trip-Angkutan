@@ -558,7 +558,7 @@ function loadLegacyPinMap(): Record<string, string> {
 }
 
 /** Simpan HASH PIN petugas setelah login online berhasil (tidak pernah PIN polos). */
-export async function cachePin(officerId: string, pin: string): Promise<void> {
+async function cachePin(officerId: string, pin: string): Promise<void> {
   if (!officerId || !pin) return
   try {
     await setPinHash(officerId, await hashPin(officerId, pin))
@@ -628,7 +628,7 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
  * Hapus PIN polos legacy. Hash PIN tetap disimpan agar petugas tetap bisa
  * verifikasi offline setelah logout/login (hash tidak sensitif).
  */
-export function evictPinCache() {
+function evictPinCache() {
   try { localStorage.removeItem(LEGACY_PIN_KEY) } catch { /* quota */ }
 }
 
