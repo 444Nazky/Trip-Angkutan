@@ -1,5 +1,7 @@
-import { useEffect } from 'react'
-import { Settings, ChevronRight, ArrowLeftRight, Lock, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { hardReloadToNewBundle } from '../../services/otaReload'
+import { applyUpdate, checkForUpdate, getCurrentVersion, semverLabel, type UpdateState } from '../../services/ota'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -9,11 +11,56 @@ interface ProfileScreenProps {
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, refreshOfficers } = useApp()
+  const [currentVersion, setCurrentVersion] = useState('—')
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
 
   useEffect(() => {
     void refreshOfficers()
+    void getCurrentVersion().then(version => { if (version) setCurrentVersion(version) })
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [refreshOfficers])
 
-  }, [])
+  const checkForAppUpdate = async () => {
+    setCheckingUpdate(true)
+    setNote(null)
+    try {
+      const local = currentVersion === '—' ? await getCurrentVersion() : currentVersion
+      let last: UpdateState = { status: 'idle' }
+      const result = await checkForUpdate(local, state => { last = state }, true)
+      if (result.available) {
+        setUpdateVersion(result.version ?? null)
+        setNote(`Update ${semverLabel(result.version ?? '')} tersedia`)
+      } else if (last.status === 'error') {
+        setNote(last.error ?? 'Gagal memeriksa pembaruan')
+      } else if (last.status === 'offline') {
+        setNote('Tidak ada koneksi')
+      } else {
+        setNote('Aplikasi sudah versi terbaru')
+      }
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const applyNow = async () => {
+    setNote('Menerapkan pembaruan…')
+    if (await applyUpdate()) {
+      await hardReloadToNewBundle((await getCurrentVersion()) ?? undefined)
+    } else {
+      setUpdateVersion(null)
+      setNote('Gagal menerapkan pembaruan')
+    }
+  }
 
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
 
@@ -23,10 +70,13 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       .filter(p => p && p !== '-'),
   )
   return (
-    <div className="px-4 pt-2 pb-4 space-y-4">
-      <h2 className="font-black text-slate-900 text-[18px] mb-4">Profil</h2>
+    <div className="min-h-full bg-slate-50 px-4 pb-8 pt-4 space-y-4">
+      <div>
+        <p className="text-[11px] font-medium text-slate-400">AKUN & APLIKASI</p>
+        <h2 className="mt-1 text-xl font-bold text-slate-900">Profil</h2>
+      </div>
 
-      <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
+      <section className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="flex items-center gap-4 mb-4">
           <img src="/assets/guest-profile.jpeg" alt={officer.name} className="w-16 h-16 rounded-2xl object-cover" />
           <div className="min-w-0">
@@ -40,10 +90,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-          {[{ v: String(myTrips.length), l: 'Trip' }, { v: String(units.size), l: 'Kendaraan' }].map((s, i) => (
-            <div key={s.l} className={`text-center ${i > 0 ? 'border-l border-white/10 pl-4' : ''}`}>
-              <p className="text-white font-black text-[18px] leading-tight">{s.v}</p>
-              <p className="text-slate-400 text-[11px] mt-1">{s.l}</p>
+          {[{ v: String(myTrips.length), l: 'Trip' }, { v: String(units.size), l: 'Kendaraan' }].map((stat, index) => (
+            <div key={stat.l} className={`text-center ${index > 0 ? 'border-l border-white/10 pl-4' : ''}`}>
+              <p className="text-white font-black text-[18px] leading-tight">{stat.v}</p>
+              <p className="text-slate-400 text-[11px] mt-1">{stat.l}</p>
             </div>
           ))}
         </div>
@@ -54,24 +104,64 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <span className="ml-auto text-[11px] font-black text-emerald-400 tracking-widest">{officer.region}</span>
           <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
-        {[
-          { icon: Users, label: 'Daftar Petugas Lokal', action: () => go('local-officers') },
-          { icon: Settings, label: 'Pengaturan', action: () => go('settings') },
-        ].map((item, i) => (
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="px-4 pb-2 pt-3">
+          <h3 className="text-xs font-semibold text-slate-800">Koneksi</h3>
+          <p className="mt-0.5 text-[10px] text-slate-400">Status jaringan perangkat</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-800">Jaringan internet</p>
+              <p className="text-[10px] text-slate-400">{isOnline ? 'Perangkat terhubung ke internet' : 'Perangkat sedang offline'}</p>
+            </div>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-3 p-4">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-800">Pembaruan aplikasi</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{note ?? `Versi ${currentVersion !== '—' ? semverLabel(currentVersion) : '—'} · periksa versi terbaru`}</p>
+          </div>
           <button
-            key={item.label}
-            onClick={item.action}
-            className={`w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 active:bg-slate-100 transition-colors text-left ${i > 0 ? 'border-t border-slate-100' : ''}`}
+            onClick={() => void (updateVersion ? applyNow() : checkForAppUpdate())}
+            disabled={checkingUpdate}
+            className="rounded-lg bg-slate-900 px-3 py-2 text-[10px] font-semibold text-white transition-colors hover:bg-slate-700 disabled:bg-slate-300"
           >
-            <item.icon size={18} className="text-slate-400" />
-            <span className="flex-1 text-[14px] font-semibold text-slate-700">{item.label}</span>
-            <ChevronRight size={16} className="text-slate-300" />
+            {checkingUpdate ? <RefreshCw size={12} className="animate-spin" /> : updateVersion ? 'Pasang' : 'Periksa'}
           </button>
-        ))}
-      </div>
+        </div>
+        {updateVersion && !checkingUpdate && (
+          <div className="flex items-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-[10px] text-emerald-800">
+            <AlertCircle size={13} /> Pembaruan versi {semverLabel(updateVersion)} siap dipasang.
+          </div>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <button
+          onClick={() => go('geofence-config')}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><MapPin size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-800">Titik wilayah validasi</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Konfigurasi area geofence</p>
+          </div>
+          <ChevronRight size={16} className="text-slate-400" />
+        </button>
+      </section>
 
       <button
         onClick={() => go('officer-switch')}
@@ -80,6 +170,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <ArrowLeftRight size={15} /> Ganti Petugas
       </button>
 
+      <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first · {officer.lastActive}</p>
     </div>
   )
 }

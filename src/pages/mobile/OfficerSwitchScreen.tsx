@@ -115,9 +115,11 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
               o.status === 'Nonaktif' ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md active:scale-[0.98]'
             }`}
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0">
-              {o.initials || o.name.split(' ').map((n: string) => n[0]).join('')}
-            </div>
+            <img
+              src="/assets/guest-profile.jpeg"
+              alt={`Foto profil ${o.name}`}
+              className="w-12 h-12 rounded-2xl object-cover shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-900 text-[13px]">{o.name}</p>
               <p className="text-[11px] text-slate-400">{o.username ? `@${o.username}` : o.device} · {o.trips} trip</p>

@@ -157,7 +157,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   return (
     <div className="min-h-full bg-white">
       <div className="flex items-center px-4 py-3 border-b border-slate-200">
-        <button onClick={() => go('settings')} className="w-11 h-11 flex items-center justify-start -ml-2">
+        <button onClick={() => go('profile')} className="w-11 h-11 flex items-center justify-start -ml-2">
           <ChevronLeft size={20} className="text-blue-600" />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-slate-900 mr-11">Konfigurasi Geofence</h1>
@@ -266,7 +266,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
         )}
         {showForm && !isAdmin && (
           <button
-            onClick={() => go('settings')}
+            onClick={() => go('profile')}
             className="w-full py-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 font-semibold text-[13px] flex items-center justify-center gap-2"
           >
             <X size={16} /> Hanya admin dapat mengubah konfigurasi

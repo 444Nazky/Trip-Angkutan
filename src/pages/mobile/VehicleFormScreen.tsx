@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
 import { tariffFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
+import {
+  formatPlateNumber,
+  validatePlate,
+  sanitizePlateInput,
+  PLATE_REGEX_STRICT,
+} from '../../utils/plateFormatter'
 
 interface VehicleFormScreenProps {
   go: (s: MobileScreen) => void
@@ -28,11 +34,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [plateError, setPlateError] = useState('')
   const [showModal, setShowModal] = useState(false)
 
+  // Ref for cursor position management
+  const plateInputRef = useRef<HTMLInputElement>(null)
+  const lastValueRef = useRef(plate)
+
   const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : ['Motor', 'Mobil', 'Truck Kecil', 'Truck Sedang', 'Truck Besar']
   const categories = ['Internal', 'Eksternal', 'Lokal']
 
   // Semua field wajib — tidak ada satu pun yang opsional.
-  const plateOk = plate.trim().length >= 2
+  // Plate must match strict format: [1-2 letters] + space + [1-4 digits] + space + [1-3 letters]
+  const plateOk = PLATE_REGEX_STRICT.test(plate.trim())
   const typeOk = !!vehicleType && vehicleType !== TYPE_PLACEHOLDER
   const categoryOk = !!category && category !== CATEGORY_PLACEHOLDER
   const isFormComplete = !!photoTaken && plateOk && typeOk && categoryOk
@@ -51,13 +62,62 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
-  // Handle OCR result
+  /**
+   * Smart plate input handler with auto-formatting
+   * - Auto-inserts space when transitioning from letters to digits
+   * - Auto-inserts space when transitioning from digits to letters
+   * - Auto-capitalizes all letters
+   * - Removes invalid characters
+   * - Maintains cursor position intelligently
+   */
+  const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value
+    const oldValue = lastValueRef.current
+    const oldLength = oldValue.length
+    const newLength = rawValue.length
+
+    setPlateError('')
+
+    // Handle backspace/delete at space boundaries
+    if (newLength < oldLength) {
+      // User pressed backspace - just remove the character
+      const sanitized = sanitizePlateInput(rawValue)
+      const formatted = formatPlateNumber(sanitized)
+      lastValueRef.current = formatted
+      setField({ plate: formatted })
+      return
+    }
+
+    // New character added - sanitize and format
+    const sanitized = sanitizePlateInput(rawValue)
+    const formatted = formatPlateNumber(sanitized)
+
+    lastValueRef.current = formatted
+    setField({ plate: formatted })
+  }
+
+  /**
+   * Validate plate format on blur/submit
+   */
+  const validatePlateInput = (): boolean => {
+    const result = validatePlate(plate)
+    if (!result.valid) {
+      setPlateError(result.error || 'Format plat tidak valid')
+      return false
+    }
+    return true
+  }
+
+  // Handle OCR result with smart formatting
   useEffect(() => {
     if (draft.ocrResult) {
-      const normalizedPlate = draft.ocrResult.replace(/\s+/g, ' ').trim().toUpperCase()
-      if (normalizedPlate.length >= 3) {
-        setField({ plate: normalizedPlate })
-        void runCheck(normalizedPlate)
+      // Normalize OCR result: remove extra spaces, uppercase
+      const sanitized = sanitizePlateInput(draft.ocrResult)
+      const formattedPlate = formatPlateNumber(sanitized)
+      if (formattedPlate.length >= 3) {
+        setField({ plate: formattedPlate })
+        lastValueRef.current = formattedPlate
+        void runCheck(formattedPlate)
       }
       patchDraft({ ocrResult: undefined })
     }
@@ -72,6 +132,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   // Mode edit → perbarui kendaraan pada tempatnya (indeks tidak berubah),
   // sehingga foto dokumentasi yang sudah terpasang tidak tertukar.
   const pushVehicle = () => {
+    // Validate plate format before saving
+    if (!validatePlateInput()) {
+      return false
+    }
     if (!isFormComplete) return false
     const entry = {
       plate: plate.trim().toUpperCase(),
@@ -97,6 +161,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       editVehicleIndex: null,
     })
     setCheck(null)
+    lastValueRef.current = ''
     return true
   }
 
@@ -113,6 +178,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       editVehicleIndex: null,
     })
     setCheck(null)
+    lastValueRef.current = ''
   }
 
   return (
@@ -182,17 +248,22 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </label>
           <div className="flex gap-2">
             <input
+              ref={plateInputRef}
               value={plate}
-              onChange={e => {
-                setPlateError('')
-                setField({ plate: e.target.value.toUpperCase() })
+              onChange={handlePlateChange}
+              onBlur={() => {
+                void validatePlateInput()
+                if (plate.trim()) void runCheck(plate)
               }}
-              onBlur={() => plate.trim() && void runCheck(plate)}
               placeholder="B 1234 XY"
+              maxLength={11}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
             />
           </div>
-          {plateError && <p className="text-xs text-red-500 mt-1.5">{plateError}</p>}
+          {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
           {(check || checkLoading) && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
               {checkLoading ? (
@@ -357,13 +428,22 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
             <div className="flex gap-3">
               <button
-                onClick={() => { if (pushVehicle()) { setShowModal(false); go('trip-summary') } }}
+                onClick={() => {
+                  if (!pushVehicle()) return
+                  setShowModal(false)
+                  if (isEditing) go('trip-summary')
+                  else go('trip-summary')
+                }}
                 className="flex-1 py-3 rounded-xl border-2 border-slate-200 font-medium text-sm text-slate-700"
               >
                 {isEditing ? 'Kembali ke Ringkasan' : 'Lanjut Trip'}
               </button>
               <button
-                onClick={() => { if (pushVehicle()) setShowModal(false) }}
+                onClick={() => {
+                  if (!pushVehicle()) return
+                  setShowModal(false)
+                  if (isEditing) go('trip-summary')
+                }}
                 className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-medium text-sm"
               >
                 {isEditing ? 'Selesai Ubah' : 'Tambah Lagi'}

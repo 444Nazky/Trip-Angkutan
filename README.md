@@ -18,6 +18,7 @@ Tambahkan screenshot di folder `screenshots/` dan referensi di sini.
 | **Dashboard Home** | Ringkasan user, region, konektivitas, dan trip |
 | **Recording Trip - Angkutan Kosong** | Rute dikunci `SJRE → SBDZ`; wajib keterangan + foto bukti fisik via kamera; auto-capture GPS, waktu, petugas |
 | **Recording Trip - Ada Muatan** | Rute bebas; input kendaraan (plat, golongan, kategori); wajib foto selfie + seluruh kendaraan; loop input multiple kendaraan |
+| **Smart Plate Input Formatting** | Auto-formatting nomor plat Indonesia dengan pattern `[Kode] [Angka] [Seri]`; spasi otomatis saat transisi huruf-angka dan angka-huruf; uppercase real-time; helper text panduan format |
 | **Riwayat Trip** | Histori trip dengan status sinkronisasi |
 | **Sinkronisasi** | Upload otomatis saat online + manual; retry 3x dengan delay 5 detik |
 | **Offline-First** | Data tersimpan lokal menggunakan localStorage/IndexedDB |
@@ -92,7 +93,9 @@ src/
 │       ├── TripCompleteScreen.tsx   # Selesai perjalanan
 │       ├── TripConditionScreen.tsx  # Status Muatan: Kosong vs Ada Muatan
 │       ├── TripSummaryScreen.tsx    # Ringkasan trip (wajib foto kamera sebelum submit)
-│       └── VehicleFormScreen.tsx    # Form kendaraan (plat, OCR scan, jenis, kategori, foto)
+│       └── VehicleFormScreen.tsx    # Form kendaraan (plat + smart formatting, OCR scan, jenis, kategori, foto)
+├── utils/
+│   └── plateFormatter.ts   # Smart auto-formatting nomor plat Indonesia
 ├── services/
 │   ├── api.ts          # Base HTTP client dengan auth interceptor
 │   ├── auth.ts         # Autentikasi (login, token, refreshBackendSession)
