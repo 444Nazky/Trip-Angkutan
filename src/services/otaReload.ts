@@ -16,6 +16,8 @@
 // Tanpa SW (mode web biasa / Capacitor tanpa SW) langkah 1-2 dilewati dan
 // langkah 3-4 tetap memaksa unduhan index.html segar.
 
+import { sleep } from './ota'
+
 const SW_SKIP_MSG = { type: 'SKIP_WAITING' }
 
 /** Versi yang terakhir diterapkan (dibaca dari state OTA) — untuk cache-buster. */
@@ -61,11 +63,6 @@ async function notifyServiceWorker(version?: string): Promise<void> {
   }
 }
 
-/** Beri waktu message SW terproses sebelum navigasi (best-effort). */
-function delay(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms))
-}
-
 /**
  * Reload penuh ke root app setelah bundle baru diaktifkan.
  * `version` opsional; bila tidak diberikan, diambil dari state OTA terakhir.
@@ -73,7 +70,7 @@ function delay(ms: number): Promise<void> {
 export async function hardReloadToNewBundle(version?: string): Promise<void> {
   const target = version ?? appliedCacheBuster()
   await notifyServiceWorker(target || undefined)
-  await delay(150)
+  await sleep(150)
   try { sessionStorage.setItem('trip.ota.hardReload', String(Date.now())) } catch { /* */ }
 
   let url = '/'

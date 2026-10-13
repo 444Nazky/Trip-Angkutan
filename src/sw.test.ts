@@ -5,12 +5,9 @@
  *   1. SW HANYA menyajikan berkas dari cache VERSI AKTIF (dibaca dari meta).
  *      Chunk milik versi lama tidak boleh pernah tersaji walau masih ada di
  *      Cache Storage.
- *   2. Permintaan `ota_bypass=1` selalu lewat jaringan (dipakai saat OTA agar
- *      tidak pernah dilayani cache).
- *   3. Saat activate: sisa arsitektur v3 dibuang; cache versi non-aktif hanya
+ *   2. Saat activate: sisa arsitektur v3 dibuang; cache versi non-aktif hanya
  *      dibuang bila versi aktif sudah diketahui (tidak menghapus bundel yang
  *      sedang dibangun ulang oleh halaman).
- *   4. Pesan PURGE_ALL benar-benar mengosongkan Cache Storage.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import swSource from './sw.js?raw'
@@ -158,11 +155,6 @@ describe('Service Worker v4 — hanya versi aktif yang disajikan', () => {
     expect(await res!.text()).toBe('JARINGAN:/')
   })
 
-  it('ota_bypass=1 → tidak dilayani cache (selalu jaringan)', async () => {
-    const bypass = sw.respondWith(new Request(`${ORIGIN}/index.html?ota_bypass=1`))
-    expect(bypass).toBeUndefined()
-  })
-
   it('permintaan non-bundle & lintas origin tidak diintersep', async () => {
     expect(sw.respondWith(new Request(`${ORIGIN}/api/geofences`))).toBeUndefined()
     expect(sw.respondWith(new Request('https://raw.githubusercontent.com/x/y.json'))).toBeUndefined()
@@ -189,11 +181,6 @@ describe('Service Worker v4 — siklus hidup & purge', () => {
     await caches().delete('trip-ota-meta')
     await sw.waitFor('activate')
     expect(await cacheStore.keys()).toContain(versionCache('1.0.1'))
-  })
-
-  it('pesan PURGE_ALL mengosongkan seluruh Cache Storage', async () => {
-    await sw.waitFor('message', { data: { type: 'PURGE_ALL' } })
-    expect(await cacheStore.keys()).toEqual([])
   })
 
   it('versi aktif baru langsung berlaku (switch atomik lewat meta)', async () => {

@@ -52,7 +52,7 @@
 //   Gagal di langkah mana pun = staging dibuang, versi lama tetap jalan
 //   (fallback aman, tidak pernah setengah-setengah).
 
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Network } from '@capacitor/network'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
@@ -61,10 +61,8 @@ import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
 const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
 
-/** Cache LAMA (v3) — tidak dipakai lagi, hanya dibersihkan saat purge. */
-export const OTA_CACHE = 'trip-ota-active'
 /** Cache penanda: satu berkas `__active__.json` berisi versi aktif (dibaca SW). */
-export const OTA_META_CACHE = 'trip-ota-meta'
+const OTA_META_CACHE = 'trip-ota-meta'
 /** Prefiks cache per versi: `trip-ota-v<versi>`. */
 const VERSION_CACHE_PREFIX = 'trip-ota-v'
 /** Penanda versi aktif di dalam OTA_META_CACHE. */
@@ -176,7 +174,7 @@ function fromBase64(b64: string): Uint8Array {
   return out
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
 
@@ -301,19 +299,38 @@ async function listCaches(): Promise<string[]> {
 }
 
 /**
+ * Apakah nama cache ini milik OTA? Prefiks `trip-ota` mencakup arsitektur v4
+ * (`trip-ota-v<versi>`, `trip-ota-meta`) DAN sisa v3 (`trip-ota-active`,
+ * `trip-ota-complement`). Ini satu-satunya keluarga cache yang dibuat aplikasi
+ * (tidak ada `caches.open()` lain di src/), jadi prefiks ini aman.
+ */
+function isOtaCacheName(name: string): boolean {
+  return name.startsWith('trip-ota')
+}
+
+/**
+ * Hapus cache OTA (Cache Storage) kecuali nama yang ada di `keep`.
+ * Satu tempat untuk aturan "cache mana yang boleh dibuang" — dulu aturan ini
+ * ditulis dua kali (purgeOtherVersions & resetOtaStorage) dan sempat berbeda
+ * perilaku (satu memakai prefiks versi, satu memakai `trip-ota-`).
+ * Cache NON-OTA (milik WebView/aplikasi lain) tidak pernah disentuh.
+ */
+async function deleteOtaCaches(keep: Iterable<string> = []): Promise<void> {
+  const keepSet = new Set(keep)
+  const names = await listCaches()
+  await Promise.all(names.map(async n => {
+    if (keepSet.has(n)) return
+    if (!isOtaCacheName(n)) return
+    try { await caches.delete(n) } catch { /* */ }
+  }))
+}
+
+/**
  * Buang semua sisa versi/arsitektur LAMA, sisakan: cache meta + cache versi
  * yang sedang aktif (kalau ada) + versi staging yang sedang diunduh.
  */
 export async function purgeOtherVersions(keep: string[] = []): Promise<void> {
-  const keepSet = new Set([OTA_META_CACHE, ...keep, ...keep.map(versionCacheName)])
-  const names = await listCaches()
-  await Promise.all(names.map(async n => {
-    if (keepSet.has(n)) return
-    // hanya sentuh cache milik OTA — jangan hapus cache lain milik WebView
-    if (n === OTA_CACHE || n.startsWith(VERSION_CACHE_PREFIX) || n.startsWith('trip-ota-')) {
-      try { await caches.delete(n) } catch { /* */ }
-    }
-  }))
+  await deleteOtaCaches([OTA_META_CACHE, ...keep, ...keep.map(versionCacheName)])
 
   if (!isNative()) return
   // Direktori versi durable yang bukan versi yang disimpan
@@ -355,18 +372,6 @@ async function clearStuckOtaState(): Promise<void> {
 
 // ── Util jaringan ────────────────────────────────────────────────────────────
 
-let _capacitorHttp: any = null
-async function getCapacitorHttp(): Promise<any> {
-  if (_capacitorHttp) return _capacitorHttp
-  try {
-    const core = await import('@capacitor/core')
-    _capacitorHttp = (core as any).CapacitorHttp ?? null
-  } catch {
-    _capacitorHttp = null
-  }
-  return _capacitorHttp
-}
-
 /**
  * HTTP fetch: CapacitorHttp di native (bebas CORS), fetch biasa di web.
  * Semua permintaan OTA memakai `Cache-Control: no-store` + `Pragma: no-cache`
@@ -384,29 +389,21 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
 
   if (isNative()) {
     try {
-      const capHttp = await getCapacitorHttp()
-      if (capHttp) {
-        const response = await capHttp.request({
-          url,
-          method: (mergedOptions.method as string) || 'GET',
-          headers: mergedOptions.headers as Record<string, string>,
-          connectTimeout: 10000,
-        })
-        // Plugin mem-parse badan JSON sendiri (Content-Type application/json);
-        // GitHub raw memakai text/plain sehingga `data` tetap string. Keduanya
-        // harus jadi body Response yang valid — objek di-JSON-kan kembali.
-        const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
-        return new Response(body, {
-          status: response.status,
-          statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
-          headers: new Headers(
-            Object.entries(response.headers || {}).reduce((acc, [k, v]) => {
-              acc[k] = Array.isArray(v) ? v.join(', ') : String(v)
-              return acc
-            }, {} as Record<string, string>),
-          ),
-        })
-      }
+      const response = await CapacitorHttp.request({
+        url,
+        method: (mergedOptions.method as string) || 'GET',
+        headers: mergedOptions.headers as Record<string, string>,
+        connectTimeout: 10000,
+      })
+      // Plugin mem-parse badan JSON sendiri (Content-Type application/json);
+      // GitHub raw memakai text/plain sehingga `data` tetap string. Keduanya
+      // harus jadi body Response yang valid — objek di-JSON-kan kembali.
+      const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      return new Response(body, {
+        status: response.status,
+        statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+        headers: new Headers((response.headers ?? {}) as Record<string, string>),
+      })
     } catch {
       // jatuh ke fetch biasa
     }
@@ -776,12 +773,7 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
  * Setelah ini aplikasi kembali memakai bundle bawaan APK.
  */
 export async function resetOtaStorage(): Promise<void> {
-  const names = await listCaches()
-  await Promise.all(names.map(async n => {
-    if (n === OTA_CACHE || n === OTA_META_CACHE || n.startsWith('trip-ota-')) {
-      try { await caches.delete(n) } catch { /* */ }
-    }
-  }))
+  await deleteOtaCaches()
 
   if (isNative()) {
     for (const [path, directory] of [[OTA_DIR, Directory.Data], [LEGACY_OTA_DIR, Directory.Cache]] as const) {
@@ -835,49 +827,33 @@ export async function auditOta(): Promise<{
   let remoteVersion: string | null = null
   let hasRemoteManifest = false
 
-  // DEV MODE: Skip fetch ke GitHub jika di development (CORS block di localhost)
-  const isDevMode = devModeSkipRemote()
-  if (isDevMode) {
+  // DEV MODE tidak mem-fetch GitHub (CORS di localhost). Tidak ada return awal di
+  // sini: bagian ekor (hitung entri cache versi aktif) sama untuk kedua mode,
+  // dulu blok ini menyalin seluruh ekor fungsi (~30 baris) hanya untuk itu.
+  if (devModeSkipRemote()) {
     console.log('[OTA] DEV MODE: Skip audit fetch dari GitHub (menghindari CORS)')
-
-    let cacheActiveEntries = 0
+  } else {
     try {
-      if (typeof caches !== 'undefined' && meta?.version) {
-        const cache = await caches.open(versionCacheName(meta.version))
-        cacheActiveEntries = (await cache.keys()).length
+      const ac = new AbortController()
+      const timeout = setTimeout(() => ac.abort(), 4000)
+      let res: Response
+      try {
+        // `?t=` juga di sini: tanpa cache-buster, diagnostik bisa melaporkan versi
+        // remote BASI (GitHub raw mengirim cache-control max-age) dan menyembunyikan
+        // rilis yang sebenarnya sudah ada.
+        res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
+      } finally {
+        clearTimeout(timeout)
       }
-    } catch { /* cache tidak tersedia */ }
-
-    return {
-      localVersion,
-      remoteVersion: null,
-      activeMetaVersion: meta?.version ?? null,
-      bundlePersisted: persisted,
-      cacheActiveEntries,
-      hasRemoteManifest: false,
-    }
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.version) {
+          remoteVersion = data.version
+          hasRemoteManifest = true
+        }
+      }
+    } catch { /* offline — bukan blocking */ }
   }
-
-  try {
-    const ac = new AbortController()
-    const timeout = setTimeout(() => ac.abort(), 4000)
-    let res: Response
-    try {
-      // `?t=` juga di sini: tanpa cache-buster, diagnostik bisa melaporkan versi
-      // remote BASI (GitHub raw mengirim cache-control max-age) dan menyembunyikan
-      // rilis yang sebenarnya sudah ada.
-      res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
-    } finally {
-      clearTimeout(timeout)
-    }
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.version) {
-        remoteVersion = data.version
-        hasRemoteManifest = true
-      }
-    }
-  } catch { /* offline — bukan blocking */ }
 
   let cacheActiveEntries = 0
   try {
