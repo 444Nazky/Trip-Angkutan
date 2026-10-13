@@ -1,516 +1,497 @@
-# Trip Angkutan
+# Product Requirements Document (PRD)
+## Aplikasi Trip Angkutan
 
-Aplikasi mobile recording trips dan kendaraan transportasi berbahasa Indonesia, bersifat local-first. Dibangun dengan Ionic/React (frontend mobile), Capacitor (native bridge), dan Node.js/Express (backend API). Admin panel dual: PHP (`admin/`) dan Ionic/Angular build (`admin-ci/`).
-
----
-
-## Screenshots
-
-Tambahkan screenshot di folder `screenshots/` dan referensi di sini.
+**Versi:** 1.0  
+**Tanggal:** 2026-10-13  
+**Status:** DRAFT
 
 ---
 
-## Fitur Utama
+## 1. Overview & Vision
 
-| Modul | Deskripsi |
-|-------|-----------|
-| **Autentikasi PIN** | Login 6 digit dengan identifikasi perangkat unik; perangkat terkunci permanen ke *region* setelah login pertama |
-| **Dashboard Home** | Ringkasan user, region, konektivitas, dan trip |
-| **Recording Trip - Angkutan Kosong** | Rute dikunci `SJRE → SBDZ`; wajib keterangan + foto bukti fisik via kamera; auto-capture GPS, waktu, petugas |
-| **Recording Trip - Ada Muatan** | Rute bebas; input kendaraan (plat, golongan, kategori); wajib foto selfie + seluruh kendaraan; loop input multiple kendaraan |
-| **Riwayat Trip** | Histori trip dengan status sinkronisasi |
-| **Sinkronisasi** | Upload otomatis saat online + manual; retry 3x dengan delay 5 detik |
-| **Offline-First** | Data tersimpan lokal menggunakan localStorage/IndexedDB |
-| **Native Features** | Kamera (photo + OCR plat), GPS, network status via Capacitor |
+**Apa produk ini?**
 
-### Admin Panel (Web)
-| Modul | Deskripsi |
-|-------|-----------|
-| **Dashboard Overview** | Trip terbaru dari server, status koneksi |
-| **Master Tarif** | CRUD golongan (I–V), jenis kendaraan, tarif muatan/kosong, deskripsi; tarif region (Lokal/Eksternal per region) |
-| **Master Plat** | Registrasi plat nomor dengan status (Internal/Lokal/Eksternal) + region asal; konfigurasi tarif terpusat (Internal=0, Lokal=bisa diubah, Eksternal=region) |
-| **Master Petugas** | CRUD petugas per region; PIN 6-digit; status Aktif/Nonaktif; multi-region assignment; sync dari server (server = single source of truth) |
-| **Laporan** | Filter per tanggal, golongan, jenis kendaraan; ringkasan + detail kendaraan per trip; **Export Excel (.xlsx) 2 sheet** |
+Aplikasi Trip Angkutan adalah sistem manajemen perjalanan (trip) untuk petugas lapangan yang mengoperasikan kendaraan ferry/angkut di wilayah perbatasan (Badau, Belitung, Entikong). Sistem ini memungkinkan petugas mencatat muatan, memverifikasi kendaraan, dan mengelola pembayaran tarif — bahkan saat **offline** di daerah terpencil tanpa sinyal.
+
+**Siapa pengguna inti?**
+- **Petugas lapangan**: Menggunakan aplikasi mobile untuk mencatat trip, scan plat, ambil foto, dan submit data tarif.
+- **Admin**: Mengelola master data (tarif, plat kendaraan, petugas, rute, geofence) melalui dashboard web.
+
+**Mengapa produk ini penting?**
+- Petugas lapangan bekerja di area dengan koneksi internet tidak stabil
+- Setiap trip harus tercatat untuk transparansi dan audit
+- Tarif dinamis berdasarkan golongan kendaraan dan kondisi (muatan/kosong)
+- Validasi geofence memastikan kendaraan berada di rute yang benar
 
 ---
 
-## Tech Stack
+## 2. User Stories
 
-| Teknologi | Versi | Fungsi |
-|-----------|--------|---------|
-| React | 18 | Framework utama (frontend mobile) |
-| Ionic Framework | 9 | UI components & mobile-first design |
-| Capacitor | 7 | Akses native features (camera, geolocation) |
-| TypeScript | 5+ | Bahasa pemrograman |
-| RxJS | 7 | Reactive patterns |
-| Vite | 5+ | Build tool |
-| Tailwind CSS | 3 | Utility-first styling |
-| Tesseract.js | 5+ | OCR plat nomor |
-| Zustand/React Context | - | State management (store.tsx) |
-| Express.js | 4+ | Backend API |
-| SQLite/PostgreSQL | - | Database backend |
+### 2.1 Petugas Lapangan (Mobile)
+
+| ID | Sebagai | Saya ingin | Agar |
+|----|---------|-----------|------|
+| US-01 | Petugas | Login dengan PIN 6-digit | Bisa mengakses aplikasi secara aman |
+| US-02 | Petugas | Memilih kondisi trip (kosong/muatan) | Sistem menampilkan input yang sesuai |
+| US-03 | Petugas | Scan nomor plat kendaraan dengan OCR | Input cepat tanpa ketik manual |
+| US-04 | Petugas | Ambil foto bukti kendaraan | Dokumentasi visual untuk audit |
+| US-05 | Petugas | Memilih rute perjalanan | Validasi geofence berjalan |
+| US-06 | Petugas | Submit trip tanpa internet | Data tersimpan lokal, sync kemudian |
+| US-07 | Petugas | Lihat riwayat trip saya | Bisa melacak aktivitas harian |
+| US-08 | Petugas | Dapat notifikasi update aplikasi | Selalu menggunakan versi terbaru |
+
+### 2.2 Admin (Dashboard)
+
+| ID | Sebagai | Saya ingin | Agar |
+|----|---------|-----------|------|
+| US-10 | Admin | Kelola master tarif per golongan | Tarif selalu akurat |
+| US-11 | Admin | Daftarkan kendaraan baru dengan plat | Kendaraan ter-record |
+| US-12 | Admin | Kelola data petugas (CRUD) | Tim terorganisir |
+| US-13 | Admin | Atur titik geofence per rute | Monitoring lokasi akurat |
+| US-14 | Admin | Buat/edit rute perjalanan | Konfigurasi rute flexibel |
+| US-15 | Admin | Lihat laporan trip dengan filter | Analisis data lebih mudah |
+| US-16 | Admin | Export laporan ke Excel | Bisa olah data offline |
 
 ---
 
-## Struktur Proyek
+## 3. Technical Architecture
+
+### 3.1 Sistem Overview
 
 ```
-src/
-├── App.tsx                  # Root component
-├── main.tsx                 # Entry point
-├── index.html               # HTML template
-├── index.css                # Global styles
-├── global.scss              # Global SCSS
-├── global.d.ts              # Type declarations
-├── vite-env.d.ts            # Vite environment types
-├── environments/
-│   ├── environment.ts       # Development config
-│   └── environment.prod.ts  # Production config
-├── theme/
-│   └── variables.scss       # Ionic theme variables
-├── pages/                   # Page components
-│   ├── LoginPage.tsx        # Halaman login
-│   ├── data.ts              # Data statis/mock (ROUTES, tariffData, officerList)
-│   ├── types.ts             # Type definitions (MobileScreen, AdminTab)
-│   ├── store.tsx            # State management (Context + localStorage)
-│   ├── admin/
-│   │   └── AdminDashboard.tsx  # Admin panel (Overview, Tarif, Plat, Petugas, Laporan, Pengaturan)
-│   └── mobile/
-│       ├── MobileApp.tsx            # Wrapper mobile app
-│       ├── MobileShell.tsx          # Shell dengan navigation
-│       ├── HomeScreen.tsx           # Beranda (Mulai Trip, Riwayat, Ganti Petugas)
-│       ├── CameraScreen.tsx         # Kamera OCR plat + foto bukti (HANYA kamera, no gallery)
-│       ├── FloatingBottomNav.tsx    # Bottom navigation
-│       ├── HistoryScreen.tsx        # Riwayat perjalanan
-│       ├── HistoryDetailScreen.tsx  # Detail riwayat
-│       ├── OfficerSwitchScreen.tsx  # Ganti petugas (PIN 6-digit)
-│       ├── PinVerifyScreen.tsx      # Verifikasi PIN
-│       ├── ProfileScreen.tsx        # Profil user
-│       ├── RouteSelectScreen.tsx    # Pilih rute (terkunci SJRE→SBDZ untuk trip kosong)
-│       ├── StatusBar.tsx            # Status bar custom
-│       ├── TripActiveScreen.tsx     # Perjalanan aktif (timer, GPS)
-│       ├── TripCompleteScreen.tsx   # Selesai perjalanan
-│       ├── TripConditionScreen.tsx  # Status Muatan: Kosong vs Ada Muatan
-│       ├── TripSummaryScreen.tsx    # Ringkasan trip (wajib foto kamera sebelum submit)
-│       └── VehicleFormScreen.tsx    # Form kendaraan (plat, OCR scan, jenis, kategori, foto)
-├── services/
-│   ├── api.ts          # Base HTTP client dengan auth interceptor
-│   ├── auth.ts         # Autentikasi (login, token, refreshBackendSession)
-│   ├── ocr.ts          # OCR plat nomor (Tesseract.js)
-│   ├── plates.ts       # Manajemen plat nomor (CRUD + cek status)
-│   ├── regions.ts      # Data wilayah, terminal, rute
-│   ├── sync.ts         # Queue-based background sync (offline/online)
-│   ├── tariffs.ts      # Tarif/biaya perjalanan (master + region)
-│   ├── trips.ts        # CRUD perjalanan (server + local)
-│   ├── officers.ts       # Sync petugas dari server ke lokal
-│   ├── credentialSync.ts  # Sinkronisasi kredensial dari admin dashboard (username/password hash → SQLite/localStorage)
-│   └── xlsx.ts         # Export Excel (SheetJS)
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTEND LAYER                           │
+├──────────────────────┬──────────────────────┬────────────────────┤
+│   MOBILE APP        │   ADMIN DASHBOARD    │   STATIC ASSETS    │
+│   (React+Ionic)     │   (React+Codeigniter)   │   (Icons/Splash)   │
+│   Capacitor 8        │   SheetJS Export     │                    │
+│   Offline-First     │   Multi-tab UI       │                    │
+└──────────┬──────────┴──────────┬───────────┴────────────────────┘
+           │                    │
+           ▼                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         API LAYER                               │
+│   Express.js + SQLite (sql.js) │ JWT Auth (HS256, 24h)        │
+│   Railway Deployment │ Firebase Functions (fallback)             │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      DATA LAYER                                 │
+│   SQLite Database │ Offline Storage (IndexedDB/SQLite/Capacitor)│
+│   OTA Update Storage │ File Uploads                            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Native Android:**
-```
-android/                     # Project Android Studio
-www/                         # Capacitor web build output
-```
+### 3.2 Offline-First Strategy
+
+**Kondisi: Online (saat start/periodik)**
+1. Mobile menarik seluruh data master dari server
+2. Sinkronisasi geofence config terbaru
+3. Upload antrian trip yang belum sync
+
+**Kondisi: Offline (rutinitas petugas)**
+1. Login divalidasi secara lokal (PIN hash tersimpan)
+2. Trip baru disimpan ke storage lokal
+3. Validasi geofence berjalan offline
+4. Foto disimpan ke Capacitor Filesystem
+
+**Kondisi: Kembali Online**
+1. Sinkronisasi data dua arah otomatis
+2. Handle conflict resolution (server wins untuk master data)
+
+### 3.3 OTA Update System
+
+**Problem:** Mobile native (Android APK) menyimpan cache agresif, menyebabkan update sekunder gagal.
+
+**Solusi (PURGE-FIRST FULL-PACKAGE):**
+1. Cek versi dengan anti-cache: `?t=Date.now()` + `Cache-Control: no-cache`
+2. Jika versi baru terdeteksi → auto-purge total:
+   - Hapus seluruh Cache Storage
+   - Hapus direktori OTA di Filesystem
+   - Bersihkan localStorage metadata lama
+3. Download full package baru
+4. Verifikasi integritas SHA-256
+5. Atomic reload WebView
 
 ---
 
-## Prerequisites
+## 4. Feature Specifications
 
-- **Node.js** 22+
-- **npm** (terinstall dengan Node.js)
-- **Android Studio** + SDK 36
-- **JDK** 21+ (untuk build Android)
-- **API Backend** - konfigurasi ada di `src/environments/environment.ts`
-- **Perangkat dengan kamera & GPS** untuk testing native features
+### 4.1 Mobile App Features
 
----
+#### 4.1.1 Authentication
+- **Login**: PIN 6-digit
+- **Region Lock**: Device terkunci ke region pertama login
+- **Session**: JWT 24-hour, refresh on resume
 
-## Instalasi
+#### 4.1.2 Trip Recording
+| Field | Tipe | Validasi | Required |
+|-------|------|----------|----------|
+| Kondisi | Enum (kosong/muatan) | - | Ya |
+| Golongan | Enum (I-V) | Auto dari plat | Ya |
+| Rute | Dropdown | Valid geofence | Ya |
+| Plat Kendaraan | Text/OCR | Terdaftar di master | Ya |
+| Foto Bukti | Image | Kamera capture | Ya |
+| Timestamp | DateTime | Auto | Ya |
 
-```bash
-# Clone repo
-git clone https://github.com/444Nazky/Aplikasi-Trip-Ionic.git
-cd Aplikasi-Trip-Ionic
+**Alur Trip Kosong:**
+1. Pilih kondisi "Kosong"
+2. Pilih rute
+3. Input/plat scan
+4. Ambil foto
+5. Submit → selesai
 
-# Install dependencies
-npm ci
+**Alur Trip Muatan:**
+1. Pilih kondisi "Muatan"
+2. Pilih rute
+3. Input/plat scan
+4. Ambil foto
+5. Opsional: tambah kendaraan lagi (loop)
+6. Swafoto wajib
+7. End Trip
 
-# Setup Capacitor
-npx cap sync android
-```
+#### 4.1.3 OCR License Plate
+- Library: Tesseract.js
+- Fallback: Manual input
+- Format: huruf-angka (pelat Indonesia)
 
----
+#### 4.1.4 Geofencing
+- Per-route: asal → tujuan dengan radius
+- Default radius: 100 meter
+- Validation: GPS location vs geofence points
+- Offline validation supported
 
-## Development
+#### 4.1.5 History
+- List view dengan filter tanggal
+- Detail trip dengan foto
+- Sync status indicator
 
-```bash
-# Start dev server (http://localhost:5173)
-npm start
+### 4.2 Admin Dashboard Features
 
-# Start both frontend + backend together
-./start-dev.sh
+#### 4.2.1 Overview Tab
+- Trip terbaru (real-time)
+- Status koneksi petugas
+- Quick stats
 
-# Start backend separately
-cd backend && npm start
-```
+#### 4.2.2 Master Tarif
+- CRUD golongan (I-V)
+- Tarif per region
+- Override per kondisi (muatan/kosong)
 
-### Backend Development
+#### 4.2.3 Master Plat
+- Registrasi kendaraan baru
+- Status: aktif/nonaktif
+- Histori pemilik
 
-Backend Express.js di folder `backend/`:
-- Port: 3000
-- Database: SQLite (otomatis dibuat)
-- API prefix: `/api`
+#### 4.2.4 Master Petugas
+- CRUD petugas
+- Multi-region assignment
+- Reset PIN
 
-```bash
-cd backend
-npm install
-npm start
-```
+#### 4.2.5 Master Rute
+- CRUD rute (asal → tujuan)
+- Jarak (km)
+- Titik geofence dengan koordinat
+- Auto-extract dari Google Maps link
 
-### Frontend Development
+#### 4.2.6 Geofence Management
+- CRUD titik geofence
+- Latitude/Longitude (auto from Maps)
+- Radius (1-10000 meter, default 100)
+- Rute association
 
-```bash
-# Watch mode untuk development
-npm run watch
+#### 4.2.7 Reports
+- Filter: tanggal, golongan, region, petugas
+- Kolom: Tanggal, Plat, Golongan, Rute, Kondisi, Tarif, Lokasi (Maps link)
+- Export: Excel (SheetJS)
 
-# Lint code
-npm run lint
+### 4.3 Backend API Endpoints
 
-# Unit tests
-npm test
-
-# Type check & build validation
-npm run build
-```
-
----
-
-## Build
-
-```bash
-# Production build (output ke www/)
-npm run build
-
-# Sync ke Android project
-npx cap sync android
-
-# Open di Android Studio
-npx cap open android
-```
-
-### Android
-
-```bash
-# Run langsung ke device/emulator
-npx cap run android
-```
-
-**App ID:** `com.plantation.tripangkut`  
-**Display Name:** `Trip Angkutan`  
-**Package:** `android/` (Android Studio project)
-
----
-
-## Alur Aplikasi Mobile (Petugas Lapangan)
-
-### 1. Inisiasi Awal & Login
-```
-Splash Screen → cek session lokal
-    ↓
-LoginPage → PIN 6-digit + device ID auto-generate
-    ↓
-Perangkat TERKUNCI permanen ke region petugas (mis. BADAU) setelah login pertama
-    ↓
-HomeScreen → "Mulai Trip"
-```
-
-### 2. Pemilihan Kondisi (TripConditionScreen)
-Petugas memilih status kondisi angkutan:
-
-| Kondisi | Perilaku |
-|---------|----------|
-| **Kosong** (Angkutan Kosong) | Rute dikunci **hanya SJRE → SBDZ** (kode `EMPTY_ROUTE_CODE`); wajib isi keterangan; wajib foto bukti fisik via kamera; auto-capture GPS/waktu/petugas; "Simpan Data & Selesai Trip" |
-| **Ada Muatan** | Rute bebas dipilih (semua rute tersedia); lanjut ke form kendaraan |
-
-### 3. Alur "Kosong" (Angkutan Kosong)
-```
-TripConditionScreen (pilih "Kosong")
-    ↓ routeCode = SJRE-SBDZ (locked)
-RouteSelectScreen (rute terkunci, tampil Lock icon)
-    ↓
-TripSummaryScreen → wajib foto kamera (cameraMode: 'photo', cameraFrom: 'trip-summary')
-    ↓ photoTaken = true
-Submit Trip → startTrip() → TripActiveScreen (timer berjalan)
-    ↓
-TripCompleteScreen → "Trip Selesai!" → data tersimpan lokal + sync queue
-```
-
-### 4. Alur "Ada Muatan" (Dengan Muatan)
-```
-TripConditionScreen (pilih "Ada Muatan")
-    ↓
-RouteSelectScreen (semua rute bebas: SJRE-SBDZ, SBDZ-SJRE, SJRE-BDAU, BDAU-SJRE)
-    ↓
-VehicleFormScreen:
-  ├─ Step 1: Input Kendaraan
-  │   ├─ No. Polisi (manual + OCR scan via CameraScreen)
-  │   ├─ Cek Status Plat (internal/lokal/eksternal via API)
-  │   ├─ Jenis Kendaraan (Motor, Mobil, Truck Kecil/Sedang/Besar dari Master Tarif)
-  │   └─ Tombol "Simpan Data Kendaraan" → modal konfirmasi
-  │
-  ├─ Step 2: Detail Informasi Tambahan (muncul setelah plat + jenis terisi)
-  │   ├─ Kategori Kendaraan: Internal / Eksternal (Berganji) / Eksternal (Tanpa Garansi)
-  │   ├─ Foto Bukti: WAJIB via kamera (selfie + seluruh kendaraan)
-  │   └─ Tombol "Simpan Data Kendaraan"
-  │
-  └─ Loop Validasi Perulangan:
-      Sistem tanya: "Apakah ada kendaraan lain yang akan diinput?"
-      ├─ YA → form dibersihkan (plate/type/category reset, foto reset), input kendaraan berikutnya
-      └─ TIDAK → form ditutup → TripSummaryScreen
-```
-
-### 5. Ringkasan & Submit Trip (TripSummaryScreen)
-- Menampilkan: ID Trip (auto-generate TRP-YYYY-NNNN), Rute, Kondisi, Petugas, Tanggal/Jam
-- Daftar kendaraan (plat, jenis, kategori, status plat, foto)
-- **Wajib foto kamera** sebelum submit (tombol "Ambil Foto" → CameraScreen)
-- Tombol "Submit Trip — Mulai Sekarang" (disabled tanpa foto)
-- Tombol "Batal" → reset draft + kembali Home
-
-### 6. Trip Aktif & Selesai
-- **TripActiveScreen**: Timer real-time, GPS tracking, tombol "Selesai Trip"
-- **TripCompleteScreen**: Konfirmasi trip selesai, ringkasan, trigger background sync
-- Data otomatis masuk sync queue → upload ke server saat online
-
-### 7. Keamanan & Perangkat
-- **Penguncian Region**: Device ID di-generate saat login pertama → terkunci permanen ke region petugas tersebut
-- **Ganti Petugas**: OfficerSwitchScreen + PinVerifyScreen (PIN 6-digit unik per petugas)
-- **Verifikasi PIN**: Digunakan untuk pergantian petugas dan validasi keamanan
+| Endpoint | Method | Deskripsi | Auth |
+|----------|--------|-----------|------|
+| `/api/auth/login` | POST | Login petugas | Public |
+| `/api/auth/verify-pin` | POST | Verify PIN | Officer |
+| `/api/trips` | GET | List trips | Officer |
+| `/api/trips` | POST | Create trip | Officer |
+| `/api/trips/:id` | PUT | Update trip | Officer |
+| `/api/plates` | GET | List plates | Officer |
+| `/api/plates` | POST | Create plate | Admin |
+| `/api/plates/:id` | PUT | Update plate | Admin |
+| `/api/plates/:id` | DELETE | Delete plate | Admin |
+| `/api/tariffs` | GET | List tariffs | Officer |
+| `/api/tariffs` | POST | Create tariff | Admin |
+| `/api/tariffs/:id` | PUT | Update tariff | Admin |
+| `/api/officers` | GET | List officers | Admin |
+| `/api/officers` | POST | Create officer | Admin |
+| `/api/officers/my-region` | GET | My region officers | Officer |
+| `/api/officers/:id` | PUT | Update officer | Admin |
+| `/api/regions` | GET | List regions | Public |
+| `/api/routes` | GET | List routes | Officer |
+| `/api/routes` | POST | Create route | Admin |
+| `/api/geofences` | GET | List geofences | Officer |
+| `/api/geofences` | POST | Create geofence | Admin |
+| `/api/geofences/resolve-link` | POST | Parse Maps URL | Admin |
+| `/api/reports/trips` | GET | Trip report | Admin |
+| `/api/config` | GET | App config | Officer |
 
 ---
 
-## Alur Pelaporan Web (Administrasi / Backend)
+## 5. Data Models
 
-### 1. Dashboard Overview
-- Trip terbaru dari server (10 terakhir)
-- Status koneksi server (Online/Offline)
-- Quick refresh
+### 5.1 Database Schema (SQLite)
 
-### 2. Master Tarif (Tab "Master Tarif")
-- **Golongan I–V**: Motor, Mobil, Truck Kecil/Sedang/Besar
-- **Tarif Muatan & Kosong** per golongan (Rp)
-- **Deskripsi** kendaraan
-- CRUD lokal + sync best-effort ke server
-- **Tarif Region (Lokal/Eksternal)**: Konfigurasi per region (bisa Aktif/Nonaktif)
+```sql
+-- Officers
+CREATE TABLE officers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  pin_hash TEXT NOT NULL,
+  region TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
-### 3. Master Plat (Tab "Master Plat")
-- Registrasi nomor plat + pemilik + region asal + status
-- **Status Plat**: `internal` (Rp 0, dikunci), `lokal` (tarif cadangan, bisa diubah), `eksternal` (tarif region pos)
-- Konfigurasi tarif terpusat per region
+-- Regions
+CREATE TABLE regions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL
+);
 
-### 4. Master Petugas (Tab "Petugas")
-- CRUD petugas per region (BADAU, ENTIKONG, dll)
-- **PIN 6-digit unik** per petugas
-- **Status**: Aktif / Nonaktif (mobile menolak login Nonaktif)
-- **Multi-region assignment**: Satu petugas bisa punya akses multiple region
-- **Server = Single Source of Truth**: Data lokal di-merge dengan server saat sync; status/wilayah selalu sinkron
+-- Routes
+CREATE TABLE routes (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  origin TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  distance_km REAL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
-### 5. Laporan (Tab "Laporan")
-- **Filter**: Tanggal trip, Golongan (I–V), Jenis Kendaraan
-- **Rekapitulasi per Tanggal**: Total trip (kosong vs muatan), total kendaraan, total pendapatan → **Export Excel**
-- **Detail per Trip**: No Trip, Waktu, Rute, Petugas, Status Muatan, Kategori, Jumlah Unit, Sub-total
-- **Detail Kendaraan per Trip**: No Polisi, Jenis, Golongan, Kategori, Beban, Tarif
-- **Export Excel (.xlsx)**: 2 sheet — "Laporan Trip" + "Detail Kendaraan"
+-- Geofences
+CREATE TABLE geofences (
+  id TEXT PRIMARY KEY,
+  route_id TEXT REFERENCES routes(id),
+  name TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  radius_meters INTEGER DEFAULT 100,
+  direction TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
----
+-- Vehicles (Plates)
+CREATE TABLE plates (
+  id TEXT PRIMARY KEY,
+  plate_number TEXT UNIQUE NOT NULL,
+  golongan TEXT NOT NULL,
+  owner_name TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
-## Data Lokal (localStorage)
+-- Tariffs
+CREATE TABLE tariffs (
+  id TEXT PRIMARY KEY,
+  golongan TEXT NOT NULL,
+  region_id TEXT REFERENCES regions(id),
+  price_load REAL NOT NULL,
+  price_empty REAL NOT NULL,
+  effective_date TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
-| Key | Keterangan |
-|-----|------------|
-| `trip.trips.v1` | Semua trip dengan nested vehicles (status: pending/synced/failed) |
-| `trip.officerId.v1` | ID petugas aktif |
-| `trip.session.v1` | Login status (boolean) |
-| `trip.userType` | 'admin' \| 'member' |
-| `trip.tariffs.v1` | Cache master tarif offline |
-| `trip.officers.v1` | Cache daftar petugas offline |
-| `trip.auth.officer.v1` | Officer JWT session (auth.ts) |
-
----
-
-## API Endpoints
-
-**Base URL Development:** `http://localhost:3000/api`  
-**Base URL Production:** `https://api.tripangkut.com/api`
-
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/login` | Login officer ID + PIN |
-| POST | `/auth/member-login` | Login petugas username/password → JWT officer |
-| POST | `/auth/admin-login` | Login admin → JWT role admin |
-| GET | `/auth/verify` | Verify JWT token |
-| GET | `/auth/officers/:regionCode` | List officers by region |
-
-### Trips
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET/POST | `/trips` | CRUD trips |
-| GET | `/trips/:id` | Trip detail |
-| POST | `/trips/:tripId/vehicles` | Add vehicle to trip |
-
-### Master Data
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/vehicles` | Data kendaraan |
-| GET/POST/PUT/DELETE | `/tariffs` | CRUD master tarif (admin) |
-| GET/POST/PUT/DELETE | `/region-tariffs` | CRUD tarif region (admin) |
-| GET/POST/PUT/DELETE | `/plates` | CRUD master plat (admin) |
-| GET/POST/PUT/DELETE | `/officers` | CRUD petugas (admin) |
-| GET | `/regions` | Daftar region |
-| GET | `/reports/trips` | Laporan trip (dengan filter) |
-| GET | `/reports/trips/filters` | Opsi filter laporan (golongan, jenis) |
-
-### Authentication
-Backend menggunakan JWT. Login endpoint:
-```json
-POST /auth/login
-Body: { "officerId": 1, "pin": "123456" }
-Response: { "token": "...", "officer": {...} }
-```
-Frontend kirim token di header:
-```
-Authorization: Bearer <token>
+-- Trips
+CREATE TABLE trips (
+  id TEXT PRIMARY KEY,
+  officer_id TEXT REFERENCES officers(id),
+  plate_id TEXT REFERENCES plates(id),
+  route_id TEXT REFERENCES routes(id),
+  condition TEXT NOT NULL,
+  tariff_id TEXT REFERENCES tariffs(id),
+  amount REAL,
+  photo_url TEXT,
+  selfie_url TEXT,
+  latitude REAL,
+  longitude REAL,
+  trip_date TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  sync_status TEXT DEFAULT 'pending'
+);
 ```
 
----
+### 5.2 Local Storage Schema (Mobile)
 
-## Sinkronisasi Data
-
-### Cara Kerja
-1. **Trip dibuat** → data disimpan ke localStorage + ditambahkan ke sync queue (`sync.ts`)
-2. **Sync queue diproses** → HTTP POST ke backend saat:
-   - App di foreground + ada koneksi internet
-   - Tab/browser mendapat fokus (focus event)
-   - Tombol "Sync" ditekan manual
-3. **Retry otomatis** → max 3x dengan delay 5 detik
-4. **Offline mode** → data tetap tersimpan, sync saat online
-
-### Status Sinkronisasi
-- `pending` - Di queue, belum diupload
-- `syncing` - Sedang diupload
-- `synced` - Berhasil diupload ke server
-- `failed` - Gagal setelah max retry
-
-### File Sync Service
-```
-src/services/
-├── api.ts      # HTTP client dengan auth
-├── auth.ts     # Login/logout + token management + refreshBackendSession
-├── sync.ts     # Queue-based background sync
-├── officers.ts # Sync petugas dari server ke lokal
-└── trips.ts    # CRUD trip (server + local)
-```
+| Key | Type | Description |
+|-----|------|-------------|
+| `trip.session.v1` | Object | Current user session |
+| `trip.roster.v1` | Array | Officers list |
+| `trip.plates.v1` | Array | Vehicle plates |
+| `trip.tariffs.v1` | Array | Tariff config |
+| `trip.routes.v1` | Array | Routes |
+| `trip.geofence.config.v1` | Object | Geofence points |
+| `trip.pending.sync` | Array | Unsynced trips |
+| `trip.history.v1` | Array | Trip history cache |
 
 ---
 
-## Region & Rute
+## 6. UI/UX Specifications
 
-### Region Terdaftar
-- **BADAU** (Kode: BDAU)
-- **ENTIKONG** (Kode: ENK)
-- **SIJANGKUNG** (Kode: SJRE)
-- **SABADI** (Kode: SBDZ)
+### 6.1 Mobile Screens
 
-### Rute Tersedia
-| Kode | Asal → Tujuan | Jarak | Durasi |
-|------|---------------|-------|--------|
-| `SJRE-SBDZ` | Sijangkung → Sabadi | 42 km | 1j 10m |
-| `SBDZ-SJRE` | Sabadi → Sijangkung | 42 km | 1j 10m |
-| `SJRE-BDAU` | Sijangkung → Badau | 18 km | 35m |
-| `BDAU-SJRE` | Badau → Sijangkung | 18 km | 35m |
+| Screen | Purpose | Key Components |
+|--------|---------|----------------|
+| LoginScreen | PIN entry | Number pad, region badge |
+| HomeScreen | Main hub | Quick stats, recent trips |
+| TripConditionScreen | Select condition | Toggle: kosong/muatan |
+| RouteSelectScreen | Choose route | List with distance |
+| VehicleFormScreen | Input/plat scan | Camera, OCR, plate input |
+| CameraScreen | Photo capture | Camera viewfinder |
+| TripSummaryScreen | Review before submit | Summary card |
+| HistoryScreen | Past trips | List with status |
+| HistoryDetailScreen | Trip detail | Full info + photos |
+| SettingsScreen | App settings | Profile, sync, update |
+| ProfileScreen | Officer profile | Info + logout |
+| DermagaSelectScreen | Choose dermaga | Region list |
 
-**Trip Kosong**: Hanya `SJRE-SBDZ` (dikunci via `EMPTY_ROUTE_CODE` constant di `TripConditionScreen.tsx:11`)
+### 6.2 Admin Dashboard Tabs
 
----
+| Tab | Purpose |
+|-----|---------|
+| Overview | Real-time stats, recent trips |
+| Tarif | Master tariff CRUD |
+| Plat | Vehicle plate management |
+| Petugas | Officer management |
+| Rute | Route + geofence config |
+| Geofence | Geofence point CRUD |
+| Reports | Report builder + Excel export |
 
-## Master Tarif (Golongan & Jenis Kendaraan)
+### 6.3 Design System
 
-| Golongan | Jenis | Tarif Muatan | Tarif Kosong | Deskripsi |
-|----------|-------|--------------|--------------|-----------|
-| I | Motor | Rp 15.000 | Rp 8.000 | Sepeda motor roda dua |
-| II | Mobil | Rp 45.000 | Rp 20.000 | Mobil penumpang / pickup kecil |
-| III | Truck Kecil | Rp 120.000 | Rp 55.000 | Truck ringan s/d 3 ton |
-| IV | Truck Sedang | Rp 280.000 | Rp 130.000 | Truck sedang 3–8 ton |
-| V | Truck Besar | Rp 450.000 | Rp 200.000 | Truck besar / trailer di atas 8 ton |
+**Mobile (Ionic-style):**
+- Primary: Blue (#007AFF)
+- Secondary: Gray (#8E8E93)
+- Success: Green (#34C759)
+- Danger: Red (#FF3B30)
+- Background: White/Light Gray
+- Text: Black (#000)
 
-**Tarif Region (Lokal/Eksternal)**: Dikonfigurasi per region di Admin Panel → Master Plat → "Konfigurasi Tarif Terpusat"
-
----
-
-## Kategori Kendaraan (Mobile)
-
-| Kategori | Badge | Warna | Keterangan |
-|----------|-------|-------|------------|
-| **Internal** | Internal | Slate 800 | Kendaraan internal plantation |
-| **Eksternal (Berganji)** | Ekst. Berganji | Amber 500 | Kendaraan eksternal dengan tarif/garansi |
-| **Eksternal (Tanpa Garansi)** | Ekst. Tanpa Garansi | Rose 500 | Kendaraan eksternal tanpa tarif/garansi |
-
-*Kategori "Lokal" dihapus/digantikan oleh "Eksternal (Berganji)" & "Eksternal (Tanpa Garansi)" di UI mobile*
-
----
-
-## Status Plat Nomor (OCR + Cek Server)
-
-| Status | Warna | Arti |
-|--------|-------|------|
-| **internal** | Slate 800 | Plat terdaftar internal → Rp 0 |
-| **lokal** | Blue 100/700 | Plat lokal region → tarif lokal |
-| **eksternal** | Amber 100/700 | Plat eksternal → tarif region pos |
+**Admin Dashboard (Tailwind):**
+- Primary: Indigo (#4F46E5)
+- Secondary: Slate (#64748B)
+- Success: Emerald (#10B981)
+- Danger: Red (#EF4444)
+- Background: Slate-50 (#F8FAFC)
+- Cards: White with shadow
 
 ---
 
-## Lisensi
+## 7. Non-Functional Requirements
 
-MIT License
+### 7.1 Performance
+- Mobile cold start: < 3 seconds
+- Offline operation: Full functionality
+- Sync on resume: < 5 seconds when online
+- OCR response: < 2 seconds
 
-# Aplikasi Trip Angkutan
+### 7.2 Security
+- JWT token: 24-hour expiry
+- PIN: Hashed with salt (bcrypt)
+- HTTPS: Mandatory for all API calls
+- Role-based: Admin vs Officer
+- Region lock: Device → first login region
 
-Aplikasi *mobile* pencatatan *trip* dan kendaraan transportasi berbahasa Indonesia yang dirancang dengan sistem *local-first*. Dibangun menggunakan Ionic/React (frontend mobile), Capacitor (native bridge), dan Node.js/Express (backend API). Dilengkapi dengan panel admin ganda (PHP dan Ionic/Angular).
+### 7.3 Reliability
+- Offline-first: No data loss
+- Conflict resolution: Server wins (master data)
+- OTA rollback: Safe fallback on corrupt download
+- Auto-sync: On network restore
 
----
-
-## 🚀 Fitur Utama & Pembaruan Sistem Hak Akses
-
-| Modul | Deskripsi |
-|-------|-----------|
-| **Struktur Wilayah (Generik)** | Sistem pengelolaan berbasis **Region 1** dengan **Dermaga 1** (memuat Rute 1 & 2) dan **Dermaga 2** (memuat Rute 3 & 4). |
-| **Hak Akses Pegawai Standar** | Pembatasan ketat rute dan dermaga sesuai pengaturan admin di *dashboard*; menu di luar izin akses otomatis disembunyikan (*hidden*). |
-| **Fitur Spesial Dual Access ("User 2 Kaki")** | Fitur interaktif untuk pengguna multi-dermaga (contoh: akses ke Dermaga 1 dan Dermaga 2 sekaligus), di mana sistem wajib memunculkan dialog pilihan (*prompt selection*) tempat bertugas setiap kali *login*. |
-| **Autentikasi & Sesi** | Login PIN 6 digit dengan identifikasi perangkat unik; perangkat terkunci permanen ke *region* setelah login pertama. |
-| **Recording Trip - Cepat & Sat-Set** | Prioritas utama langsung jepret foto dokumentasi via kamera (blokir total impor galeri), diikuti input nomor plat, baru detail lainnya menyusul. |
-| **Riwayat & Sinkronisasi** | Histori *trip* lengkap dengan status sinkronisasi *queue-based* (otomatis saat *online* + manual). |
-
----
-
-## 👥 Data Uji Coba (Dummy Accounts)
-
-Konfigurasi akun untuk tahap percobaan (*testing*):
-1. **Budi Santoso**: Region 1, Dermaga 1 (Hanya akses rute Dermaga 1).
-2. **Andi Pratama**: Region 1, Dermaga 2 (Hanya akses rute Dermaga 2).
-3. **Dewi Kusuma (User 2 Kaki / Dual Access)**: Region 1, Dermaga 1 & 2 (Wajib memilih dermaga via *prompt* setiap kali *login*).
+### 7.4 Compatibility
+- Android: 6.0+ (API 23)
+- iOS: 13.0+
+- Browser: Chrome 90+, Firefox 88+, Safari 14+
 
 ---
 
-## 🛠️ Tech Stack
+## 8. Deployment Architecture
 
-| Teknologi | Versi | Fungsi |
-|-----------|--------|---------|
-| React / Ionic | 18 / 9 | Framework utama & UI components (*mobile-first*) |
-| Capacitor | 7 | Akses fitur *native* (kamera eksklusif & geolokasi) |
-| TypeScript / Tailwind | 5+ / 3 | Bahasa pemrograman & *utility-first styling* |
-| Express.js / SQLite | 4+ / - | Backend API dan basis data server |
+| Component | Platform | Branch |
+|-----------|----------|--------|
+| Mobile APK | Google Play / Direct APK | `mobile-trip` |
+| OTA Updates | Raw GitHub CDN | `mobile-trip` |
+| Admin Dashboard | Netlify | `Trip-Dashboard` |
+| Backend API | Railway | `endpoint-trip` |
+| Fallback Functions | Firebase | `endpoint-trip` |
 
 ---
 
-## 📂 Struktur Proyek Utama
+## 9. Testing Strategy
+
+### 9.1 Unit Tests (Vitest)
+- Sync service
+- Auth service
+- OTA update service
+- Local database service
+- Geofence validation
+
+### 9.2 Integration Tests
+- API endpoint tests
+- Offline/online sync flow
+
+### 9.3 E2E Tests (Future)
+- Full trip flow
+- Admin CRUD operations
+
+### 9.4 Manual Testing
+- APK release: sequential OTA updates
+- Offline scenario: Airplane mode testing
+- GPS simulation: Fake location
+
+---
+
+## 10. Open Issues & Backlog
+
+### High Priority
+- [ ] Push `endpoint` to GitHub for Railway auto-deploy
+- [ ] Set `ADMIN_PASSWORD` env var in Railway
+- [ ] Publish OTA update from `mobile-trip` branch
+- [ ] Deploy backend latest to production
+
+### Medium Priority
+- [ ] E2E test suite implementation
+- [ ] Push notification for sync completion
+- [ ] Trip edit capability (admin)
+
+### Low Priority
+- [ ] iOS build setup
+- [ ] Dark mode support
+- [ ] Multi-language (Bahasa Indonesia only now)
+
+---
+
+## 11. Glossary
+
+| Term | Definition |
+|------|------------|
+| Trip | Satu perjalanan kendaraan dari dermaga asal ke tujuan |
+| Golongan | Kategori kendaraan (I-V) berdasarkan ukuran |
+| Dermaga | Port/terminal keberangkatan |
+| Geofence | Area virtual berbasis GPS untuk validasi lokasi |
+| OTA | Over-The-Air: update aplikasi via internet |
+| Officer | Petugas lapangan yang mengoperasikan aplikasi |
+| PIN | 6-digit passcode untuk login |
+| Region | Wilayah operasional (Badau, Belitung, Entikong) |
+
+---
+
+## 12. Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2026-10-13 | Claude | Initial PRD |
+
+---
+
+*Document ini adalah living document dan akan diperbarui sesuai perkembangan proyek.*
