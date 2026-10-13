@@ -4,6 +4,7 @@
 
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
+import { isDevMode } from './runtimeEnv'
 
 // ── DEV MODE: Fallback Mock Location ─────────────────────────────────────────
 // Koordinat Dermaga 1 Badau — HANYA untuk testing di VS Code Browser/WebView.
