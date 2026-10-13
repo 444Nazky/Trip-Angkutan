@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, MapPinOff, Ruler, Clock, Anchor, Lock } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, MapPinOff, Ruler, Clock, Anchor, Lock, RefreshCw } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
-import { getActiveGeofenceSnapshot, type GeofencePoint } from '../../services/geofence'
+import {
+  getActiveGeofenceSnapshot,
+  forceSyncGeofencesFromBackend,
+  GEOFENCE_UPDATED_EVENT,
+  type GeofencePoint,
+} from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -47,35 +52,108 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
   const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked'>('checking')
   const [geoReason, setGeoReason] = useState<string | null>(null)
+  /** Blokir karena KONFIGURASI belum ada (bukan karena lokasi) → tawarkan sync. */
+  const [configMissing, setConfigMissing] = useState(false)
+  const [syncingGeo, setSyncingGeo] = useState(false)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    const run = () => {
-      void getActiveGeofenceSnapshot().then(result => {
-        if (!alive) return
-        if (result.valid && result.activePoint) {
-          setActiveGeofence(result.activePoint)
-          setGeoStatus('inside')
-          setGeoReason(null)
-        } else {
-          // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
-          setActiveGeofence(null)
-          setGeoStatus('blocked')
-          setGeoReason(result.reason ?? 'Di luar Area Geofence Resmi')
-        }
-      })
+
+    const evaluate = async (): Promise<void> => {
+      const result = await getActiveGeofenceSnapshot()
+      if (!alive) return
+      if (result.valid && result.activePoint) {
+        setActiveGeofence(result.activePoint)
+        setGeoStatus('inside')
+        setGeoReason(null)
+        setConfigMissing(false)
+        setSyncNote(null)
+      } else {
+        // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
+        setActiveGeofence(null)
+        setGeoStatus('blocked')
+        setGeoReason(result.reason ?? 'Di luar Area Geofence Resmi')
+        setConfigMissing(result.configMissing === true)
+      }
     }
-    run()
-    const timer = window.setInterval(run, 15000)
-    window.addEventListener('focus', run)
-    window.addEventListener('online', run)
+
+    /**
+     * Self-heal: konfigurasi kosong = masalah SINKRONISASI (bukan lokasi).
+     * Tarik sekali dari Master Rute admin, lalu nilai ulang — petugas tidak
+     * perlu tahu-menahu soal cache/token dan tidak dituduh "di luar area".
+     */
+    const evaluateWithSelfHeal = async (): Promise<void> => {
+      const first = await getActiveGeofenceSnapshot()
+      if (!alive) return
+      if (first.valid || !first.configMissing) { void evaluate(); return }
+
+      setSyncingGeo(true)
+      const sync = await forceSyncGeofencesFromBackend()
+      if (!alive) return
+      setSyncingGeo(false)
+      if (sync.ok && sync.count > 0) {
+        await evaluate()
+        return
+      }
+      setActiveGeofence(null)
+      setGeoStatus('blocked')
+      setConfigMissing(true)
+      setGeoReason(
+        sync.reason === 'unauthorized'
+          ? 'Sesi ke server belum siap — hubungi admin untuk mendaftarkan titik lokasi Master Rute.'
+          : sync.reason === 'empty'
+            ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
+            : 'Konfigurasi geofence belum tersimpan dan server tidak terjangkau — sambungkan ke jaringan lalu tekan Sinkronkan.',
+      )
+    }
+
+    void evaluateWithSelfHeal()
+    const timer = window.setInterval(() => { void evaluate() }, 15000)
+    const onFocus = () => { void evaluate() }
+    const onOnline = () => { void evaluateWithSelfHeal() }
+    const onGeofenceUpdated = () => { void evaluate() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    window.addEventListener(GEOFENCE_UPDATED_EVENT, onGeofenceUpdated)
     return () => {
       alive = false
       window.clearInterval(timer)
-      window.removeEventListener('focus', run)
-      window.removeEventListener('online', run)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener(GEOFENCE_UPDATED_EVENT, onGeofenceUpdated)
     }
   }, [])
+
+  /** Tombol fallback: tarik konfigurasi terbaru dari Admin lalu nilai ulang. */
+  const handleSyncGeofence = async () => {
+    setSyncingGeo(true)
+    setSyncNote(null)
+    const sync = await forceSyncGeofencesFromBackend()
+    const snap = await getActiveGeofenceSnapshot()
+    setSyncingGeo(false)
+    if (snap.valid && snap.activePoint) {
+      setActiveGeofence(snap.activePoint)
+      setGeoStatus('inside')
+      setGeoReason(null)
+      setConfigMissing(false)
+      setSyncNote(`Konfigurasi terbaru diterima (${sync.count} titik)`)
+      return
+    }
+    setActiveGeofence(null)
+    setGeoStatus('blocked')
+    setConfigMissing(snap.configMissing === true)
+    setGeoReason(snap.reason ?? 'Di luar Area Geofence Resmi')
+    setSyncNote(
+      sync.reason === 'empty'
+        ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin.'
+        : sync.reason === 'unauthorized'
+          ? 'Sesi server belum siap — coba lagi setelah beberapa detik.'
+          : sync.ok
+            ? 'Konfigurasi sudah terbaru, tetapi lokasi Anda masih di luar area.'
+            : 'Gagal menghubungi server — periksa jaringan.',
+    )
+  }
 
   // GATE: rute DISEMBUNYIKAN sampai GPS berhasil memeriksa titik geofence.
   // - 'checking' → daftar kosong (user hanya melihat spinner status)
@@ -158,12 +236,30 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
       )}
       {geoStatus === 'blocked' && (
-        <div className="rounded-xl bg-red-50 border border-red-300 p-3 mb-3 flex items-start gap-2">
-          <MapPinOff size={14} className="text-red-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-[12px] font-bold text-red-700">Di luar Area Geofence Resmi</p>
-            <p className="text-[11px] text-red-600">{geoReason ?? 'Seluruh pilihan trayek terkunci'} — pindah ke dermaga resmi untuk input trip.</p>
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 mb-3">
+          <div className="flex items-start gap-2">
+            <MapPinOff size={14} className="shrink-0 mt-0.5 text-red-600" />
+            <div className="flex-1">
+              <p className="text-[12px] font-bold text-red-700">
+                Di luar Area Geofence Resmi
+              </p>
+              <p className="text-[11px] text-red-600">
+                {configMissing
+                  ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
+                  : `${geoReason ?? 'Seluruh pilihan trayek terkunci'} — pindah ke dermaga resmi untuk input trip.`
+                }
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => void handleSyncGeofence()}
+            disabled={syncingGeo}
+            className="mt-2 w-full py-2 rounded-lg bg-white/80 border border-red-300 text-[11px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all"
+          >
+            <RefreshCw size={12} className={syncingGeo ? 'animate-spin' : ''} />
+            {syncingGeo ? 'Menarik konfigurasi…' : configMissing ? 'Sinkronkan dari Admin' : 'Periksa Ulang Lokasi'}
+          </button>
+          {syncNote && <p className="text-[10px] text-red-600 mt-1.5 text-center font-medium">{syncNote}</p>}
         </div>
       )}
 

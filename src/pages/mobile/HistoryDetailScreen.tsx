@@ -138,7 +138,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 <div className="flex items-center gap-3">
                   {v.photoUrl ? (
                     <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
-                      <img src={v.photoUrl} alt={`Foto ${label}`} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                      <img src={v.photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
                     </button>
                   ) : (
                     <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
@@ -261,7 +261,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 onClick={() => setPreview(p)}
                 className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 text-left active:scale-[0.98] transition-transform"
               >
-                <img src={p.url} alt={p.label} className="w-full h-28 object-cover" />
+                <img src={p.url} alt={p.label} loading="lazy" decoding="async" className="w-full h-28 object-cover" />
                 <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5">
                   <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
                 </span>

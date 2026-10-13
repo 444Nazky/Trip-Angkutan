@@ -5,12 +5,28 @@
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
 
-// ── TIDAK ADA mock location ──────────────────────────────────────────────────
-// Sebelumnya ada DEV_MODE_FALLBACK ke koordinat Badau Dermaga 1 yang dipakai
-// setiap kali GPS gagal/izin ditolak. Efeknya berbahaya: petugas di region mana
-// pun yang GPS-nya mati akan "terlihat" berada di Badau sehingga lolos validasi
-// geofence. GPS gagal = lokasi TIDAK TERVERIFIKASI (return null) → rute tetap
-// tersembunyi dan input trip diblokir, sesuai kebijakan strict.
+// ── DEV MODE: Fallback Mock Location ─────────────────────────────────────────
+// Koordinat Dermaga 1 Badau — HANYA untuk testing di VS Code Browser/WebView.
+// IMPORTANT: import.meta.env.DEV adalah TRUE hanya saat ionic serve (dev build).
+// Saat build production, import.meta.env.DEV = FALSE, jadi fallback ini TIDAK aktif.
+const DEV_MODE_FALLBACK_LAT = -6.1891005
+const DEV_MODE_FALLBACK_LON = 106.8371641
+const DEV_MODE_FALLBACK_ACCURACY = 5 // Simulasi GPS akurat 5 meter
+
+/**
+ * Bolehkah mock location DEV dipakai?
+ * • `import.meta.env.DEV` harus true (build produksi → false / env tidak ada).
+ * • `import.meta.env.MODE` juga harus 'development' (atau tidak terdefinisi):
+ *   – 'test' (vitest) → DIMATI, supaya tes mengukur jalur produksi yang asli
+ *     (pemanggilan GPS native + kebijakan blokir), bukan mock location.
+ *   – 'production'    → mati otomatis lewat syarat DEV.
+ */
+function devMockLocationAllowed(): boolean {
+  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
+  if (!env?.DEV) return false
+  if (env.MODE && env.MODE !== 'development') return false
+  return true
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +67,14 @@ export interface ValidationResult {
   distanceMeters?: number
   /** Akurasi GPS terakhir dalam meter (null bila tidak diketahui) */
   accuracyMeters?: number | null
+  /**
+   * true → penyebab blokir adalah KONFIGURASI yang belum ada di perangkat
+   * (belum pernah sync / sync gagal), bukan lokasi petugas di luar area.
+   * UI memakai ini untuk menawarkan tombol "Sinkronkan Ulang" alih-alih
+   * menyuruh petugas berpindah lokasi. Setelah `syncGeofencesFromBackend()`
+   * berhasil, kasus ini hilang dengan sendirinya.
+   */
+  configMissing?: boolean
 }
 
 // ── Storage Key ──────────────────────────────────────────────────────────────
@@ -92,9 +116,37 @@ export function getStoredGeofencePoints(): GeofencePoint[] {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed
+    return parsed.map(normalizeStoredPoint).filter((p): p is GeofencePoint => p !== null)
   } catch {
     return []
+  }
+}
+
+/**
+ * Normalisasi titik dari localStorage (termasuk payload lama / separuh field
+ * hasil cache versi sebelumnya) agar `enabled`/`radiusMeters`/`allowedRoutes`
+ * selalu punya nilai benar. Tanpa ini, titik cache lama yang belum memiliki
+ * `enabled` akan dianggap NONAKTIF oleh findActiveGeofencePoint → petugas
+ * terblokir padahal konfigurasinya ada.
+ */
+function normalizeStoredPoint(value: unknown): GeofencePoint | null {
+  if (!value || typeof value !== 'object') return null
+  const p = value as Partial<GeofencePoint>
+  const latitude = Number(p.latitude)
+  const longitude = Number(p.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null
+  const radius = Number(p.radiusMeters)
+  return {
+    id: String(p.id ?? ''),
+    name: String(p.name ?? 'Titik Geofence'),
+    dermagaId: p.dermagaId,
+    latitude,
+    longitude,
+    radiusMeters: Number.isFinite(radius) && radius > 0 ? radius : 100,
+    allowedRoutes: toStringArray(p.allowedRoutes as string[] | string | undefined),
+    enabled: p.enabled !== false,
+    strictEnforceOutsideArea: p.strictEnforceOutsideArea !== false,
   }
 }
 
@@ -140,27 +192,115 @@ export function isValidGeofencePoint(point: Partial<GeofencePoint>): string[] {
 
 
 
-export async function getCurrentPosition(): Promise<{ lat: number; lon: number; accuracy?: number | null } | null> {
+// ── IMPLEMENTASI MENTAH (diawali requestGpsFix) ──────────────────────────────
+// Pembungkus ber-cache ada DI BAWAH fungsi ini: lihat getCurrentPosition().
+async function requestGpsFix(): Promise<GpsFix | null> {
+  // ── DEV MODE: Fallback Mock Location ─────────────────────────────────────
+  // HANYA aktif saat import.meta.env.DEV === true (ionic serve / dev build).
+  // Production build: DEV = false, fallback ini TIDAK pernah aktif.
+  if (devMockLocationAllowed()) {
+    console.log('[geofence] DEV MODE: Menggunakan fallback mock location Dermaga 1')
+    return {
+      lat: DEV_MODE_FALLBACK_LAT,
+      lon: DEV_MODE_FALLBACK_LON,
+      accuracy: DEV_MODE_FALLBACK_ACCURACY,
+    }
+  }
+
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 3000,
+      timeout: GPS_TIMEOUT_MS,
+      maximumAge: FIX_MAX_AGE_MS,
     })
-    if (!pos?.coords) return null
+    if (!pos?.coords) {
+      // ── GPS gagal → DEV fallback jika DEV mode ─────────────────────────
+      if (devMockLocationAllowed()) {
+        console.log('[geofence] GPS gagal → DEV MODE fallback ke Dermaga 1')
+        return {
+          lat: DEV_MODE_FALLBACK_LAT,
+          lon: DEV_MODE_FALLBACK_LON,
+          accuracy: DEV_MODE_FALLBACK_ACCURACY,
+        }
+      }
+      return null
+    }
     return {
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
       accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
     }
   } catch (err) {
-    // GPS gagal / izin ditolak / timeout → null (lokasi tidak terverifikasi).
-    // Jangan pernah mengembalikan koordinat hardcoded apa pun.
     console.warn('[geofence] Gagal mendapatkan posisi GPS:', err)
+    // ── Error GPS (izin ditolak/timeout) → DEV fallback jika DEV mode ───
+    // VS Code Simple Browser sering menolak/timeout izin GPS
+    if (devMockLocationAllowed()) {
+      console.log('[geofence] GPS error → DEV MODE fallback ke Dermaga 1')
+      return {
+        lat: DEV_MODE_FALLBACK_LAT,
+        lon: DEV_MODE_FALLBACK_LON,
+        accuracy: DEV_MODE_FALLBACK_ACCURACY,
+      }
+    }
     return null
   }
 }
 
+
+export interface GpsFix {
+  lat: number
+  lon: number
+  accuracy?: number | null
+}
+
+// ── Fix GPS ber-DEDO & ber-CACHE (performa pemindaian geofence) ──────────────
+// Pemeriksaan geofence dipanggil dari banyak tempat: layar Pilih Rute (mount +
+// tiap 15 dtk + focus + online), Ringkasan Trip (tiap 20 dtk), Konfigurasi
+// Geofence, plus self-heal setelah sync. Tanpa penggabungan, tiap pemicu
+// membuka sesi GPS sendiri-sendiri — penerima GNSS harus bangun dulu (bisa
+// 1–10 dtk), jadi banner "Memeriksa lokasi" menggantung dan beberapa permintaan
+// berjalan paralel. Tiga penghematan TANPA mengubah kebijakan akurasi (tetap fix
+// presisi, tetap timeout 10 dtk):
+//   1. PANGGILAN BERSAMAAN berbagi SATU promise → cuma satu sesi GPS.
+//   2. FIX LEBIH MUDA DARI FIX_FRESH_MS dipakai ulang → event focus/online &
+//      jendela self-heal instan; interval 15 dtk tetap mendeteksi gerak.
+//   3. maximumAge dilonggarkan → Android boleh memakai fix GPS terakhir tanpa
+//      menghidupkan penerima lagi.
+const FIX_FRESH_MS = 12_000
+const FIX_MAX_AGE_MS = 8_000
+const GPS_TIMEOUT_MS = 10_000
+
+let cachedFix: { value: GpsFix; at: number } | null = null
+let inFlightFix: Promise<GpsFix | null> | null = null
+
+/**
+ * Buang fix tersimpan — dipakai tes & kasus yang butuh hasil benar-benar baru
+ * (mis. tombol periksa ulang) tanpa menunggu jendela freshness.
+ */
+export function resetGpsFixCache(): void {
+  cachedFix = null
+}
+
+/**
+ * Ambil posisi GPS (API publik — dipanggil snapshot/rute/ringkasan).
+ * • fix muda (< 12 dtk) → kembalikan cache, TANPA sesi GPS;
+ * • permintaan paralel → berbagi satu promise (dedup);
+ * • kegagalan tidak di-cache, jadi retry petugas tetap langsung menembak GPS.
+ */
+export async function getCurrentPosition(): Promise<GpsFix | null> {
+  if (cachedFix && Date.now() - cachedFix.at < FIX_FRESH_MS) return cachedFix.value
+  if (inFlightFix) return inFlightFix
+
+  const pending = requestGpsFix()
+    .then((fix) => {
+      if (fix) cachedFix = { value: fix, at: Date.now() }
+      return fix
+    })
+    .finally(() => { inFlightFix = null })
+
+  inFlightFix = pending
+  return pending
+}
 
 export function findActiveGeofencePoint(
   position: { lat: number; lon: number },
@@ -202,6 +342,7 @@ export async function validateRouteForCurrentLocation(
     return {
       valid: false,
       blocked: true,
+      configMissing: true,
       reason: 'Geofence belum dikonfigurasi admin (Master Rute) — input trip diblokir sampai titik lokasi didaftarkan',
     }
   }
@@ -287,7 +428,22 @@ export async function validateRouteForCurrentLocation(
 // ── Backend Sync ──────────────────────────────────────────────────────────
 
 const GEOFENCE_SYNC_KEY = 'trip.geofence.lastSync'
-const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000 // 15 menit
+const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000 // 15 menit (dilewati bila force)
+
+/**
+ * Event yang dipancarkan setiap kali daftar titik geofence BERUBAH hasil sync.
+ * Layar yang sedang terbuka (mis. Pilih Rute) mendengarkannya untuk menilai
+ * ulang lokasi tanpa perlu restart aplikasi.
+ */
+export const GEOFENCE_UPDATED_EVENT = 'trip:geofence-updated'
+
+export interface GeofenceSyncResult {
+  ok: boolean
+  /** Jumlah titik geofence yang tersimpan di perangkat setelah sync. */
+  count: number
+  /** `unauthorized` = sesi backend belum siap/kedaluwarsa · `empty` = server memang belum punya titik. */
+  reason: 'ok' | 'cached' | 'empty' | 'unauthorized' | 'network'
+}
 
 /**
  * Kontrak respons ACTUAL dari GET /api/geofences (endpoint backend geofences.js):
@@ -335,25 +491,43 @@ function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
 }
 
 /**
- * Sinkronkan titik geofence dari backend ke lokal.
- * Coba endpoint `/geofences/config` terlebih dahulu (Admin Dashboard),
- * fallback ke `/geofences/sync` jika tidak tersedia.
- * Dipanggil saat start app dan saat admin memperbarui konfigurasi.
+ * Sinkronkan titik geofence dari backend ke lokal (GET /api/geofences).
+ *
+ * KAPAN DIPANGGIL (semua jalur harus ada, kalau tidak petugas terkunci):
+ *   • tepat setelah sesi backend siap / selesai login (token sudah terpasang),
+ *   • saat koneksi pulih & saat aplikasi kembali ke depan (syncOnResume),
+ *   • saat layar Pilih Rute menemukan konfigurasi kosong (self-heal),
+ *   • tombol "Tarik dari Server Admin" di Pengaturan Geofence.
+ *
+ * PENTING: endpoint ini ber-`authenticate`. Memanggilnya SEBELUM token ada
+ * hanya menghasilkan 401 — itulah sebabnya dulu perangkat yang baru dibuka
+ * selalu "Geofence belum dikonfigurasi admin" sampai app di-resume.
+ *
+ * @param opts.force true → abaikan cooldown (dipakai setelah login & manual).
  */
-export async function syncGeofencesFromBackend(): Promise<void> {
-  // Cek cooldown
-  try {
-    const lastSync = Number(localStorage.getItem(GEOFENCE_SYNC_KEY) || 0)
-    if (Date.now() - lastSync < GEOFENCE_SYNC_INTERVAL) return
-  } catch { /* */ }
+export async function syncGeofencesFromBackend(opts: { force?: boolean } = {}): Promise<GeofenceSyncResult> {
+  const cachedCount = () => getStoredGeofencePoints().length
+
+  // Cooldown hanya untuk siklus otomatis; jalur force (login/pulih/manual) bebas.
+  if (!opts.force) {
+    try {
+      const lastSync = Number(localStorage.getItem(GEOFENCE_SYNC_KEY) || 0)
+      if (Date.now() - lastSync < GEOFENCE_SYNC_INTERVAL) {
+        return { ok: true, count: cachedCount(), reason: 'cached' }
+      }
+    } catch { /* storage tidak tersedia */ }
+  }
 
   try {
-    // Endpoint sebenarnya: GET /api/geofences → array rule hasil CRUD Master Rute
-    // (versi lama menembak /geofences/config & /geofences/sync yang TIDAK ADA di
-    // backend, sehingga sync selalu gagal diam-diam dan app terpaksa memakai
-    // titik hardcoded Badau. Sekarang endpoint benar + mapping field benar.)
     const result = await api.get<BackendGeofence[]>('/geofences')
-    if (!result.ok || !Array.isArray(result.data)) return
+    if (!result.ok || !Array.isArray(result.data)) {
+      // 401 = token belum siap/kedaluwarsa → pemanggil boleh mencoba lagi nanti
+      return {
+        ok: false,
+        count: cachedCount(),
+        reason: result.error?.code === '401' ? 'unauthorized' : 'network',
+      }
+    }
 
     const points = result.data
       .map(mapBackendToGeofence)
@@ -362,27 +536,33 @@ export async function syncGeofencesFromBackend(): Promise<void> {
     if (points.length === 0) {
       // Backend belum punya titik: JANGAN pakai default/hardcoded, dan jangan
       // hapus cache lama (offline-first) — cukup tandai sudah sync.
-      localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
-      return
+      try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* */ }
+      return { ok: true, count: cachedCount(), reason: 'empty' }
     }
 
+    const before = JSON.stringify(getStoredGeofencePoints())
     saveGeofencePoints(points)
-    localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now()))
+    try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* */ }
+
+    // Beri tahu layar yang terbuka bahwa konfigurasi berubah → nilai ulang lokasi.
+    if (before !== JSON.stringify(points)) {
+      try {
+        window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: points.length } }))
+      } catch { /* non-browser */ }
+    }
+    return { ok: true, count: points.length, reason: 'ok' }
   } catch {
     // Offline — pakai cache lokal (sudah ada di getStoredGeofencePoints)
+    return { ok: false, count: cachedCount(), reason: 'network' }
   }
 }
 
 /**
  * Paksa sinkronisasi geofence dari backend, abaikan cooldown.
- * Berguna saat admin explicitly push update geofence.
+ * Dipakai setelah login/sesi siap, saat koneksi pulih, dan tombol manual admin.
  */
-export async function forceSyncGeofencesFromBackend(): Promise<void> {
-  // Reset cooldown
-  try {
-    localStorage.removeItem(GEOFENCE_SYNC_KEY)
-  } catch { /* */ }
-  await syncGeofencesFromBackend()
+export async function forceSyncGeofencesFromBackend(): Promise<GeofenceSyncResult> {
+  return syncGeofencesFromBackend({ force: true })
 }
 
 // ── Baca posisi aktif + titik geofence untuk UI dashboard ─────────────────
@@ -400,7 +580,8 @@ export async function getActiveGeofenceSnapshot(
     return {
       valid: false,
       blocked: true,
-      reason: 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi',
+      configMissing: true,
+      reason: 'Belum ada titik geofence tersimpan di perangkat ini — tarik konfigurasi terbaru dari Admin (Master Rute)',
     }
   }
 

@@ -99,8 +99,12 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   if (!backendOfficers.length) return []
   const mobileOfficers = backendOfficers.map(toMobileOfficer)
 
-  if (backendOfficers.some(o => o.is_active && !o.pin_hash)) {
-    throw new Error('Server tidak mengirim hash PIN petugas aktif')
+  // Peringatan graceful: jika server tidak mengirim pin_hash untuk sebagian officer aktif,
+  // tetap proses officer tersebut (tanpa PIN) dan log warning saja.
+  // Jangan throw error karena itu akan memblokir sinkronisasi seluruhnya.
+  const missingPinHash = backendOfficers.filter(o => o.is_active && !o.pin_hash)
+  if (missingPinHash.length > 0) {
+    console.warn(`[officers] ${missingPinHash.length} petugas aktif tanpa pin_hash dari server: ${missingPinHash.map(o => o.name || o.id).join(', ')}`)
   }
 
   await saveOfficers(mobileOfficers.map((o, i) => ({

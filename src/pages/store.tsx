@@ -5,6 +5,7 @@ import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, re
 import { api } from '../services/api'
 import { dbAll, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
+import { forceSyncGeofencesFromBackend } from '../services/geofence'
 import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
@@ -747,10 +748,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // terkirim (services/sync), daftar petugas juga ditarik ulang — aktif/nonaktif
   // & pemindahan region dari dashboard admin langsung sinkron real-time.
   useEffect(() => {
-    const onOnline = () => { void refreshOfficers(true) }
+    // Tarik master data yang butuh otorisasi (roster admin + konfigurasi
+    // geofence Master Rute). Keduanya WAJIB dijalankan setelah token siap:
+    // GET /api/geofences ber-`authenticate`, jadi percobaan sebelum login hanya
+    // menghasilkan 401 dan perangkat tampak "geofence belum dikonfigurasi".
+    const pullAuthorizedMasterData = () => {
+      void refreshOfficers(true)
+      void forceSyncGeofencesFromBackend()
+    }
+    const onOnline = () => pullAuthorizedMasterData()
     // Sesi backend ditanam di LATAR BELAKANG setelah login lokal (offline-first)
-    // → begitu JWT siap, tarik roster admin (penambahan/penonaktifan petugas).
-    const onSessionReady = () => { void refreshOfficers(true) }
+    // → begitu JWT siap, tarik roster + geofence terbaru dari admin.
+    const onSessionReady = () => pullAuthorizedMasterData()
     window.addEventListener('online', onOnline)
     window.addEventListener(SESSION_READY_EVENT, onSessionReady)
     return () => {

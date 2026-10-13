@@ -420,7 +420,26 @@ type ManifestResult =
  * apa pun (WebView, Fastly/GitHub raw) tidak bisa menyajikan version.json basi
  * — penyebab utama update sekunder tidak terdeteksi.
  */
+/**
+ * DEV mode yang sah untuk memotong jaringan GitHub (CORS di localhost).
+ * Sama seperti di services/geofence.ts: harus DEV=true DAN MODE='development'.
+ * Vitest menyetel DEV=true dengan MODE='test' → jalur ini TIDAK boleh aktif,
+ * kalau tidak semua tes siklus rilis (V1→V2→V3) buntu di "manifest not-found".
+ */
+function devModeSkipRemote(): boolean {
+  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
+  if (!env?.DEV) return false
+  if (env.MODE && env.MODE !== 'development') return false
+  return true
+}
+
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
+  // DEV MODE: Skip fetch ke GitHub jika di development (CORS block di localhost)
+  if (devModeSkipRemote()) {
+    console.log('[OTA] DEV MODE: Skip fetch manifest dari GitHub (menghindari CORS)')
+    return { ok: false, reason: 'not-found' }
+  }
+
   let res: Response | null = null
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -749,6 +768,29 @@ export async function auditOta(): Promise<{
   const meta = await readActiveMeta()
   let remoteVersion: string | null = null
   let hasRemoteManifest = false
+
+  // DEV MODE: Skip fetch ke GitHub jika di development (CORS block di localhost)
+  const isDevMode = devModeSkipRemote()
+  if (isDevMode) {
+    console.log('[OTA] DEV MODE: Skip audit fetch dari GitHub (menghindari CORS)')
+
+    let cacheActiveEntries = 0
+    try {
+      if (typeof caches !== 'undefined' && meta?.version) {
+        const cache = await caches.open(versionCacheName(meta.version))
+        cacheActiveEntries = (await cache.keys()).length
+      }
+    } catch { /* cache tidak tersedia */ }
+
+    return {
+      localVersion,
+      remoteVersion: null,
+      activeMetaVersion: meta?.version ?? null,
+      bundlePersisted: persisted,
+      cacheActiveEntries,
+      hasRemoteManifest: false,
+    }
+  }
 
   try {
     const ac = new AbortController()

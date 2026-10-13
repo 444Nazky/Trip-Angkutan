@@ -134,9 +134,19 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setSyncNote(null)
     try {
-      await forceSyncGeofencesFromBackend()
+      const result = await forceSyncGeofencesFromBackend()
       setPoints(getStoredGeofencePoints())
-      setSyncNote('Konfigurasi terbaru berhasil ditarik dari server admin')
+      // Laporkan hasil SEBENARNYA — jangan pernah bilang "berhasil" saat gagal,
+      // karena itu menyembunyikan masalah token/jaringan dan menyalahkan perangkat.
+      setSyncNote(
+        result.reason === 'ok'
+          ? `Konfigurasi terbaru diterima — ${result.count} titik aktif`
+          : result.reason === 'empty'
+            ? 'Server terhubung, tetapi Admin belum punya titik geofence di Master Rute'
+            : result.reason === 'unauthorized'
+              ? 'Sesi server belum siap — masuk ulang atau coba lagi beberapa saat'
+              : 'Gagal menghubungi server — periksa jaringan',
+      )
     } catch {
       setSyncNote('Gagal sinkron — periksa koneksi')
     } finally {
@@ -156,8 +166,9 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       <div className="px-4 py-5 space-y-4">
         <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
           <p className="text-[12px] text-slate-600 leading-relaxed">
-            Titik geofence membatasi input trip berdasarkan koordinat GPS dengan radius maksimal yang ditentukan (mis. 100m).
-            Perubahan di sini berlaku langsung ke aplikasi petugas.
+            Titik geofence membatasi input trip berdasarkan koordinat GPS dengan radius yang ditentukan (mis. 100m).
+            Sumber resminya adalah <span className="font-semibold">Master Rute di Admin Dashboard</span>; daftar di bawah
+            adalah salinan lokal (agar tetap jalan saat offline). Tekan tombol untuk menarik konfigurasi terbaru.
           </p>
           <button
             onClick={() => void syncNow()}
@@ -326,7 +337,9 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
-              Belum ada titik geofence. Semua lokasi diizinkan sampai admin menambahkan titik.
+              Belum ada titik geofence tersimpan di perangkat ini. Selama konfigurasi belum ditarik dari
+              server admin, <span className="font-bold">input trip diblokir</span> (lokasi tidak dapat diverifikasi).
+              Sambungkan ke jaringan lalu tekan <span className="font-semibold">Tarik dari Server Admin</span>.
             </div>
           )}
         </div>
