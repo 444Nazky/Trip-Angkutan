@@ -22,6 +22,7 @@ interface DraftPoint {
   radiusMeters: string
   allowedRoutes: string
   strictEnforceOutsideArea: boolean
+  dermagaId: string
 }
 
 const emptyDraft: DraftPoint = {
@@ -32,6 +33,7 @@ const emptyDraft: DraftPoint = {
   radiusMeters: '100',
   allowedRoutes: '',
   strictEnforceOutsideArea: true,
+  dermagaId: '',
 }
 
 /** Parse "SJRE-SBDZ, SBDZ-SJRE" → ['SJRE-SBDZ','SBDZ-SJRE'] (tanpa duplikat). */
@@ -42,7 +44,7 @@ function parseRoutes(raw: string): string[] {
 }
 
 export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) {
-  const { userType } = useApp()
+  const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
   const [points, setPoints] = useState<GeofencePoint[]>(() => getStoredGeofencePoints())
@@ -79,6 +81,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       radiusMeters: String(p.radiusMeters),
       allowedRoutes: p.allowedRoutes.join(', '),
       strictEnforceOutsideArea: p.strictEnforceOutsideArea !== false,
+      dermagaId: p.dermagaId ?? '',
     })
     setEditingId(p.id)
     setShowForm(true)
@@ -88,7 +91,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const buildPoint = (base: GeofencePoint | null): GeofencePoint => ({
     id: draft.id.trim(),
     name: draft.name.trim(),
-    dermagaId: base?.dermagaId,
+    dermagaId: draft.dermagaId || undefined,
     latitude: Number(draft.latitude),
     longitude: Number(draft.longitude),
     radiusMeters: Number(draft.radiusMeters),
@@ -149,6 +152,20 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
               placeholder="Nama lokasi (mis. Badau Dermaga 1)"
               className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-[14px] focus:outline-none focus:border-blue-500 bg-white"
             />
+            {/* Dermaga selector */}
+            <div className="relative">
+              <select
+                value={draft.dermagaId}
+                onChange={e => setDraft({ ...draft, dermagaId: e.target.value })}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-[14px] focus:outline-none focus:border-blue-500 bg-white appearance-none"
+              >
+                <option value="">Pilih Dermaga (opsional)</option>
+                {officer.dermagaAccess?.map(d => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input
                 value={draft.latitude}
@@ -246,6 +263,11 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                     {p.latitude}, {p.longitude}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
+                    {p.dermagaId && (
+                      <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                        Dermaga: {officer.dermagaAccess?.find(d => d.id === p.dermagaId)?.name ?? p.dermagaId}
+                      </span>
+                    )}
                     <span className="text-[10px] font-bold bg-slate-800 text-white px-2 py-0.5 rounded-full">
                       R {p.radiusMeters}m
                     </span>

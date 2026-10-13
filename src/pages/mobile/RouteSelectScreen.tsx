@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, MapPinOff, Ruler, Clock, Anchor, Lock, RefreshCw } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Lock, RefreshCw, AlertTriangle, MapPinOff } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
 import {
   getActiveGeofenceSnapshot,
   forceSyncGeofencesFromBackend,
+  resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
+
+// ── DEV MODE: Check if we're in development mode ─────────────────────────────────
+const isDevMode = (): boolean => {
+  const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
+  return env?.DEV === true && (env.MODE === undefined || env.MODE === 'development')
+}
 
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
@@ -50,12 +57,17 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const isEmptyTrip = draft.condition === 'kosong'
   // ── Geofence real-time: titik aktif mengunci rute yang boleh dipilih ──
   const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
-  const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked'>('checking')
-  const [geoReason, setGeoReason] = useState<string | null>(null)
+  const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked' | 'mismatch'>('checking')
   /** Blokir karena KONFIGURASI belum ada (bukan karena lokasi) → tawarkan sync. */
   const [configMissing, setConfigMissing] = useState(false)
   const [syncingGeo, setSyncingGeo] = useState(false)
   const [syncNote, setSyncNote] = useState<string | null>(null)
+  /** DERMAGA MISMATCH: petugas di dermaga berbeda dari yang dipilih */
+  const [dockMismatch, setDockMismatch] = useState<{
+    selectedDock: string
+    actualGeofence: string
+    actualGeofenceId: string
+  } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -63,17 +75,35 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     const evaluate = async (): Promise<void> => {
       const result = await getActiveGeofenceSnapshot()
       if (!alive) return
+
       if (result.valid && result.activePoint) {
         setActiveGeofence(result.activePoint)
-        setGeoStatus('inside')
-        setGeoReason(null)
         setConfigMissing(false)
         setSyncNote(null)
+
+        // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
+        // Jika dermaga dipilih DAN ada titik geofence aktif,
+        // cek apakah lokasi petugas sesuai dengan dermaga yang dipilih.
+        if (dockId && result.activePoint.dermagaId) {
+          if (result.activePoint.dermagaId !== dockId) {
+            // Petugas ADA DI geofence, tapi BUKAN dermaga yang dipilih
+            setDockMismatch({
+              selectedDock: dockId,
+              actualGeofence: result.activePoint.name,
+              actualGeofenceId: result.activePoint.id,
+            })
+            setGeoStatus('mismatch')
+            return
+          }
+        }
+        // Lokasi sesuai dermaga
+        setDockMismatch(null)
+        setGeoStatus('inside')
       } else {
         // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
         setActiveGeofence(null)
+        setDockMismatch(null)
         setGeoStatus('blocked')
-        setGeoReason(result.reason ?? 'Di luar Area Geofence Resmi')
         setConfigMissing(result.configMissing === true)
       }
     }
@@ -97,9 +127,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         return
       }
       setActiveGeofence(null)
+      setDockMismatch(null)
       setGeoStatus('blocked')
       setConfigMissing(true)
-      setGeoReason(
+      setSyncNote(
         sync.reason === 'unauthorized'
           ? 'Sesi ke server belum siap — hubungi admin untuk mendaftarkan titik lokasi Master Rute.'
           : sync.reason === 'empty'
@@ -134,16 +165,30 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     setSyncingGeo(false)
     if (snap.valid && snap.activePoint) {
       setActiveGeofence(snap.activePoint)
-      setGeoStatus('inside')
-      setGeoReason(null)
       setConfigMissing(false)
+
+      // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
+      if (dockId && snap.activePoint.dermagaId) {
+        if (snap.activePoint.dermagaId !== dockId) {
+          setDockMismatch({
+            selectedDock: dockId,
+            actualGeofence: snap.activePoint.name,
+            actualGeofenceId: snap.activePoint.id,
+          })
+          setGeoStatus('mismatch')
+          setSyncNote(`Ditemukan di ${snap.activePoint.name} — bukan ${dock?.name ?? dockId}`)
+          return
+        }
+      }
+      setDockMismatch(null)
+      setGeoStatus('inside')
       setSyncNote(`Konfigurasi terbaru diterima (${sync.count} titik)`)
       return
     }
     setActiveGeofence(null)
+    setDockMismatch(null)
     setGeoStatus('blocked')
     setConfigMissing(snap.configMissing === true)
-    setGeoReason(snap.reason ?? 'Di luar Area Geofence Resmi')
     setSyncNote(
       sync.reason === 'empty'
         ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin.'
@@ -235,31 +280,107 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           </p>
         </div>
       )}
-      {geoStatus === 'blocked' && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-3 mb-3">
-          <div className="flex items-start gap-2">
-            <MapPinOff size={14} className="shrink-0 mt-0.5 text-red-600" />
+      {/* ── DERMAGA MISMATCH: petugas di dermaga berbeda ── */}
+      {geoStatus === 'mismatch' && dockMismatch && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <MapPinOff size={18} className="text-amber-600" />
+            </div>
             <div className="flex-1">
-              <p className="text-[12px] font-bold text-red-700">
-                Di luar Area Geofence Resmi
+              <p className="font-semibold text-amber-800 text-[13px] mb-1">
+                Lokasi Tidak Sesuai Dermaga
               </p>
-              <p className="text-[11px] text-red-600">
-                {configMissing
-                  ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
-                  : `${geoReason ?? 'Seluruh pilihan trayek terkunci'} — pindah ke dermaga resmi untuk input trip.`
-                }
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Anda terdeteksi di <span className="font-semibold">{dockMismatch.actualGeofence}</span>,
+                bukan di <span className="font-semibold">{dock?.name ?? dockMismatch.selectedDock}</span>.
+                Silakan berpindah ke dermaga yang sesuai untuk melanjutkan input trip.
               </p>
             </div>
           </div>
           <button
-            onClick={() => void handleSyncGeofence()}
+            onClick={() => {
+              resetGpsFixCache()
+              void handleSyncGeofence()
+            }}
             disabled={syncingGeo}
-            className="mt-2 w-full py-2 rounded-lg bg-white/80 border border-red-300 text-[11px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all"
+            className="mt-3 w-full py-2.5 rounded-lg bg-white border border-amber-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-amber-700 active:scale-[0.98] transition-all hover:bg-amber-50"
           >
-            <RefreshCw size={12} className={syncingGeo ? 'animate-spin' : ''} />
-            {syncingGeo ? 'Menarik konfigurasi…' : configMissing ? 'Sinkronkan dari Admin' : 'Periksa Ulang Lokasi'}
+            <RefreshCw size={14} className={syncingGeo ? 'animate-spin' : ''} />
+            {syncingGeo ? 'Memeriksa Lokasi…' : 'Periksa Ulang Lokasi'}
           </button>
-          {syncNote && <p className="text-[10px] text-red-600 mt-1.5 text-center font-medium">{syncNote}</p>}
+          {syncNote && (
+            <p className="text-[11px] text-amber-600 mt-2 text-center font-medium">{syncNote}</p>
+          )}
+        </div>
+      )}
+      {geoStatus === 'blocked' && (
+        <div className="rounded-xl border border-red-200 bg-rose-50 p-4 mb-3 shadow-sm">
+          {/* Header dengan ikon AlertTriangle */}
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={18} className="text-[#DC2626]" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-red-800 text-[13px] mb-1">
+                Di Luar Area Geofence Resmi
+              </p>
+              <p className="text-[11px] text-red-700 leading-relaxed">
+                {configMissing
+                  ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
+                  : 'Lokasi Anda saat ini berada di luar area bertugas yang diizinkan. Silakan berpindah ke titik lokasi/dermaga resmi untuk melanjutkan input trip.'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Tombol Periksa Ulang Lokasi */}
+          <button
+            onClick={() => {
+              // Reset GPS cache agar langsung pindai ulang
+              resetGpsFixCache()
+              void handleSyncGeofence()
+            }}
+            disabled={syncingGeo}
+            className="mt-3 w-full py-2.5 rounded-lg bg-white border border-red-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all hover:bg-red-50"
+          >
+            <RefreshCw size={14} className={syncingGeo ? 'animate-spin' : ''} />
+            {syncingGeo ? 'Memeriksa Lokasi…' : 'Periksa Ulang Lokasi'}
+          </button>
+
+          {/* Catatan sinkronisasi */}
+          {syncNote && (
+            <p className="text-[11px] text-red-600 mt-2 text-center font-medium">{syncNote}</p>
+          )}
+
+          {/* ── DEV MODE OVERRIDE: hanya terlihat di development build ── */}
+          {isDevMode() && (
+            <div className="mt-3 pt-3 border-t border-red-200">
+              <button
+                onClick={() => {
+                  // Bypass geofence check di dev mode - untuk testing UI
+                  setActiveGeofence({
+                    id: 'dev-override',
+                    name: 'DEV MODE Override',
+                    latitude: -6.1891005,
+                    longitude: 106.8371641,
+                    radiusMeters: 1000,
+                    allowedRoutes: dermagaFiltered.map(r => r.code),
+                    enabled: true,
+                    strictEnforceOutsideArea: false,
+                  })
+                  setGeoStatus('inside')
+                  setConfigMissing(false)
+                }}
+                className="w-full py-2 rounded-lg bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-800 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              >
+                🔧 DEV MODE: Lewati Geofence (Testing Only)
+              </button>
+              <p className="text-[9px] text-amber-600 mt-1.5 text-center">
+                Mode pengembangan — tombol ini tidak muncul di production build
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -310,7 +431,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
       <button
         onClick={handleContinue}
-        disabled={!validSelected || geoStatus !== 'inside' || activeGeofence === null}
+        disabled={!validSelected || geoStatus !== 'inside'}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
         {!draft.condition
