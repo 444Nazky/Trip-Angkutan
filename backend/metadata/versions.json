@@ -1,20 +1,4 @@
 {
-  "latest": {
-    "version": "1.0.3",
-    "downloadUrl": "https://files.catbox.moe/bmkh1o.apk",
-    "releaseDate": "2026-10-14T15:17:18.143Z",
-    "releaseNotes": "",
-    "isForceUpdate": false,
-    "minVersion": "1.0.0"
-  },
-  "releases": {
-    "1.0.3": {
-      "version": "1.0.3",
-      "downloadUrl": "https://files.catbox.moe/bmkh1o.apk",
-      "releaseDate": "2026-10-14T15:17:18.143Z",
-      "releaseNotes": "",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0"
-    }
-  }
+  "latest": null,
+  "releases": {}
 }

@@ -8,7 +8,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash, r.name as region_name, r.code as region_code
+      SELECT o.id, o.name, o.username, o.region_id, o.is_active, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
       ORDER BY o.name
@@ -70,7 +70,6 @@ router.get('/my-region', authenticate, (req, res) => {
       if (me) myRegions = [{ region_id: me.region_id }];
     }
     const myRegionIds = new Set(myRegions.map(r => String(r.region_id)));
-    if (myRegionIds.size === 0) return res.json([]);
 
     const officers = db.prepare(`
       SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash, r.name as region_name, r.code as region_code
@@ -95,13 +94,40 @@ router.get('/my-region', authenticate, (req, res) => {
     `);
 
     const out = [];
+    const requestedOfficerIds = new Set();
     for (const o of officers) {
+      // Prioritas 1: regions dari junction officer_regions
       let regions = regionsStmt.all(String(o.id));
-      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      // Prioritas 2: fallback ke kolom region_id officer (untuk petugas baru)
+      if (regions.length === 0) {
+        regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
+      }
       o.regions = regions;
       o.dermagas = dermagaStmt.all(String(o.id));
-      // Tampilkan petugas yang berbagi minimal satu wilayah dengan peminta
-      if (regions.some(r => myRegionIds.has(String(r.id)))) out.push(o);
+
+      // Sertakan HANYA petugas yang berbagi region dengan peminta.
+      // Clause 'OR is_active' dihapus — itu membocorkan seluruh roster
+      // aktif lintas region ke petugas mana pun (privacy leak).
+      const sharesRegion = regions.some(r => myRegionIds.has(String(r.id)));
+      if (sharesRegion) {
+        out.push(o);
+        requestedOfficerIds.add(String(o.id));
+      }
+    }
+
+    // Jaminan: PEMINTA SENDIRI selalu ada di roster walau race kondisi
+    // junction belum lengkap — tanpa ini petugas bisa 'hilang' dari Ganti Petugas.
+    if (meId && !requestedOfficerIds.has(meId)) {
+      const me = officers.find(o => String(o.id) === meId);
+      if (me) {
+        let regions = regionsStmt.all(meId);
+        if (regions.length === 0) {
+          regions = [{ id: me.region_id, name: me.region_name, code: me.region_code }];
+        }
+        me.regions = regions;
+        me.dermagas = dermagaStmt.all(meId);
+        out.push(me);
+      }
     }
 
     res.json(out);

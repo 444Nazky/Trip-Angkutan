@@ -1,8 +1,9 @@
-const initSqlJs = require('sql.js');
+const path = require('path');
+const initSqlJs = require('sql.js').default;
 const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const fs = require('fs');
-const path = require('path');
+const SQL_WASM = path.resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/trip.db');
 
@@ -49,9 +50,6 @@ const dbWrapper = {
       }
     };
   },
-  exec(sql) {
-    db.run(sql);
-  },
   get db() { return db; }
 };
 
@@ -64,21 +62,32 @@ function saveDb() {
 }
 
 async function loadDb() {
-  const SQL = await initSqlJs();
+  const SQL = await initSqlJs({
+    locateFile: (file) => {
+      if (file.endsWith('.wasm')) return SQL_WASM;
+      return file;
+    }
+  });
 
-  if (fs.existsSync(DB_PATH)) {
+  const fresh = !fs.existsSync(DB_PATH);
+  if (fresh) {
+    db = new SQL.Database();
+  } else {
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
-    // DB lama bisa belum punya OFFICERS dst. (skema berubah): buat ulang
-    // seluruh skema idempotent SEBELUM migrate/seed agar INSERT seed tidak
-    // gagal "no such table". CREATE TABLE IF NOT EXISTS = aman untuk DB baru.
-    initialize();
-  } else {
-    db = new SQL.Database();
-    initialize();
   }
 
+  // initialize() berisi SEMUA "CREATE TABLE IF NOT EXISTS" — idempotent sehingga
+  // AMAN dipanggil juga untuk DB lama. Tanpa ini, tabel yang ditambahkan belakangan
+  // (mis. geofences) tidak pernah terbentuk di DB volume production →
+  // GET /api/geofences 500 "no such table: geofences".
+  initialize();
+
   migrate();
+  if (fresh) {
+    seedData();
+  }
+  saveDb();
   return dbWrapper;
 }
 
@@ -90,10 +99,6 @@ function migrate() {
   } catch (e) {
     // column already exists — nothing to do
   }
-
-  // Jawab "no such table" di DB lama/hasil salinan: semua CREATE TABLE
-  // idempotent dijalankan tanpa syarat agar skema selalu lengkap sebelum seed.
-  initialize();
 
   // Kolom login petugas. DB lama (dibuat sebelum revisi login per-username)
   // tidak punya kolom ini → query /auth/member-login gagal dengan
@@ -179,21 +184,17 @@ function migrate() {
     ['trips', 'foto_longitude', 'REAL'],
     ['trips', 'started_at', 'TEXT'],
     ['trips', 'completed_at', 'TEXT'],
-    ['vehicles', 'foto_captured_at', 'TEXT'],
-    // ID trip di sisi klien — dipakai sinkronisasi offline-first untuk
-    // MENCEGAH DUPLIKAT saat antrean dikirim ulang setelah timeout/jaringan
-    // putus di tengah jalan (klien tidak tahu apakah server sudah menerima).
     ['trips', 'client_trip_id', 'TEXT'],
+    ['vehicles', 'foto_captured_at', 'TEXT'],
   ]) {
     try { db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`); } catch (e) { /* already exists */ }
   }
-  try {
-    db.run(`CREATE INDEX IF NOT EXISTS idx_trips_client_trip_id ON trips(client_trip_id)`);
-  } catch (e) { /* index sudah ada */ }
   // Urutan penting: wilayah spec dibuat dulu, baru seedSpecTables memberi
   // tarif region (lokal/eksternal) untuk region yang baru saja ditambahkan.
   ensureSpecRegions();
   seedSpecTables();
+  // Rotasi credential default lama di DB produksi (idempotent, cetak ke log).
+  rotateDefaultCredentials();
   saveDb();
 }
 
@@ -310,7 +311,14 @@ const DEMO_OFFICERS = [
   { name: 'Maya Sari', region: 'KELAPAKAMPIT', docks: ['D2'] },
 ];
 
-const regionDefaultPassword = (code) => `${String(code).toLowerCase()}123`;
+// Password/PIN seed: random + dicetak SEKALI ke log boot. Nilai lama
+// "<code>123" dan "123456" adalah backdoor publik (dipublikasikan di source).
+function randomSecret(len = 16) {
+  return require('crypto').randomBytes(len).toString('base64url').slice(0, len);
+}
+function seedCredential(label, value) {
+  console.log(`[seed] ${label}: ${value}`);
+}
 
 // Helper query — modul ini memakai objek sql.js mentah (bukan dbWrapper),
 // jadi SELECT memakai API statement: bind/step/getAsObject/free.
@@ -337,24 +345,26 @@ function ensureSpecRegions() {
     db.run(`ALTER TABLE regions ADD COLUMN password TEXT`);
   } catch (e) { /* kolom sudah ada */ }
 
-  const hashedPin = bcrypt.hashSync('123456', 10);
-
   for (const w of SPEC_WILAYAH) {
-    // 2. Region
+    // 2. Region — password acak dicetak sekali ke log boot.
     let region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
     if (!region) {
+      const pw = randomSecret();
+      seedCredential(`region ${w.code} password`, pw);
       db.run(
         `INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)`,
-        [randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
+        [randomUUID(), w.name, w.code, bcrypt.hashSync(pw, 10)]
       );
       region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
     }
     if (!region) continue;
 
-    // 3. Password default bila belum diatur admin
+    // 3. Password default bila belum diatur admin — ACAK, bukan "<code>123".
     if (!region.password) {
+      const pw = randomSecret();
+      seedCredential(`region ${w.code} password (backfill)`, pw);
       db.run(`UPDATE regions SET password = ? WHERE id = ?`,
-        [bcrypt.hashSync(regionDefaultPassword(w.code), 10), region.id]);
+        [bcrypt.hashSync(pw, 10), region.id]);
     }
 
     // 4. Dua dermaga: D1 & D2
@@ -418,14 +428,17 @@ function ensureSpecRegions() {
 
   // 7. Keep the published demo accounts aligned with their documented region
   // and dock access, including existing databases created with older seeds.
+  // PIN baru: random + dicetak sekali (bukan '123456' yang dipublikasikan).
   for (const demo of DEMO_OFFICERS) {
     const region = q1(`SELECT id FROM regions WHERE code = ?`, [demo.region]);
     if (!region) continue;
     let officer = q1(`SELECT id FROM officers WHERE name = ?`, [demo.name]);
     if (!officer) {
       const id = randomUUID();
+      const pin = randomSecret(6);
+      seedCredential(`officer ${demo.name} PIN`, pin);
       db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
-        [id, demo.name, hashedPin, region.id]);
+        [id, demo.name, bcrypt.hashSync(pin, 10), region.id]);
       officer = { id };
     } else {
       db.run(`UPDATE officers SET region_id = ? WHERE id = ?`, [region.id, officer.id]);
@@ -442,11 +455,13 @@ function ensureSpecRegions() {
     }
   }
 
-  // 8. Region lain (DB lama: SJRE/SBDZ/ENTIKONG) juga mendapat password default
+  // 8. Region lain (DB lama) tanpa password → acak, bukan "<code>123".
   const noPw = qAll(`SELECT id, code FROM regions WHERE password IS NULL OR password = ''`);
   for (const r of noPw) {
+    const pw = randomSecret();
+    seedCredential(`region ${r.code} password (legacy backfill)`, pw);
     db.run(`UPDATE regions SET password = ? WHERE id = ?`,
-      [bcrypt.hashSync(regionDefaultPassword(r.code), 10), r.id]);
+      [bcrypt.hashSync(pw, 10), r.id]);
   }
 }
 
@@ -482,6 +497,7 @@ function initialize() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       code TEXT NOT NULL UNIQUE,
+      password TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -602,6 +618,21 @@ function initialize() {
     )
   `);
 
+  // Geofence rules table (dari Admin Dashboard; diunduh oleh aplikasi mobile)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS geofences (
+      id TEXT PRIMARY KEY,
+      location_name TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER NOT NULL DEFAULT 100,
+      allowed_route_codes TEXT NOT NULL DEFAULT '',
+      allowed_directions TEXT NOT NULL DEFAULT '',
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Trip_vehicles junction table
   db.run(`
     CREATE TABLE IF NOT EXISTS trip_vehicles (
@@ -614,95 +645,6 @@ function initialize() {
     )
   `);
 
-  // Many-to-many petugas ↔ region.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS officer_regions (
-      officer_id TEXT NOT NULL,
-      region_id TEXT NOT NULL,
-      PRIMARY KEY (officer_id, region_id),
-      FOREIGN KEY (officer_id) REFERENCES officers(id),
-      FOREIGN KEY (region_id) REFERENCES regions(id)
-    )
-  `);
-
-  // Log transaksi scan plat (jejak penarifan).
-  db.run(`
-    CREATE TABLE IF NOT EXISTS plate_scans (
-      id TEXT PRIMARY KEY,
-      plate TEXT NOT NULL,
-      status TEXT NOT NULL,
-      origin_region_id TEXT,
-      checkpoint_region_id TEXT,
-      tariff_amount INTEGER DEFAULT 0,
-      officer_id TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Geofence points table — dibuat SEBELUM seedData agar
-  // seedDefaultGeofences (di akhir initialize) selalu menemukan tabelnya.
-  db.run(`
-    CREATE TABLE IF NOT EXISTS geofences (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      dermaga_id TEXT,
-      latitude REAL NOT NULL,
-      longitude REAL NOT NULL,
-      radius_meters INTEGER DEFAULT 100,
-      allowed_routes TEXT NOT NULL DEFAULT '[]',
-      enabled INTEGER DEFAULT 1,
-      strict_enforce_outside INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  seedData();
-
-  // Migrasi DB lama: kolom strict_enforce_outside
-	  try {
-	    db.run(`ALTER TABLE geofences ADD COLUMN strict_enforce_outside INTEGER DEFAULT 1`);
-	  } catch (e) { /* kolom sudah ada */ }
-	  seedDefaultGeofences();
-  saveDb();
-}
-
-// Seed default koordinat Dermaga 1 & Dermaga 2 (idempotent — bawaan aktif
-// otomatis setelah boot, sesuai Skenario A & B spesifikasi strict geofencing).
-function seedDefaultGeofences() {
-  const defaults = [
-    {
-      id: 'badau-d1',
-      name: 'Badau Dermaga 1',
-      dermaga_id: 'BADAU-D1',
-      latitude: -6.1891005,
-      longitude: 106.8371641,
-      radius_meters: 100,
-      allowed_routes: ['SJRE-SBDZ'], // Skenario A: kunci SJRE → SBDZ
-    },
-    {
-      id: 'badau-d2',
-      name: 'Badau Dermaga 2',
-      dermaga_id: 'BADAU-D2',
-      latitude: -6.2389899548617285,
-      longitude: 106.97475839406252,
-      radius_meters: 100,
-      allowed_routes: ['SBDZ-SJRE'], // Skenario B: kunci SBDZ → SJRE
-    },
-  ];
-  const check = db.prepare('SELECT id FROM geofences LIMIT 1');
-  const hasAny = check.step();
-  check.free();
-  if (hasAny) return;
-  const ins = db.prepare(`
-    INSERT INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
-  `);
-  for (const g of defaults) {
-    ins.run([g.id, g.name, g.dermaga_id, g.latitude, g.longitude, g.radius_meters, JSON.stringify(g.allowed_routes)]);
-  }
-  ins.free();
-  console.log('[geofence] Seed default: Badau Dermaga 1 & 2 (SJRE-SBDZ / SBDZ-SJRE, radius 100m, strict)');
 }
 
 function seedData() {
@@ -713,21 +655,9 @@ function seedData() {
   stmt.free();
   if (result.count > 0) return;
 
-  // Kolom password dibutuhkan seed region (ensureSpecRegions menambah kolom
-  // ini SETELAH seed — di DB baru kolomnya belum ada saat insert pertama).
-  try { db.run('ALTER TABLE regions ADD COLUMN password TEXT'); } catch (e) { /* sudah ada */ }
-
   // Seed 3 wilayah operasional (Revisi #3). Dermaga, rute dua arah, petugas
   // contoh, dan password wilayah dibuat oleh ensureSpecRegions() — satu sumber
   // kebenaran yang juga melengkapi DB lama saat boot.
-  const insertRegion = db.prepare('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)');
-  for (const w of SPEC_WILAYAH) {
-    insertRegion.bind([randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
-    insertRegion.step();
-    insertRegion.reset();
-  }
-  insertRegion.free();
-
   ensureSpecRegions();
 
   // Seed tariffs
@@ -750,10 +680,50 @@ function seedData() {
   console.log('Database seeded: 3 wilayah, dermaga, rute, petugas, dan tarif');
 }
 
-// Export async initialization
+// Rotasi credential default lama ("<code>123" region, "123456" PIN) yang masih
+// tersimpan di DB produksi. Jalan tiap boot (idempotent — hanya match default
+// yang diketahui; password/PIN yang sudah diganti admin tidak disentuh).
+function rotateDefaultCredentials() {
+  const rotated = [];
+
+  // 1. Region password yang masih hash "<code>123"
+  const regions = qAll(`SELECT id, code, password FROM regions WHERE password IS NOT NULL AND password != ''`);
+  for (const r of regions) {
+    const guess = `${String(r.code).toLowerCase()}123`;
+    let match = false;
+    try { match = bcrypt.compareSync(guess, r.password); } catch (_) { /* bukan hash */ }
+    if (!match && r.password === guess) match = true; // plain-text lama
+    if (match) {
+      const pw = randomSecret();
+      db.run(`UPDATE regions SET password = ? WHERE id = ?`, [bcrypt.hashSync(pw, 10), r.id]);
+      rotated.push(`region ${r.code} password → ${pw}`);
+    }
+  }
+
+  // 2. Officer PIN yang masih "123456"
+  const officers = qAll(`SELECT id, name, pin FROM officers WHERE pin IS NOT NULL AND pin != ''`);
+  for (const o of officers) {
+    let match = false;
+    try { match = bcrypt.compareSync('123456', o.pin); } catch (_) { /* bukan hash */ }
+    if (!match && o.pin === '123456') match = true;
+    if (match) {
+      const pin = randomSecret(6);
+      db.run(`UPDATE officers SET pin = ? WHERE id = ?`, [bcrypt.hashSync(pin, 10), o.id]);
+      rotated.push(`officer ${o.name} PIN → ${pin}`);
+    }
+  }
+
+  if (rotated.length) {
+    console.log('══════════════════════════════════════════════════════════════');
+    console.log('[security] CREDENTIAL DEFAULT LAMA DIROTASI (catat sekarang):');
+    for (const line of rotated) console.log(`[security]   ${line}`);
+    console.log('══════════════════════════════════════════════════════════════');
+  }
+}
+
+// Module exports — initialize/seedData TIDAK diekspor: dipakai hanya di dalam
+// modul ini (loadDb memanggil keduanya tiap boot sejak commit idempotent-init).
 module.exports = {
   loadDb,
   db: dbWrapper,
-  initialize,
-  seedData
 };
