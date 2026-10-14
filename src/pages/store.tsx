@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allTrips, officerList, tariffData } from './data'
-import { addToSyncQueue, onTripSynced, retrySyncItem } from '../services/sync'
+import { addToSyncQueue, onTripSynced, retrySyncItem, notifyQueueListeners } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
-import { dbAll, dbPutMany, initLocalDb } from '../services/localDb'
+import { dbAll, dbClear, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
 import { forceSyncGeofencesFromBackend } from '../services/geofence'
 import { seedRoster } from '../services/seedData'
@@ -158,6 +158,8 @@ interface StoreValue {
   clearVerify: () => void
 
   setActiveDermaga: (id: string | null) => void
+  /** Hapus SEMUA trip dan antrean sync (reset data lokal). */
+  clearAllTrips: () => void
 }
 
 const emptyDraft: Draft = {
@@ -682,6 +684,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearVerify = useCallback(() => setPendingOfficerId(null), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
+  /** Hapus SEMUA trip dan antrean sync — untuk reset data lokal. */
+  const clearAllTrips = useCallback(() => {
+    setTrips([])
+    setDetailTripId(null)
+    // Hapus dari localStorage
+    try { localStorage.removeItem(LS.trips) } catch { /* ignore */ }
+    // Hapus dari IndexedDB (trips store)
+    void dbClear('trips')
+    // Hapus antrean sync
+    void dbClear('pending')
+    // Beritahu listener antrean
+    notifyQueueListeners()
+  }, [])
+
   
 
   const refreshOfficers = useCallback(async (force = false) => {
@@ -780,11 +796,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     detailTripId, setDetailTripId,
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga,
+    clearAllTrips,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tariffs, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
-    setActiveDermaga])
+    setActiveDermaga, clearAllTrips])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }

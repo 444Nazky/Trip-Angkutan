@@ -151,7 +151,7 @@ async function removeItem(syncId: string): Promise<void> {
   await dbDelete('pending', syncId)
 }
 
-function notifyQueueListeners() {
+export function notifyQueueListeners() {
   void dbCount('pending').then(n => {
     _pendingCount = n
     for (const l of [...queueListeners]) { try { l(n) } catch { /* ignore */ } }

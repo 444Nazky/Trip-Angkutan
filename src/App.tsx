@@ -10,6 +10,7 @@ import { restoreBundleFromStorage } from "./services/ota"
 import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
 import UpdateNotifier from "./components/UpdateNotifier"
 
+
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
 
@@ -20,9 +21,8 @@ function Shell() {
     void syncGeofencesFromBackend()
   }, [])
 
-  // Token kedaluwarsa/invalid (server balas 401) → kembalikan ke layar login
-  // (LoginPage menanganinya via PinVerifyScreen) agar petugas bisa memulihkan
-  // sesi sendiri — bukan diam-diam "stuck" dengan banner "belum terkirim".
+
+  
   useEffect(() => {
     const onAuthExpired = () => {
       console.warn('[App] Sesi backend invalid (401) → kembali ke layar login')
@@ -58,9 +58,6 @@ function Shell() {
           versi baru — rilis baru jadi tidak terdeteksi sampai ada yang login. */}
       <UpdateNotifier
         autoCheck={true}
-        initialDelay={5000}
-        checkInterval={30 * 60 * 1000}
-        position="bottom-right"
       />
       {loggedIn && !isAdminSession
         ? <MobileApp />

@@ -1,9 +1,17 @@
-import { useEffect, useState } from 'react'
-import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus, X } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
 import type { MobileScreen } from '../types'
+
+// Confirmation dialog state
+interface ConfirmDialog {
+  isOpen: boolean
+  message: string
+  pendingAction: (() => void) | null
+  countdown: number
+}
 
 interface TripSummaryScreenProps {
   go: (s: MobileScreen) => void
@@ -19,6 +27,37 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
   const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>({
+    isOpen: false,
+    message: '',
+    pendingAction: null,
+    countdown: 0,
+  })
+
+  // Open confirmation dialog with pending action
+  const openConfirmDialog = useCallback((message: string, action: () => void) => {
+    setConfirmDialog({
+      isOpen: true,
+      message,
+      pendingAction: action,
+      countdown: 3,
+    })
+  }, [])
+
+  // Close confirmation dialog
+  const closeConfirmDialog = useCallback(() => {
+    setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
+  }, [])
+
+  // Execute confirmed action
+  const executeConfirm = useCallback(() => {
+    if (confirmDialog.pendingAction) {
+      confirmDialog.pendingAction()
+    }
+    closeConfirmDialog()
+  }, [confirmDialog.pendingAction, closeConfirmDialog])
 
   // Geofence polling
   useEffect(() => {
@@ -41,6 +80,21 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     return () => { alive = false; window.clearInterval(timer); window.removeEventListener('focus', run) }
   }, [draft.routeCode])
 
+  // Confirmation dialog countdown
+  useEffect(() => {
+    if (!confirmDialog.isOpen || confirmDialog.countdown <= 0) return
+    const timer = window.setInterval(() => {
+      setConfirmDialog(prev => {
+        if (prev.countdown <= 1) {
+          clearInterval(timer)
+          return { ...prev, countdown: 0 }
+        }
+        return { ...prev, countdown: prev.countdown - 1 }
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [confirmDialog.isOpen, confirmDialog.countdown])
+
   const route = activeRoutes().find(r => r.code === draft.routeCode) ?? activeRoutes()[0]
   const vehicles = draft.vehicles
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
@@ -62,8 +116,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   // Batal
   const handleBatal = () => {
-    resetDraft()
-    go('home')
+    openConfirmDialog('Apakah Anda yakin ingin membatalkan trip ini?', () => {
+      resetDraft()
+      go('home')
+    })
   }
 
   const handleAddVehicle = () => {
@@ -85,7 +141,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur-sm">
-          <button onClick={() => go(backTo)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-600">
+          <button onClick={() => openConfirmDialog('Apakah Anda yakin ingin kembali?', () => go(backTo))} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-600">
             <ChevronLeft size={18} />
           </button>
           <div>
@@ -189,7 +245,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                   </div>
                 ))}
               </div>
-            )}
+              )}
           </section>
 
           <section className={`rounded-2xl border bg-white p-4 shadow-sm ${hasTripPhoto ? 'border-slate-200 ring-1 ring-slate-100' : 'border-amber-300 ring-1 ring-amber-100'}`}>
@@ -237,6 +293,45 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           </div>
         </main>
       </div>
+
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">Konfirmasi</h3>
+              <button
+                onClick={closeConfirmDialog} // Close confirmation pas dialog
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200"
+              >
+
+
+                
+                <X size={16} />
+              </button> 
+            </div>      
+            <p className="mb-5 text-sm text-slate-600">{confirmDialog.message}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={closeConfirmDialog}
+                className="flex-1 rounded-xl border border-slate-200 bg-transparent py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button    
+                onClick={executeConfirm}
+                disabled={confirmDialog.countdown > 0}
+                className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-all ${
+                  confirmDialog.countdown > 0
+                    ? 'bg-slate-300 cursor-not-allowed'
+                    : 'bg-red-500 hover:bg-red-600 active:scale-[0.98]'
+                }`}
+              >
+                {confirmDialog.countdown > 0 ? `Yakin (${confirmDialog.countdown})` : 'Yakin'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
