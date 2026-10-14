@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build:admin"
+  publish = "admin-ci"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

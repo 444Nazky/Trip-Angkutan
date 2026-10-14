@@ -1,11 +1,8 @@
+const path = require('path');
 const initSqlJs = require('sql.js').default;
 const bcrypt = require('bcryptjs');
-const { randomUUID } = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
-const path = require('path');
-// sql.js di lingkungan produksi (Railway/Docker) tidak menemukan file wasm
-// secara otomatis → inisialisasi DB gagal dan SELURUH endpoint mati.
-// Tunjuk lokasi wasm secara eksplisit agar jatuhnya ke node_modules yang benar.
 const SQL_WASM = path.resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/trip.db');
@@ -72,11 +69,10 @@ async function loadDb() {
     locateFile: (file) => {
       if (file.endsWith('.wasm')) return SQL_WASM;
       return file;
-    },
+    }
   });
 
-  const fresh = !fs.existsSync(DB_PATH);
-  if (!fresh) {
+  if (fs.existsSync(DB_PATH)) {
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
   } else {
@@ -174,8 +170,7 @@ function migrate() {
     )
   `);
 
-  relaxTripsDermagaNotNull()
-  migrateGeofences()
+  relaxTripsDermagaNotNull();
   for (const [table, column, definition] of [
     ['trips', 'foto_captured_at', 'TEXT'],
     ['trips', 'foto_latitude', 'REAL'],
@@ -183,16 +178,9 @@ function migrate() {
     ['trips', 'started_at', 'TEXT'],
     ['trips', 'completed_at', 'TEXT'],
     ['vehicles', 'foto_captured_at', 'TEXT'],
-    // ID trip di sisi klien — dipakai sinkronisasi offline-first untuk
-    // MENCEGAH DUPLIKAT saat antrean dikirim ulang setelah timeout/jaringan
-    // putus di tengah jalan (klien tidak tahu apakah server sudah menerima).
-    ['trips', 'client_trip_id', 'TEXT'],
   ]) {
     try { db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`); } catch (e) { /* already exists */ }
   }
-  try {
-    db.run(`CREATE INDEX IF NOT EXISTS idx_trips_client_trip_id ON trips(client_trip_id)`);
-  } catch (e) { /* index sudah ada */ }
   // Urutan penting: wilayah spec dibuat dulu, baru seedSpecTables memberi
   // tarif region (lokal/eksternal) untuk region yang baru saja ditambahkan.
   ensureSpecRegions();
@@ -206,29 +194,6 @@ function migrate() {
 // tersinkron. SQLite tidak mendukung ALTER COLUMN, jadi tabel dibangun ulang
 // dengan kolom nullable. FK tidak di-enforce (PRAGMA foreign_keys = 0) dan
 // dermaga_id tidak dipakai di query laporan mana pun, jadi aman.
-function migrateGeofences() {
-  try {
-    db.run(`CREATE TABLE IF NOT EXISTS geofence_rules (
-      id TEXT PRIMARY KEY,
-      location_name TEXT NOT NULL,
-      latitude REAL NOT NULL,
-      longitude REAL NOT NULL,
-      radius_meters REAL DEFAULT 100,
-      allowed_route_codes TEXT DEFAULT '',
-      allowed_directions TEXT DEFAULT '',
-      description TEXT DEFAULT ''
-    )`)
-  } catch (e) { /* already exists */ }
-  try {
-    db.run(`CREATE TABLE IF NOT EXISTS geofence_config (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )`)
-    db.run(`INSERT OR IGNORE INTO geofence_config (key, value) VALUES ('defaultRadiusMeters', '100')`)
-    db.run(`INSERT OR IGNORE INTO geofence_config (key, value) VALUES ('maxAccuracyMeters', '100')`)
-  } catch (e) { /* already exists */ }
-}
-
 function relaxTripsDermagaNotNull() {
   try {
     const col = dbWrapper.prepare(`PRAGMA table_info(trips)`).all()
@@ -371,7 +336,7 @@ function ensureSpecRegions() {
     if (!region) {
       db.run(
         `INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)`,
-        [randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
+        [uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]
       );
       region = q1(`SELECT * FROM regions WHERE code = ?`, [w.code]);
     }
@@ -388,7 +353,7 @@ function ensureSpecRegions() {
       let dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
       if (!dm) {
         db.run(`INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)`,
-          [randomUUID(), region.id, dname, dc]);
+          [uuidv4(), region.id, dname, dc]);
         dm = q1(`SELECT * FROM dermagas WHERE region_id = ? AND code = ?`, [region.id, dc]);
       }
       if (!dm) continue;
@@ -419,7 +384,7 @@ function ensureSpecRegions() {
         if (!exists) {
           db.run(
             `INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [randomUUID(), dm.id, r.name, r.from, r.to, r.distance, r.duration]
+            [uuidv4(), dm.id, r.name, r.from, r.to, r.distance, r.duration]
           );
         }
       }
@@ -449,7 +414,7 @@ function ensureSpecRegions() {
     if (!region) continue;
     let officer = q1(`SELECT id FROM officers WHERE name = ?`, [demo.name]);
     if (!officer) {
-      const id = randomUUID();
+      const id = uuidv4();
       db.run(`INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)`,
         [id, demo.name, hashedPin, region.id]);
       officer = { id };
@@ -657,7 +622,7 @@ function seedData() {
   // kebenaran yang juga melengkapi DB lama saat boot.
   const insertRegion = db.prepare('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)');
   for (const w of SPEC_WILAYAH) {
-    insertRegion.bind([randomUUID(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
+    insertRegion.bind([uuidv4(), w.name, w.code, bcrypt.hashSync(regionDefaultPassword(w.code), 10)]);
     insertRegion.step();
     insertRegion.reset();
   }
@@ -667,11 +632,11 @@ function seedData() {
 
   // Seed tariffs
   const tariffs = [
-    { id: randomUUID(), golongan: 'I', vehicle_type: 'Motor', loaded_tariff: 15000, empty_tariff: 8000 },
-    { id: randomUUID(), golongan: 'II', vehicle_type: 'Mobil', loaded_tariff: 45000, empty_tariff: 20000 },
-    { id: randomUUID(), golongan: 'III', vehicle_type: 'Truck Kecil', loaded_tariff: 120000, empty_tariff: 55000 },
-    { id: randomUUID(), golongan: 'IV', vehicle_type: 'Truck Sedang', loaded_tariff: 280000, empty_tariff: 130000 },
-    { id: randomUUID(), golongan: 'V', vehicle_type: 'Truck Besar', loaded_tariff: 450000, empty_tariff: 200000 },
+    { id: uuidv4(), golongan: 'I', vehicle_type: 'Motor', loaded_tariff: 15000, empty_tariff: 8000 },
+    { id: uuidv4(), golongan: 'II', vehicle_type: 'Mobil', loaded_tariff: 45000, empty_tariff: 20000 },
+    { id: uuidv4(), golongan: 'III', vehicle_type: 'Truck Kecil', loaded_tariff: 120000, empty_tariff: 55000 },
+    { id: uuidv4(), golongan: 'IV', vehicle_type: 'Truck Sedang', loaded_tariff: 280000, empty_tariff: 130000 },
+    { id: uuidv4(), golongan: 'V', vehicle_type: 'Truck Besar', loaded_tariff: 450000, empty_tariff: 200000 },
   ];
 
   const insertTariff = db.prepare('INSERT INTO tariffs (id, golongan, vehicle_type, loaded_tariff, empty_tariff) VALUES (?, ?, ?, ?, ?)');

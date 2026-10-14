@@ -1,56 +1,66 @@
-import { useEffect, useRef } from "react"
-import { App as CapacitorApp } from "@capacitor/app"
-import MobileApp from "./pages/mobile/MobileApp"
-import LoginPage from "./pages/LoginPage"
-import { AppProvider, useApp } from "./pages/store"
-import { initializeSync } from "./services/sync"
-import { syncOnResume } from "./services/adminPull"
-import { initOfflineDb } from "./services/offlineDb"
-import { getCurrentVersion, restoreBundleFromStorage } from "./services/ota"
-import UpdateNotifier from "./components/UpdateNotifier"
+import { useCallback, useEffect, useState } from 'react'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import LoginPage from './pages/LoginPage'
+import { AppProvider, AUTH_EVENT, useApp } from './pages/store'
+import { ensureAdminSession } from './services/auth'
 
+// ── Build detection ─────────────────────────────────────────────────────────
+
+/** Admin build ditandai atribut `data-admin` di <html>. MobileApp di-stub saja karena admin bundle tidak butuh mobile screens. */
+export function isAdminBuild(): boolean {
+  try {
+    return document.documentElement.hasAttribute('data-admin')
+  } catch { return false }
+}
+
+/** Sinkronisasi LoginPage → Shell: bersihkan sesi tersimpan. */
+export function clearSession() {
+  try { localStorage.removeItem('trip.auth.admin.v1') } catch { /* noop */ }
+}
+
+// ── Shell: guard utama admin build. Hanya mengenali sesi administrator murni. ──
 function Shell() {
-  const { loggedIn, login, logout, userType } = useApp()
-  const latestVersionRef = useRef<string | null>(null)
+  const [status, setStatus] = useState<'loading' | 'admin' | 'login'>('loading')
+  const { logout } = useApp()
 
-  useEffect(() => {
-    initializeSync()
-    void initOfflineDb()
-    void restoreBundleFromStorage()
+  const validate = useCallback(async () => {
+    setStatus('loading')
+    try {
+      const s = await ensureAdminSession()
+      setStatus(s.ok ? 'admin' : 'login')
+    } catch {
+      setStatus('login')
+    }
   }, [])
 
-  // Initialize version reference untuk UpdateNotifier
+  useEffect(() => { validate() }, [validate])
+
+  // Setelah LoginPage menyimpan kredensial baru, validasi ulang.
   useEffect(() => {
-    getCurrentVersion().then(v => {
-      if (v) latestVersionRef.current = v
-    })
+    function onLogin() { validate() }
+    window.addEventListener(AUTH_EVENT, onLogin)
+    return () => window.removeEventListener(AUTH_EVENT, onLogin)
+  }, [validate])
 
-    // Listen untuk foreground resume - UpdateNotifier akan handle auto-check
-    let sub: { remove?: () => void } | undefined
-    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) syncOnResume()
-    }).then(s => { sub = s })
-    return () => { sub?.remove?.() }
-  }, [])
+  if (status === 'loading') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: '14px', color: '#374151' }}>
+        <p>Memuat sesi…</p>
+      </div>
+    )
+  }
 
-  if (!loggedIn) return <LoginPage onLogin={() => login('member')} />
-  if (userType === 'admin') { logout(); return <LoginPage onLogin={() => login('member')} /> }
+  if (status === 'admin') {
+    return <AdminDashboard onLogout={() => { logout(); setStatus('login') }} />
+  }
 
-  return (
-    <div className="app-root bg-slate-50">
-      {/* UpdateNotifier menangani semua state OTA: check, download, ready, error, offline */}
-      <UpdateNotifier
-        autoCheck={true}
-        initialDelay={5000}
-        checkInterval={30 * 60 * 1000}
-        position="bottom-right"
-        onUpdateApplied={(v) => console.log('[App] Update applied:', v)}
-      />
-      <MobileApp />
-    </div>
-  )
+  return <LoginPage onLogin={validate} />
 }
 
 export default function App() {
-  return <AppProvider><Shell /></AppProvider>
+  return (
+    <AppProvider>
+      <Shell />
+    </AppProvider>
+  )
 }

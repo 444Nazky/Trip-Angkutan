@@ -29,17 +29,6 @@ log.txt
 /out-tsc
 /bazel-out
 
-# ng build dump (jangan pernah di-commit lagi)
-/chunk-*.js
-/main-*.js
-/main-*.css
-/styles-*.css
-/3rdpartylicenses.txt
-/prerendered-routes.json
-/index.html
-/sw.js
-/version.json
-
 # Node
 /node_modules
 npm-debug.log
@@ -80,8 +69,5 @@ testem.log
 .DS_Store
 Thumbs.db
 .env
-
-# Android signing — jangan di-commit
-android/keystore.properties
-*.keystore
-*.jks
+.vercel
+.env*

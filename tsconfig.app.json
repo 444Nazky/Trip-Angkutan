@@ -1,14 +1,9 @@
-/* To learn more about this file see: https://angular.io/config/tsconfig. */
+/* Admin/React pages need @types/react to resolve alongside Angular. */
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./out-tsc/app",
-    "types": []
+    "outDir": "./out-tsc/app"
   },
-  "files": [
-    "src/main.tsx"
-  ],
-  "include": [
-    "src/**/*.d.ts"
-  ]
+  "files": ["src/main.tsx"],
+  "include": ["src/**/*.ts"]
 }
