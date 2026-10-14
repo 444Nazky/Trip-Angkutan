@@ -1,22 +1,25 @@
-// ─── Initialization Screen ──────────────────────────────────────────────
-// Shown on first launch or when master data needs to be synced.
-
 import { useEffect, useState, useRef } from 'react'
 import { Truck, Wifi, WifiOff, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
 import { performInitialSync, getSyncStatus, STORAGE_KEYS } from '../services/offline-init'
 import { clearAllMasterData } from '../services/offline-init'
 import { getOfflineSession } from '../services/offline-auth'
 
+
+
 interface InitScreenProps {
   onReady: () => void
   onOffline: () => void
 }
+
+
 
 interface SyncProgress {
   stage: string
   percent: number
   errors: string[]
 }
+
+
 
 export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
   const [progress, setProgress] = useState<SyncProgress>({ stage: 'Memeriksa koneksi...', percent: 0, errors: [] })
@@ -30,7 +33,7 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
   }, [])
 
   useEffect(() => {
-    // Auto-start sync when online
+
     if (!navigator.onLine) {
       setProgress({ stage: 'Offline — menggunakan data tersimpan', percent: 0, errors: [] })
       return
@@ -39,7 +42,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
     const session = getOfflineSession()
     const hasSession = session !== null
 
-    // If we have a session and data is fresh, skip sync screen
     if (hasSession && status.lastSyncAt) {
       const lastSync = new Date(status.lastSyncAt).getTime()
       const hoursSince = (Date.now() - lastSync) / 3_600_000
@@ -85,7 +87,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-sm text-center">
 
-        {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center shadow-lg">
             <Truck size={28} className="text-white" strokeWidth={1.5} />
@@ -95,10 +96,8 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
         <h1 className="text-2xl font-semibold text-zinc-900 mb-1">Sinkronisasi Awal</h1>
         <p className="text-sm text-zinc-500 mb-8">Trip Angkutan · Kalimantan Barat</p>
 
-        {/* Status Card */}
         <div className="bg-white rounded-2xl border border-zinc-200 p-6 mb-4 text-left">
 
-          {/* Connection status */}
           <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-100">
             {online ? (
               <Wifi size={20} className="text-green-600 shrink-0" />
@@ -115,7 +114,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
             </div>
           </div>
 
-          {/* Sync Stage */}
           <div className="mb-3">
             <p className="text-sm text-zinc-700">{progress.stage}</p>
             {online && (
@@ -128,7 +126,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
             )}
           </div>
 
-          {/* Data Counts */}
           {status.lastSyncAt && (
             <div className="grid grid-cols-2 gap-2 text-xs text-zinc-500 mb-3">
               <div className="bg-zinc-50 rounded-lg p-2">
@@ -146,7 +143,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
             </div>
           )}
 
-          {/* Errors */}
           {progress.errors.length > 0 && (
             <div className="space-y-1 mb-3">
               {progress.errors.map((err, i) => (
@@ -159,7 +155,6 @@ export default function InitScreen({ onReady, onOffline }: InitScreenProps) {
           )}
         </div>
 
-        {/* Actions */}
         <div className="space-y-2">
           {online && progress.errors.length > 0 && (
             <button

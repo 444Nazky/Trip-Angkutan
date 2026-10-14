@@ -1,14 +1,15 @@
-// ─── Sideloading Helper Component ───────────────────────────────────────────
-// Panduan untuk dialog "Unknown Sources" / "Sumber Tidak Dikenal"
-
 import { useState } from 'react';
 
+
+
 interface SideloadingHelperProps {
-  /** Whether to show the full helper or just a link */
+
   variant?: 'full' | 'compact' | 'inline';
-  /** Callback when user needs help */
+
   onHelpRequested?: () => void;
 }
+
+
 
 export function SideloadingHelper({
   variant = 'full',
@@ -47,7 +48,6 @@ export function SideloadingHelper({
     );
   }
 
-  // Full variant
   return (
     <div className="sideloading-helper">
       <button
@@ -132,31 +132,32 @@ export function SideloadingHelper({
   );
 }
 
-// ─── Install Success/Failure Handler ────────────────────────────────────────
+
 
 interface InstallResultHandlerProps {
   onSuccess?: () => void;
   onFailure?: (error: string) => void;
 }
 
+
+
 export function InstallResultHandler({
   onSuccess,
   onFailure
 }: InstallResultHandlerProps) {
-  // This component handles the result after user returns from installer
-  // In a real implementation, this would use App.addListener('appStateChange')
-  // or similar to detect when user returns to the app
 
-  return null; // Placeholder - implement based on your app's lifecycle
+  return null;
 }
 
-// ─── Install Instructions Modal ───────────────────────────────────────────────
+
 
 interface InstallInstructionsModalProps {
   isOpen: boolean;
   onClose: () => void;
   version: string;
 }
+
+
 
 export function InstallInstructionsModal({
   isOpen,
@@ -217,7 +218,7 @@ export function InstallInstructionsModal({
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
+
 
 export const sideloadingStyles = `
 .sideloading-inline {
@@ -530,5 +531,7 @@ export const sideloadingStyles = `
   cursor: not-allowed;
 }
 `;
+
+
 
 export default SideloadingHelper;

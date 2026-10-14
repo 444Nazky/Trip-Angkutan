@@ -13,12 +13,10 @@ import { downloadXlsx } from '../../services/xlsx'
 import { getApiBaseUrl } from '../../services/api'
 import { resolvePhotoUrl } from './components/PhotoViewer'
 
+
+
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
 
-// Foto disajikan backend di `origin/uploads/...` (bukan di bawah /api), jadi
-// URL-nya disusun dari asal server API — sama dengan resolusi di Laporan.
-// Catatan: `import.meta.env` TIDAK ada di build Angular (esbuild), pemakaian
-// sebelumnya membuat dashboard blank saat runtime.
 const fotoUrl = (path: string | null | undefined) => {
   if (!path) return null
   return resolvePhotoUrl(path, getApiBaseUrl())
@@ -74,12 +72,18 @@ const ThumbnailCell = ({ foto_path, no_trip }: { foto_path: string | null | unde
   )
 }
 
+
+
 type ViewMode = 'trip' | 'vehicle'
+
+
+
 type LoadState = 'loading' | 'ready' | 'offline'
 
 const AUTO_REFRESH_MS = 15_000
 
-/** Baris kendaraan: 0-8 = primitif, 9 = foto (string|null), 10 = koordinat ({gmaps}|null) */
+
+
 interface VehRow extends Array<string | number | { lat: string; lng: string; gmaps: string } | null> {
   0: string; 1: string; 2: string; 3: string; 4: string; 5: string;
   6: string; 7: string; 8: number; 9: string | null;
@@ -88,6 +92,8 @@ interface VehRow extends Array<string | number | { lat: string; lng: string; gma
 }
 
 const asVehRow = (r: [string, string, string, string, string, string, string, string, number, string | null, { lat: string; lng: string; gmaps: string } | null]): VehRow => r as unknown as VehRow
+
+
 
 export default function ReportSheet() {
   const [rows, setRows] = useState<ReportTrip[]>([])
@@ -114,7 +120,6 @@ export default function ReportSheet() {
     setLastSync(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
   }, [])
 
-  // Muat pertama + sinkronisasi otomatis 15 detik
   useEffect(() => {
     alive.current = true
     void load(filters)
@@ -158,7 +163,7 @@ export default function ReportSheet() {
 
   const buildSheets = () => {
     const now = new Date()
-    // Excel matrix — hanya string | number | null untuk XlsxSheet.rows
+
     const vehExcelMatrix: (string | number | null)[][] = vehMatrix.map(r => [
       r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8],
       fotoUrl(r[9]) || null,
@@ -181,7 +186,7 @@ export default function ReportSheet() {
   }
 
   const copyTsv = async () => {
-    // TSV matrix — flatten kolom kompleks (Foto=objek, Lokasi=objek) ke string
+
     const tsvRows = matrix.map(r => r.map((cell, ci) => {
       if (view === 'vehicle' && ci === 9) return fotoUrl(cell as string | null) || '-'
       if (view === 'vehicle' && ci === 10) return ((cell as { lat: string; lng: string; gmaps: string } | null)?.gmaps) || '-'
@@ -220,7 +225,6 @@ export default function ReportSheet() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
           <span className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
@@ -264,7 +268,6 @@ export default function ReportSheet() {
           </button>
         </div>
 
-        {/* Filter */}
         <div className="px-5 pb-3 flex flex-wrap items-end gap-3">
           <label className="text-[11px] font-bold text-slate-500">
             Dari
@@ -307,7 +310,6 @@ export default function ReportSheet() {
           <span className="ml-auto text-[11px] text-slate-400 font-semibold self-center">Sinkron ke-{tick + 1}</span>
         </div>
 
-        {/* Tab lembar */}
         <div className="px-5 flex items-end gap-1 -mb-px">
           {([['trip', 'Laporan Trip'], ['vehicle', 'Detail Kendaraan']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setView(key)}
@@ -320,7 +322,6 @@ export default function ReportSheet() {
         </div>
       </header>
 
-      {/* Grid */}
       <main className="p-5">
         <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="overflow-auto max-h-[calc(100vh-220px)]">
@@ -349,7 +350,7 @@ export default function ReportSheet() {
                 ) : matrix.map((r, idx) => (
                   <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50/60' : ''}>
                     {r.map((cell, ci) => {
-                      // Kolom Foto (index 9 di VehRow) — render sebagai thumbnail
+
                       if (view === 'vehicle' && ci === 9) {
                         const fotoPath = cell as string | null
                         const noTrip = r[0] as string
@@ -359,7 +360,7 @@ export default function ReportSheet() {
                           </td>
                         )
                       }
-                      // Kolom Lokasi (index 10 di VehRow) — render sebagai tautan maps
+
                       if (view === 'vehicle' && ci === 10) {
                         const coords = cell as { lat: string; lng: string; gmaps: string } | null
                         if (!coords) return <td key={ci} className="px-3 py-2 border-b border-slate-100 text-slate-300 italic text-[11px]">-</td>

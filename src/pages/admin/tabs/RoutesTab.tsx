@@ -3,10 +3,14 @@ import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } fro
 import type { RouteRow, RouteDermaga, RouteFormState } from '../components/types'
 import { emptyRouteForm } from '../components/types'
 
+
+
 interface RoutesTabProps {
   serverState: 'connecting' | 'online' | 'offline'
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
+
+
 
 export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
   const [routeRows, setRouteRows] = useState<RouteRow[]>([])
@@ -79,7 +83,6 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-black text-slate-900 text-lg">Master Rute</h3>
@@ -93,7 +96,6 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
         </span>
       </div>
 
-      {/* Form */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-4xl">
         <h3 className="font-bold mb-4">{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
         <div className="grid grid-cols-6 gap-4 mb-4">
@@ -140,7 +142,6 @@ export function RoutesTab({ serverState, showToast }: RoutesTabProps) {
         </div>
       </div>
 
-      {/* Tabel */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">

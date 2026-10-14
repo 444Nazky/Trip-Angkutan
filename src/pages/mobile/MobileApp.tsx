@@ -19,37 +19,33 @@ import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
 
-// Variasi transisi antar halaman
-// push → maju (geser dari kanan)  pop → kembali (geser dari kiri)
-// zoom → halaman detail              sheet → form/modal (dari bawah)
-// tab  → pindah tab bawah
+
+
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail', 'local-officers']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
-// Tab utama (Beranda/Riwayat/Profil) selalu berpindah TANPA animasi halaman —
-// animasi hanya untuk popup & tombol, agar UI tidak terasa ramai.
+
 const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
+
+
 
 export default function MobileApp() {
   const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
-  // pendingDermagas = popup pilihan dermaga (saat Mulai Trip dual-access).
+
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
-  // selectedDockId = dermaga yang dipilih petugas di popup Mulai Trip.
-  // Dipakai RouteSelectScreen untuk filter rute.
+
   const [selectedDockId, setSelectedDockId] = useState<string | null>(null)
   const stack = useRef<MobileScreen[]>(['home'])
 
-  // Ganti petugas → batalkan popup pilih dermaga yang tersisa
   useEffect(() => { setPendingDermagas(null) }, [officer?.id])
 
-  // Fullscreen screens: no bottom nav, instant rendering
   const fullscreenScreens: MobileScreen[] = [
     'camera',
-    'officer-switch', // Daftar Petugas - fullscreen view, no nav overlap
-    'local-officers', // Daftar Petugas Lokal - fullscreen, bukan popup
+    'officer-switch',
+    'local-officers',
     'pin-verify',
     'trip-complete',
   ]
@@ -71,14 +67,13 @@ export default function MobileApp() {
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} />,
     'officer-switch': <OfficerSwitchScreen go={go} />,
-    // PinVerifyScreen tanpa onDermagaSelect — popup dermaga TIDAK muncul di login/switch
+
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     'geofence-config': <GeofenceConfigScreen go={go} />,
     'local-officers': <LocalOfficersScreen go={go} />,
   }
 
-  /** Navigasi dengan animasi sesuai konteks. */
   function go(next: MobileScreen) {
     if (next === screen) return
     const path = stack.current
@@ -93,18 +88,16 @@ export default function MobileApp() {
     setAnim(kind)
     setScreen(next)
   }
- /* */
 
   function handleStartTrip() {
     const accesses = officer.dermagaAccess || []
     if (accesses.length > 1) {
-      setSelectedDockId(null) // belum pilih dock, popup tanggung jawab
+      setSelectedDockId(null)
       setPendingDermagas(accesses as Dermaga[])
       return
     }
     if (accesses.length === 0) {
-      // Tanpa akses dermaga: HomeScreen sudah menampilkan pesan "Hubungi Admin"
-      // (sengaja TIDAK memakai console.warn — pesan dev tidak berguna bagi petugas).
+
       return
     }
     setPendingDermagas(null)
@@ -137,7 +130,6 @@ export default function MobileApp() {
 
   const framed = (content: React.ReactNode) => <div className="app-frame">{content}</div>
 
-  // Popup pilih dermaga HANYA muncul saat Mulai Trip (bukan login/ganti petugas)
   if (pendingDermagas && pendingDermagas.length > 1) {
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
@@ -152,8 +144,7 @@ export default function MobileApp() {
   }
 
   if (fullscreenScreens.includes(screen)) {
-    // Daftar Petugas Lokal: beri animasi masuk/keluar (push/pop) seperti halaman
-    // biasa; layar kamera/pin tetap instan.
+
     const animated = screen === 'local-officers'
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">

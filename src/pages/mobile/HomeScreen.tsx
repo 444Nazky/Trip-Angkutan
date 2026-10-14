@@ -4,13 +4,19 @@ import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
+
+
 interface HomeScreenProps {
   go: (s: MobileScreen) => void
-  /** Dipanggil saat petugas menekan "Mulai Trip". MobileApp menangani cek dual-access dermaga. */
+
   onStartTrip: () => void
 }
 
+
+
 type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
+
+
 
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
@@ -19,7 +25,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    // Refresh count saat focus window
+
     const h = () => setPendingCount(getPendingCount())
     window.addEventListener('focus', h)
     const unsub = onSyncQueueChange(setPendingCount)
@@ -27,8 +33,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
 
-  /** TOMBOL MANUAL — "Paksa Sinkronisasi". Verifikasi koneksi memakai ping
-   *  aktif, jadi tetap bisa ditekan walau navigator.onLine salah baca. */
   const handleSync = async () => {
     if (busy) return
     setBusy(true)
@@ -67,8 +71,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
   const queuedCount = myTrips.filter(t => t.synced !== true).length
-  // Tanpa akses dermaga → trip tidak bisa dimulai. Daripada senyap (console.warn),
-  // tampilkan pesan yang bisa dibaca petugas dan arahkan ke admin.
+
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   const units = new Set(
     myTrips
@@ -77,7 +80,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   )
   return (
     <div className="flex flex-col px-4 pt-2 pb-4" style={{ gap: 16 }}>
-      {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
@@ -101,7 +103,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           )}
         </div>
       </div>
-
 
       {(busy || pendingCount > 0 || !!syncState) && (
         <button
@@ -148,7 +149,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </button>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
           { label: 'Trip', val: String(myTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
@@ -165,7 +165,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         ))}
       </div>
 
-      {/* Recent Trips */}
       <div>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-slate-800 text-[15px]">Daftar Trip</h3>

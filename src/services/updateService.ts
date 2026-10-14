@@ -1,9 +1,8 @@
-// ─── Update Service (Custom Self-Hosted API) ─────────────────────────────────
-// Purge-First Full-Package APK Update System
-
 import { CapacitorHttp } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { api } from './api';
+
+
 
 export interface UpdateInfo {
   latestVersion: string;
@@ -17,17 +16,23 @@ export interface UpdateInfo {
   releaseDate: string | null;
 }
 
+
+
 export interface ReleaseNote {
   type: 'feature' | 'bugfix' | 'security' | 'improvement';
   title: string;
   description: string;
 }
 
+
+
 export interface ReleaseNotes {
   version: string;
   releaseDate: string | null;
   notes: ReleaseNote[];
 }
+
+
 
 export type UpdateState =
   | 'idle'
@@ -38,12 +43,13 @@ export type UpdateState =
   | 'error'
   | 'up-to-date';
 
+
+
 export interface UpdateError {
   code: 'NETWORK_ERROR' | 'DOWNLOAD_FAILED' | 'HASH_MISMATCH' | 'INSTALL_FAILED' | 'STORAGE_FULL' | 'PERMISSION_DENIED' | 'UNKNOWN';
   message: string;
 }
 
-// Storage keys
 const STORAGE_KEYS = {
   CURRENT_VERSION: 'trip.update.currentVersion',
   PENDING_VERSION: 'trip.update.pendingVersion',
@@ -51,22 +57,26 @@ const STORAGE_KEYS = {
   UPDATE_INFO: 'trip.update.info',
 } as const;
 
-// API Base URL
+
+
 function getUpdateApiUrl(): string {
   return `${api.baseUrl}/api/v1`;
 }
 
-// Sleep helper
+
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ─── Version Comparison ─────────────────────────────────────────────────────
+
 
 function parseVersion(version: string): [number, number, number] {
   const parts = version.split('.').map(Number);
   return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
 }
+
+
 
 export function isNewerVersion(current: string, latest: string): boolean {
   const [c1, c2, c3] = parseVersion(current);
@@ -78,12 +88,12 @@ export function isNewerVersion(current: string, latest: string): boolean {
   return false;
 }
 
+
+
 export function shouldForceUpdate(current: string, minVersion: string | null | undefined): boolean {
   if (!minVersion) return false;
   return isNewerVersion(current, minVersion);
 }
-
-// ─── API Calls ─────────────────────────────────────────────────────────────
 
 async function checkVersionFromServer(currentVersion: string): Promise<UpdateInfo | null> {
   const url = `${getUpdateApiUrl()}/app-version?current=${encodeURIComponent(currentVersion)}&t=${Date.now()}`;
@@ -104,18 +114,15 @@ async function checkVersionFromServer(currentVersion: string): Promise<UpdateInf
       return response.data as UpdateInfo;
     }
 
-    // 404 means update API not available yet - return null (silent skip)
     if (response.status === 404) {
       console.log('[Update] Update API not available yet (404)');
       return null;
     }
 
-    // Other status codes - try again later
     throw new Error(`Server returned status ${response.status}`);
   } catch (error) {
     console.error('[Update] Version check failed:', error);
-    // Network errors or 404 = update API not deployed yet
-    // Don't show error to user, just return null
+
     return null;
   }
 }
@@ -142,10 +149,8 @@ async function fetchReleaseNotes(version: string): Promise<ReleaseNotes | null> 
   }
 }
 
-// ─── APK Download ─────────────────────────────────────────────────────────
-
 async function getApkPath(version: string): Promise<string> {
-  // Ensure directory exists
+
   try {
     await Filesystem.readdir({
       path: 'updates',
@@ -164,7 +169,6 @@ async function getApkPath(version: string): Promise<string> {
 async function downloadApk(version: string, downloadUrl: string): Promise<string> {
   const apkPath = await getApkPath(version);
 
-  // Clean up old APK files first (Purge-First)
   await cleanupOldApkFiles(version);
 
   try {
@@ -210,7 +214,7 @@ async function cleanupOldApkFiles(keepVersion: string): Promise<void> {
   }
 }
 
-// ─── State Management ──────────────────────────────────────────────────────
+
 
 function getStoredVersion(): string | null {
   try {
@@ -220,6 +224,8 @@ function getStoredVersion(): string | null {
   }
 }
 
+
+
 function setStoredVersion(version: string): void {
   try {
     localStorage.setItem(STORAGE_KEYS.CURRENT_VERSION, version);
@@ -227,6 +233,8 @@ function setStoredVersion(version: string): void {
     console.warn('[Update] Failed to store version');
   }
 }
+
+
 
 function clearStoredState(): void {
   try {
@@ -237,8 +245,6 @@ function clearStoredState(): void {
     console.warn('[Update] Failed to clear stored state');
   }
 }
-
-// ─── Main Update Service ───────────────────────────────────────────────────
 
 class UpdateService {
   private _state: UpdateState = 'idle';
@@ -254,8 +260,7 @@ class UpdateService {
 
   private async init(): Promise<void> {
     try {
-      // Get version from capacitor config or localStorage
-      // In a real app, this would come from the native layer
+
       const storedVersion = getStoredVersion();
       this._currentVersion = storedVersion || '1.0.0';
       console.log('[Update] Current app version:', this._currentVersion);
@@ -311,8 +316,6 @@ class UpdateService {
     try {
       const result = await checkVersionFromServer(this._currentVersion);
 
-      // If result is null, API is not available or network error
-      // Silent skip - set to up-to-date without showing error
       if (result === null) {
         this._state = 'up-to-date';
         this._updateInfo = null;
@@ -326,7 +329,7 @@ class UpdateService {
         localStorage.setItem(STORAGE_KEYS.UPDATE_INFO, JSON.stringify(result));
         localStorage.setItem(STORAGE_KEYS.LAST_CHECK, new Date().toISOString());
       } catch {
-        // Ignore storage errors
+
       }
 
       if (result.updateAvailable) {
@@ -344,7 +347,7 @@ class UpdateService {
 
       return result;
     } catch (error) {
-      // Only show error if it's not a network/404 issue (those return null)
+
       this._state = 'error';
       this._error = {
         code: 'NETWORK_ERROR',
@@ -413,10 +416,6 @@ class UpdateService {
       console.log('[Update] APK ready for installation:', apkPath);
       console.log('[Update] On native Android, this would trigger the package installer');
 
-      // On Android, opening the APK file directly through file manager
-      // or sharing intent will trigger installation
-      // In production, implement a native plugin for Intent.ACTION_VIEW
-
       return true;
     } catch (error) {
       console.error('[Update] Install failed:', error);
@@ -451,7 +450,7 @@ class UpdateService {
         }
       }
     } catch {
-      // Ignore cleanup errors
+
     }
 
     clearStoredState();
@@ -464,6 +463,8 @@ class UpdateService {
     return fetchReleaseNotes(ver);
   }
 }
+
+
 
 export const updateService = new UpdateService();
 export { UpdateService };

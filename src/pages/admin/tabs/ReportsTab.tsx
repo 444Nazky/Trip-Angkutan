@@ -5,6 +5,8 @@ import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay, useCurrencyReveal } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 
+
+
 function vehiclePhotoCaption(trip: ReportTrip, vehicle: ReportTrip['vehicles'][number]): string {
   const metadata = [
     vehicle.foto_captured_at ? formatReportDateTime(vehicle.foto_captured_at).full : '',
@@ -14,6 +16,8 @@ function vehiclePhotoCaption(trip: ReportTrip, vehicle: ReportTrip['vehicles'][n
   return `${trip.no_trip} · ${vehicle.no_polisi} · ${vehicle.vehicle_type} · ${vehicle.golongan}${metadata ? ` · ${metadata}` : ''}`
 }
 
+
+
 interface ReportsTabProps {
   serverState: 'connecting' | 'online' | 'offline'
   serverTrips: BackendTrip[]
@@ -21,6 +25,8 @@ interface ReportsTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
   baseUrl?: string
 }
+
+
 
 export function ReportsTab({ serverState, serverTrips, onServerTripsChange, showToast, baseUrl = '' }: ReportsTabProps) {
   const { revealed, toggle } = useCurrencyReveal()
@@ -91,7 +97,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
     const asal = (t: ReportTrip) => t.route_from ? `${t.route_from_name ? `${t.route_from_name} (` : ''}${t.route_from}${t.route_from_name ? ')' : ''}` : '-'
     const tujuan = (t: ReportTrip) => t.route_to ? `${t.route_to_name ? `${t.route_to_name} (` : ''}${t.route_to}${t.route_to_name ? ')' : ''}` : '-'
 
-    // Sheet 1 — ringkasan trip
     const tripRows: (string | number | null)[][] = [
       ['Laporan Trip Angkutan'],
       ['Dicetak', stamped.full],
@@ -110,7 +115,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
           t.vehicle_count || 0, t.trip_revenue || 0]
       }),
     ]
-
 
     const vehRows: (string | number | null)[][] = [
       ['Detail Kendaraan per Trip'],
@@ -135,7 +139,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
   const golonganOptions = filterOptions.golongan.length > 0 ? filterOptions.golongan : []
   const jenisOptions = filterOptions.vehicleTypes.length > 0 ? filterOptions.vehicleTypes : []
 
-  // Analitik ringkas
   const totalTrip = reportTrips.length
   const totalUnit = reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
   const totalRevenue = reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
@@ -143,7 +146,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
   const kosongCount = totalTrip - muatanCount
   const muatanPct = totalTrip ? (muatanCount / totalTrip) * 100 : 0
 
-  // Grafik 1 — trip per hari (maksimal 14 hari dalam rentang terpilih)
   const reportDaily = Array.from(
     reportTrips.reduce((m, t) => {
       const k = dayKeyWib(t.created_at)
@@ -173,9 +175,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
             Refresh
           </button>
-          
-
-
 
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
             title="Buka spreadsheet live yang tersinkron langsung dari database"
@@ -195,7 +194,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       </div>
 
-      {/* Filter */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
         <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
@@ -227,7 +225,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         <span className="ml-auto text-[12px] text-slate-400 font-semibold">{totalTrip} trip</span>
       </div>
 
-      {/* Ringkasan */}
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
@@ -249,10 +246,8 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       )}
 
-      {/* Grafik analitik — di atas tabel agar terasa sebagai laporan utuh */}
       {reportState === 'ready' && totalTrip > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Trip per hari */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
@@ -276,7 +271,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
             </div>
           </div>
 
-          {/* Komposisi muatan */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
             <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
@@ -306,8 +300,8 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       )}
 
-      {/* Rekap wilayah — trip dari petugas berbeda dalam satu region+Dermaga
-          digabung jadi satu baris operasional (petugas tetap tercatat sbg metadata) */}
+      {
+}
       {reportState === 'ready' && recap.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap">
@@ -364,7 +358,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       )}
 
-      {/* Modal Foto */}
       {viewingPhotos && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingPhotos(null)}>
           <div onClick={e => e.stopPropagation()} className="max-w-4xl w-full">
@@ -373,7 +366,6 @@ export function ReportsTab({ serverState, serverTrips, onServerTripsChange, show
         </div>
       )}
 
-      {/* Tabel */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full border-collapse text-[13px]">
           <thead>

@@ -5,6 +5,8 @@ import { Check } from 'lucide-react'
 import { environment } from '../../../environments/environment'
 import { ChangePasswordSection } from '../ChangePassword'
 
+
+
 interface SettingsTabProps {
   onLogout: () => void
   serverState: 'connecting' | 'online' | 'offline'
@@ -13,6 +15,8 @@ interface SettingsTabProps {
   localTrips: unknown[]
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
+
+
 
 export function SettingsTab({ onLogout, serverState, tariffs, officers, localTrips, showToast }: SettingsTabProps) {
   const [theme, setTheme] = useState<AdminTheme>(() => loadTheme())
@@ -29,13 +33,11 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
 
   return (
     <div className="space-y-6">
-      {/* Tema & Tampilan */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Tema & Tampilan</h3>
         <p className="text-xs text-slate-500 mb-6">Sesuaikan tema situs, ukuran font, dan warna aksen</p>
 
         <div className="space-y-5">
-          {/* Tema */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[13px] font-bold text-slate-700">Tema Situs</p>
@@ -54,7 +56,6 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
             </div>
           </div>
 
-          {/* Font */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[13px] font-bold text-slate-700">Ukuran Font</p>
@@ -73,7 +74,6 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
             </div>
           </div>
 
-          {/* Aksen */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[13px] font-bold text-slate-700">Warna Aksen</p>
@@ -108,7 +108,6 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
         </div>
       </div>
 
-      {/* Sistem */}
       <ChangePasswordSection onLogout={onLogout} showToast={showToast} />
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Lainnya</h3>
@@ -123,7 +122,6 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 {serverState === 'online' ? 'Backend Online' : serverState === 'offline' ? 'Offline (Lokal)' : 'Menghubungi...'}
               </span>
             </div>
-            {/* URL API dinamis dari environment — jangan hardcode localhost (dev) di bundle admin */}
             <p className="text-[11px] text-slate-400 break-all">{environment.apiBaseUrl}</p>
             <button
               onClick={async () => {

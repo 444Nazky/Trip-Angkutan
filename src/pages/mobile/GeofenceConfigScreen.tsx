@@ -10,9 +10,13 @@ import {
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
+
+
 interface GeofenceConfigScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 interface DraftPoint {
   id: string
@@ -36,12 +40,15 @@ const emptyDraft: DraftPoint = {
   dermagaId: '',
 }
 
-/** Parse "SJRE-SBDZ, SBDZ-SJRE" → ['SJRE-SBDZ','SBDZ-SJRE'] (tanpa duplikat). */
+
+
 function parseRoutes(raw: string): string[] {
   return Array.from(new Set(
     raw.split(/[,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean),
   ))
 }
+
+
 
 export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) {
   const { userType, officer } = useApp()
@@ -140,7 +147,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       </div>
 
       <div className="px-4 py-5 space-y-4">
-        {/* ── Form tambah / ubah ── */}
         {showForm && isAdmin && (
           <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4 space-y-3">
             <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">
@@ -152,7 +158,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
               placeholder="Nama lokasi (mis. Badau Dermaga 1)"
               className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-[14px] focus:outline-none focus:border-blue-500 bg-white"
             />
-            {/* Dermaga selector */}
             <div className="relative">
               <select
                 value={draft.dermagaId}
@@ -228,7 +233,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           </div>
         )}
 
-        {/* ── Daftar titik ── */}
         {!showForm && isAdmin && (
           <button
             onClick={startAdd}

@@ -5,9 +5,13 @@ import { applyUpdate, checkForUpdate, getCurrentVersion, semverLabel, type Updat
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
+
+
 interface ProfileScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, refreshOfficers } = useApp()

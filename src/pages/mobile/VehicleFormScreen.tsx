@@ -10,23 +10,24 @@ import {
   PLATE_REGEX_STRICT,
 } from '../../utils/plateFormatter'
 
+
+
 interface VehicleFormScreenProps {
   go: (s: MobileScreen) => void
 }
 
-// Label "Pilih…" di select menandakan field belum diisi — sengaja dibuat
-// wajib (bukan opsional) untuk jenis kendaraan & kategori.
 const TYPE_PLACEHOLDER = 'Pilih jenis kendaraan'
 const CATEGORY_PLACEHOLDER = 'Pilih kategori'
+
+
 
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
   const { plate, type: vehicleType, category } = draft.vehicleForm
-  // Mode ubah (edit sebelum submit): indeks kendaraan yang sedang diperbaiki.
+
   const editingIndex = draft.editVehicleIndex ?? null
   const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
-  // Foto kendaraan MEMAKAI SLOT TERPISAH (vPhoto) — bukan foto trip,
-  // supaya tiap kendaraan (Truk 1, Truk 2, Mobil 1 …) punya foto sendiri.
+
   const photoTaken = draft.vPhoto
 
   const [check, setCheck] = useState<PlateCheck | null>(null)
@@ -34,15 +35,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [plateError, setPlateError] = useState('')
   const [showModal, setShowModal] = useState(false)
 
-  // Ref for cursor position management
   const plateInputRef = useRef<HTMLInputElement>(null)
   const lastValueRef = useRef(plate)
 
   const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : ['Motor', 'Mobil', 'Truck Kecil', 'Truck Sedang', 'Truck Besar']
   const categories = ['Internal', 'Eksternal', 'Lokal']
 
-  // Semua field wajib — tidak ada satu pun yang opsional.
-  // Plate must match strict format: [1-2 letters] + space + [1-4 digits] + space + [1-3 letters]
   const plateOk = PLATE_REGEX_STRICT.test(plate.trim())
   const typeOk = !!vehicleType && vehicleType !== TYPE_PLACEHOLDER
   const categoryOk = !!category && category !== CATEGORY_PLACEHOLDER
@@ -62,14 +60,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
-  /**
-   * Smart plate input handler with auto-formatting
-   * - Auto-inserts space when transitioning from letters to digits
-   * - Auto-inserts space when transitioning from digits to letters
-   * - Auto-capitalizes all letters
-   * - Removes invalid characters
-   * - Maintains cursor position intelligently
-   */
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value
     const oldValue = lastValueRef.current
@@ -78,9 +68,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
     setPlateError('')
 
-    // Handle backspace/delete at space boundaries
     if (newLength < oldLength) {
-      // User pressed backspace - just remove the character
+
       const sanitized = sanitizePlateInput(rawValue)
       const formatted = formatPlateNumber(sanitized)
       lastValueRef.current = formatted
@@ -88,7 +77,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return
     }
 
-    // New character added - sanitize and format
     const sanitized = sanitizePlateInput(rawValue)
     const formatted = formatPlateNumber(sanitized)
 
@@ -96,9 +84,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setField({ plate: formatted })
   }
 
-  /**
-   * Validate plate format on blur/submit
-   */
   const validatePlateInput = (): boolean => {
     const result = validatePlate(plate)
     if (!result.valid) {
@@ -108,10 +93,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     return true
   }
 
-  // Handle OCR result with smart formatting
   useEffect(() => {
     if (draft.ocrResult) {
-      // Normalize OCR result: remove extra spaces, uppercase
+
       const sanitized = sanitizePlateInput(draft.ocrResult)
       const formattedPlate = formatPlateNumber(sanitized)
       if (formattedPlate.length >= 3) {
@@ -128,11 +112,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     go('camera')
   }
 
-  // Guard keras: tidak ada kendaraan yang tersimpan dengan field kosong.
-  // Mode edit → perbarui kendaraan pada tempatnya (indeks tidak berubah),
-  // sehingga foto dokumentasi yang sudah terpasang tidak tertukar.
   const pushVehicle = () => {
-    // Validate plate format before saving
+
     if (!validatePlateInput()) {
       return false
     }
@@ -165,7 +146,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     return true
   }
 
-  /** Batalkan mode ubah tanpa menyimpan perubahan. */
   const cancelEdit = () => {
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },
@@ -202,9 +182,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </span>
       </div>
 
-      {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk */}
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-        {/* Foto Dokumentasi */}
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[13px] font-medium text-slate-600">
@@ -241,7 +219,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </button>
         </div>
 
-        {/* Nomor Plat */}
         <div className="px-4 py-3.5">
           <label className="text-[13px] font-medium text-slate-600 block mb-2">
             Nomor Plat <span className="text-red-500">*</span>
@@ -282,7 +259,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           )}
         </div>
 
-        {/* Jenis Kendaraan — wajib */}
         <div className="px-4 py-3.5">
           <label htmlFor="v-type" className="text-[13px] font-medium text-slate-600 block mb-2">
             Jenis Kendaraan <span className="text-red-500">*</span>
@@ -305,7 +281,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </div>
         </div>
 
-        {/* Kategori — wajib */}
         <div className="px-4 py-3.5">
           <label htmlFor="v-category" className="text-[13px] font-medium text-slate-600 block mb-2">
             Kategori <span className="text-red-500">*</span>
@@ -329,7 +304,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       </div>
 
-      {/* Tombol Simpan — terkunci sampai 4/4 */}
       <button
         onClick={() => isFormComplete && setShowModal(true)}
         disabled={!isFormComplete}
@@ -358,7 +332,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
-      {/* Kendaraan Tersimpan */}
       {draft.vehicles.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-semibold text-slate-500 mb-2">
@@ -373,7 +346,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
                 <span className="text-xs text-slate-500 ml-auto">{v.category}</span>
-                {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
                 <button
                   onClick={() => editDraftVehicle(i)}
                   className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
@@ -394,7 +366,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       )}
 
-      {/* Mode ubah: jalan keluar harus kembali ke Ringkasan (bukan ke pilih rute) */}
       {isEditing && (
         <button
           onClick={() => go('trip-summary')}
@@ -404,7 +375,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
-      {/* Modal Konfirmasi */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="w-full bg-white rounded-t-2xl p-6">

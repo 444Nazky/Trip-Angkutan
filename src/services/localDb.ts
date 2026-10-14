@@ -1,23 +1,7 @@
-// ─── localDb.ts — Penyimpanan Lokal Tahan-Banting ─────────────────────────────
-// Lapisan penyimpanan OFFLINE-FIRST dipakai bersama oleh sync.ts (antrean trip)
-// dan store.tsx (daftar trip):
-//
-//   • IndexedDB (utama) — bertahan saat app ditutup / direstart / di-refresh,
-//     kapasitas jauh lebih besar dari localStorage (foto base64 muat di sini).
-//   • localStorage (fallback) — dipakai otomatis bila IndexedDB gagal/tidak
-//     tersedia (WebView lawas, mode privat, dsb) sehingga fungsi tetap jalan.
-//
-// Struktur object store (keyPath inline):
-//   pending — antrean sinkronisasi trip (key: syncId)
-//   trips   — daftar trip yang tercatat di aplikasi (key: id)
-//   meta    — penanda migrasi & state kecil (key: k)
-//
-// CATATAN: nama DB dipertahankan 'trip-sync-v2' agar data antrean yang sudah
-// tersedia di perangkat petugas TIDAK hilang saat perangkat naik versi skema
-// (onupgradeneeded hanya MENAMBAH store baru, tidak menghapus yang lama).
-
 const DB_NAME = 'trip-sync-v2'
 const DB_VERSION = 2
+
+
 
 export type StoreName = 'pending' | 'trips' | 'meta'
 
@@ -32,13 +16,14 @@ const KEY_PATH: Record<StoreName, string> = {
   meta: 'k',
 }
 
-/** Prefix localStorage untuk mode fallback (kunci per store). */
 const LS_PREFIX = 'trip.localdb.v1.'
 
 let _db: IDBDatabase | null = null
 let _dbPromise: Promise<IDBDatabase | null> | null = null
-/** true → pakai localStorage karena IndexedDB gagal/tidak tersedia. */
+
 let _fallback = false
+
+
 
 function openDB(): Promise<IDBDatabase | null> {
   if (_db) return Promise.resolve(_db)
@@ -52,8 +37,8 @@ function openDB(): Promise<IDBDatabase | null> {
         return
       }
       const req = indexedDB.open(DB_NAME, DB_VERSION)
-      // Database di-upgrade tab lain → tutup agar tidak memblokir.
-      req.onblocked = () => { /* biarkan; retry berikutnya akan berhasil */ }
+
+      req.onblocked = () => {}
       req.onupgradeneeded = () => {
         const db = req.result
         for (const name of ALL_STORES) {
@@ -64,7 +49,7 @@ function openDB(): Promise<IDBDatabase | null> {
       }
       req.onsuccess = () => {
         const db = req.result
-        db.onversionchange = () => { try { db.close() } catch { /* ignore */ }; _db = null; _dbPromise = null }
+        db.onversionchange = () => { try { db.close() } catch {}; _db = null; _dbPromise = null }
         _db = db
         resolve(db)
       }
@@ -82,19 +67,24 @@ function openDB(): Promise<IDBDatabase | null> {
   return _dbPromise
 }
 
-/** Pastikan koneksi terbuka (idempoten). */
+
+
 export async function initLocalDb(): Promise<'indexeddb' | 'localStorage'> {
   const db = await openDB()
   return db ? 'indexeddb' : 'localStorage'
 }
 
+
+
 export function localDbBackend(): 'indexeddb' | 'localStorage' {
   return _fallback || !_db ? 'localStorage' : 'indexeddb'
 }
 
-// ── Fallback: localStorage per-store ──────────────────────────────────────────
+
 
 function lsKey(store: StoreName): string { return `${LS_PREFIX}${store}` }
+
+
 
 function lsRead<T>(store: StoreName): Record<string, T> {
   try {
@@ -104,14 +94,15 @@ function lsRead<T>(store: StoreName): Record<string, T> {
   } catch { return {} }
 }
 
+
+
 function lsWrite<T>(store: StoreName, map: Record<string, T>): void {
   try { localStorage.setItem(lsKey(store), JSON.stringify(map)) }
   catch (err) { console.warn('[local-db] fallback localStorage penuh/gagal:', err) }
 }
 
-// ── API generik ──────────────────────────────────────────────────────────────
 
-/** Baca SELURUH isi store. Tidak pernah melempar — gagal = array kosong. */
+
 export async function dbAll<T>(store: StoreName): Promise<T[]> {
   const db = await openDB()
   if (!db) return Object.values(lsRead<T>(store))
@@ -128,7 +119,8 @@ export async function dbAll<T>(store: StoreName): Promise<T[]> {
   })
 }
 
-/** Baca SATU item berdasarkan key inline. */
+
+
 export async function dbGet<T>(store: StoreName, key: string): Promise<T | null> {
   const db = await openDB()
   if (!db) return lsRead<T>(store)[key] ?? null
@@ -142,7 +134,8 @@ export async function dbGet<T>(store: StoreName, key: string): Promise<T | null>
   })
 }
 
-/** Tulis SATU item (upsert by key inline). Gagal tulis TIDAK menghapus data lama. */
+
+
 export async function dbPut<T extends object>(store: StoreName, value: T): Promise<boolean> {
   const db = await openDB()
   const key = String((value as Record<string, unknown>)[KEY_PATH[store]] ?? '')
@@ -167,7 +160,8 @@ export async function dbPut<T extends object>(store: StoreName, value: T): Promi
   })
 }
 
-/** Tulis BANYAK item dalam satu transaksi (lebih cepat & atomik). */
+
+
 export async function dbPutMany<T extends object>(store: StoreName, values: T[]): Promise<boolean> {
   if (!values.length) return true
   const db = await openDB()
@@ -195,7 +189,8 @@ export async function dbPutMany<T extends object>(store: StoreName, values: T[])
   })
 }
 
-/** Hapus SATU item. Hanya dipanggil setelah server mengonfirmasi sukses. */
+
+
 export async function dbDelete(store: StoreName, key: string): Promise<boolean> {
   const db = await openDB()
   if (!db) {
@@ -216,6 +211,8 @@ export async function dbDelete(store: StoreName, key: string): Promise<boolean> 
   })
 }
 
+
+
 export async function dbCount(store: StoreName): Promise<number> {
   const db = await openDB()
   if (!db) return Object.keys(lsRead(store)).length
@@ -229,10 +226,11 @@ export async function dbCount(store: StoreName): Promise<number> {
   })
 }
 
-/** Kosongkan SATU store — hanya untuk aksi eksplisit petugas ("Reset Data"). */
+
+
 export async function dbClear(store: StoreName): Promise<void> {
   const db = await openDB()
-  if (!db) { try { localStorage.removeItem(lsKey(store)) } catch { /* ignore */ } return }
+  if (!db) { try { localStorage.removeItem(lsKey(store)) } catch {} return }
   await new Promise<void>(resolve => {
     try {
       const tx = db.transaction(store, 'readwrite')
@@ -244,30 +242,27 @@ export async function dbClear(store: StoreName): Promise<void> {
   })
 }
 
-// ── Meta (penanda migrasi / state kecil) ─────────────────────────────────────
+
 
 export async function metaGet(key: string): Promise<unknown> {
   const row = await dbGet<{ k: string; v: unknown }>('meta', key)
   return row?.v ?? null
 }
 
+
+
 export async function metaSet(key: string, value: unknown): Promise<void> {
   await dbPut<{ k: string; v: unknown }>('meta', { k: key, v: value })
 }
 
-// ── Proteksi penghapusan oleh browser ────────────────────────────────────────
 
-/**
- * Minta browser OS TIDAK menghapus storage origin (Chrome 68+, Android).
- * Ini pelengkap IndexedDB: mencegah eviction otomatis saat storage penuh.
- * Selalu resolve (tidak semua browser mendukung).
- */
+
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
     const stor = navigator.storage
     if (!stor) return false
     if (stor.persisted && (await stor.persisted())) return true
     if (stor.persist) return await stor.persist()
-  } catch { /* tidak didukung — abaikan */ }
+  } catch {}
   return false
 }

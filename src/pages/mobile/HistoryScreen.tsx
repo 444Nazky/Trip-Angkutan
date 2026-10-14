@@ -3,7 +3,8 @@ import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2 } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// ─── Sync Badge Component ─────────────────────────────────────────────────────
+
+
 function SyncBadge({ isSynced }: { isSynced: boolean }) {
   if (isSynced) {
     return (
@@ -20,7 +21,8 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
   )
 }
 
-// ─── Connection Indicator ──────────────────────────────────────────────────────
+
+
 function ConnectionIndicator() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
@@ -47,17 +49,19 @@ function ConnectionIndicator() {
   )
 }
 
-// ─── History Screen ────────────────────────────────────────────────────────────
+
+
 interface HistoryScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
   const { trips, setDetailTripId, officer, clearAllTrips } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Officers only see their own trips (matches HomeScreen)
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
@@ -65,7 +69,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
-  // Count summary
   const syncedCount = myTrips.filter(t => t.synced).length
   const localCount = myTrips.filter(t => !t.synced).length
 
@@ -76,7 +79,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         <ConnectionIndicator />
       </div>
 
-      {/* Summary Stats */}
       <div className="flex gap-2 text-[11px] flex-wrap">
         <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-semibold">
           <Cloud size={10} />
@@ -97,7 +99,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         )}
       </div>
 
-      {/* Filter */}
       <div className="flex gap-2">
         {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong']] as [typeof filter, string][]).map(([k, l]) => (
           <button
@@ -108,7 +109,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         ))}
       </div>
 
-      {/* List */}
       <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
@@ -147,7 +147,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         ))}
       </div>
 
-      {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">

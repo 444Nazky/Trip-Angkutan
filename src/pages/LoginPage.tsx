@@ -12,18 +12,14 @@ import {
 import { initializeSync, syncNow } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 
+
+
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
 }
 
-/**
- * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
- * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
- * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
- *
- * Berada di lingkup MODUL (bukan di dalam komponen) agar bisa diuji unit test
- * (src/services/auth.test.ts) tanpa merender UI.
- */
+
+
 export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
   if (!u || !p) return false
 
@@ -31,7 +27,7 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
     const res = await loginOffline(u, p)
     if (res.success) return true
   } catch {
-    /* database offline belum siap — lanjut ke roster */
+
   }
 
   try {
@@ -49,9 +45,11 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
       }))
       return true
     }
-  } catch { /* no-op */ }
+  } catch {}
   return false
 }
+
+
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
@@ -61,7 +59,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showPw, setShowPw] = useState(false)
 
-  // ── Listener online/offline ─────────────────────────────────────
   useEffect(() => {
     const on  = () => setIsOnline(true)
     const off  = () => setIsOnline(false)
@@ -81,14 +78,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const u = username.trim()
     const p = password
     try {
-      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu ───────────────────────
-      // Membaca database offline + DATA BAWAAN (seed) secara instan:
-      // tanpa jeda network request, langsung bisa100% offline.
+
       if (await tryOfflineLogin(u, p)) {
         void initializeSync()
         onLogin('member')
-        // ── 2. Ada internet → sesi backend + update petugas dari dashboard
-        //       admin ditarik SEKARANG (sinkron petugas baru).
+
         if (navigator.onLine) {
           void establishOnlineSession(u, p)
           void syncOfficersToLocal(true)
@@ -101,12 +95,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         return
       }
 
-      // ── 3. Gagal lokal & online → serahkan ke server ──────────────────
-      // Kasus: petugas baru dibuat admin / PIN baru yang belum tersinkron.
       const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
-        // Sinkron data petugas BARU SEKARANG agar bisa login di perangkat lain
+
         if (navigator.onLine) void syncOfficersToLocal(true)
         onLogin('member')
         return
@@ -126,28 +118,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
   }
 
-  /**
-   * LATAR BELAKANG setelah login lokal sukses (saat ada internet):
-   *   1. Ambil JWT (member-login → fallback login PIN per petugas).
-   *   2. Tarik penambahan / penonaktifan petugas dari dashboard admin ke
-   *      penyimpanan lokal (sinkron otomatis, data bawaan tidak dirusak).
-   *   3. Proses antrean trip yang tertunda.
-   * Gagal total → aplikasi tetap berjalan normal dalam mode offline.
-   */
   async function establishOnlineSession(u: string, p: string): Promise<void> {
     try {
       await memberLogin(u, p)
       if (!api.isAuthenticated) {
-        // Kata sandi bukan password member → coba PIN petugas per akun
+
         const id = getStoredOfficer()?.id
         if (id) await loginWithPin(String(id), p)
       }
       if (api.isAuthenticated) {
         void syncNow().catch(() => undefined)
-        // Beri tahu store: token siap → tarik roster admin terbaru.
+
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
-    } catch { /* tetap mode offline — sinkron menyusul saat koneksi ada */ }
+    } catch {}
   }
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -157,7 +141,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
 
-      {/* ── Minimalist Header ── */}
       <div className="px-6 pt-16 pb-8">
         <div className="flex items-center gap-4">
           <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
@@ -168,23 +151,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
       </div>
 
-      {/* ── Status & Form ── */}
       <div className="flex-1 px-6">
-        {/* Online Status */}
         <div className="flex items-center gap-2 mb-8">
           <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
         </div>
 
-        {/* Welcome Text */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
           <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
         </div>
 
-        {/* Form */}
         <div className="space-y-4">
-          {/* Username */}
           <div>
             <input
               type="text"
@@ -198,7 +176,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             />
           </div>
 
-          {/* Password */}
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
@@ -217,14 +194,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </button>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="px-4 py-3 bg-red-50 rounded-xl">
               <p className="text-xs text-red-500">{error}</p>
             </div>
           )}
 
-          {/* Submit */}
           <button
             onClick={() => void handleLogin()}
             disabled={loading}
@@ -234,7 +209,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </button>
         </div>
 
-        {/* Offline hint */}
         {!isOnline && (
           <p className="text-xs text-center text-slate-400 mt-6">
             Gunakan ID & PIN yang pernah login di perangkat ini
@@ -242,7 +216,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         )}
       </div>
 
-      {/* ── Footer ── */}
       <p className="text-center text-[11px] text-slate-300 pb-8">
         Trip Angkutan Kalimantan Barat
       </p>

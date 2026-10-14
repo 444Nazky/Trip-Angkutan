@@ -3,11 +3,15 @@ import { Lock, Check, X } from 'lucide-react'
 import { api } from '../../services/api'
 import { saveAdminCredentials, clearAdminCredentials, logout as endSession } from '../../services/auth'
 
+
+
 interface ChangePasswordProps {
   onLogout?: () => void
-  /** Called when logout completes — if provided, logout is left to the parent */
+
   showToast?: (msg: string, type?: 'success' | 'error') => void
 }
+
+
 
 export function ChangePasswordSection({ onLogout, showToast }: ChangePasswordProps) {
   const [done, setDone] = useState(false)

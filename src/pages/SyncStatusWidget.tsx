@@ -1,15 +1,16 @@
-// ─── Sync Status Widget ────────────────────────────────────────────────
-// Shows sync status and triggers manual sync from within the app settings.
-
 import { useEffect, useState } from 'react'
 import { RefreshCw, CheckCircle, AlertCircle, Wifi, WifiOff, Database } from 'lucide-react'
 import { performInitialSync, getSyncStatus, isOnline, hasLocalMasterData, type SyncStatus } from '../services/offline-init'
 import { getOfflineSession } from '../services/offline-auth'
 
+
+
 interface SyncWidgetProps {
   compact?: boolean
   onSyncComplete?: () => void
 }
+
+
 
 export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidgetProps) {
   const [syncing, setSyncing] = useState(false)
@@ -62,7 +63,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
 
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 p-5 font-sans">
-      {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${online ? 'bg-green-50' : 'bg-zinc-100'}`}>
           {online ? <Wifi size={16} className="text-green-600" /> : <WifiOff size={16} className="text-zinc-400" />}
@@ -77,7 +77,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
         </div>
       </div>
 
-      {/* Session */}
       {session && (
         <div className="bg-zinc-50 rounded-xl px-3 py-2 text-xs text-zinc-600 mb-3 flex items-center gap-2">
           <CheckCircle size={12} className="text-green-600 shrink-0" />
@@ -86,7 +85,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
         </div>
       )}
 
-      {/* Counts */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
           { label: 'Petugas', value: status.syncedOfficers },
@@ -100,7 +98,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
         ))}
       </div>
 
-      {/* Last sync */}
       {status.lastSyncAt && (
         <p className="text-xs text-zinc-400 mb-3">
           Sinkronisasi terakhir:{' '}
@@ -108,7 +105,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
         </p>
       )}
 
-      {/* Errors */}
       {errors.length > 0 && (
         <div className="space-y-1 mb-3">
           {errors.map((e, i) => (
@@ -120,7 +116,6 @@ export default function SyncWidget({ compact = false, onSyncComplete }: SyncWidg
         </div>
       )}
 
-      {/* Sync button */}
       {online && (
         <button
           onClick={handleSync}

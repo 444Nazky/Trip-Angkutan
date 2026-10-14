@@ -1,10 +1,6 @@
-
-
-
-
 export const environment = {
   production: false,
-  
+
   apiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
 
   geolocation: {

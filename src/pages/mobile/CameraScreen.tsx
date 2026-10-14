@@ -6,16 +6,13 @@ import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// ─── Camera Screen ───────────────────────────────────────────────────────────
-// Preview kamera full-screen (murni), tanpa kotak panduan / teks bantu.
-//   Android/iOS → plugin native (CameraSource.Camera) untuk jepretan
-//   Web         → getUserMedia → canvas
-// Setiap foto otomatis diberi watermark: koordinat GPS/wilayah + stempel waktu.
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 interface CameraScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -26,6 +23,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+
+
 export default function CameraScreen({ go }: CameraScreenProps) {
   const { draft, patchDraft, officer, patchTripPhoto, patchVehiclePhoto } = useApp()
   const [busy, setBusy] = useState(false)
@@ -34,7 +33,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const [, setTick] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  /** Cegah kamera native terbuka dua kali (mis. StrictMode / ketuk ganda). */
+
   const launchedRef = useRef(false)
   const busyRef = useRef(false)
 
@@ -47,13 +46,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
-  // Jam berjalan untuk pratinjau watermark (timestamp real-time)
   useEffect(() => {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
   }, [])
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   const stopStream = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
@@ -71,12 +68,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => { /* autoplay blocked */ })
+        await videoRef.current.play().catch(() => {})
       }
       setLiveState('ready')
     } catch {
       setLiveState('denied')
-      // Di native, jepretan tetap lewat plugin kamera bawaan → jangan tampil error
+
       if (!Capacitor.isNativePlatform()) setErrorMsg('Kamera tidak tersedia')
     }
   }
@@ -85,7 +82,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     if (launchedRef.current) return
     launchedRef.current = true
     if (Capacitor.isNativePlatform()) {
-      // Native → langsung buka kamera bawaan. TANPA layar preview perantara.
+
       void openNativeCamera()
     } else {
       void startStream()
@@ -94,16 +91,14 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Pasang stream ke <video> begitu elemennya dimount (render kondisional)
   useEffect(() => {
     const v = videoRef.current
     if (liveState === 'ready' && v && streamRef.current && v.srcObject !== streamRef.current) {
       v.srcObject = streamRef.current
-      void v.play().catch(() => { /* autoplay blocked */ })
+      void v.play().catch(() => {})
     }
   }, [liveState])
 
-  // ── Snapshot dari canvas (web) ─────────────────────────────────────────────
   const snapshotFromCanvas = (): string | null => {
     const v = videoRef.current
     if (!v || !v.videoWidth) return null
@@ -113,8 +108,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     return cv.toDataURL('image/jpeg', 0.92)
   }
 
-  // ── Watermark: GPS/wilayah + timestamp ─────────────────────────────────────
-  // Dijalankan sebelum patchDraft. Gagal watermark tidak memblokir penyimpanan.
   async function addWatermark(
     dataUrl: string,
     lat: number | null,
@@ -159,7 +152,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       const bx = w - boxW - padX
       const by = h - boxH - padY
 
-      // Latar semi-transparan agar teks terbaca di kondisi apapun
       ctx.save()
       ctx.fillStyle = 'rgba(0,0,0,0.55)'
       ctx.beginPath()
@@ -183,11 +175,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       }
       return cv.toDataURL('image/jpeg', 0.92)
     } catch {
-      return dataUrl // fallback: foto tetap tersimpan tanpa watermark
+      return dataUrl
     }
   }
 
-  // ── Simpan foto ────────────────────────────────────────────────────────────
   const deliver = async (rawDataUrl: string) => {
     const capturedAt = new Date()
     setBusy(true)
@@ -200,14 +191,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       })
       lat = pos.coords.latitude
       lon = pos.coords.longitude
-    } catch { /* lokasi gagal — tetap lanjut */ }
+    } catch {}
 
     const watermarked = await addWatermark(rawDataUrl, lat, lon, regionLabel, capturedAt)
 
     const capturedIso = capturedAt.toISOString()
 
-    // ── Mode RETAKE dari Riwayat: tulis langsung ke trip yang sudah tersimpan
-    //    (perbaiki foto bukti trip ATAU foto satu kendaraan tertentu).
     if (retake) {
       if (retake.kind === 'vehicle') {
         patchVehiclePhoto(retake.tripId, retake.index ?? 0, {
@@ -231,7 +220,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
 
-    // ── Mode SWAFOTO wajib (trip bermuatan) → slot sendiri, lokal saja.
     if (draft.selfieMode) {
       patchDraft({
         selfieUrl: watermarked,
@@ -244,9 +232,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
 
-    // ── Konteks form kendaraan → foto KENDARAAN (vPhoto*), BUKAN foto trip.
-    //    Dipisah agar menambah truk 2 / mobil 1 tidak pernah memakai ulang
-    //    foto trip (setiap kendaraan wajib punya foto dokumentasi sendiri).
     if (draft.cameraFrom === 'vehicle-form') {
       patchDraft({
         vPhoto: true,
@@ -270,7 +255,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     go(returnTo)
   }
 
-  // ── Kamera native (langsung dari tombol "Ambil Dokumentasi") ──────────
   async function openNativeCamera() {
     if (busyRef.current) return
     busyRef.current = true
@@ -288,7 +272,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         await deliver(image.dataUrl)
         return
       }
-      // Tanpa gambar → dianggap batal
+
       busyRef.current = false
       setBusy(false)
       go(returnTo)
@@ -297,29 +281,26 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       setBusy(false)
       const msg = String((err as Error)?.message ?? err)
       if (/cancel|batal/i.test(msg)) {
-        // Pengguna menutup kamera → kembali ke layar sebelumnya
+
         go(returnTo)
         return
       }
-      // Izin ditolak / kamera gagal → fallback preview web, tombol tetap jalan
+
       console.warn('[camera] native gagal', err)
       await startStream()
       setErrorMsg('Kamera tidak terbuka — ketuk tombol untuk mencoba lagi')
     }
   }
 
-  // ── Handle capture ─────────────────────────────────────────────────────────
   const handleCapture = async () => {
     if (busy) return
     setErrorMsg('')
 
-    // ① native plugin → kamera layar penuh bawaan Android/iOS
     if (Capacitor.isNativePlatform()) {
       await openNativeCamera()
       return
     }
 
-    // ② Web: pastikan stream live lalu jepret dari canvas
     if (!streamRef.current) await startStream()
     const dataUrl = snapshotFromCanvas()
     if (!dataUrl) {
@@ -333,7 +314,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black overflow-hidden">
-      {/* ── Preview kamera layar penuh (hanya saat stream benar-benar siap) ── */}
       {liveState === 'ready' && (
         <video
           ref={videoRef}
@@ -344,7 +324,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         />
       )}
 
-      {/* ── Header overlay ── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <button
           onClick={() => go(returnTo)}
@@ -358,7 +337,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         <div className="w-10" />
       </div>
 
-      {/* ── Pratinjau watermark (GPS + waktu berjalan) ── */}
       <div className="absolute right-4 bottom-32 z-20 flex flex-col items-end gap-1 text-right pointer-events-none">
         <div className="flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1.5 backdrop-blur">
           <Clock size={11} className="text-white/80" />
@@ -374,7 +352,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         </div>
       </div>
 
-      {/* ── Kontrol bawah ── */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-10 pb-9 px-6 flex flex-col items-center gap-3">
         {errorMsg && (
           <div className="flex items-center gap-1.5 text-red-400 text-[11px] font-medium">

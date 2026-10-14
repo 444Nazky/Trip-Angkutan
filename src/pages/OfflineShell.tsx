@@ -1,7 +1,3 @@
-// ─── OfflineShell ──────────────────────────────────────────────────────
-// Wraps the app to handle online/offline initialization seamlessly.
-// Shows sync screen → login screen → app content.
-
 import { type ReactNode, useState } from 'react'
 import InitScreen from './InitScreen'
 import OfflineLoginPage from './OfflineLoginPage'
@@ -13,16 +9,22 @@ import {
 } from '../services/offline-auth'
 import { performInitialSync, isOnline, STORAGE_KEYS } from '../services/offline-init'
 
+
+
 export type OfflineShellPhase =
-  | 'init'      // sync screen
-  | 'login'     // credentials/PIN login
-  | 'active'    // app running
-  | 'no-data'   // offline + no cached data
-  | 'error'     // sync failed
+  | 'init'
+  | 'login'
+  | 'active'
+  | 'no-data'
+  | 'error'
+
+
 
 interface OfflineShellProps {
   children: (session: OfflineSession) => ReactNode
 }
+
+
 
 export default function OfflineShell({ children }: OfflineShellProps) {
   const existing = getOfflineSession()
@@ -34,7 +36,7 @@ export default function OfflineShell({ children }: OfflineShellProps) {
   function handleLogin(session: OfflineSession) {
     try {
       localStorage.setItem('trip.auth.session', JSON.stringify(session))
-    } catch { /* quota */ }
+    } catch {}
     setPhase('active')
   }
 
@@ -104,9 +106,7 @@ export default function OfflineShell({ children }: OfflineShellProps) {
     )
   }
 
-  // active
   return <>{children(getOfflineSession()!)}</>
 }
 
-// ── Re-export for convenience ──────────────────────────────────────────
 export { clearSession as logoutOffline }

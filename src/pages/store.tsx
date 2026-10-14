@@ -10,6 +10,8 @@ import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
 
+
+
 export interface VehicleEntry {
   plate: string
   type: string
@@ -27,12 +29,14 @@ export interface VehicleEntry {
   checkpointRegion?: string
 }
 
+
+
 export interface Trip {
   id: string
   route: string
-  /** Kode rute asli ("SJRE-SBDZ") — sumber kebenaran utk payload backend */
+
   routeCode?: string
-  /** Kode tempat asal/tujuan (terisi saat trip dibuat, dipakai sync) */
+
   routeFrom?: string
   routeTo?: string
   status: string
@@ -55,55 +59,45 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
-  /** ID petugas pembuat — filter History yang tahan ganti nama petugas. */
+
   officerId?: string
-  /** Swafoto wajib petugas sebelum End Trip (trip muatan) — lokal saja. */
+
   selfieUrl?: string
   selfieCapturedAt?: string
-  /**
-   * Cap waktu perubahan terakhir (ms). Dipakai rekonsiliasi localStorage↔IndexedDB
-   * agar EDIT pasca-kirim tidak ditimpa salinan lama saat merge (dulu merge
-   * memprioritaskan synced:true sehingga hasil edit bisa hilang setelah restart).
-   */
+
   updatedAt?: number
 }
+
+
 
 export interface Draft {
   routeCode: string | null
   condition: 'kosong' | 'muatan' | null
   vehicles: VehicleEntry[]
   vehicleForm: { plate: string; type: string; category: string }
-  /**
-   * Indeks kendaraan yang sedang DIUBAH dari layar Ringkasan/Input.
-   * null/undefined = mode tambah baru. Diset lewat patchDraft, dibersihkan
-   * setelah kendaraan disimpan kembali (update) atau batal.
-   */
+
   editVehicleIndex?: number | null
-  /** Foto BUKTI TRIP (ringkasan) — terpisah dari foto kendaraan. */
+
   photo: boolean
   photoUrl?: string
   photoCapturedAt?: string
   photoLatitude?: number | null
   photoLongitude?: number | null
-  /**
-   * Foto KENDARAAN untuk form input — sengaja dipisah dari foto trip supaya
-   * menambah kendaraan kedua/ketiga tidak pernah memakai ulang foto trip
-   * (truk 1 = foto truk 1, truk 2 = foto truk 2, dst).
-   */
+
   vPhoto: boolean
   vPhotoUrl?: string
   vPhotoCapturedAt?: string
   vPhotoLatitude?: number | null
   vPhotoLongitude?: number | null
-  /** Ambil-ulang foto dari Riwayat (trip atau salah satu kendaraan). */
+
   retakeTarget?: { tripId: string; kind: 'trip' | 'vehicle'; index?: number }
-  /** Indeks kendaraan tujuan foto saat ambil dari layar Ringkasan. */
+
   vehiclePhotoTarget?: number
-  /** Mode swafoto wajib (trip bermuatan) — kamera menulis ke selfie*. */
+
   selfieMode?: boolean
   selfieUrl?: string
   selfieCapturedAt?: string
-  /** Layar tujuan setelah kamera (opsional — memisahkan KONTEKS foto dari layar kembali). */
+
   cameraReturn?: MobileScreen
 
   cameraFrom: MobileScreen
@@ -116,8 +110,15 @@ export interface Draft {
   startedAt: number | null
 }
 
+
+
 export type TariffRow = (typeof tariffData)[number] & { id?: string }
+
+
+
 export type VerifyIntent = 'switch' | 'security'
+
+
 
 interface StoreValue {
   loggedIn: boolean
@@ -135,20 +136,20 @@ interface StoreValue {
   resetDraft: () => void
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
-  /** Ubah satu kendaraan pada DRAFT (mis. melengkapi foto yang kurang). */
+
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
-  /** Hapus satu kendaraan dari DRAFT (koreksi sebelum trip disimpan). */
+
   removeDraftVehicle: (index: number) => void
-  /** Muat kendaraan ke form untuk DIUBAH (mode edit sebelum submit). */
+
   editDraftVehicle: (index: number) => void
   startTrip: () => void
-  /** Langsung selesaikan trip kosong ke antrean sync (tanpa layar aktif). */
+
   finishEmptyTrip: () => void
-  /** Direct submit trip bermuatan (swafoto lengkap) ke antrean, tanpa Trip Aktif. */
+
   finishMuatanTrip: () => void
-  /** Perbaiki foto bukti TRIP yang hilang/ambul-ulang dari Riwayat. */
+
   patchTripPhoto: (tripId: string, fields: Partial<Trip>) => void
-  /** Perbaiki foto dokumentasi satu KENDARAAN tertentu dari Riwayat. */
+
   patchVehiclePhoto: (tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => void
   detailTripId: string | null
   setDetailTripId: (id: string | null) => void
@@ -158,7 +159,7 @@ interface StoreValue {
   clearVerify: () => void
 
   setActiveDermaga: (id: string | null) => void
-  /** Hapus SEMUA trip dan antrean sync (reset data lokal). */
+
   clearAllTrips: () => void
 }
 
@@ -199,6 +200,8 @@ const LS = {
   officers: 'trip.officers.v1',
 }
 
+
+
 function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -208,27 +211,40 @@ function load<T>(key: string, fallback: T): T {
   }
 }
 
+
+
 export function parseRp(s: string): number {
   const digits = s.replace(/[^\d]/g, '')
   return digits ? parseInt(digits, 10) : 0
 }
+
+
 
 export function formatRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
+
+
 export function fmtDate(d: Date): string {
   return `${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`
 }
+
+
 
 export function fmtTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+
+
 export function fmtClock(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+
+
 export function fmtElapsed(totalSec: number): string {
   const h = Math.floor(totalSec / 3600)
   const m = Math.floor((totalSec % 3600) / 60)
@@ -237,6 +253,8 @@ export function fmtElapsed(totalSec: number): string {
   if (m > 0) return `${m}m`
   return `${s}dtk`
 }
+
+
 
 export function tariffFor(vehicleType: string) {
   const list = load(LS.tariffs, tariffData)
@@ -252,6 +270,8 @@ export function tariffFor(vehicleType: string) {
     tariffData[0]
   )
 }
+
+
 
 export function nextTripId(trips: Trip[]): string {
   let max = 0
@@ -273,17 +293,12 @@ const seedTrips: Trip[] = (allTrips as Trip[]).map(t => ({
 export function normalizeCategory(c?: string): string | undefined {
   if (!c) return c
 
-  
   if (!/^ekst/i.test(c)) return c
   return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
 }
 
-/**
- * Label urutan dokumentasi PER JENIS kendaraan — contoh:
- *   [Truck Besar, Truck Besar, Mobil, Motor] → "Truk 1", "Truk 2", "Mobil 1", "Motor 1"
- * Dipakai di seluruh layar output dokumentasi (ringkasan, riwayat, foto)
- * supaya foto truk 1 tidak tertukar dengan truk 2.
- */
+
+
 export function unitLabel(list: VehicleEntry[] | undefined, index: number): string {
   const arr = list ?? []
   const v = arr[index]
@@ -297,6 +312,8 @@ export function unitLabel(list: VehicleEntry[] | undefined, index: number): stri
   return `${name} ${n}`
 }
 
+
+
 function normalizeTrips(list: Trip[]): Trip[] {
   return list.map(t => ({
     ...t,
@@ -305,20 +322,19 @@ function normalizeTrips(list: Trip[]): Trip[] {
   }))
 }
 
-/** Gabung dua daftar trip tanpa duplikat (by id) — dipakai rekonsiliasi
- *  localStorage ↔ IndexedDB agar tidak ada trip yang hilang. */
+
+
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
     const key = String(t.id)
     const prev = byId.get(key)
     if (!prev) { byId.set(key, t); continue }
-    // EDIT pasca-kirim menang lewat updatedAt terbaru — mencegah salinan lama
-    // (synced:true) menimpa hasil edit yang belum terkirim saat rekonsiliasi.
+
     const prevUpd = prev.updatedAt ?? 0
     const nextUpd = t.updatedAt ?? 0
     if (prevUpd !== nextUpd) { byId.set(key, prevUpd > nextUpd ? prev : t); continue }
-    // updatedAt seri (data lama): synced:true tidak pernah ditimpa synced:false
+
     const prevTs = Date.parse(prev.completedAt ?? '') || 0
     const nextTs = Date.parse(t.completedAt ?? '') || 0
     const winner =
@@ -330,12 +346,8 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   return [...byId.values()]
 }
 
-/**
- * Isi ulang scope dermaga yang kosong dari seed. Cache roster lama (hasil sync
- * yang membalas `dermagas: []`) bisa membuat akun kehilangan akses dermaga →
- * HomeScreen salah mengunci "Mulai Trip". Untuk petugas seed, seed adalah
- * sumber tepercaya; petugas buatan server diserahkan ke sinkronisasi berikutnya.
- */
+
+
 export function healDermagaAccess(list: Officer[]): Officer[] {
   const byId = new Map(seedRoster().map(s => [String(s.id), s.dermagaAccess ?? []]))
   return list.map(o => {
@@ -345,6 +357,8 @@ export function healDermagaAccess(list: Officer[]): Officer[] {
   })
 }
 
+
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
@@ -353,12 +367,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => {
     const saved = load<Officer[]>(LS.officers, [])
-    // DATA BAWAAN (seed): layar Ganti Petugas langsung terisi sejak instalasi
-    // pertama — bahkan sebelum ada sinkronisasi / koneksi internet.
+
     return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
-  /** Ref snapshot trips terbaru — dipakai aksi patch* agar tidak basi. */
+
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
@@ -366,14 +379,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
   const [, setActiveDermagaId] = useState<string | null>(null)
 
-  // Prefetch daftar petugas dipanggil dari `login()` (didefinisikan sebelum
-  // refreshOfficers) — ref memutus urutan deklarasi tanpa TDZ.
   const refreshOfficersRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
 
-  // ── Persistensi trip (offline-first) ────────────────────────────────────────
-  // Trip ditulis ke DUA tempat: localStorage (render cepat) dan IndexedDB
-  // (tahan batas kuota 5 MB, tidak hilang saat app ditutup/direstart).
-  // Bila localStorage gagal (foto base64 membesar), IndexedDB tetap lengkap.
   useEffect(() => {
     void initLocalDb()
     try {
@@ -384,8 +391,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void dbPutMany<Trip>('trips', trips)
   }, [trips])
 
-  // Rekonsiliasi dari IndexedDB saat aplikasi dibuka — memulihkan trip yang
-  // gagal tersimpan di localStorage (quota) sehingga tidak pernah hilang.
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -407,27 +412,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
   useEffect(() => {
-    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch {}
   }, [tariffs])
   useEffect(() => {
-    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch {}
   }, [officers])
   useEffect(() => {
-    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch {}
   }, [officerId])
   useEffect(() => {
-    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch {}
   }, [loggedIn])
   useEffect(() => {
-    try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
+    try { localStorage.setItem('trip.userType', userType) } catch {}
   }, [userType])
 
   const officer = useMemo(() => {
     const inRoster = officers.find(o => String(o.id) === String(officerId))
     if (inRoster) return inRoster
-    // Akun offline yang id-nya tidak ada di roster UI (mis. naski, petugas
-    // lokal saja): jangan jatuh ke `officers[0]` (swap akun!). Dapatkan dari
-    // sesi yang benar-benar tersimpan.
+
     try {
       const so = getStoredOfficer()
       if (so?.id && String(so.id) === String(officerId)) {
@@ -447,7 +450,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dermagaAccess: (so as { dermagaAccess?: Officer['dermagaAccess'] }).dermagaAccess ?? [],
         } as Officer
       }
-    } catch { /* fallthrough */ }
+    } catch {}
     return officers[0] ?? officerList[0]
   }, [officers, officerId])
 
@@ -459,11 +462,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const id = authenticatedOfficerId ? String(authenticatedOfficerId) : officerId
       if (authenticatedOfficerId) setOfficerIdState(id)
 
-      
       void ensureBackendSession(id)
-      // PREFETCH saat login online: unduh daftar rekan sekawasan ke penyimpanan
-      // lokal SEBELUM dipakai — supaya saat offline layar Ganti Petugas tetap
-      // menampilkan petugas yang sah (filter region + dermaga irisan).
+
       void refreshOfficersRef.current?.(true)
     }
   }, [officerId])
@@ -471,7 +471,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLoggedIn(false)
     setUserType('member')
 
-    
     setDetailTripId(null)
     setPendingOfficerId(null)
     setDraft(emptyDraft)
@@ -480,7 +479,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setOfficerId = useCallback((id: string) => {
     setOfficerIdState(String(id))
 
-    
     void ensureBackendSession(String(id))
   }, [])
   const resetDraft = useCallback(() => {
@@ -500,23 +498,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })),
     [],
   )
-  /** Hapus kendaraan dari draft — koreksi sebelum trip dikirim permanen. */
+
   const removeDraftVehicle = useCallback((index: number) => setDraft(d => {
     const vehicles = d.vehicles.filter((_, i) => i !== index)
     return {
       ...d,
       vehicles,
-      // Indeks edit melewati batas setelah penghapusan → kembali ke mode tambah
+
       editVehicleIndex: d.editVehicleIndex != null && d.editVehicleIndex >= vehicles.length
         ? null
         : d.editVehicleIndex,
     }
   }), [])
-  /**
-   * Muat kendaraan ke form untuk DIUBAH (fitur edit sebelum submit):
-   * plat/jenis/kategori terisi + foto kendaraan tsb dipasang ke slot vPhoto,
-   * sehingga pemanggil bisa memperbaiki data lalu menyimpannya kembali.
-   */
+
   const editDraftVehicle = useCallback((index: number) => setDraft(d => {
     const v = d.vehicles[index]
     if (!v) return d
@@ -535,11 +529,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }), [])
   const startTrip = useCallback(() => setDraft(d => ({ ...d, startedAt: d.startedAt ?? Date.now() })), [])
-  /**
-   * Langsung selesaikan trip kosong: buat payload & masukkan ke antrean sync TANPA layar aktif/timer/durasi.
-   * Foto bukti WAJIB sudah tersimpan di draft.photoUrl sebelum fungsi ini dipanggil.
-   * Pemanggil bertanggung jawab memastikan draft.condition === 'kosong' dan draft.photo === true.
-   */
+
   const commitTrip = useCallback((
     t: Trip,
     photos?: { dataUrl: string; mimeType: string }[],
@@ -549,8 +539,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)
-    // Foto kendaraan PER UNIT (truk 1 = foto truk 1) — bila pemanggil tidak
-    // mengirim, derive dari trip agar indeks foto selalu sejajar kendaraan.
+
     const photoList = photos?.length
       ? photos
       : (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
@@ -601,12 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     commitTrip(trip)
   }, [draft, officer.name, commitTrip])
-  /**
-   * Kirim Saja (direct submit) untuk trip bermuatan yang sudah lengkap
-   * (foto kendaraan + foto bukti). Sama seperti finishEmptyTrip,
-   * TIDAK melewati layar Trip Aktif/timer — langsung masuk antrean sync
-   * dan petugas diarahkan ke Trip Selesai.
-   */
+
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
     if (!draft.photoUrl) {
@@ -621,8 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const routeTo = sepIdx > 0 ? routeCode.slice(sepIdx + 1).trim() : ''
     const routeLabel = sepIdx > 0 ? `${routeFrom} → ${routeTo}` : routeCode || 'Tidak Diketahui'
     const startedAt = draft.startedAt ? new Date(draft.startedAt) : now
-    // ponytail: direct submit = tanpa layar Trip Aktif → durasi akurat hanya
-    // bila petugas sudah tekan "Mulai" di awal; jika tidak, tercatat ~0dtk (jujur).
+
     const elapsed = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000))
     const vehicles = draft.vehicles
     const total = vehicles.reduce((sum, v) => sum + (v.tariff ?? 0), 0)
@@ -666,7 +649,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!current) return
     const updated: Trip = { ...current, ...fields, synced: false, updatedAt: Date.now() }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
-    // Foto baru = payload baru → buka kembali antrean yg sblmnya macet (PHOTO_MISSING)
+
     void retrySyncItem(updated)
   }, [])
   const patchVehiclePhoto = useCallback((tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => {
@@ -684,21 +667,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearVerify = useCallback(() => setPendingOfficerId(null), [])
   const saveOfficers = useCallback((rows: Officer[]) => setOfficers(rows), [])
 
-  /** Hapus SEMUA trip dan antrean sync — untuk reset data lokal. */
   const clearAllTrips = useCallback(() => {
     setTrips([])
     setDetailTripId(null)
-    // Hapus dari localStorage
-    try { localStorage.removeItem(LS.trips) } catch { /* ignore */ }
-    // Hapus dari IndexedDB (trips store)
+
+    try { localStorage.removeItem(LS.trips) } catch {}
+
     void dbClear('trips')
-    // Hapus antrean sync
+
     void dbClear('pending')
-    // Beritahu listener antrean
+
     notifyQueueListeners()
   }, [])
-
-  
 
   const refreshOfficers = useCallback(async (force = false) => {
     let synced
@@ -722,16 +702,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return syncedWithDermaga
     })
 
-
-    
-
-
     if (force) {
       const ok = await refreshBackendSession(String(officerId))
-
-
-      
-
 
       const me = synced.find(o => String(o.id) === String(officerId))
       if (!ok && me && me.status !== 'Aktif' && !api.isAuthenticated) {
@@ -743,8 +715,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [officerId])
 
-  // Sync officers from backend on app start (mobile only) — tarik paksa agar
-  // status/wilayah terbaru dari admin langsung terbaca saat aplikasi dibuka.
   useEffect(() => {
     void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -754,27 +724,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshOfficersRef.current = refreshOfficers
   }, [refreshOfficers])
 
-  // Trip berhasil di server - tandai synced:true di store.
   useEffect(() => {
     const unsub = onTripSynced(id => markTripSynced(id))
     return unsub
   }, [markTripSynced])
 
-  // Pantau koneksi: begitu perangkat ONLINE lagi, selain antrean trip otomatis
-  // terkirim (services/sync), daftar petugas juga ditarik ulang — aktif/nonaktif
-  // & pemindahan region dari dashboard admin langsung sinkron real-time.
   useEffect(() => {
-    // Tarik master data yang butuh otorisasi (roster admin + konfigurasi
-    // geofence Master Rute). Keduanya WAJIB dijalankan setelah token siap:
-    // GET /api/geofences ber-`authenticate`, jadi percobaan sebelum login hanya
-    // menghasilkan 401 dan perangkat tampak "geofence belum dikonfigurasi".
+
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
       void forceSyncGeofencesFromBackend()
     }
     const onOnline = () => pullAuthorizedMasterData()
-    // Sesi backend ditanam di LATAR BELAKANG setelah login lokal (offline-first)
-    // → begitu JWT siap, tarik roster + geofence terbaru dari admin.
+
     const onSessionReady = () => pullAuthorizedMasterData()
     window.addEventListener('online', onOnline)
     window.addEventListener(SESSION_READY_EVENT, onSessionReady)
@@ -805,6 +767,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }
+
+
 
 export function useApp(): StoreValue {
   const ctx = useContext(StoreCtx)

@@ -4,9 +4,14 @@ import { getMaskedApiUrl, onSyncQueueChange, probeServer } from '../../services/
 import { applyUpdate, checkForUpdate, getCurrentVersion } from '../../services/ota'
 import type { MobileScreen } from '../types'
 
+
+
 interface SettingsScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 export default function SettingsScreen({ go }: SettingsScreenProps) {
   const [cleared, setCleared] = useState(false)
   const [, setPendingCount] = useState(0)

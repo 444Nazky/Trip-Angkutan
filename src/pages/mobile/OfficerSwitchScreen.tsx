@@ -3,18 +3,19 @@ import { ChevronLeft, Lock, RefreshCw, LogOut } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// ─── Officer Switch Screen ─────────────────────────────────────────────────────
+
+
 interface OfficerSwitchScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
   const { officer, beginVerify, officers, refreshOfficers, logout } = useApp()
   const [syncing, setSyncing] = useState(false)
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine)
 
-  // Pantau koneksi — saat offline daftar berasal dari prefetch lokal,
-  // saat kembali online layar ini otomatis menarik data terbaru.
   useEffect(() => {
     const on = () => setOnline(true)
     const off = () => setOnline(false)
@@ -31,36 +32,29 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
     try { await refreshOfficers(true) } finally { setSyncing(false) }
   }
 
-  // Refresh officer list when screen opens
   useEffect(() => {
     void refreshOfficers(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Region display text
   const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
 
-  // STRICT FILTER: region SAMA + minimal 1 dermaga irisan dengan officer aktif
   const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
   const filtered = officers.filter(o => {
-    // Exclude self
+
     if (o.id === officer.id) return false
 
-    // Get officer's regions
     const theirRegions = o.regions && o.regions.length > 0 ? o.regions : [o.region]
     const sameRegion = theirRegions.some(r => myRegions.includes(r))
     if (!sameRegion) return false
 
-    // Get officer's dermaga access
     const theirs = o.dermagaAccess || []
 
-    // Aktif punya dermaga → wajib ada irisan
     if (myDermagaIds.size > 0) {
       const shareDermaga = theirs.some(d => myDermagaIds.has(d.id))
       return shareDermaga
     }
 
-    // Aktif tanpa dermaga → tampilkan juga yg tanpa dermaga
     return theirs.length === 0
   })
 
@@ -70,7 +64,6 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         <ChevronLeft size={16} /> Kembali
       </button>
 
-      {/* Header - Region Lock */}
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-2">
           <Lock size={14} className="text-amber-400" />
@@ -95,7 +88,6 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         </button>
       </div>
 
-      {/* Officer list */}
       <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
@@ -134,7 +126,6 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         ))}
       </div>
 
-      {/* Logout button */}
       <button
         onClick={() => {
           logout()

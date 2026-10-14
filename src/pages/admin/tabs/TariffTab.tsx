@@ -3,12 +3,16 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import { fetchTariffs, createTariff, updateTariff, deleteTariff, fetchRegionTariffs, upsertRegionTariff, type RegionTariffRow } from '../../../services/tariffs'
 
+
+
 interface TariffTabProps {
   tariffs: TariffRow[]
   serverState: 'connecting' | 'online' | 'offline'
   onSaveTariffs: (t: TariffRow[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
+
+
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regionTariffs, setRegionTariffs] = useState<RegionTariffRow[]>([])
@@ -20,7 +24,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
-  // Load region tariffs on mount
   if (!loaded) {
     fetchRegionTariffs().then(rt => { if (rt) setRegionTariffs(rt) })
     setLoaded(true)
@@ -75,7 +78,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   return (
     <div className="space-y-4">
-      {/* Status + Tambah */}
       <div className="flex items-center justify-between">
         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
           serverState === 'online' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
@@ -89,7 +91,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         </button>
       </div>
 
-      {/* Form Tambah */}
       {addTar && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Tambah Golongan</h3>
@@ -119,7 +120,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         </div>
       )}
 
-      {/* Form Edit */}
       {editTarIdx !== null && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Edit Golongan</h3>
@@ -149,7 +149,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         </div>
       )}
 
-      {/* Tabel Master Golongan */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
@@ -172,7 +171,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         </table>
       </div>
 
-      {/* Konfigurasi Tarif Region */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
           <p className="font-bold text-slate-800">Konfigurasi Tarif Terpusat (Penarifan Plat)</p>

@@ -4,12 +4,14 @@ import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
-// ─── History Detail Screen ─────────────────────────────────────────────────────
+
+
 interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
 }
 
-/** Satu item dokumentasi: foto trip ATAU foto satu kendaraan. */
+
+
 interface DocPhoto {
   url: string
   label: string
@@ -17,14 +19,15 @@ interface DocPhoto {
   index?: number
 }
 
+
+
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const { trips, detailTripId, officer, patchDraft, patchVehiclePhoto } = useApp()
-  // Scope to this officer's trips — never leak another officer's trip detail
+
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const isSynced = t?.synced === true
 
-  // Re-render saat isi antrean berubah (mis. foto diperbaiki → status macet lepas)
   const [, setQueueTick] = useState(0)
   useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
 
@@ -33,12 +36,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
 
-  // Preview lightbox dokumentasi
   const [preview, setPreview] = useState<DocPhoto | null>(null)
 
-  // Edit info kendaraan (plat/jenis/kategori) pada trip yang SUDAH terkirim.
-  // Menyimpan → patchVehiclePhoto → antrean lokal → otomatis dikirim ulang
-  // (backend memperbarui trip berdasarkan clientTripId, bukan membuat duplikat).
   const [editVehicle, setEditVehicle] = useState<number | null>(null)
   const [editPlate, setEditPlate] = useState('')
   const [editType, setEditType] = useState('')
@@ -58,16 +57,12 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
-  // ── Tentukan apakah ini Trip Kosong
   const isEmptyTrip = t.load === 'Kosong'
 
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
-  // ── SELURUH foto dokumentasi trip ini — HANYA yang valid (ada url)
-  // Untuk trip kosong: hanya foto bukti trip
-  // Untuk trip muatan: foto bukti trip + foto per kendaraan yang ada fotonya
   const photos: DocPhoto[] = isEmptyTrip
     ? (t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : [])
     : [
@@ -80,7 +75,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         })).filter(p => !!p.url),
       ]
 
-  // Kendaraan yang belum difoto (hanya untuk trip muatan)
   const missingVehicles = isEmptyTrip
     ? []
     : vehicles
@@ -116,7 +110,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </span>
       </div>
 
-      {/* Info Card */}
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="grid grid-cols-2 gap-4">
           {[{ l: 'Tanggal', v: t.date }, { l: 'Jam Mulai', v: t.time }, { l: 'Durasi', v: t.duration }, { l: 'Petugas', v: t.officer }].map(({ l, v }) => (
@@ -125,7 +118,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       </div>
 
-      {/* ── Detail Kendaraan (HANYA untuk Trip Muatan) ── */}
       {!isEmptyTrip && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
           <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
@@ -172,7 +164,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   )}
                 </div>
 
-                {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
                 {editing && (
                   <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
                     <input
@@ -221,7 +212,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {/* ── Galeri Foto Dokumentasi (HANYA tampilkan yang valid) ── */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
@@ -267,7 +257,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 </span>
               </button>
             ))}
-            {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
             {!isEmptyTrip && missingVehicles.map(x => (
               <button
                 key={`missing-${x.i}`}
@@ -282,7 +271,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         )}
       </div>
 
-      {/* Lightbox dokumentasi */}
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white">
@@ -301,7 +289,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {/* Sync Status */}
       <div className={`rounded-2xl p-4 flex items-center gap-3 border ${isSynced ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
         <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isSynced ? 'bg-emerald-100' : 'bg-amber-100'}`}>
           {isSynced

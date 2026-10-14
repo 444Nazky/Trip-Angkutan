@@ -1,6 +1,3 @@
-// ─── Offline Login Page ──────────────────────────────────────────────
-// Full offline authentication with local master data.
-
 import { useState, useEffect } from 'react'
 import { Truck, Wifi, WifiOff, AlertCircle, LogIn, ShieldCheck } from 'lucide-react'
 import {
@@ -14,12 +11,18 @@ import {
 import { isOnline, getSyncStatus, hasLocalMasterData } from '../services/offline-init'
 import type { OfflineSession } from '../services/offline-auth'
 
+
+
 interface OfflineLoginPageProps {
   onLogin: (session: OfflineSession) => void
   onBack?: () => void
 }
 
+
+
 type AuthMode = 'credentials' | 'pin'
+
+
 
 export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPageProps) {
   const [mode, setMode] = useState<AuthMode>('credentials')
@@ -67,7 +70,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
       return
     }
 
-    // PIN mode requires a session to know which officer to validate against
     const session = getOfflineSession()
     if (!session) {
       setError('Sesi tidak ditemukan. Gunakan login username/password dulu.')
@@ -102,10 +104,8 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center p-6 font-sans">
 
-      {/* Card */}
       <div className="w-full max-w-sm">
 
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Truck size={24} className="text-white" strokeWidth={1.5} />
@@ -114,13 +114,11 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           <p className="text-xs text-zinc-400 mt-1">Trip Angkutan · Data tersimpan lokal</p>
         </div>
 
-        {/* Network Status */}
         <div className={`flex items-center gap-2 justify-center mb-4 text-xs font-medium rounded-full px-3 py-1 w-fit mx-auto ${online ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
           {online ? <Wifi size={12} /> : <WifiOff size={12} />}
           {online ? 'Online — sinkronisasi latar belakang aktif' : 'Offline — autentikasi lokal'}
         </div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4">
             <AlertCircle size={14} className="shrink-0" />
@@ -128,7 +126,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           </div>
         )}
 
-        {/* Session Info */}
         {session && (
           <div className="bg-zinc-900 text-white rounded-2xl p-4 mb-4 text-sm">
             <div className="flex items-center gap-2 mb-2">
@@ -148,7 +145,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={mode === 'credentials' ? handleCredentials : handlePin} className="bg-white rounded-2xl border border-zinc-200 p-6 mb-4">
           {mode === 'credentials' ? (
             <>
@@ -237,7 +233,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           )}
         </form>
 
-        {/* Toggle mode */}
         {mode === 'credentials' ? (
           session ? (
             <button
@@ -256,7 +251,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           </button>
         )}
 
-        {/* Back */}
         {onBack && (
           <button
             onClick={onBack}
@@ -266,7 +260,6 @@ export default function OfflineLoginPage({ onLogin, onBack }: OfflineLoginPagePr
           </button>
         )}
 
-        {/* Footer */}
         <p className="text-center text-[10px] text-zinc-300 mt-6">
           {hasData
             ? `${syncStatus.syncedOfficers} petugas · ${syncStatus.syncedDermagas} dermaga tersimpan`
