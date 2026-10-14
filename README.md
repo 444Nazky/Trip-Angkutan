@@ -478,10 +478,41 @@ CREATE TABLE trips (
 | Dermaga | Port/terminal keberangkatan |
 | Geofence | Area virtual berbasis GPS untuk validasi lokasi |
 | OTA | Over-The-Air: update aplikasi via internet |
+| Custom Self-Hosted API Update | Sistem update custom dengan Purge-First Full-Package strategy |
 | Purge-First | Strategi pembersihan total cache/storage sebelum mengunduh update baru |
 | Officer | Petugas lapangan yang mengoperasikan aplikasi |
 | PIN | 6-digit passcode untuk login |
 | Region | Wilayah operasional (Badau, Belitung, Entikong) |
+
+---
+
+## 13. Update System (2026-10-14)
+
+### Custom Self-Hosted API Update System
+
+**Status:** PRODUKSI — Mengganti sistem OTA pihak ketiga yang sering mengalami kegagalan patch/update sekunder.
+
+**Arsitektur:**
+```
+Mobile Client (Ionic/Capacitor) ←→ Backend API (Express.js)
+    @capacitor/app (version)              /api/v1/app-version
+    @capacitor/filesystem (download)      /api/v1/app-download/:version
+    Native Intent (install)
+```
+
+**Alur Kerja:**
+1. Client cek versi: `GET /api/v1/app-version?current=:version`
+2. Server respons: JSON dengan latestVersion, updateAvailable, downloadUrl
+3. Client download APK ke Directory.Data (durable storage)
+4. Verifikasi SHA-256 hash
+5. Native Intent untuk instalasi
+
+**Konfigurasi Android:**
+```xml
+<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+```
+
+**Dokumentasi Lengkap:** `UPDATE-SYSTEM-ARCHITECTURE.md`
 
 ---
 
@@ -491,6 +522,7 @@ CREATE TABLE trips (
 |---------|------|--------|---------|
 | 1.0 | 2026-10-13 | Claude | Initial PRD |
 | 1.1 | 2026-10-13 | Gemini | Integrasi Purge-First OTA Architecture, Auto-Format Plat Nomor, Leaflet.js Geofence Preview, & Out-of-Geofence Alert |
+| 1.2 | 2026-10-14 | Claude | Custom Self-Hosted API Update System (Purge-First Full-Package) — menggantikan third-party OTA plugin |
 
 ---
 
