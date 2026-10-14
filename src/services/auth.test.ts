@@ -106,11 +106,12 @@ describe('enkripsi hash PIN', () => {
 // ── 2. Seed data bawaan ──────────────────────────────────────────────────────
 
 describe('seed data bawaan', () => {
-  it('tertanam ke penyimpanan lokal lengkap dengan hash bcrypt', async () => {
+  it('tidak lagi memiliki PIN hash di source (security fix F001)', async () => {
     for (const seed of SEED_OFFICERS) {
       const hash = await getPinHash(seed.id)
-      expect(hash, `hash seed ${seed.username}`).toBeTruthy()
-      expect(hash?.startsWith('$2')).toBe(true) // format identik server
+      // SECURITY: Seed credentials tidak lagi di-embed di source code
+      // Petugas harus login online sekali untuk sync credentials dari server
+      expect(hash, `hash seed ${seed.username} harus null (security)`).toBeNull()
     }
   })
 
@@ -125,11 +126,18 @@ describe('seed data bawaan', () => {
     }
   })
 
-  it('menolak PIN yang tidak cocok / identifier yang tidak dikenal', () => {
+  it('verifySeedPin selalu false (seed credentials tidak tersedia)', () => {
     const [pertama] = SEED_OFFICERS
+    // SECURITY: verifySeedPin selalu return false karena PIN hash dihapus
+    // Offline login memerlukan credentials yang sudah disinkronkan dari server
     expect(verifySeedPin(pertama.id, '999999')).toBe(false)
     expect(verifySeedPin('petugas-tidak-ada', '999999')).toBe(false)
     expect(verifySeedPin(pertama.id, '')).toBe(false)
+    // Semua seed officer sekarang return false
+    for (const seed of SEED_OFFICERS) {
+      expect(verifySeedPin(seed.id, '123456')).toBe(false)
+      expect(verifySeedPin(seed.username, '123456')).toBe(false)
+    }
   })
 })
 

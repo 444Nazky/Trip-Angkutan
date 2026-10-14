@@ -199,10 +199,12 @@ async function seedDefaultOfficers(): Promise<void> {
     const creds = lsCredentials()
     let changed = false
     for (const s of SEED_OFFICERS) {
-      if (creds[s.id]) continue // hash hasil sync admin tidak ditimpa
-      creds[s.id] = s.pinHash
-      changed = true
+      // SECURITY: seed officers tidak lagi memiliki pinHash di source
+      // Credentials harus dari server sync, bukan seed data
+      // Skip seeding credentials - rely pada server-side auth
+      void s; // s.pinHash deprecated - credentials from server sync only
     }
+    // NOTE: seed credentials no longer stored - offline login requires server sync
     if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
   } catch { /* quota — dicoba lagi pada init berikutnya */ }
 }
