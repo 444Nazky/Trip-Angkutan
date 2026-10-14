@@ -85,7 +85,7 @@ export function shouldForceUpdate(current: string, minVersion: string | null | u
 
 // ─── API Calls ─────────────────────────────────────────────────────────────
 
-async function checkVersionFromServer(currentVersion: string): Promise<UpdateInfo> {
+async function checkVersionFromServer(currentVersion: string): Promise<UpdateInfo | null> {
   const url = `${getUpdateApiUrl()}/app-version?current=${encodeURIComponent(currentVersion)}&t=${Date.now()}`;
 
   try {
@@ -104,10 +104,19 @@ async function checkVersionFromServer(currentVersion: string): Promise<UpdateInf
       return response.data as UpdateInfo;
     }
 
+    // 404 means update API not available yet - return null (silent skip)
+    if (response.status === 404) {
+      console.log('[Update] Update API not available yet (404)');
+      return null;
+    }
+
+    // Other status codes - try again later
     throw new Error(`Server returned status ${response.status}`);
   } catch (error) {
     console.error('[Update] Version check failed:', error);
-    throw error;
+    // Network errors or 404 = update API not deployed yet
+    // Don't show error to user, just return null
+    return null;
   }
 }
 
@@ -301,6 +310,16 @@ class UpdateService {
 
     try {
       const result = await checkVersionFromServer(this._currentVersion);
+
+      // If result is null, API is not available or network error
+      // Silent skip - set to up-to-date without showing error
+      if (result === null) {
+        this._state = 'up-to-date';
+        this._updateInfo = null;
+        this.notify();
+        return null;
+      }
+
       this._updateInfo = result;
 
       try {
@@ -325,6 +344,7 @@ class UpdateService {
 
       return result;
     } catch (error) {
+      // Only show error if it's not a network/404 issue (those return null)
       this._state = 'error';
       this._error = {
         code: 'NETWORK_ERROR',

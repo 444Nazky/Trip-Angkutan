@@ -6,7 +6,8 @@ import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
-import { restoreBundleFromStorage } from "./services/ota"
+// OLD OTA SYSTEM DISABLED - Using Custom Self-Hosted API Update System instead
+// import { restoreBundleFromStorage } from "./services/ota"
 import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
 import UpdateNotifier from "./components/UpdateNotifier"
 
@@ -17,7 +18,8 @@ function Shell() {
   useEffect(() => {
     initializeSync()
     void initOfflineDb()
-    void restoreBundleFromStorage()
+    // OLD OTA SYSTEM DISABLED
+    // void restoreBundleFromStorage()
     void syncGeofencesFromBackend()
   }, [])
 
