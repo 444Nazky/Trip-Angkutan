@@ -4,10 +4,6 @@ import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
-// Indikator online/offline PADA HALAMAN INI DIHAPUS — status jaringan sudah
-// tampil di header aplikasi (pojok kanan atas). Halaman detail trip hanya
-// menampilkan status sinkronisasi yang jujur (terkirim vs menunggu koneksi).
-
 // ─── History Detail Screen ─────────────────────────────────────────────────────
 interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
@@ -28,20 +24,21 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const isSynced = t?.synced === true
 
-
-  
-  
+  // Re-render saat isi antrean berubah (mis. foto diperbaiki → status macet lepas)
   const [, setQueueTick] = useState(0)
   useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
-
-
-
 
   const queue = getSyncQueue()
   const queueItem = t ? queue.find(q => q.trip.id === t.id) : undefined
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
+
+  // Preview lightbox dokumentasi
   const [preview, setPreview] = useState<DocPhoto | null>(null)
+
+  // Edit info kendaraan (plat/jenis/kategori) pada trip yang SUDAH terkirim.
+  // Menyimpan → patchVehiclePhoto → antrean lokal → otomatis dikirim ulang
+  // (backend memperbarui trip berdasarkan clientTripId, bukan membuat duplikat).
   const [editVehicle, setEditVehicle] = useState<number | null>(null)
   const [editPlate, setEditPlate] = useState('')
   const [editType, setEditType] = useState('')
@@ -61,29 +58,34 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
+  // ── Tentukan apakah ini Trip Kosong
+  const isEmptyTrip = t.load === 'Kosong'
+
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
-  // ── SELURUH foto dokumentasi trip ini — 1 foto bukti trip + 1 foto PER kendaraan
-  // Selfie (swafoto penutup) TIDAK dimasukkan ke galeri dokumentasi untuk menghindari duplikasi
-  // Selfie hanya disimpan di record trip dan ditampilkan di bagian terpisah jika perlu
-  const photos: DocPhoto[] = [
-    ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
-    ...vehicles.map((v, i) => ({
-      url: v.photoUrl ?? '',
-      label: unitLabel(vehicles, i),
-      kind: 'vehicle' as const,
-      index: i,
-    })).filter(p => !!p.url),
-  ]
-  
-  // Selfie (swafoto penutup) - dipisahkan dari galeri dokumentasi
-  const selfieUrl = t.selfieUrl
-  const selfieCapturedAt = t.selfieCapturedAt
-  const missingVehicles = vehicles
-    .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!v.photoUrl }))
-    .filter(x => !x.hasPhoto)
+  // ── SELURUH foto dokumentasi trip ini — HANYA yang valid (ada url)
+  // Untuk trip kosong: hanya foto bukti trip
+  // Untuk trip muatan: foto bukti trip + foto per kendaraan yang ada fotonya
+  const photos: DocPhoto[] = isEmptyTrip
+    ? (t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : [])
+    : [
+        ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
+        ...vehicles.map((v, i) => ({
+          url: v.photoUrl ?? '',
+          label: unitLabel(vehicles, i),
+          kind: 'vehicle' as const,
+          index: i,
+        })).filter(p => !!p.url),
+      ]
+
+  // Kendaraan yang belum difoto (hanya untuk trip muatan)
+  const missingVehicles = isEmptyTrip
+    ? []
+    : vehicles
+        .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!v.photoUrl }))
+        .filter(x => !x.hasPhoto)
 
   const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
     patchDraft({
@@ -107,7 +109,11 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
           <h2 className="font-black text-slate-900 text-[18px]">{t.route}</h2>
         </div>
-        <span className="text-[11px] font-bold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full">{t.status}</span>
+        <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
+          isEmptyTrip ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {isEmptyTrip ? 'Kosong' : 'Ada Muatan'}
+        </span>
       </div>
 
       {/* Info Card */}
@@ -119,137 +125,119 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       </div>
 
-      {/* Kendaraan + foto per unit */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
-        <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
-        {vehicles.map((v, i) => {
-          const label = unitLabel(vehicles, i)
-          const canRetake = !!realVehicles?.[i]
-          const editing = editVehicle === i
-          return (
-            <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
-              <div className="flex items-center gap-3">
-                {v.photoUrl ? (
-                  <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
-                    <img src={v.photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
-                  </button>
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
-                    <ImageOff size={16} className="text-amber-500" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
-                    <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
-                  </div>
-                  <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
-                </div>
-                {!editing && canRetake && (
-                  <div className="flex flex-col gap-1 shrink-0">
-                    {!v.photoUrl && (
-                      <button
-                        onClick={() => retakePhoto('vehicle', i)}
-                        className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
-                      >
-                        <Camera size={11} /> Foto
-                      </button>
-                    )}
-                    <button
-                      onClick={() => { setEditVehicle(i); setEditPlate(v.plate); setEditType(v.type); setEditCategory(v.category) }}
-                      className="flex items-center gap-1 text-[10px] font-black text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"
-                    >
-                      <Pencil size={11} /> Ubah
+      {/* ── Detail Kendaraan (HANYA untuk Trip Muatan) ── */}
+      {!isEmptyTrip && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+          <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
+          {vehicles.map((v, i) => {
+            const label = unitLabel(vehicles, i)
+            const canRetake = !!realVehicles?.[i]
+            const editing = editVehicle === i
+            return (
+              <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
+                <div className="flex items-center gap-3">
+                  {v.photoUrl ? (
+                    <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
+                      <img src={v.photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
                     </button>
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
+                      <ImageOff size={16} className="text-amber-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
+                      <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
+                    </div>
+                    <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+                  </div>
+                  {!editing && canRetake && (
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {!v.photoUrl && (
+                        <button
+                          onClick={() => retakePhoto('vehicle', i)}
+                          className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
+                        >
+                          <Camera size={11} /> Foto
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setEditVehicle(i); setEditPlate(v.plate); setEditType(v.type); setEditCategory(v.category) }}
+                        className="flex items-center gap-1 text-[10px] font-black text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"
+                      >
+                        <Pencil size={11} /> Ubah
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
+                {editing && (
+                  <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                    <input
+                      value={editPlate}
+                      onChange={e => setEditPlate(e.target.value.toUpperCase())}
+                      placeholder="Plat nomor"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={editType}
+                        onChange={e => setEditType(e.target.value)}
+                        placeholder="Jenis (Truk/Mobil/Motor)"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        value={editCategory}
+                        onChange={e => setEditCategory(e.target.value)}
+                        placeholder="Golongan"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (!t || !realVehicles?.[i] || !editPlate.trim()) return
+                          patchVehiclePhoto(t.id, i, { plate: editPlate.trim(), type: editType.trim() || v.type, category: editCategory.trim() || v.category })
+                          setEditVehicle(null)
+                        }}
+                        className="flex-1 rounded-lg bg-blue-600 text-white text-[12px] font-bold py-2 hover:bg-blue-700 active:scale-[0.98]"
+                      >
+                        Simpan & Kirim
+                      </button>
+                      <button
+                        onClick={() => setEditVehicle(null)}
+                        className="rounded-lg bg-white border border-slate-200 text-slate-600 text-[12px] font-bold px-4 py-2"
+                      >
+                        Batal
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
-              {editing && (
-                <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
-                  <input
-                    value={editPlate}
-                    onChange={e => setEditPlate(e.target.value.toUpperCase())}
-                    placeholder="Plat nomor"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      value={editType}
-                      onChange={e => setEditType(e.target.value)}
-                      placeholder="Jenis (Truk/Mobil/Motor)"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <input
-                      value={editCategory}
-                      onChange={e => setEditCategory(e.target.value)}
-                      placeholder="Golongan"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        if (!t || !realVehicles?.[i] || !editPlate.trim()) return
-                        patchVehiclePhoto(t.id, i, { plate: editPlate.trim(), type: editType.trim() || v.type, category: editCategory.trim() || v.category })
-                        setEditVehicle(null)
-                      }}
-                      className="flex-1 rounded-lg bg-blue-600 text-white text-[12px] font-bold py-2 hover:bg-blue-700 active:scale-[0.98]"
-                    >
-                      Simpan & Kirim
-                    </button>
-                    <button
-                      onClick={() => setEditVehicle(null)}
-                      className="rounded-lg bg-white border border-slate-200 text-slate-600 text-[12px] font-bold px-4 py-2"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Swafoto Penutup (hanya untuk trip muatan) */}
-      {selfieUrl && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-              Swafoto Penutup
-            </p>
-          </div>
-          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-            <img src={selfieUrl} alt="Swafoto Penutup" loading="lazy" decoding="async" className="w-full h-32 object-cover" />
-            <div className="bg-slate-800 px-3 py-2 text-center">
-              <p className="text-white text-[10px] font-black">SWAFOTO PENUTUP</p>
-              <p className="text-slate-400 text-[9px] mt-0.5">
-                {selfieCapturedAt ? new Date(selfieCapturedAt).toLocaleString('id-ID') : ''}
-              </p>
-            </div>
-          </div>
+            )
+          })}
         </div>
       )}
 
-      {/* Galeri dokumentasi — semua foto (trip + per kendaraan) */}
+      {/* ── Galeri Foto Dokumentasi (HANYA tampilkan yang valid) ── */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-            Foto Dokumentasi ({photos.length})
+            {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
           </p>
           {t.photo && !t.photoUrl && (
             <button
               onClick={() => retakePhoto('trip')}
               className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
             >
-              <Camera size={11} /> Ambil Foto Trip
+              <Camera size={11} /> {isEmptyTrip ? 'Ambil Foto' : 'Ambil Foto Trip'}
             </button>
           )}
         </div>
 
-        {photoStuck && (
+        {photoStuck && !isEmptyTrip && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
             <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[11px] text-amber-800 leading-snug">
@@ -279,8 +267,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 </span>
               </button>
             ))}
-            {/* Slot kosong: kendaraan tanpa foto → ajakan ambil */}
-            {missingVehicles.map(x => (
+            {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
+            {!isEmptyTrip && missingVehicles.map(x => (
               <button
                 key={`missing-${x.i}`}
                 onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
@@ -322,7 +310,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
         <div className="flex-1">
           <p className={`text-[12px] font-bold ${isSynced ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {isSynced ? 'Berhasil terkirim ke Server' : 'Masih menunggu koneksi, tersimpan di lokal'}
+            {isSynced ? 'Data trip berhasil terkirim' : 'Masih menunggu koneksi, tersimpan di lokal'}
           </p>
           <p className={`text-[10px] ${isSynced ? 'text-emerald-600' : 'text-amber-600'}`}>
             {isSynced
@@ -335,7 +323,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </p>
         </div>
       </div>
-
     </div>
   )
 }

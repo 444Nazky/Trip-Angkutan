@@ -6,11 +6,9 @@ import type { MobileScreen } from '../types'
 
 interface HomeScreenProps {
   go: (s: MobileScreen) => void
+  /** Dipanggil saat petugas menekan "Mulai Trip". MobileApp menangani cek dual-access dermaga. */
   onStartTrip: () => void
 }
-
-
-
 
 type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
 
@@ -21,6 +19,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
+    // Refresh count saat focus window
     const h = () => setPendingCount(getPendingCount())
     window.addEventListener('focus', h)
     const unsub = onSyncQueueChange(setPendingCount)
@@ -28,9 +27,8 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
 
-
-  
-
+  /** TOMBOL MANUAL — "Paksa Sinkronisasi". Verifikasi koneksi memakai ping
+   *  aktif, jadi tetap bisa ditekan walau navigator.onLine salah baca. */
   const handleSync = async () => {
     if (busy) return
     setBusy(true)
@@ -69,6 +67,8 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
   const queuedCount = myTrips.filter(t => t.synced !== true).length
+  // Tanpa akses dermaga → trip tidak bisa dimulai. Daripada senyap (console.warn),
+  // tampilkan pesan yang bisa dibaca petugas dan arahkan ke admin.
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   const units = new Set(
     myTrips
@@ -77,6 +77,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   )
   return (
     <div className="flex flex-col px-4 pt-2 pb-4" style={{ gap: 16 }}>
+      {/* Trip CTA */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
@@ -86,21 +87,20 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           {hasDockAccess ? (
             <button
               onClick={() => { resetDraft(); onStartTrip() }}
-              className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg">
+              className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
+            >
               Mulai Trip <ArrowRight size={16} />
             </button>
           ) : (
             <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">
               <p className="text-white font-black text-[13px]">Hubungi Admin</p>
               <p className="text-blue-100 text-[11px] leading-snug mt-1">
-                akun anda tidak memiliki akses ke dermaga
+                Akun ini belum memiliki akses dermaga — trip belum bisa dimulai.
               </p>
             </div>
           )}
         </div>
       </div>
-
-
 
 
       {(busy || pendingCount > 0 || !!syncState) && (
@@ -117,8 +117,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
                   : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
           } disabled:cursor-default`}
         >
-
-
           <RefreshCw
             size={18}
             className={`${busy || pendingCount > 0 ? 'animate-spin ' : ''}${
@@ -128,20 +126,12 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
                 : 'text-amber-500'
             }`}
           />
-
-
           <span className={`text-[13px] font-semibold flex-1 text-left ${
             syncTone === 'green' ? 'text-green-700'
               : syncTone === 'red' ? 'text-red-600'
               : syncTone === 'slate' ? 'text-slate-500'
               : 'text-amber-700'
           }`}>
-
-
-
-            /* syncing label */
-
-
             {syncLabel}
           </span>
           <span className={`text-[11px] font-black px-2.5 py-1 rounded-full bg-white/80 border ${
@@ -158,13 +148,11 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </button>
       )}
 
-
-
-
+      {/* Stats */}
       <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
-          { label: 'Trip', val: String(myTrips.length), sub: 'Total tercatat', color: 'blue' },
-          { label: 'Kendaraan', val: String(units.size), sub: 'Unit unik', color: 'slate' },
+          { label: 'Trip', val: String(myTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
+          { label: 'Kendaraan', val: String(units.size), sub: 'Total Unit Tercatat', color: 'slate' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
             <p className={`text-[22px] font-black ${s.color === 'blue' ? 'text-blue-600' : 'text-slate-900'}`}>{s.val}</p>
@@ -177,14 +165,12 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         ))}
       </div>
 
-
-
-
+      {/* Recent Trips */}
       <div>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-slate-800 text-[15px]">Daftar Trip</h3>
           <button onClick={() => go('history')} className="text-blue-600 text-[12px] font-bold flex items-center gap-1">
-            lihat semua trip <ChevronRight size={14} />
+            Lihat Semua <ChevronRight size={14} />
           </button>
         </div>
         <div className="flex flex-col" style={{ gap: 12 }}>

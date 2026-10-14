@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Truck, Wifi, WifiOff, Cloud, CloudOff } from 'lucide-react'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2 } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -15,13 +15,12 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
 
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-      <CloudOff size={10} /> trip tersimpan
+      <CloudOff size={10} /> Tersimpan di lokal
     </span>
   )
 }
 
-
-
+// ─── Connection Indicator ──────────────────────────────────────────────────────
 function ConnectionIndicator() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
@@ -35,9 +34,6 @@ function ConnectionIndicator() {
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
-
-
-
 
   return (
     <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all ${
@@ -57,8 +53,9 @@ interface HistoryScreenProps {
 }
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
-  const { trips, setDetailTripId, officer } = useApp()
+  const { trips, setDetailTripId, officer, clearAllTrips } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Officers only see their own trips (matches HomeScreen)
   const myTrips = trips.filter(t =>
@@ -79,10 +76,8 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         <ConnectionIndicator />
       </div>
 
-
-
-
-      <div className="flex gap-2 text-[11px]">
+      {/* Summary Stats */}
+      <div className="flex gap-2 text-[11px] flex-wrap">
         <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-semibold">
           <Cloud size={10} />
           <span>{syncedCount} terkirim</span>
@@ -91,11 +86,18 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           <CloudOff size={10} />
           <span>{localCount} lokal</span>
         </div>
+        {myTrips.length > 0 && (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold hover:bg-red-100 transition-colors"
+          >
+            <Trash2 size={10} />
+            <span>Hapus Semua</span>
+          </button>
+        )}
       </div>
 
-
-
-
+      {/* Filter */}
       <div className="flex gap-2">
         {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong']] as [typeof filter, string][]).map(([k, l]) => (
           <button
@@ -121,10 +123,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             </p>
           </div>
         )}
-
-
-
-        
         {filtered.map(t => (
           <button
             key={t.id}
@@ -148,6 +146,35 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           </button>
         ))}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-slate-900 mb-2">Hapus Semua Trip?</h3>
+            <p className="text-sm text-slate-600 mb-5">
+              Semua {myTrips.length} trip akan dihapus dari perangkat. Data yang sudah terkirim ke server tidak akan terpengaruh.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 rounded-xl border border-slate-200 bg-transparent py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  clearAllTrips()
+                  setShowDeleteConfirm(false)
+                }}
+                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

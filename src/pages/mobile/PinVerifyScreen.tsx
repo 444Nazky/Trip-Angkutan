@@ -58,35 +58,40 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu, instan tanpa jaringan ──
+      // 1. Coba verifikasi lokal dulu (instan, tanpa jaringan).
       const local = await loginOffline(targetId, pressedPin)
       if (local.success) {
-        // ── 2. Ada internet → JWT + roster terbaru dari dashboard admin
-        //       ditarik di LATAR BELAKANG (tidak menunda verifikasi).
         if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
         finishAuth()
         return
       }
 
-      if (!navigator.onLine) {
-        rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
-        return
-      }
-
-      // ── 3. PIN belum tersimpan lokal → verifikasi ke server
-      //       (hasilnya disimpan agar berikutnya bisa offline) ──────────────
-      const result = await loginWithPin(targetId, pressedPin)
-      if (result.success) finishAuth()
-      else rejectPin(result.error?.message ?? 'PIN tidak valid')
-    } catch {
-      try {
-        const local = await loginOffline(targetId, pressedPin)
-        if (local.success) {
+      // 2. Online: fallback ke server.
+      if (navigator.onLine) {
+        const result = await loginWithPin(targetId, pressedPin)
+        if (result.success) {
           finishAuth()
           return
         }
-      } catch {}
-      rejectPin('Verifikasi lokal gagal — coba lagi')
+
+        const msg = result.error?.message ?? 'PIN tidak valid'
+        if (result.error?.code === '401' || msg.toLowerCase().includes('invalid pin')) {
+          rejectPin('PIN salah')
+        } else {
+          rejectPin(msg)
+        }
+        return
+      }
+
+      // 3. Offline dan lokal gagal.
+      rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err ?? '')
+      if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('timeout')) {
+        rejectPin('Server tidak merespon — coba lagi')
+      } else {
+        rejectPin('Verifikasi gagal — coba lagi')
+      }
     } finally {
       setLoading(false)
     }

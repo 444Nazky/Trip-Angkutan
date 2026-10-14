@@ -1,22 +1,27 @@
 // ─── Default Seed Data (bawaan aplikasi) ─────────────────────────────────────
-// Daftar petugas + kredensial yang DITANAM langsung di dalam kode aplikasi
-// mobile, sehingga LOGIN100% OFFLINE bisa terjadi sejak instalasi pertama:
-//   • Tidak perlu sinkronisasi awal.
-//   • Tidak perlu menembak endpoint server.
+// ⚠️ SECURITY WARNING ⚠️
+//
+// DIHAPUS: Kredensial hardcoded (PIN hashes) telah dihapus dari source code
+// karena APK dapat di-decompile dan hash bcrypt dapat di-brute-force secara offline.
+//
+// OFFLINE LOGIN: Jangan mengandalkan seed credentials.
+// - Petugas harus login online SEKALI untuk menyimpan credentials ke perangkat
+// - Setelah login online, credentials tersimpan di SQLite/localStorage
+// - Hapus data seed dan rely pada server-side authentication
+//
+// OFFLINE MODE: Jika offline login diperlukan, implement:
+// 1. Device attestation (hardware-backed key storage)
+// 2. Biometric authentication
+// 3. Secure key derivation with hardware-backed storage
 //
 // Prinsip yang dijaga:
-//   • Yang disimpan adalah HASH bcrypt dari PIN — PIN polos TIDAK pernah
-//     ditulis ke dalam kode (hash identik dengan pin_hash milik server,
-//     sehingga verifikasi lokal maupun online memberi hasil sama).
-//   • Penanaman (seeding) bersifat INSERT-IF-ABSENT: baris yang sudah ada
-//     tidak pernah ditimpa → data hasil sinkronisasi/OTA dari dashboard admin
-//     tidak rusak, dan data default tidak pernah terhapus saat sync berjalan.
-//   • Saat rilis OTA menambah petugas bawaan, naikkan SEED_VERSION — perangkat
-//     lama akan melengkapi daftar tanpa kehilangan data yang sudah tersimpan.
-
+//   • PIN hash tidak lagi di-embed di kode sumber
+//   • Offline login menggunakan credentials yang sudah disinkronkan dari server
+//   • Seed officer list (tanpa credentials) masih ada untuk demo/development
+//   • bcrypt tidak lagi diperlukan di file ini (PIN verification sekarang server-side)
 
 /** Naikkan saat menambah/mengubah isi seed pada rilis OTA. */
-export const SEED_VERSION = 1
+export const SEED_VERSION = 2  // Naikkan versi karena perubahan security
 export const SEED_VERSION_KEY = 'trip.officers.seedVersion'
 
 /** Kunci roster petugas di localStorage (sama dengan milik officers.ts). */
@@ -36,15 +41,15 @@ export interface SeedOfficer {
   username: string
   name: string
   /**
-   * Status bawaan petugas: 1 = Aktif, 0 = Nonaktif.
-   * Opsional (default 1) — rilis OTA dapat menanam petugas yang sudah
-   * dinonaktifkan tanpa perlu menunggu sinkronisasi pertama dari server.
+   * ⚠️ DIHAPUS: pinHash tidak lagi disimpan di source code
+   * Offline login sekarang memerlukan credentials yang sudah disinkronkan
+   * dari server setelah login online pertama.
    */
+  pinHash?: string
   isActive?: 0 | 1
   regionId: string
   regionName: string
   regionCode: string
-  /** Scope dermaga akses petugas (dipakai pemilihan dermaga offline). */
   dermagaAccess: SeedDermaga[]
 }
 
@@ -77,13 +82,17 @@ const DERMAGA = {
   KPK_D2: { id: '6d0c826f-491d-43c5-8fd5-30db32959e87', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.KELAPAKAMPIT.id },
 } as const
 
-// ── Daftar petugas bawaan (id & hash = data server resmi) ────────────────────
+// ── Daftar petugas bawaan (tanpa PIN hash untuk security) ────────────────────
+// ⚠️ SECURITY: PIN hashes telah dihapus.
+// Officer list ini hanya untuk referensi/demo. Tidak bisa login offline
+// tanpa credentials yang sudah disinkronkan dari server.
 
 export const SEED_OFFICERS: SeedOfficer[] = [
   {
     id: 'f2984978-eca2-46a9-b1bc-07252e36dc95',
     username: 'rizkymaulana',
     name: 'Rizky Maulana',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.ENTIKONG.id,
     regionName: REGIONS.ENTIKONG.name,
     regionCode: REGIONS.ENTIKONG.code,
@@ -93,6 +102,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0cb61d4b-b83f-42b0-8fc1-9dfb16d1675b',
     username: 'budisantoso',
     name: 'Budi Santoso',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -102,6 +112,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'd226ff51-f16f-4997-ac0c-fa4293824d1e',
     username: 'andipratama',
     name: 'Andi Pratama',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -111,6 +122,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '8c9a1525-58ed-42ef-9c9a-91f7d1c53ef4',
     username: 'dewikusuma',
     name: 'Dewi Kusuma',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -120,6 +132,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a0e458ec-5ddf-4958-a8fe-de30fce13158',
     username: 'sitirahayu',
     name: 'Siti Rahayu',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -129,6 +142,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'c3a55842-6160-4c0b-8981-56819fbd7ef7',
     username: 'agungsuntoso',
     name: 'Agung Suntoso',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -138,6 +152,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '7e6016bc-6507-439a-93f1-784ac5b7d85c',
     username: 'rahmathidayat',
     name: 'Rahmat Hidayat',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -147,6 +162,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0d40614e-95d2-47ec-a92a-c9556efe85f8',
     username: 'hendragunawan',
     name: 'Hendra Gunawan',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -156,6 +172,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a862bdc6-d2e9-450f-9f4d-02b5817dd5a0',
     username: 'mayasari',
     name: 'Maya Sari',
+    // pinHash dihapus - login online diperlukan
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -165,7 +182,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
 
 // ── Rute master bawaan (per dermaga, dua arah — identik dengan server) ───────
 
-export const SEED_ROUTES: Record<string, SeedRoute[]> = {
+const SEED_ROUTES: Record<string, SeedRoute[]> = {
   [DERMAGA.BADAU_D1.id]: [
     { id: `seed:${DERMAGA.BADAU_D1.id}:SJRE-SBDZ`, name: 'Sijangkung → Sabadi', route_from: 'SJRE', route_to: 'SBDZ', distance: '42 km', duration: '1j 10m' },
     { id: `seed:${DERMAGA.BADAU_D1.id}:SBDZ-SJRE`, name: 'Sabadi → Sijangkung', route_from: 'SBDZ', route_to: 'SJRE', distance: '42 km', duration: '1j 10m' },
@@ -214,18 +231,20 @@ export function findSeedOfficer(identifier: string): SeedOfficer | null {
 }
 
 /**
- * Verifikasi PIN terhadap hash bawaan. Dipakai sebagai lapisan terakhir saat
- * database lokal belum sempat terisi (mis. percobaan login pertama begitu
- * aplikasi dibuka) — tetap instan, tanpa jaringan.
- */
-/**
- * Verifikasi PIN terhadap hash bawaan. Hash PIN tidak lagi disimpan di source code
- * (keamanan: bcrypt hashes untuk PIN umum bisa di-crack). Verifikasi offline
- * dlaam mengandalkan hash yang sudah di-cache dari server saat login online.
- * Fungsi ini tetap dipertahankan untuk backward-compat bila device sudah punya
- * data seed lama dengan hash tersimpan.
+ * ⚠️ SECURITY UPDATE: Verifikasi PIN terhadap hash bawaan.
+ *
+ * DIHAPUS: Pin hash tidak lagi tersedia di source code.
+ * Fungsi ini sekarang SELALU mengembalikan false karena:
+ * 1. Seed officers tidak lagi memiliki pinHash di source
+ * 2. Offline login harus menggunakan credentials dari server (setelah login online)
+ *
+ * OFFLINE LOGIN: Petugas harus login online SEKALI untuk menyimpan credentials.
+ * Setelah credentials tersimpan, verifikasi dilakukan terhadap data server sync.
  */
 export function verifySeedPin(_identifier: string, _pin: string): boolean {
+  // SECURITY: Selalu return false - seed credentials tidak lagi tersedia
+  // Offline login memerlukan credentials yang sudah disinkronkan dari server
+  void _identifier; void _pin; // unused params, kept for interface compatibility
   return false
 }
 
@@ -247,7 +266,7 @@ export interface SeedMobileOfficer {
   dermagaAccess: SeedDermaga[]
 }
 
-export function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
+function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
   const active = (s.isActive ?? 1) === 1
   return {
     id: s.id,
@@ -312,4 +331,19 @@ export function seedRouteCacheIfAbsent(): void {
     }
     if (changed) localStorage.setItem(ROUTES_KEY, JSON.stringify(map))
   } catch { /* quota / data rusak — abaikan */ }
+}
+
+/**
+ * TIDAK ADA seeding geofence lagi.
+ *
+ * Titik geofence adalah data operasional milik Admin Dashboard (Master Rute),
+ * jadi sumber kebenaran tunggal adalah backend — ditarik via
+ * syncGeofencesFromBackend() (GET /api/geofences) dan disimpan sebagai cache
+ * offline. Sebelumnya fungsi ini menyuntikkan koordinat Badau hardcoded yang
+ * (a) memunculkan titik palsu di region lain, dan (b) menutupi kegagalan sync.
+ *
+ * Dipertahankan sebagai no-op agar pemanggil lama (offlineDb) tetap kompatibel.
+ */
+export function seedGeofencePointsIfAbsent(): void {
+  /* no-op sengaja: geofence hanya dari Admin Dashboard */
 }

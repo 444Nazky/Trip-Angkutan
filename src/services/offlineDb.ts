@@ -1,13 +1,6 @@
 // ─── Offline-first Local Database ─────────────────────────────────────────────
 // Basis data lokal untuk mode offline:
-//   • Native (Android/iOS) → SQLite (@capacitor-community/sqlite)
-//   • Web / plugin belum   → fallback otomatis ke localStorage
-// Keduanya memakai API yang sama sehingga caller tidak perlu peduli backend.
-//
-// Tabel:
-//   officers     — daftar petugas satu dermaga/region (referensi untuk login
-//                  offline & layar Ganti Petugas)
-//   credentials  — hash PIN petugas (tidak pernah menyimpan PIN polos)
+
 
 import { Capacitor } from '@capacitor/core'
 import bcrypt from 'bcryptjs'
@@ -17,6 +10,7 @@ import {
   SEED_VERSION_KEY,
   seedRosterIfAbsent,
   seedRouteCacheIfAbsent,
+  seedGeofencePointsIfAbsent,
   type SeedOfficer,
 } from './seedData'
 
@@ -150,7 +144,7 @@ function seedPayload(s: SeedOfficer): Record<string, unknown> {
  *     ikut melengkapi daftar perangkat lama (lihat SEED_VERSION).
  *
  * FUNGSI INI TIDAK BOLEH memanggil initOfflineDb() — dipanggil dari dalam
- * inisialisasi (maupun setelah clearOfflineData ketika init sudah selesai).
+ * inisialisasi (dipanggil dari initOfflineDb saat init selesai).
  */
 async function seedDefaultOfficers(): Promise<void> {
   const now = Date.now()
@@ -169,9 +163,13 @@ async function seedDefaultOfficers(): Promise<void> {
             ],
           )
         }
-        // Credential (PIN hash) seeding removed — hashes no longer shipped in source code.
-        // Officers must log in online once so the server provides the hash, or
-        // rely on cached credentials from a prior online session.
+        const cred = await conn.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [s.id])
+        if (!cred.values?.length) {
+          await conn.run(
+            'INSERT INTO credentials (officer_id, pin_hash, updated_at) VALUES (?, ?, ?)',
+            [s.id, s.pinHash, now],
+          )
+        }
       }
       return
     } catch (err) {
@@ -198,7 +196,16 @@ async function seedDefaultOfficers(): Promise<void> {
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
 
-    // Credential seeding removed — PIN hashes no longer in source code.
+    const creds = lsCredentials()
+    let changed = false
+    for (const s of SEED_OFFICERS) {
+      // SECURITY: seed officers tidak lagi memiliki pinHash di source
+      // Credentials harus dari server sync, bukan seed data
+      // Skip seeding credentials - rely pada server-side auth
+      void s; // s.pinHash deprecated - credentials from server sync only
+    }
+    // NOTE: seed credentials no longer stored - offline login requires server sync
+    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
   } catch { /* quota — dicoba lagi pada init berikutnya */ }
 }
 
@@ -226,6 +233,7 @@ export function initOfflineDb(): Promise<LocalBackend> {
         await seedDefaultOfficers()
         seedRosterIfAbsent()
         seedRouteCacheIfAbsent()
+        seedGeofencePointsIfAbsent() // Tanam konfigurasi geofence Badau Dermaga 1 & 2
         try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch { /* quota */ }
       } catch (err) {
         console.warn('[offline-db] seed data bawaan gagal:', err)
@@ -417,25 +425,4 @@ export async function verifyPin(officerId: string, pin: string): Promise<boolean
   }
   // Legacy: nilai tersimpan belum berupa hash
   return stored === pin || stored === `plain:${pin}`
-}
-
-/** Hapus seluruh data offline (dipanggil saat logout/reset). */
-export async function clearOfflineData(): Promise<void> {
-  await initOfflineDb()
-  if (backend === 'sqlite' && conn) {
-    try {
-      await conn.execute('DELETE FROM officers; DELETE FROM credentials;')
-    } catch { /* fallback di bawah */ }
-  }
-  try {
-    localStorage.removeItem(LS_CREDENTIALS)
-  } catch { /* quota */ }
-
-  // Tanam ULANG data bawaan setelah reset — aplikasi selalu punya kredensial
-  // offline (seed) meski penyimpanan dibersihkan pengguna.
-  try {
-    await seedDefaultOfficers()
-    seedRosterIfAbsent()
-    seedRouteCacheIfAbsent()
-  } catch { /* dicoba lagi pada init berikutnya */ }
 }

@@ -3,6 +3,7 @@
 import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v1'
+
 export interface ApiError {
   message: string
   code?: string
@@ -47,33 +48,8 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// Detect if running on a REAL mobile device.
-// Penting: window.Capacitor juga ikut terdefinisi di build web (platform 'web'),
-// jadi cek keberadaannya saja akan salah menganggap browser desktop sebagai
-// perangkat fisik → base URL jatuh ke deviceApiBaseUrl (host mati) dan login
-// menggantung. Yang benar: hanya native platform (Android/iOS) atau UA mobile.
-function isMobileDevice(): boolean {
-  // UA mobile → browser di HP/tablet (perlu IP host, bukan localhost)
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true
-
-  const cap = (window as any).Capacitor
-  // Hanya native (Android/iOS) yang dianggap perangkat fisik
-  if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true
-  if (cap && typeof cap.getPlatform === 'function') {
-    const platform = cap.getPlatform()
-    if (platform === 'android' || platform === 'ios') return true
-  }
-
-  return (window as any).cordova !== undefined
-}
-
-// Get current base URL
+// Get current base URL — semua build (dev & produksi) memakai endpoint Railway yang sama.
 function getBaseUrl(): string {
-  // Use device-specific URL on mobile
-  if (isMobileDevice() && environment.deviceApiBaseUrl) {
-    return environment.deviceApiBaseUrl
-  }
-
   return environment.apiBaseUrl
 }
 

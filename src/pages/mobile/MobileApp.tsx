@@ -12,9 +12,9 @@ import HistoryDetailScreen from './HistoryDetailScreen'
 import OfficerSwitchScreen from './OfficerSwitchScreen'
 import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
-import SettingsScreen from './SettingsScreen'
 import LocalOfficersScreen from './LocalOfficersScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
+import GeofenceConfigScreen from './GeofenceConfigScreen'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
@@ -26,7 +26,7 @@ import { useApp } from '../store'
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail', 'local-officers']
-const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'settings', 'pin-verify']
+const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
 // Tab utama (Beranda/Riwayat/Profil) selalu berpindah TANPA animasi halaman —
 // animasi hanya untuk popup & tombol, agar UI tidak terasa ramai.
 const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
@@ -56,7 +56,7 @@ export default function MobileApp() {
 
   const activeNav = ['history', 'history-detail'].includes(screen)
     ? 'history'
-    : ['profile', 'settings'].includes(screen)
+    : screen === 'profile'
     ? 'profile'
     : 'home'
 
@@ -74,7 +74,7 @@ export default function MobileApp() {
     // PinVerifyScreen tanpa onDermagaSelect — popup dermaga TIDAK muncul di login/switch
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
-    settings: <SettingsScreen go={go} />,
+    'geofence-config': <GeofenceConfigScreen go={go} />,
     'local-officers': <LocalOfficersScreen go={go} />,
   }
 

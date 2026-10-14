@@ -12,8 +12,8 @@ export type MobileScreen =
   | 'officer-switch'
   | 'pin-verify'
   | 'profile'
-  | 'settings'
   | 'local-officers'
+  | 'geofence-config'
 export interface Region {
   id: string
   name: string

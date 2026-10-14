@@ -8,9 +8,10 @@
 // 1. Pull new officers (admin creates officer → mobile syncs on next resume)
 // 2. Pull password/PIN changes (admin changes password → mobile updates hash)
 // 3. Pull deactivation (admin disables officer → mobile removes from local cache)
+// 4. Pull geofence config (admin updates geofence → mobile syncs points + radius)
 
 import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes } from './auth'
-import { syncGeofenceConfig } from './geofence'
+import { syncGeofencesFromBackend } from './geofence'
 
 // ── Types ──────────────────────────────────────────────────────
 /** Sinkronisasi data admin ke localStorage (mobile) dengan HANYA petugas terkait, caching hasil admin. */
@@ -35,10 +36,10 @@ export function syncOnResume(force = false): void {
   void cacheDockOfficers(officer?.id)
   const dermaga = getStoredDermaga()
   if (dermaga?.id) void syncDermagaOfficersToDb(dermaga.id)
-  // Konfigurasi geofencing terbaru dari Admin Dashboard → validasi rute offline
-  void syncGeofenceConfig()
   // Master Rute terbaru dari Web Admin → dipakai offline di layar Pilih Rute
   void refreshStoredRoutes().catch(() => null)
+  // Geofence config terbaru dari Admin Dashboard → titik & radius dinamis
+  void syncGeofencesFromBackend().catch(() => null)
 }
 
 // ── Pull data petugas dari admin dashboard ──────────────────────────

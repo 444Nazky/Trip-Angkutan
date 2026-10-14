@@ -1,47 +1,105 @@
-// ─── OTA Auto-Update Service ──────────────────────────────────────────────────
-// Pembaruan tanpa install ulang .apk:
-//   1. Ambil version.json (manifest) dari branch `mobile` di GitHub.
-//   2. Bandingkan versi/commit-hash dengan versi lokal perangkat.
-//   3. Unduh seluruh file bundle www KE PENYIMPANAN INTERNAL APLIKASI
-//      (Cache dir Capacitor Filesystem + Cache Storage untuk service worker)
-//      di latar belakang — UI tetap bisa dipakai.
-//   4. Saat "Terapkan", isi Cache Storage dari penyimpanan internal lalu
-//      muat ulang; service worker menyajikan bundle baru tersebut.
+// ─── OTA Auto-Update Service — ARSITEKTUR v4 (purge-first / full-package) ────
 //
-// Keamanan gagal (offline / unduhan terputus):
-//   • Bundle hanya dianggap SAH bila semua file dari manifest berhasil ditulis
-//     (penanda `.complete.json`) — unduhan parsial dibuang, tidak pernah
-//     dipakai, sehingga aplikasi selalu jatuh ke bundle bawaan APK.
-//   • Semua operasi dibungkus try/catch: gagal = state 'error', app tetap jalan.
+// MASALAH YANG DISELESAIKAN (bug "update sekunder B→C gagal di APK native"):
+//
+//  1. CACHE SATU-SLOT. Dulu hanya ada satu cache bernama tetap ("trip-ota-active").
+//     Versi baru menulis ke nama cache yang SAMA dengan versi lama, sehingga
+//     sisa entri V1.0.1 bisa "menang" atas V1.0.2 (cache.match mengembalikan
+//     yang lama) → update tampak sukses tetapi UI tidak berubah.
+//     → v4: SATU CACHE PER VERSI ("trip-ota-v<versi>"). Versi baru = nama baru,
+//       jadi mustahil tercampur. Perpindahan versi dilakukan dengan menulis
+//       SATU penanda kecil (meta) — operasi atomik.
+//
+//  2. STALE CDN / WEBVIEW CACHE. `index.html`, `sw.js`, dan aset bernama tetap
+//     diambil tanpa pembeda versi. GitHub raw (Fastly) + cache WebView bisa
+//     menyajikan salinan LAMA untuk nama file yang sama → hash integritas tidak
+//     cocok → update dibatalkan ("mismatch integrity" di lapangan).
+//     → v4: setiap unduhan memakai `?ota=<versi>&t=<timestamp>` (URL unik per
+//       percobaan). Cache lokal tetap disimpan di URL kanonik (tanpa query).
+//
+//  3. PURGE-FIRST YANG MENGHANCURKAN DIRI SENDIRI. Dulu SEMUA cache dihapus
+//     SEBELUM unduhan, termasuk cache yang sedang menyajikan aplikasi yang
+//     berjalan. Chunk yang di-lazy-load setelah itu jatuh ke bundle bawaan APK
+//     (versi lama) → runtime campur aduk; bila unduhan lalu gagal, perangkat
+//     tidak punya cache OTA sama sekali padahal localStorage masih mengaku
+//     versi baru.
+//     → v4: yang di-purge lebih dulu adalah SEMUA versi lain + staging lama,
+//       sedangkan versi yang SEDANG AKTIF tetap utuh sampai versi baru lulus
+//       verifikasi. Setelah switch sukses, versi lama langsung dibuang total
+//       sehingga tidak ada sisa chunk V1.0.1 saat V1.0.2 tampil.
+//
+//  4. PENYIMPANAN PRIMER YANG BISA DIHAPUS OS. Bundle ditulis ke
+//     `Directory.Cache` — Android boleh membersihkan direktori ini kapan saja.
+//     Setelah dibersihkan, aktivasi gagal ("update gagal" sehari kemudian).
+//     → v4: penyimpanan primer `Directory.Data` (durable). Cache Storage hanya
+//       proyeksi yang bisa dibangun ulang dari sana (self-heal saat boot).
+//
+//  5. SERVICE WORKER MENYAJIKAN APA PUN YANG ADA DI CACHE. Bila satu berkas
+//     hilang, SW diam-diam jatuh ke jaringan (bundle APK) → versi campur.
+//     → v4: SW hanya menyajikan dari cache VERSI AKTIF (dibaca dari meta), dan
+//       mendukung pesan PURGE_ALL/SET_ACTIVE serta bypass `ota_bypass=1`.
+//
+//  6. TIDAK ADA VERIFIKASI PASCA-RELOAD. Reload tanpa penanda versi bisa
+//     dilayani WebView HTTP cache (index.html lama).
+//     → v4: reload memakai `?ota=<versi>` + pemeriksaan mandiri saat boot.
+//
+// Alur pembaruan (setiap siklus, FULL-PACKAGE):
+//   manifest segar (anti-cache) → versi lebih baru?
+//   → purge SEMUA versi lain (cache + storage) → unduh SELURUH berkas (URL
+//     ber-versi) → verifikasi SHA-256 tiap berkas → tulis ke cache versi baru +
+//     storage durable → verifikasi ulang dari cache → tulis meta (SWITCH
+//     ATOMIK) → buang versi lama → reload.
+//   Gagal di langkah mana pun = staging dibuang, versi lama tetap jalan
+//   (fallback aman, tidak pernah setengah-setengah).
 
-import { Network } from '@capacitor/network'
-import { Capacitor } from '@capacitor/core'
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
+import { isDevMode } from './runtimeEnv'
 
+// ── Config ───────────────────────────────────────────────────────────────────
 const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
 const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
 
-/** Cache Storage yang dibaca service worker (src/sw.js). */
-export const OTA_CACHE = 'trip-ota-active'
-const CACHE_PREFIX = 'trip-ota-'
-/** Folder penyimpanan internal bundle (Capacitor Filesystem, direktori Cache). */
-const OTA_DIR = 'trip-ota'
+/** Cache penanda: satu berkas `__active__.json` berisi versi aktif (dibaca SW). */
+const OTA_META_CACHE = 'trip-ota-meta'
+/** Prefiks cache per versi: `trip-ota-v<versi>`. */
+const VERSION_CACHE_PREFIX = 'trip-ota-v'
+/** Penanda versi aktif di dalam OTA_META_CACHE. */
+const META_ACTIVE_KEY = '__active__.json'
+/** Key penanda rilis terstaging (dipakai saat tidak native / web). */
+const MARKER_KEY_PREFIX = 'trip.ota.marker.'
+
+/**
+ * Iterasi key localStorage lewat Storage API (`length` + `key(i)`), BUKAN
+ * `Object.keys(localStorage)`. Storage yang diimplementasikan sebagai Map
+ * (mis. shim in-memory di vitest.setup.ts, atau polyfill) tidak punya key
+ * enumerable sehingga `Object.keys` mengembalikan array KOSONG tanpa error —
+ * loop pembersihan akan diam-diam tidak melakukan apa pun. Iterasi mundur agar
+ * aman saat key dihapus di tengah loop.
+ */
+function forEachStorageKey(fn: (key: string) => void): void {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key) fn(key)
+    }
+  } catch { /* akses localStorage ditolak */ }
+}
+
+/** Direktori penyimpanan DURABLE (Directory.Data) — sumber kebenaran bundle. */
+const OTA_DIR = 'ota'
+/** Direktori LAMA (Directory.Cache, bisa dibersihkan OS) — dibersihkan saat purge. */
+const LEGACY_OTA_DIR = 'trip-ota'
 const MARKER = '.complete.json'
-/** Cooldown setelah error sebelum retry */
+
 const ERROR_COOLDOWN_MS = 2 * 60 * 1000
 
 export interface VersionManifest {
   version: string
   assets: string[]
   minAppVersion?: string
-  /**
-   * Peta { "path/aset": "sha256-hex" } untuk setiap file di `assets`.
-   * Diisi oleh scripts/publish-ota-git.mjs. Bila ada, klien MEMVERIFIKASI
-   * setiap file yang diunduh terhadap hash ini SEBELUM bundle dianggap sah —
-   * manifest basi / aset yang tidak cocok otomatis dibuang (update palsu
-   * berubah menjadi no-op yang aman, bukan bundle rusak).
-   */
+  /** SHA-256 (hex) per path — wajib dari publisher (dipakai verifikasi penuh). */
   integrity?: Record<string, string>
 }
 
@@ -49,29 +107,22 @@ export interface UpdateState {
   status: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'offline'
   progress?: number
   error?: string
-  downloaded?: string[]
   latestVersion?: string
+  /** Versi yang sedang menyajikan aplikasi saat ini. */
+  activeVersion?: string
 }
 
 const STATE_KEY = 'trip.ota.state'
 const CURRENT_VER_KEY = 'trip.ota.currentVersion'
-/** Versi awal perangkat yang belum pernah menerima update. */
 const BUNDLED_VERSION = '0.0.0'
-/** Timestamp error terakhir untuk deduplikasi */
 const LAST_ERROR_KEY = 'trip.ota.lastError'
+/** Versi yang baru diterapkan — dipakai untuk verifikasi boot + cache-buster reload. */
+const APPLIED_VER_KEY = 'trip.ota.appliedVersion'
 
 // ── Versi lokal ──────────────────────────────────────────────────────────────
 
 export async function getCurrentVersion(): Promise<string | null> {
-  try {
-    let v = localStorage.getItem(CURRENT_VER_KEY)
-    if (!v) {
-      // Perangkat baru: mulai dari versi dasar supaya update pertama terdeteksi
-      v = BUNDLED_VERSION
-      localStorage.setItem(CURRENT_VER_KEY, v)
-    }
-    return v
-  } catch { return BUNDLED_VERSION }
+  try { return localStorage.getItem(CURRENT_VER_KEY) ?? BUNDLED_VERSION } catch { return BUNDLED_VERSION }
 }
 
 export function setCurrentVersion(v: string): void {
@@ -81,7 +132,7 @@ export function setCurrentVersion(v: string): void {
 export function getCachedState(): UpdateState | null {
   try {
     const raw = localStorage.getItem(STATE_KEY)
-    return raw ? JSON.parse(raw) : null
+    return raw ? (JSON.parse(raw) as UpdateState) : null
   } catch { return null }
 }
 
@@ -89,20 +140,53 @@ function saveState(s: UpdateState): void {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(s)) } catch { /* quota */ }
 }
 
-async function isOnline(): Promise<boolean> {
-  try {
-    const { connected } = await Network.getStatus()
-    return connected
-  } catch { return navigator.onLine }
+/**
+ * Apakah perangkat punya koneksi? Memakai `navigator.onLine` (bawaan WebView).
+ * Sebelumnya lewat plugin native @capacitor/network; ketelitian tambahannya tidak
+ * sepadan dengan satu plugin native untuk SATU pemanggilan, dan kegagalan
+ * "koneksi ada tapi internet mati" tetap tertangani: fetch manifest gagal → jalur
+ * error/cooldown, bukan macet. Kegagalan yang berbahaya (mengaku offline padahal
+ * online) praktis tidak terjadi pada navigator.onLine — ia hanya false bila tidak
+ * ada antarmuka jaringan sama sekali.
+ */
+function isOnline(): boolean {
+  try { return navigator.onLine !== false } catch { return true }
 }
 
-// ── Util ─────────────────────────────────────────────────────────────────────
+// ── Lifecycle flag ───────────────────────────────────────────────────────────
+
+export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
+
+export async function markBundlePersisted(): Promise<void> {
+  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
+}
+
+export async function hasPersistFlag(): Promise<boolean> {
+  try { return localStorage.getItem(PERSIST_BUNDLE_ACTIVE_KEY) === '1' } catch { return false }
+}
+
+/** Versi yang terakhir kali berhasil diterapkan (untuk audit boot). */
+export async function getAppliedVersion(): Promise<string | null> {
+  try { return localStorage.getItem(APPLIED_VER_KEY) } catch { return null }
+}
+
+// ── Helper dasar ─────────────────────────────────────────────────────────────
+
+const isNative = () => Capacitor.isNativePlatform()
+
+function urlOf(path: string): string {
+  return new URL(path, window.location.origin).href
+}
+
+export function versionCacheName(version: string): string {
+  return `${VERSION_CACHE_PREFIX}${version}`
+}
 
 function toBase64(bytes: Uint8Array): string {
   let bin = ''
-  const CHUNK = 0x8000
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)))
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
   return btoa(bin)
 }
@@ -114,225 +198,71 @@ function fromBase64(b64: string): Uint8Array {
   return out
 }
 
-const isNative = () => {
-  if (typeof Capacitor === 'undefined') return false
-  return Capacitor.isNativePlatform?.() ?? false
-}
-
-/** Track assets untuk versi saat ini (full-bundle approach) */
-let CURRENT_VERSION_ASSETS: string[] | null = null
-
-/**
- * AUTO-PURGE: Hapus semua versi bundle lama kecuali versi yang sedang diunduh.
- * Dipanggil otomatis saat mendeteksi versi baru lebih tinggi.
- *
- * Prinsip: hanya SATU versi bundle yang aktif (terbaru).
- * Versi lama - termasuk yang gagal/parsial - harus dibuang agar:
- *   - storage tidak menumpuk
- *   - tidak ada ambiguitas "versi mana yang dipakai"
- *   - update kedua/berikutnya tidak macet karena state lama
- */
-
-type ManifestResult =
-  | { ok: true; manifest: VersionManifest }
-  | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
-
-async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
-  let res: Response
-  try {
-    res = await fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
-      signal,
-      cache: 'no-store',
-      headers: {
-        'Accept': 'application/json',
-        // Eksplisit minta tanpa cache — WebView lama bisa mengabai 'no-store'
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-      },
-    })
-  } catch (err) {
-    if ((err as Error)?.name === 'AbortError') throw err
-    // Gagal di level jaringan (offline, DNS, CORS, diblokir)
-    return { ok: false, reason: 'network' }
-  }
-
-  // 404/410 = manifest memang belum pernah dipublish → bukan kegagalan
-  if (res.status === 404 || res.status === 410) return { ok: false, reason: 'not-found' }
-  if (!res.ok) return { ok: false, reason: 'network' }
-
-  try {
-    const data = await res.json()
-    if (!data || typeof data.version !== 'string' || !Array.isArray(data.assets)) {
-      return { ok: false, reason: 'invalid' }
-    }
-    return { ok: true, manifest: data as VersionManifest }
-  } catch {
-    return { ok: false, reason: 'invalid' }
-  }
-}
-
-// ── Perbandingan versi (SemVer + hybrid SemVer+timestamp) ─────────────────────
-//
-// Format yang didukung:
-//   • "1.0.0" (SemVer murni)
-//   • "1.0.0+1791494911890" (hybrid; timestamp hanya jadi tie-breaker)
-//   • "1791494911890" (format legacy timestamp murni — tetep bisa dibanding)
-//   • commit-hash / opaque (pernah ditemukan di versi lama)
-//
-// Aturan utama:
-//   1. Jika kedua versi punya prefix SemVer (major.minor.patch), bandingkan
-//      prefix itu dulu (lebih manusiawi & stabil ketimbang timestamp mentah).
-//   2. Jika prefix SemVer sama, timestamp build (+xxxx) adalah penentu.
-//   3. Jika tidak ada prefix SemVer (timestamp murni / hash), bandingkan
-//      segmen numerik biasa atau prefiks.
-export function isNewer(remote: string, local: string): boolean {
-  if (!local) return true
-  if (!remote) return false
-  if (remote === local) return false
-
-  const rSem = semverPrefix(remote)
-  const lSem = semverPrefix(local)
-
-  // Kedua versi punya prefix SemVer → bandingkan prefix, lalu timestamp
-  if (rSem && lSem) {
-    if (rSem !== lSem) {
-      return compareSemverParts(rSem, lSem) > 0
-    }
-    // Prefix sama → timestamp build sebagai penentu (bila ada)
-    const rt = /\+(\d+)/.exec(remote)?.[1]
-    const lt = /\+(\d+)/.exec(local)?.[1]
-    if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
-    if (rt) return true
-    if (lt) return false
-    // Sama fully → tidak lebih baru
-    return false
-  }
-
-  // Satu/both tidak punya SemVer → bandingkan versi "angka" secara umum.
-  const rm = remote.match(/\d+/g)
-  const lm = local.match(/\d+/g)
-  if (rm && lm) {
-    const max = Math.max(rm.length, lm.length)
-    for (let i = 0; i < max; i++) {
-      const rn = parseInt(rm[i] ?? '0', 10)
-      const ln = parseInt(lm[i] ?? '0', 10)
-      if (rn !== ln) return rn > ln
-    }
-    // Semua segmen numerik sama → versi dengan build tambahan (+xxxx) dianggap
-    // lebih baru dari versi tanpa build, agar hybrid lebih baru dari timestamp murni.
-    const rHybridBuild = /\+(\d+)/.exec(remote)?.[1]
-    const lHybridBuild = /\+(\d+)/.exec(local)?.[1]
-    if (rHybridBuild && lHybridBuild) return false
-    if (rHybridBuild) return true
-    if (lHybridBuild) return true
-    return remote.length > local.length
-  }
-
-  // Fallback: hash / opaque → remote lebih baru bila bukan prefiks lokal
-  return !remote.startsWith(local)
-}
-
-/** Ambil prefix SemVer (major.minor.patch) dari versi hybrid, atau null. */
-function semverPrefix(version: string): string | null {
-  if (!version) return null
-  const m = version.match(/^(\d+\.\d+\.\d+)/)
-  return m ? m[1] : null
-}
-
-/** Bandingkan dua prefix SemVer (format "major.minor.patch"), return -1/0/1. */
-function compareSemverParts(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if (pa[i] > pb[i]) return 1
-    if (pa[i] < pb[i]) return -1
-  }
-  return 0
-}
-
-/** Tampilkan versi yang manusiawi (mis. "1.0.1") tanpa timestamp. */
-export function semverLabel(version: string): string {
-  if (!version) return '—'
-  const m = version.match(/^(\d+\.\d+\.\d+)/)
-  return m ? m[1] : version
-}
-
-/** Unduh satu file bundle dengan retry — GitHub raw & jaringan lapangan sering
- *  seret sesaat (429/throttle); tanpa retry, 1 gagal = 20 file dibuang. */
-async function downloadAsset(path: string, signal: AbortSignal, attempts = 3): Promise<Uint8Array> {
-  let lastErr: unknown
-  for (let n = 0; n < attempts; n++) {
-    if (signal.aborted) throw new DOMException('aborted', 'AbortError')
-    try {
-      const res = await fetch(`${ASSETS_BASE}${path}?t=${Date.now()}`, {
-        signal,
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
-      })
-      if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status} saat unduh ${path}`)
-      const buf = await res.arrayBuffer()
-      if (!buf || buf.byteLength === 0) throw new Error(`File kosong: ${path}`)
-      return new Uint8Array(buf)
-    } catch (err) {
-      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
-      lastErr = err
-      if (n < attempts - 1) await sleep(600 * (n + 1))
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(`Gagal unduh ${path}`)
-}
-
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
 
-// ── Verifikasi integritas (SHA-256) ─────────────────────────────────────────
-// Membuktikan bahwa file yang diunduh BENAR-BENAR isi manifest terbitan,
-// bukan potongan basi/CDN nyasar. Tanpa hash → lewati verifikasi (mundur kompatibel).
-
-/** Hash SHA-256 (hex) dari bytes — memakai WebCrypto bila tersedia. */
+/** SHA-256 hex via WebCrypto. null bila tidak tersedia (WebView lawas). */
 async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
   try {
     const subtle = globalThis.crypto?.subtle
-    if (!subtle) return null // lingkungan tanpa WebCrypto → verifikasi dilewati
+    if (!subtle) return null
     const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
     const digest = await subtle.digest('SHA-256', buf)
-    return Array.from(new Uint8Array(digest))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
   } catch {
     return null
   }
 }
 
-/**
- * Cocokkan bytes terunduh dengan hash manifest (bila ada).
- * Returns true bila SAH: tidak ada hash untuk path ini, WebCrypto tidak
- * tersedia (mundur kompatibel), atau hash cocok. Hanya hash yang TERSEDIA
- * dan TIDAK cocok yang membatalkan update.
- */
-async function verifyAsset(bytes: Uint8Array, path: string, integrity?: Record<string, string>): Promise<boolean> {
-  const expected = integrity?.[path]
-  if (!expected) return true
-  const actual = await sha256Hex(bytes)
-  if (actual == null) return true // tidak bisa verifikasi → jangan blokir update
-  return actual.toLowerCase() === expected.toLowerCase()
+// ── META: penanda versi aktif (dibaca Service Worker) ────────────────────────
+
+interface ActiveMeta {
+  version: string
+  assets: string[]
+  savedAt: number
 }
 
-// ── Penyimpanan internal ─────────────────────────────────────────────────────
+/** Tulis penanda versi aktif — INI operasi switch atomiknya. */
+async function writeActiveMeta(version: string, assets: string[]): Promise<void> {
+  if (typeof caches === 'undefined') return
+  const cache = await caches.open(OTA_META_CACHE)
+  await cache.put(
+    new Request(new URL(META_ACTIVE_KEY, window.location.origin).href),
+    new Response(JSON.stringify({ version, assets, savedAt: Date.now() } satisfies ActiveMeta), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    }),
+  )
+}
+
+export async function readActiveMeta(): Promise<ActiveMeta | null> {
+  if (typeof caches === 'undefined') return null
+  try {
+    const cache = await caches.open(OTA_META_CACHE)
+    const res = await cache.match(new URL(META_ACTIVE_KEY, window.location.origin).href)
+    if (!res) return null
+    const data = await res.json() as ActiveMeta
+    if (!data?.version || !Array.isArray(data.assets)) return null
+    return data
+  } catch { return null }
+}
+
+// ── Storage durable (Directory.Data) ─────────────────────────────────────────
 
 function assetPath(version: string, path: string): string {
   return `${OTA_DIR}/${version}/${path}`
 }
 
-/** Tulis file ke penyimpanan internal (native) — tahan terhadap hapus cache WebView. */
 async function persistToStorage(version: string, path: string, bytes: Uint8Array): Promise<void> {
   if (!isNative()) return
+  // PENTING: `data` base64 ditulis TANPA `encoding`. Bila memakai
+  // Encoding.UTF8, Capacitor menulis string base64 sebagai teks ASCII — lalu
+  // `readFromStorage` (baca base64) mengembalikan byte dari string itu, bukan
+  // byte berkas asli. Hasilnya bundel korup & hash tidak pernah cocok.
   await Filesystem.writeFile({
     path: assetPath(version, path),
     data: toBase64(bytes),
-    directory: Directory.Cache,
+    directory: Directory.Data,
     recursive: true,
   })
 }
@@ -342,38 +272,426 @@ async function readFromStorage(version: string, path: string): Promise<Uint8Arra
   try {
     const res = await Filesystem.readFile({
       path: assetPath(version, path),
-      directory: Directory.Cache,
+      directory: Directory.Data,
     })
-    if (res.data instanceof Blob) return new Uint8Array(await res.data.arrayBuffer())
-    return fromBase64(String(res.data))
+    if (typeof res.data !== 'string') return null
+    return fromBase64(res.data)
   } catch { return null }
 }
 
-async function removeStorage(version: string): Promise<void> {
-  if (!isNative()) return
+/**
+ * Penanda rilis terstaging — SATU sumber daftar berkas + hash untuk sebuah versi.
+ * Native: berkas di Directory.Data. Web: localStorage (dulu web tidak punya penanda
+ * sama sekali, sehingga daftar berkas harus disalin di UpdateState.downloaded — dua
+ * sumber yang bisa berbeda; salinan itu kini dihapus).
+ */
+async function writeMarker(version: string, assets: string[], integrity?: Record<string, string>): Promise<void> {
+  const data = JSON.stringify({ version, assets, integrity, savedAt: Date.now() })
+  if (!isNative()) {
+    try { localStorage.setItem(MARKER_KEY_PREFIX + version, data) } catch { /* quota */ }
+    return
+  }
+  await Filesystem.writeFile({
+    path: `${OTA_DIR}/${version}/${MARKER}`,
+    data,
+    directory: Directory.Data,
+    encoding: Encoding.UTF8,
+    recursive: true,
+  })
+}
+
+async function readMarker(version: string): Promise<VersionManifest | null> {
+  if (!version) return null
+  if (!isNative()) {
+    try {
+      const raw = localStorage.getItem(MARKER_KEY_PREFIX + version)
+      return raw ? (JSON.parse(raw) as VersionManifest) : null
+    } catch { return null }
+  }
   try {
-    await Filesystem.rmdir({ path: `${OTA_DIR}/${version}`, directory: Directory.Cache, recursive: true })
+    const res = await Filesystem.readFile({
+      path: `${OTA_DIR}/${version}/${MARKER}`,
+      directory: Directory.Data,
+      encoding: Encoding.UTF8,
+    })
+    if (typeof res.data !== 'string') return null
+    return JSON.parse(res.data) as VersionManifest
+  } catch { return null }
+}
+
+async function removeVersionStorage(version: string): Promise<void> {
+  if (typeof caches !== 'undefined') {
+    try { await caches.delete(versionCacheName(version)) } catch { /* */ }
+  }
+  if (!isNative()) {
+    try { localStorage.removeItem(MARKER_KEY_PREFIX + version) } catch { /* quota */ }
+    return
+  }
+  try {
+    await Filesystem.rmdir({ path: `${OTA_DIR}/${version}`, directory: Directory.Data, recursive: true })
+  } catch { /* tidak ada */ }
+}
+
+// ── Purge (v4) ───────────────────────────────────────────────────────────────
+// Aturan: yang dibuang lebih dulu = SEMUA versi selain versi aktif + semua sisa
+// arsitektur lama. Versi aktif baru dibuang setelah penggantinya lulus
+// verifikasi (lihat activateStagedBundle).
+
+async function listCaches(): Promise<string[]> {
+  try { return typeof caches === 'undefined' ? [] : await caches.keys() } catch { return [] }
+}
+
+/**
+ * Apakah nama cache ini milik OTA? Prefiks `trip-ota` mencakup arsitektur v4
+ * (`trip-ota-v<versi>`, `trip-ota-meta`) DAN sisa v3 (`trip-ota-active`,
+ * `trip-ota-complement`). Ini satu-satunya keluarga cache yang dibuat aplikasi
+ * (tidak ada `caches.open()` lain di src/), jadi prefiks ini aman.
+ */
+function isOtaCacheName(name: string): boolean {
+  return name.startsWith('trip-ota')
+}
+
+/**
+ * Hapus cache OTA (Cache Storage) kecuali nama yang ada di `keep`.
+ * Satu tempat untuk aturan "cache mana yang boleh dibuang" — dulu aturan ini
+ * ditulis dua kali (purgeOtherVersions & resetOtaStorage) dan sempat berbeda
+ * perilaku (satu memakai prefiks versi, satu memakai `trip-ota-`).
+ * Cache NON-OTA (milik WebView/aplikasi lain) tidak pernah disentuh.
+ */
+async function deleteOtaCaches(keep: Iterable<string> = []): Promise<void> {
+  const keepSet = new Set(keep)
+  const names = await listCaches()
+  await Promise.all(names.map(async n => {
+    if (keepSet.has(n)) return
+    if (!isOtaCacheName(n)) return
+    try { await caches.delete(n) } catch { /* */ }
+  }))
+}
+
+/**
+ * Buang semua sisa versi/arsitektur LAMA, sisakan: cache meta + cache versi
+ * yang sedang aktif (kalau ada) + versi staging yang sedang diunduh.
+ */
+export async function purgeOtherVersions(keep: string[] = []): Promise<void> {
+  await deleteOtaCaches([OTA_META_CACHE, ...keep, ...keep.map(versionCacheName)])
+
+  // Mode web: penanda rilis ada di localStorage — buang yang versinya tidak disimpan
+  // (tanpa ini penanda setiap rilis menumpuk selamanya).
+  if (!isNative()) {
+    const keepVersions = new Set(keep)
+    forEachStorageKey(key => {
+      if (!key.startsWith(MARKER_KEY_PREFIX)) return
+      if (keepVersions.has(key.slice(MARKER_KEY_PREFIX.length))) return
+      localStorage.removeItem(key)
+    })
+    return
+  }
+
+  if (!isNative()) return
+  // Direktori versi durable yang bukan versi yang disimpan
+  try {
+    const { files } = await Filesystem.readdir({ path: OTA_DIR, directory: Directory.Data })
+    for (const f of files) {
+      if (keep.includes(f.name)) continue
+      try {
+        await Filesystem.rmdir({ path: `${OTA_DIR}/${f.name}`, directory: Directory.Data, recursive: true })
+      } catch { /* */ }
+    }
+  } catch { /* folder belum ada */ }
+
+  // Sisa arsitektur v3 di Directory.Cache — selalu dibuang
+  try {
+    await Filesystem.rmdir({ path: LEGACY_OTA_DIR, directory: Directory.Cache, recursive: true })
   } catch { /* sudah tidak ada */ }
 }
 
-function urlOf(path: string): string {
-  return new URL(path, window.location.origin).href
+// ── Statе anti-macet ─────────────────────────────────────────────────────────
+
+async function clearStuckOtaState(): Promise<void> {
+  const state = getCachedState()
+  if (!state) return
+  // "ready" tanpa penanda = staging menggantung (unduhan putus di tengah).
+  const marker = state.status === 'ready' ? await readMarker(state.latestVersion ?? '') : null
+  const stuck = state.status === 'downloading' ||
+    (state.status === 'ready' && !marker?.assets?.length)
+  if (!stuck) return
+  // Buang HANYA staging yang menggantung. Versi yang sedang aktif (meta / versi
+  // lokal) tidak pernah disentuh — kalau tersentuh, SW kehilangan bahan untuk
+  // disajikan dan aplikasi turun ke bundel APK padahal versi lokal mengaku OTA.
+  const active = (await readActiveMeta())?.version
+  const local = await getCurrentVersion()
+  const staging = state.latestVersion
+  if (staging && staging !== active && staging !== local) {
+    await removeVersionStorage(staging)
+  }
+  saveState({ status: 'idle', latestVersion: state.latestVersion })
 }
 
-async function putToCache(path: string, bytes: Uint8Array): Promise<void> {
-  const cache = await caches.open(OTA_CACHE)
-  // Salin tepat seukuran view — ArrayBuffer generik tidak selalu cocok BodyInit
-  const body = bytes.slice().buffer as ArrayBuffer
-  await cache.put(
-    urlOf(path),
-    new Response(body, {
-      headers: {
-        'Content-Type': contentTypeOf(path),
-        // Jangan biarkan WebView/CDN menyimpan versi lama dari URL ini
-        'Cache-Control': 'no-store',
-      },
-    }),
-  )
+// ── Util jaringan ────────────────────────────────────────────────────────────
+
+/**
+ * HTTP fetch: CapacitorHttp di native (bebas CORS), fetch biasa di web.
+ * Semua permintaan OTA memakai `Cache-Control: no-store` + `Pragma: no-cache`
+ * supaya WebView/HTTP cache tidak menyajikan salinan lama.
+ */
+async function nativeFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    },
+  }
+
+  if (isNative()) {
+    try {
+      const response = await CapacitorHttp.request({
+        url,
+        method: (mergedOptions.method as string) || 'GET',
+        headers: mergedOptions.headers as Record<string, string>,
+        connectTimeout: 10000,
+      })
+      // Plugin mem-parse badan JSON sendiri (Content-Type application/json);
+      // GitHub raw memakai text/plain sehingga `data` tetap string. Keduanya
+      // harus jadi body Response yang valid — objek di-JSON-kan kembali.
+      const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      return new Response(body, {
+        status: response.status,
+        statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+        headers: new Headers((response.headers ?? {}) as Record<string, string>),
+      })
+    } catch {
+      // jatuh ke fetch biasa
+    }
+  }
+
+  return fetch(url, mergedOptions)
+}
+
+type ManifestResult =
+  | { ok: true; manifest: VersionManifest }
+  | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
+
+/**
+ * Ambil manifest SELALU segar. `?t=` membuat URL unik sehingga lapisan cache
+ * apa pun (WebView, Fastly/GitHub raw) tidak bisa menyajikan version.json basi
+ * — penyebab utama update sekunder tidak terdeteksi.
+ */
+async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
+  // DEV MODE: Skip fetch ke GitHub jika di development (CORS block di localhost)
+  if (isDevMode()) {
+    console.log('[OTA] DEV MODE: Skip fetch manifest dari GitHub (menghindari CORS)')
+    return { ok: false, reason: 'not-found' }
+  }
+
+  let res: Response | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}&n=${attempt}`, {
+        signal,
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      })
+      break
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err
+      if (attempt === 2) return { ok: false, reason: 'network' }
+      await sleep(400 * (attempt + 1))
+    }
+  }
+  if (!res) return { ok: false, reason: 'network' }
+
+  if (res.status === 404 || res.status === 410) return { ok: false, reason: 'not-found' }
+  if (!res.ok) return { ok: false, reason: 'network' }
+
+  try {
+    const data = await res.json() as VersionManifest
+    if (!data || typeof data.version !== 'string' || !Array.isArray(data.assets) || data.assets.length === 0) {
+      return { ok: false, reason: 'invalid' }
+    }
+    for (const asset of data.assets) {
+      if (typeof asset !== 'string' || !asset.length) return { ok: false, reason: 'invalid' }
+    }
+    // index.html WAJIB ada: tanpa itu bundle tidak bisa dipakai untuk navigasi.
+    if (!data.assets.includes('index.html')) return { ok: false, reason: 'invalid' }
+    return { ok: true, manifest: data }
+  } catch {
+    return { ok: false, reason: 'invalid' }
+  }
+}
+
+// Bandingkan versi: "x.y.z" · "x.y.z+<timestamp>" · commit-hash/opaque.
+export function isNewer(remote: string, local: string): boolean {
+  if (!local) return true
+  if (!remote) return false
+  if (remote === local) return false
+
+  // SEMVER dulu; `+<timestamp>` hanya TIEBREAK.
+  // Dulu timestamp dibandingkan lebih dulu, sehingga rilis dari mesin yang jamnya
+  // tertinggal terbaca "tidak lebih baru" selamanya (update tak pernah terdeteksi)
+  // dan downgrade yang disengaja terbaca sebagai upgrade.
+  const base = (v: string) => v.split('+')[0]
+  const rb = base(remote)
+  const lb = base(local)
+  const rm = rb.match(/\d+/g)
+  const lm = lb.match(/\d+/g)
+  if (rm && lm) {
+    const max = Math.max(rm.length, lm.length)
+    for (let i = 0; i < max; i++) {
+      const rn = parseInt(rm[i] ?? '0', 10)
+      const ln = parseInt(lm[i] ?? '0', 10)
+      if (rn !== ln) return rn > ln
+    }
+  } else if (rb !== lb) {
+    return !rb.startsWith(lb)
+  }
+
+  const rt = /\+(\d+)/.exec(remote)?.[1]
+  const lt = /\+(\d+)/.exec(local)?.[1]
+  if (rt && lt) return parseInt(rt, 10) > parseInt(lt, 10)
+  if (rt && !lt) return true
+  return false
+}
+
+export function semverLabel(version: string): string {
+  if (!version) return '—'
+  const m = version.match(/^([\d.]+)/)
+  return m ? m[1] : version
+}
+
+/**
+ * Ambil BYTE MENTAH satu berkas bundle.
+ *
+ * Di native WAJIB lewat CapacitorHttp dengan `responseType: 'arraybuffer'`.
+ * Bawaan plugin adalah `ResponseType.DEFAULT = TEXT`
+ * (HttpRequestHandler.readData → readStreamAsString), sehingga PNG/JPEG bukan
+ * UTF-8 dirusak menjadi U+FFFD lalu di-encode ulang oleh `new Response(data)`
+ * → SHA-256 tidak pernah cocok → update selalu berhenti di
+ * "Verifikasi berkas gagal" di APK release. Untuk arraybuffer, native
+ * mengembalikan base64 (readStreamAsBase64), jadi hasilnya didekode eksplisit
+ * (`fromBase64`) — bukan diumpankan sebagai teks ke `new Response()`.
+ * Bila plugin malah mem-parse respons sebagai JSON (Content-Type
+ * application/json), jalur native dilepas ke fetch WebView di bawah.
+ */
+async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array> {
+  if (isNative()) {
+    try {
+      const response = await CapacitorHttp.request({
+        url,
+        method: 'GET',
+        responseType: 'arraybuffer',
+        connectTimeout: 15000,
+        readTimeout: 30000,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      })
+      if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
+      if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status} saat unduh`)
+      const data = response.data
+      if (typeof data === 'string' && data.length) {
+        const bytes = fromBase64(data)
+        if (bytes.byteLength) return bytes
+      }
+      throw new Error('data native kosong/tak terduga')
+    } catch (err) {
+      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
+      console.warn('[OTA] CapacitorHttp gagal — fallback ke fetch WebView:', err)
+    }
+  }
+
+  const res = await fetch(url, { signal, cache: 'no-store' })
+  if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const buf = await res.arrayBuffer()
+  if (!buf.byteLength) throw new Error('File kosong')
+  return new Uint8Array(buf)
+}
+
+/**
+ * Unduh satu berkas bundle.
+ * URL unik per percobaan (`?ota=<versi>&t=<ts>&n=<attempt>`) — inilah yang
+ * membuat CDN/WebView TIDAK bisa menyajikan salinan lama untuk nama file tetap
+ * seperti index.html (penyebab "integritas tidak cocok" dulu).
+ * Isi diambil sebagai byte mentah lewat `fetchBytes()` (aman untuk gambar).
+ */
+async function downloadAsset(
+  version: string,
+  path: string,
+  signal: AbortSignal,
+  attempts = 3,
+): Promise<Uint8Array> {
+  let lastErr: unknown
+  for (let n = 0; n < attempts; n++) {
+    if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+    try {
+      const url = `${ASSETS_BASE}${path}?ota=${encodeURIComponent(version)}&t=${Date.now()}&n=${n}`
+      const bytes = await fetchBytes(url, signal)
+      if (!bytes.byteLength) throw new Error(`File kosong: ${path}`)
+      return bytes
+    } catch (err) {
+      if (signal.aborted || (err as Error)?.name === 'AbortError') throw err
+      lastErr = err
+      if (n < attempts - 1) await sleep(600 * (n + 1))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Gagal unduh ${path}`)
+}
+
+/**
+ * Verifikasi isi berkas terhadap hash manifest.
+ * Manifest baru SELALU memuat integrity untuk tiap berkas (publisher
+ * memaksanya) — jadi ketidakcocokan = berkas basi/rusak dan update harus batal.
+ * Bila manifest tidak punya integrity (kompatibilitas versi lama), keberadaan
+ * berkas non-kosong dianggap cukup.
+ */
+async function verifyBytes(
+  bytes: Uint8Array,
+  path: string,
+  integrity?: Record<string, string>,
+): Promise<boolean> {
+  const expected = integrity?.[path]
+  if (!expected) return bytes.byteLength > 0
+  const actual = await sha256Hex(bytes)
+  if (actual == null) return bytes.byteLength > 0 // WebCrypto tidak tersedia
+  return actual.toLowerCase() === expected.toLowerCase()
+}
+
+/** Tulis satu berkas ke cache versi + penyimpanan durable. */
+async function stageAsset(version: string, path: string, bytes: Uint8Array): Promise<void> {
+  if (typeof caches !== 'undefined') {
+    const cache = await caches.open(versionCacheName(version))
+    await cache.put(
+      urlOf(path),
+      new Response(bytes.slice().buffer as ArrayBuffer, {
+        headers: {
+          'Content-Type': contentTypeOf(path),
+          'Cache-Control': 'no-store',
+        },
+      }),
+    )
+  }
+  await persistToStorage(version, path, bytes)
+}
+
+/**
+ * Baca berkas HANYA dari cache versi (Cache Storage).
+ * Sengaja TIDAK jatuh ke storage — pemanggil (`ensureVersionBundleReady`) yang
+ * harus tahu cache-nya kosong supaya bisa MEMBANGUN ULANG cache dari storage
+ * durable. Bila fungsi ini diam-diam mengambil dari storage, cache versi akan
+ * tetap kosong dan Service Worker (yang hanya menyajikan dari cache versi)
+ * jatuh ke bundel bawaan APK → versi campur.
+ */
+async function readFromVersionCache(version: string, path: string): Promise<Uint8Array | null> {
+  if (typeof caches === 'undefined') return null
+  try {
+    const cache = await caches.open(versionCacheName(version))
+    const res = await cache.match(urlOf(path))
+    if (res) return new Uint8Array(await res.arrayBuffer())
+  } catch { /* cache tidak tersedia */ }
+  return null
 }
 
 function contentTypeOf(path: string): string {
@@ -388,113 +706,126 @@ function contentTypeOf(path: string): string {
   return 'application/octet-stream'
 }
 
-async function writeMarker(version: string, assets: string[]): Promise<void> {
-  if (!isNative()) return
-  await Filesystem.writeFile({
-    path: `${OTA_DIR}/${version}/${MARKER}`,
-    data: JSON.stringify({ version, assets, savedAt: Date.now() }),
-    directory: Directory.Cache,
-    encoding: Encoding.UTF8,
-    recursive: true,
-  })
-}
-
-async function readMarker(version: string): Promise<VersionManifest | null> {
-  if (!isNative()) return null
-  try {
-    const res = await Filesystem.readFile({
-      path: `${OTA_DIR}/${version}/${MARKER}`,
-      directory: Directory.Cache,
-      encoding: Encoding.UTF8,
-    })
-    if (typeof res.data !== 'string') return null
-    return JSON.parse(res.data) as VersionManifest
-  } catch { return null }
-}
-
-/** Buang semua salinan bundle (unduhan parsial / reset). */
-async function discardBundle(version?: string): Promise<void> {
-  try {
-    const cache = await caches.open(OTA_CACHE)
-    const keys = await cache.keys()
-    await Promise.all(keys.map(k => cache.delete(k)))
-  } catch { /* cache tidak tersedia */ }
-  if (version) await removeStorage(version)
-}
-
-// ── Aktivasi bundle ──────────────────────────────────────────────────────────
+// ── Aktivasi ─────────────────────────────────────────────────────────────────
 
 /**
- * Pastikan Cache Storage (yang dibaca service worker) berisi bundle lengkap.
- * Berkas hilang (terhapus OS) dicoba dibaca ulang dari penyimpanan internal.
- * Returns false bila tidak lengkap → pembaruan BATAL, app tetap memakai
- * bundle bawaan APK (fallback aman).
+ * Pastikan berkas versi ini benar-benar ada & cocok hash-nya, membangun cache
+ * versi dari penyimpanan durable bila perlu (mis. setelah WebView dibersihkan).
+ * Return false bila bundle tidak lengkap → aktivasi dibatalkan.
  */
-export async function activateBundle(version: string, assets: string[]): Promise<boolean> {
-  if (!assets.length) return false
-  if (typeof caches === 'undefined') return false
+async function ensureVersionBundleReady(version: string, assets: string[]): Promise<boolean> {
+  const marker = await readMarker(version)
+  const integrity = marker?.integrity
+  const manifestAssets = marker?.assets?.length ? marker.assets : assets
 
+  for (const path of manifestAssets) {
+    let bytes = await readFromVersionCache(version, path)
+    if (!bytes) {
+      // cache hilang (WebView dibersihkan) → bangun ulang dari storage durable
+      const fromStorage = await readFromStorage(version, path)
+      if (!fromStorage) return false
+      await stageAsset(version, path, fromStorage)
+      bytes = fromStorage
+    }
+    if (!(await verifyBytes(bytes, path, integrity))) return false
+  }
+  return true
+}
+
+/**
+ * Aktifkan versi yang sudah lulus verifikasi (SWITCH ATOMIK):
+ *   1. verifikasi seluruh berkas versi baru,
+ *   2. tulis penanda versi aktif (meta) — sejak titik ini SW menyajikan versi baru,
+ *   3. buang versi lama (cache + storage) → tidak ada sisa chunk lama,
+ *   4. catat versi lokal + flag persist.
+ */
+export async function activateStagedBundle(version: string, assets: string[]): Promise<boolean> {
+  if (!assets.length || typeof caches === 'undefined') return false
   try {
-    // Bersihkan cache OTA lama agar hanya satu versi aktif
-    const names = await caches.keys()
-    await Promise.all(
-      names.filter(n => n.startsWith(CACHE_PREFIX) && n !== OTA_CACHE).map(n => caches.delete(n)),
-    )
+    if (!(await ensureVersionBundleReady(version, assets))) {
+      console.warn('[OTA] aktivasi dibatalkan — bundle tidak lengkap/cacat:', version)
+      await removeVersionStorage(version)
+      return false
+    }
 
-    const cache = await caches.open(OTA_CACHE)
-    for (const path of assets) {
-      const existing = await cache.match(urlOf(path))
-      if (existing) continue
-      const bytes = await readFromStorage(version, path)
-      if (!bytes) return false // sumber hilang → bundle tidak utuh
-      await putToCache(path, bytes)
-    }
-    // Verifikasi ulang
-    for (const path of assets) {
-      if (!(await cache.match(urlOf(path)))) return false
-    }
+    const marker = await readMarker(version)
+    await writeActiveMeta(version, marker?.assets?.length ? marker.assets : assets)
+
+    // Baru setelah switch: buang semua versi lain (termasuk versi lama yang
+    // tadinya aktif) agar tidak ada residu V1.0.1 saat V1.0.2 tampil.
+    await purgeOtherVersions([version])
+
+    setCurrentVersion(version)
+    try { localStorage.setItem(APPLIED_VER_KEY, version) } catch { /* quota */ }
+    await markBundlePersisted()
     return true
   } catch (err) {
-    console.warn('[ota] aktivasi gagal:', err)
+    console.warn('[OTA] aktivasi gagal:', err)
     return false
   }
 }
 
 /**
- * Dipanggil saat app start: isi ulang Cache Storage dari penyimpanan internal
- * bila cache WebView terhapus (mis. setelah clear data) — tanpa unduh ulang.
+ * Kompatibilitas API lama: aktivasi versi dari daftar aset.
+ * (Dipakai test & jalur "web tanpa Filesystem".)
+ */
+export async function activateBundle(version: string, assets: string[]): Promise<boolean> {
+  return activateStagedBundle(version, assets)
+}
+
+/**
+ * SELF-HEAL saat boot: bila flag persist ada tetapi cache/meta hilang (clear
+ * data, WebView reset, OS membersihkan cache), bangun ulang dari penyimpanan
+ * durable tanpa unduh ulang. Ini yang membuat update pertama tetap "lengket"
+ * dan tidak memaksa pengguna Clear Data manual.
  */
 export async function restoreBundleFromStorage(): Promise<boolean> {
   try {
-    const version = await getCurrentVersion()
-    if (!version || version === BUNDLED_VERSION) return false
-    const marker = await readMarker(version)
-    if (!marker?.assets?.length) return false
+    const local = await getCurrentVersion()
+    if (!local || local === BUNDLED_VERSION) return false
+    if (!(await hasPersistFlag())) return false
 
+    const marker = await readMarker(local)
+    const assets = marker?.assets
+    if (!assets?.length) return false
     if (typeof caches === 'undefined') return false
-    const cache = await caches.open(OTA_CACHE)
-    const missing = []
-    for (const path of marker.assets) {
-      if (!(await cache.match(urlOf(path)))) missing.push(path)
+
+    const cache = await caches.open(versionCacheName(local))
+    const before = (await cache.keys()).length
+    const meta = await readActiveMeta()
+
+    if (before < assets.length) {
+      // Bangun ulang cache versi dari storage durable (tanpa unduh ulang).
+      const ok = await ensureVersionBundleReady(local, assets)
+      if (!ok) return false
     }
-    if (missing.length === 0) return true
-    return activateBundle(version, marker.assets)
+    // Pastikan cache versi benar-benar terisi: SW hanya menyajikan dari sini.
+    if ((await cache.keys()).length < assets.length) return false
+    if (meta?.version !== local) await writeActiveMeta(local, assets)
+    return true
   } catch { return false }
 }
 
+// ── Reset ────────────────────────────────────────────────────────────────────
 
-/** Hapus SEMUA cache OTA dan state. Pemakian: resetOtaStorage().then(() => ...). */
+/**
+ * Hapus SEMUA jejak OTA: cache Storage (per versi + meta + arsitektur lama),
+ * direktori durable & legacy di Filesystem, serta seluruh state localStorage.
+ * Setelah ini aplikasi kembali memakai bundle bawaan APK.
+ */
 export async function resetOtaStorage(): Promise<void> {
-  try {
-    if (typeof caches !== 'undefined') {
-      const cache = await caches.open(OTA_CACHE)
-      const keys = await cache.keys()
-      await Promise.all(keys.map(k => cache.delete(k)))
-    }
-  } catch { /* cache tidak tersedia */ }
+  await deleteOtaCaches()
+  // Penanda rilis (mode web) — semua dibuang, tidak ada versi yang disisakan.
+  forEachStorageKey(key => {
+    if (key.startsWith(MARKER_KEY_PREFIX)) localStorage.removeItem(key)
+  })
 
   if (isNative()) {
-    try { await Filesystem.rmdir({ path: OTA_DIR, directory: Directory.Cache, recursive: true }) } catch { /* sudah tidak ada */ }
+    for (const [path, directory] of [[OTA_DIR, Directory.Data], [LEGACY_OTA_DIR, Directory.Cache]] as const) {
+      try {
+        await Filesystem.rmdir({ path, directory, recursive: true })
+      } catch { /* sudah tidak ada */ }
+    }
   }
 
   try {
@@ -502,44 +833,121 @@ export async function resetOtaStorage(): Promise<void> {
     localStorage.removeItem(CURRENT_VER_KEY)
     localStorage.removeItem(LAST_ERROR_KEY)
     localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY)
+    localStorage.removeItem(APPLIED_VER_KEY)
   } catch { /* quota */ }
 
-  saveState({ status: 'idle', latestVersion: BUNDLED_VERSION })
+  console.log('[OTA] resetOtaStorage() selesai — semua bundle & state OTA dibuang')
 }
 
+/**
+ * RESET TOTAL dari sisi klien (tombol "Reset App Cache" di UpdateNotifier):
+ * purge semua OTA storage + lepas registrasi Service Worker + kosongkan cache
+ * WebView milik origin ini. Dipakai saat jaringan bermasalah / aplikasi macet
+ * di lapangan. Caller harus reload setelah ini.
+ */
+export async function resetAppCacheFully(): Promise<void> {
+  await resetOtaStorage()
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map(r => r.unregister().catch(() => false)))
+    }
+  } catch { /* tidak ada SW */ }
+  console.log('[OTA] resetAppCacheFully() selesai — reload akan memakai bundle bawaan')
+}
 
-// ── Registrasi service worker ────────────────────────────────────────────────
+// ── Diagnostik ───────────────────────────────────────────────────────────────
+
+export async function auditOta(): Promise<{
+  localVersion: string
+  remoteVersion: string | null
+  activeMetaVersion: string | null
+  bundlePersisted: boolean
+  cacheActiveEntries: number
+  hasRemoteManifest: boolean
+}> {
+  const localVersion = (await getCurrentVersion()) ?? BUNDLED_VERSION
+  const persisted = await hasPersistFlag()
+  const meta = await readActiveMeta()
+  let remoteVersion: string | null = null
+  let hasRemoteManifest = false
+
+  // DEV MODE tidak mem-fetch GitHub (CORS di localhost). Tidak ada return awal di
+  // sini: bagian ekor (hitung entri cache versi aktif) sama untuk kedua mode,
+  // dulu blok ini menyalin seluruh ekor fungsi (~30 baris) hanya untuk itu.
+  if (isDevMode()) {
+    console.log('[OTA] DEV MODE: Skip audit fetch dari GitHub (menghindari CORS)')
+  } else {
+    try {
+      const ac = new AbortController()
+      const timeout = setTimeout(() => ac.abort(), 4000)
+      let res: Response
+      try {
+        // `?t=` juga di sini: tanpa cache-buster, diagnostik bisa melaporkan versi
+        // remote BASI (GitHub raw mengirim cache-control max-age) dan menyembunyikan
+        // rilis yang sebenarnya sudah ada.
+        res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
+      } finally {
+        clearTimeout(timeout)
+      }
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.version) {
+          remoteVersion = data.version
+          hasRemoteManifest = true
+        }
+      }
+    } catch { /* offline — bukan blocking */ }
+  }
+
+  let cacheActiveEntries = 0
+  try {
+    if (typeof caches !== 'undefined' && meta?.version) {
+      const cache = await caches.open(versionCacheName(meta.version))
+      cacheActiveEntries = (await cache.keys()).length
+    }
+  } catch { /* cache tidak tersedia */ }
+
+  return {
+    localVersion,
+    remoteVersion,
+    activeMetaVersion: meta?.version ?? null,
+    bundlePersisted: persisted,
+    cacheActiveEntries,
+    hasRemoteManifest,
+  }
+}
+
+// ── Service worker ───────────────────────────────────────────────────────────
 
 /**
- * Daftarkan service worker penyaji bundle OTA. Gagal registrasi TIDAK membuat
- * crash — aplikasi tetap berjalan dengan bundle bawaan.
- *
- * Setelah mendaftarkan ulang (mis. bundle aktif berubah), kirim message ke
- * SW supaya self-heal: skip waiting, aktifkan versi baru, purge cache basi.
+ * Daftarkan SW penyaji bundle. `updateViaCache: 'none'` memaksa browser
+ * memeriksa ulang skrip SW (bukan memakai salinan cache) — dulu SW lama bisa
+ * terus menyajikan cache basi karena skripnya tidak pernah diperbarui.
  */
 export function registerOtaServiceWorker(forceRefresh = false): void {
   if (!('serviceWorker' in navigator)) return
   if (location.protocol === 'file:') return
-  navigator.serviceWorker.register('sw.js', { scope: '/' }).then(reg => {
-    if (forceRefresh) {
-      // Tunjuk ke versi terbaru yang baru saja diaktifkan
-      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing
-        if (!newWorker) return
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            newWorker.postMessage({ type: 'SKIP_WAITING' })
-          }
-        })
-      })
+  navigator.serviceWorker.register('sw.js', { scope: '/', updateViaCache: 'none' }).then(reg => {
+    void reg.update().catch(() => undefined)
+    const activateNew = (worker: ServiceWorker | null) => {
+      worker?.postMessage({ type: 'SKIP_WAITING' })
     }
+    activateNew(reg.waiting)
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing
+      if (!newWorker) return
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) activateNew(newWorker)
+      })
+    })
+    if (forceRefresh) activateNew(reg.waiting)
   }).catch(err => {
-    console.warn('[ota] service worker gagal didaftarkan:', err)
+    console.warn('[OTA] service worker gagal didaftarkan:', err)
   })
 }
 
-// ── Orchestrator utama ───────────────────────────────────────────────────────
+// ── Orchestrator ─────────────────────────────────────────────────────────────
 
 export interface CheckResult {
   available: boolean
@@ -550,25 +958,25 @@ export interface CheckResult {
 let controller: AbortController | undefined
 
 /**
- * Cek update. Silent fail untuk network errors - tidak pernah tampilkan
- * "manifest tidak terjangkau" yang membingungkan petugas lapangan.
+ * Cek + unduh pembaruan (FULL-PACKAGE, PURGE-FIRST).
  *
- * Setiap cek update melakukan hal ini secara berurutan:
- *   1. Ambil manifest remote (selalu fetch baru, tidak pakai cache).
- *   2. Bandingkan versi remote vs lokal — bila tidak lebih baru, langsung selesai.
- *   3. Hapus SELURUH cache OTA (Filesystem + Cache Storage) SEBELUM mulai unduh.
- *      Ini mencegah stuck state dari versi lama menghambat deteksi versi baru.
- *   4. Unduh seluruh bundle baru.
- *   5. Verifikasi setiap file terhadap hash manifest (bila ada).
- *   6. Simpan marker kelengkapan, emit status 'ready'.
+ * Urutan yang dijaga ketat:
+ *   1. manifest segar (anti-cache) & versi lebih baru?
+ *   2. purge SEMUA versi lain (cache + storage) — tidak ada sisa chunk lama
+ *      yang bisa tercampur; versi yang SEDANG AKTIF tetap dipertahankan
+ *      sampai versi baru lulus verifikasi (agar aplikasi tidak rusak di tengah
+ *      proses bila unduhan gagal),
+ *   3. unduh SELURUH berkas (URL ber-versi, retry 3x),
+ *   4. verifikasi hash tiap berkas,
+ *   5. tulis ke cache versi baru + storage durable + marker.
+ * Gagal di langkah mana pun → staging dibuang, versi lama tetap dipakai.
  */
 export async function checkForUpdate(
   currentVersion: string | undefined | null,
   onState?: (s: UpdateState) => void,
+  force = false,
 ): Promise<CheckResult> {
   const emit = (s: UpdateState) => { saveState(s); onState?.(s) }
-
-  // Selalu baca versi lokal dari storage agar nilainya tidak basi.
   const local = currentVersion ?? (await getCurrentVersion()) ?? BUNDLED_VERSION
 
   controller?.abort()
@@ -578,209 +986,192 @@ export async function checkForUpdate(
   try {
     const online = await isOnline()
     if (!online) {
-      emit({ status: 'offline', latestVersion: getCachedState()?.latestVersion ?? local })
+      emit({ status: 'offline', latestVersion: getCachedState()?.latestVersion ?? local, activeVersion: local })
       return { available: false }
     }
 
-    // Pendinginan error biar tidak spam fetch saat jaringan goyang.
-    const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
-    if (Date.now() - lastErr < ERROR_COOLDOWN_MS) {
-      return { available: false }
+    if (force) {
+      try { localStorage.removeItem(LAST_ERROR_KEY) } catch { /* quota */ }
+    } else {
+      const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
+      if (Date.now() - lastErr < ERROR_COOLDOWN_MS) return { available: false }
     }
+
+    await clearStuckOtaState()
 
     const result = await fetchManifest(sig)
     if (!result.ok) {
-      if (result.reason !== 'not-found') {
-        console.warn('[ota] cek gagal (silent):', result.reason)
-        localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+      if (result.reason === 'not-found') {
+        emit({ status: 'idle', latestVersion: local, activeVersion: local })
+        return { available: false }
       }
-      emit({ status: 'idle', latestVersion: local })
+      console.warn('[OTA] cek gagal:', result.reason, force ? '(manual)' : '(silent)')
+      localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+      emit(force
+        ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local, activeVersion: local }
+        : { status: 'idle', latestVersion: local, activeVersion: local })
       return { available: false }
     }
     const remote = result.manifest
 
     if (!isNewer(remote.version, local)) {
-      emit({ status: 'idle', latestVersion: local })
+      console.log(`[OTA] Versi tidak lebih baru: local=${local}, remote=${remote.version}`)
+      emit({ status: 'idle', latestVersion: local, activeVersion: local })
       return { available: false, version: local }
     }
 
-    if (!remote.assets.length) {
-      emit({ status: 'idle', latestVersion: local })
-      return { available: false }
+    // Versi ini SUDAH terunduh & terverifikasi penuh? Jangan purge/unduh ulang.
+    // Dulu pemeriksaan berkala (30 menit) menghapus staging yang utuh lalu
+    // mengunduh ulang SEMUA berkas setiap kali petugas belum menekan "Terapkan"
+    // — di jaringan lapangan yang buruk ini tampak seperti "update gagal terus".
+    const staged = getCachedState()
+    const stagedMarker = staged?.status === 'ready' && staged.latestVersion === remote.version
+      ? await readMarker(remote.version)
+      : null
+    if (stagedMarker?.assets?.length === remote.assets.length) {
+      console.log(`[OTA] ${remote.version} sudah terunduh & terverifikasi — menunggu aksi pengguna`)
+      emit({
+        status: 'ready',
+        progress: 100,
+        latestVersion: remote.version,
+        activeVersion: local,
+      })
+      return { available: true, version: remote.version, assets: remote.assets }
     }
 
-    // ── PURGE SEBELUM UNDUH ─────────────────────────────────────────────
-    // Wipe semua cache OTA sebelum mengunduh versi baru. Ini menjamin:
-    //   • Stuck state dari versi lama tidak menghambat versi baru.
-    //   • Tidak ada ambiguitas versi mana yang aktif.
-    //   • Bundle parsial lama tidak mencemari download baru.
-    console.info(`[ota] Mendeteksi versi baru ${remote.version} — purge semua cache lama`)
-    await discardBundle()
-    await resetOtaStorage()
+    console.log(`[OTA] Update tersedia: ${local} → ${remote.version} (${remote.assets.length} berkas)`)
+    emit({ status: 'downloading', progress: 0, latestVersion: remote.version, activeVersion: local })
 
-    CURRENT_VERSION_ASSETS = remote.assets
+    // ── LANGKAH 2: PURGE-FIRST ─────────────────────────────────────────────
+    // Semua versi LAIN dibuang sebelum byte pertama diunduh (tidak ada sisa
+    // V1.0.1 saat V1.0.2 selesai). Versi aktif dipertahankan sampai switch.
+    const activeBefore = (await readActiveMeta())?.version
+    await purgeOtherVersions([remote.version, ...(activeBefore ? [activeBefore] : [])])
+    await removeVersionStorage(remote.version) // staging bersih, mulai dari nol
 
-    emit({ status: 'downloading', progress: 0, latestVersion: remote.version })
-    const downloaded: string[] = []
+    // ── LANGKAH 3-5: FULL DOWNLOAD + VERIFIKASI + STAGING ──────────────────
     const total = remote.assets.length
-
     for (let i = 0; i < total; i++) {
       if (sig.aborted) {
-        await discardBundle()
-        await resetOtaStorage()
-        CURRENT_VERSION_ASSETS = null
-        emit({ status: 'idle', latestVersion: local })
+        await removeVersionStorage(remote.version)
+        emit({ status: 'idle', latestVersion: local, activeVersion: local })
         return { available: false }
       }
       const asset = remote.assets[i]
       try {
-        const bytes = await downloadAsset(asset, sig)
-        if (!(await verifyAsset(bytes, asset, remote.integrity))) {
-          console.warn('[ota] integritas tidak cocok, batalkan:', asset)
-          await discardBundle()
-          await resetOtaStorage()
-          CURRENT_VERSION_ASSETS = null
-          localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-          emit({ status: 'error', error: 'Verifikasi berkas gagal — update dibatalkan', latestVersion: remote.version })
-          return { available: false }
+        const bytes = await downloadAsset(remote.version, asset, sig)
+        if (!(await verifyBytes(bytes, asset, remote.integrity))) {
+          // Berkas basi/rusak → coba unduh ulang dengan cache-buster baru.
+          let recovered = false
+          for (let extra = 0; extra < 2 && !recovered; extra++) {
+            await sleep(300 * (extra + 1))
+            const retryBytes = await downloadAsset(remote.version, asset, sig, 2)
+            recovered = await verifyBytes(retryBytes, asset, remote.integrity)
+            if (recovered) {
+              await stageAsset(remote.version, asset, retryBytes)
+            }
+          }
+          if (!recovered) {
+            console.warn('[OTA] verifikasi berkas gagal — update dibatalkan:', asset)
+            await removeVersionStorage(remote.version)
+            localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
+            emit({
+              status: 'error',
+              error: 'Verifikasi berkas gagal — update dibatalkan (versi lama tetap dipakai)',
+              latestVersion: remote.version,
+              activeVersion: local,
+            })
+            return { available: false }
+          }
+        } else {
+          await stageAsset(remote.version, asset, bytes)
         }
-        await persistToStorage(remote.version, asset, bytes)
-        if (!isNative()) await putToCache(asset, bytes)
-        downloaded.push(asset)
+        console.log(`[OTA] terunduh & terverifikasi ${i + 1}/${total}: ${asset}`)
       } catch (err) {
         if (sig.aborted) {
-          await discardBundle()
-          await resetOtaStorage()
-          CURRENT_VERSION_ASSETS = null
-          emit({ status: 'idle', latestVersion: local })
+          await removeVersionStorage(remote.version)
+          emit({ status: 'idle', latestVersion: local, activeVersion: local })
           return { available: false }
         }
-        console.warn('[ota] unduhan gagal (silent):', asset, err)
-        await discardBundle()
-        await resetOtaStorage()
-        CURRENT_VERSION_ASSETS = null
+        console.warn('[OTA] unduhan gagal:', asset, err)
+        await removeVersionStorage(remote.version)
         localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-        emit({ status: 'idle', latestVersion: local })
+        emit({ status: 'error', error: 'Gagal mengunduh paket pembaruan', latestVersion: local, activeVersion: local })
         return { available: false }
       }
       emit({
         status: 'downloading',
         progress: Math.round(((i + 1) / total) * 100),
         latestVersion: remote.version,
+        activeVersion: local,
       })
     }
 
-    try { await writeMarker(remote.version, remote.assets) } catch { /* web tanpa Filesystem */ }
+    // Marker ditulis hanya setelah SEMUA berkas ada.
+    try { await writeMarker(remote.version, remote.assets, remote.integrity) } catch { /* web */ }
 
-    emit({ status: 'ready', progress: 100, downloaded, latestVersion: remote.version })
+    emit({
+      status: 'ready',
+      progress: 100,
+      latestVersion: remote.version,
+      activeVersion: local,
+    })
     return { available: true, version: remote.version, assets: remote.assets }
   } catch (err) {
     if ((err as Error)?.name === 'AbortError') return { available: false }
-    console.warn('[ota] cek gagal total (silent):', err)
+    console.warn('[OTA] cek gagal total:', err, force ? '(manual)' : '(silent)')
     localStorage.setItem(LAST_ERROR_KEY, String(Date.now()))
-    emit({ status: 'idle', latestVersion: local })
+    emit(force
+      ? { status: 'error', error: 'Gagal menghubungi server pembaruan', latestVersion: local, activeVersion: local }
+      : { status: 'idle', latestVersion: local, activeVersion: local })
     return { available: false }
   }
 }
 
 /**
- * Bersihkan state OTA yang macet (mis. sebagai akibat pull kedua yang gagal,
- * atau bundle yang tidak utuh setelah clear-data).
- * Dipanggil di awal checkForUpdate + dipanggil eksplisit saat start.
- */
-
-/**
- * Terapkan bundle terunduh. Returns true bila berhasil → panggil
- * window.location.reload(). Bila gagal → false, aplikasi tetap berjalan
- * normal dengan versi sekarang (tanpa crash / layar kosong).
- *
- * Setelah berhasil:
- *   • Aktifkan bundle (isi Cache Storage dari penyimpanan internal).
- *   • Simpan versi saat ini ke storage.
- *   • Tandai bundle sebagai persisten (supaya survival clear-data).
- *   • AUTOPURGE versi lama dari penyimpanan internal + Cache Storage.
+ * Terapkan bundle terunduh (aktifkan + switch). Caller melakukan reload setelah
+ * fungsi ini bernilai true.
+ * Gagal → false; aplikasi tetap berjalan pada versi sekarang (tidak ada layar
+ * kosong / crash).
  */
 export async function applyUpdate(): Promise<boolean> {
   try {
-    const state = getCachedState()
-    const version = state?.latestVersion
-    const assets = state?.downloaded
-    if (!version || !assets?.length) {
-      console.warn('[ota] applyUpdate ditolak: versi atau asset belum tersedia')
-      return false
-    }
+    const version = getCachedState()?.latestVersion
+    if (!version) return false
 
-    const marker = await readMarker(version)
-    const list = marker?.assets?.length ? marker.assets : assets
+    // Penanda = satu-satunya sumber daftar berkas versi ini.
+    const list = (await readMarker(version))?.assets
+    if (!list?.length) return false
 
-    const ok = await activateBundle(version, list)
+    const ok = await activateStagedBundle(version, list)
     if (!ok) {
-      await discardBundle(version)
-      saveState({ status: 'error', error: 'bundle tidak lengkap', latestVersion: version })
-      console.warn('[ota] applyUpdate gagal: bundle tidak utuh setelah aktivasi')
+      await removeVersionStorage(version)
+      saveState({ status: 'error', error: 'Bundle tidak lengkap setelah unduh', latestVersion: version })
       return false
     }
 
-    setCurrentVersion(version)
-    await writeMarker(version, list)
-    await markBundlePersisted()
-    saveState({ status: 'idle', latestVersion: version })
+    saveState({ status: 'idle', latestVersion: version, activeVersion: version })
 
-    // AUTOPURGE: hapus versi lama sehingga hanya versi terbaru yang tersisa.
-    // Ini jawaban utama atas "cache/bundle/chunk lama tidak terhapus otomatis".
-    // auto-purge now happens in checkForUpdate before download
-
-    // Diagnostik pasca-apply: log versi lokal, deteksi remote, dan versi terapan.
-    try {
-      const localVer = await getCurrentVersion()
-      const check = await checkForUpdate(localVer)
-      const latestDetected = check.version ?? localVer
-      console.info('[ota] diagnostik after apply — local:', localVer, '| latest detected:', latestDetected, '| applied:', version)
-    } catch { /* diagnostik bersifat opsional */ }
-
-    // Bundle OTA baru diterapkan → minta penarikan roster petugas SEGERA saat
-    // aplikasi berikutnya dibuka: penambahan/penonaktifan dari dashboard admin
-    // masuk otomatis ke penyimpanan lokal (insert-if-absent — data bawaan aman).
+    // Bundle baru → tarik roster petugas segera saat aplikasi dibuka kembali.
     try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
+
+    try {
+      const audit = await auditOta()
+      console.log(
+        '[OTA] pasca-apply:',
+        'local=', audit.localVersion,
+        'meta=', audit.activeMetaVersion,
+        'remote=', audit.remoteVersion,
+        'cacheEntries=', audit.cacheActiveEntries,
+      )
+      if (audit.cacheActiveEntries === 0 && audit.hasRemoteManifest) {
+        console.warn('[OTA] pasca-apply: cache versi aktif kosong — perangkat perlu reload/reset OTA.')
+      }
+    } catch { /* diagnostik gagal → jangan fatalkan apply */ }
+
     return true
   } catch (err) {
-    console.warn('[ota] apply gagal:', err)
+    console.warn('[OTA] apply gagal:', err)
     return false
   }
 }
-
-/** Hapus semua asset & state OTA. */
-export async function clearCache(): Promise<void> {
-  try {
-    const version = getCachedState()?.latestVersion
-    await discardBundle(version)
-    if (isNative()) {
-      try { await Filesystem.rmdir({ path: OTA_DIR, directory: Directory.Cache, recursive: true }) } catch { /* */ }
-    }
-  } catch { /* */ }
-  try {
-    localStorage.removeItem(STATE_KEY)
-    localStorage.removeItem(CURRENT_VER_KEY)
-  } catch { /* quota */ }
-}
-
-// ── Lifecycle toggle ─────────────────────────────────────────────────────────
-// Flag terpisah dari versi: bila diset (value='1') aplikasi start,
-// service worker WAJIB serve bundle OTA aktif (bukan bundle bawaan APK).
-// Harus ada karena clear-data / reinstall bisa membuat perangkat lupa bahwa
-// bundle OTA pernah diaktifkan — flag ini juara "apakah bundle harus dijadikan
-// yang dikirim ke UI".
-export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
-
-/**
- * Tandai bahwa bundle versi ini sudah diaktifkan (dipakai service worker).
- * Dipakai main.tsx/ota boot: bila flag ada, panggil activateBundle() + reload
- * saat start, bukan cuma menunggu tombol manual.
- */
-export async function markBundlePersisted(): Promise<void> {
-  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
-}
-/**
- * Audit cepat versi aplikasi vs remote (tanpa side efek yang berbahaya).
- * Return objek gampang dipakai untuk UI/debug.
- */

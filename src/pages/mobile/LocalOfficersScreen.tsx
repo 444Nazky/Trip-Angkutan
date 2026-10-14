@@ -89,7 +89,6 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
 
   return (
     <div className="px-4 pt-3 pb-6 space-y-4 min-h-full">
-      {/* Header dengan navigasi kembali */}
       <div className="flex items-center gap-3 mb-2">
         <button
           onClick={() => go('profile')}
@@ -103,7 +102,8 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
         </div>
       </div>
 
-      {/* Info sinkronisasi */}
+
+
       <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${officers.length > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
@@ -113,6 +113,8 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
               : 'Belum ada data offline'}
           </span>
         </div>
+
+        
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-slate-400">
             Sync: <span className="font-medium text-slate-500">{formatSyncTime(lastSync)}</span>

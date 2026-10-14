@@ -69,5 +69,34 @@ testem.log
 .DS_Store
 Thumbs.db
 .env
-.vercel
-.env*
+
+# Android signing — jangan di-commit
+android/keystore.properties
+*.keystore
+*.jks
+
+# Build output (jangan pernah di-commit lagi)
+/chunk-*.js
+/main-*.js
+/main-*.css
+/styles-*.css
+/3rdpartylicenses.txt
+/prerendered-routes.json
+/index.html
+/sw.js
+/version.json
+/*.apk
+/graphify-out/
+/archive/
+
+# ── Runtime & vendor (bukan source; tetap ada di disk masing-masing) ─────────
+# Dicatat di .gitignore alih-alih ikut repo: dependency & data runtime bisa
+# direproduksi (npm ci / boot backend), dan mengikutkannya membuat setiap grep,
+# review, dan clone membawa ribuan baris yang bukan milik proyek.
+/backend/node_modules
+/backend/data
+/backend/uploads
+/.agents
+/.claude
+/.kilo
+/skills-lock.json

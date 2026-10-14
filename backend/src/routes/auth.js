@@ -5,7 +5,16 @@ const jwt = require('jsonwebtoken');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
+// JWT_SECRET wajib dari environment — TANPA fallback.
+// Fallback literal mengekspos timing secret attacker (bisa forge token admin/officer).
+const JWT_SECRET = (() => {
+  const s = process.env.JWT_SECRET;
+  if (!s) {
+    console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it');
+    process.exit(1);
+  }
+  return s;
+})();
 
 // Admin login (username/password) — issues a JWT with role: 'admin'
 //
@@ -124,40 +133,51 @@ router.post('/member-login', (req, res) => {
   try {
     const { username, password } = req.body || {};
     const normalizedUsername = username?.toLowerCase();
-    const memberPass = process.env.MEMBER_PASSWORD || '123456';
+    // Verifikasi sebagai PIN petugas, bukan password bersama.
+    // Identitas diperoleh dari username / nama / ID petugas yang aktif.
+    let officer = null;
 
-    if (password !== memberPass) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (normalizedUsername) {
+      officer = db.prepare(`
+        SELECT o.*, r.name as region_name, r.code as region_code
+        FROM officers o
+        JOIN regions r ON o.region_id = r.id
+        WHERE (LOWER(o.username) = LOWER(?) OR LOWER(o.name) = LOWER(?)) AND o.is_active = 1
+      `).get(normalizedUsername, normalizedUsername);
     }
 
-    // First try DB username field, fallback to legacy map
-    let officerName = null;
-    let officerUsername = normalizedUsername;
-
-    const officerByUsername = db.prepare(`SELECT * FROM officers WHERE LOWER(username) = ? AND is_active = 1`).get(normalizedUsername);
-    if (officerByUsername) {
-      officerName = officerByUsername.name;
-      officerUsername = officerByUsername.username?.toLowerCase() || normalizedUsername;
-    } else {
-      // Fallback to legacy map
-      officerName = OFFICER_USERNAME_MAP[normalizedUsername];
-    }
-
-    if (!officerName) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Get full officer from database
-    const officer = db.prepare(`
-      SELECT o.*, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
-    `).get(officerName);
-
+    // Fallback: cari dari nama lengkap petugas demo / legacy
     if (!officer) {
-      return res.status(401).json({ error: 'Officer not found in database' });
+      const legacyName = OFFICER_USERNAME_MAP[normalizedUsername];
+      if (legacyName) {
+        officer = db.prepare(`
+          SELECT o.*, r.name as region_name, r.code as region_code
+          FROM officers o
+          JOIN regions r ON o.region_id = r.id
+          WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
+        `).get(legacyName);
+      }
     }
+
+    // Terakhir: biarkan PIN polos cocok sementara (migration window).
+    // Setelah demo selesai, login sebaiknya hanya lewat POST /auth/login.
+    if (!officer) {
+      return res.status(401).json({ error: 'Petugas tidak ditemukan' });
+    }
+
+    let validPin = false;
+    try {
+      validPin = bcrypt.compareSync(String(password ?? ''), officer.pin);
+    } catch (_) { /* bukan hash valid */ }
+    if (!validPin && String(officer.pin) === String(password ?? '')) {
+      validPin = true;
+    }
+
+    if (!validPin) {
+      return res.status(401).json({ error: 'PIN salah' });
+    }
+
+    const effectiveUsername = officer.username || normalizedUsername || '';
 
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
@@ -170,7 +190,7 @@ router.post('/member-login', (req, res) => {
       officer: {
         id: String(officer.id),
         name: officer.name,
-        username: officer.username || officerUsername,
+        username: effectiveUsername,
         regionId: officer.region_id,
         regionName: officer.region_name,
         regionCode: officer.region_code
@@ -299,24 +319,6 @@ router.post('/select-dermaga', authenticate, (req, res) => {
   }
 });
 
-// Get officers by region (for device lock)
-router.get('/officers/:regionCode', (req, res) => {
-  try {
-    const { regionCode } = req.params;
-
-    const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE r.code = ? AND o.is_active = 1
-    `).all(regionCode);
-
-    res.json(officers);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch officers' });
-  }
-});
-
 // Terbitkan ulang token petugas dari klaim terbaru di database, tanpa PIN.
 // Dipakai mobile setelah sinkronisasi petugas: jika admin memindahkan wilayah
 // atau menonaktifkan akun, trip berikutnya harus memakai klaim terbaru.
@@ -353,43 +355,6 @@ router.post('/refresh', authenticate, (req, res) => {
   } catch (error) {
     console.error('Token refresh error:', error);
     res.status(500).json({ error: 'Token refresh failed' });
-  }
-});
-
-// Verify token
-router.get('/verify', (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ valid: false });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    const officer = db.prepare(`
-      SELECT o.*, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE o.id = ?
-    `).get(decoded.officerId);
-
-    if (!officer) {
-      return res.status(401).json({ valid: false });
-    }
-
-    res.json({
-      valid: true,
-      officer: {
-        id: String(officer.id),
-        name: officer.name,
-        regionId: officer.region_id,
-        regionName: officer.region_name,
-        regionCode: officer.region_code
-      }
-    });
-  } catch (error) {
-    res.status(401).json({ valid: false });
   }
 });
 

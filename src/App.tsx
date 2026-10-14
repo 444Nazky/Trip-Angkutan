@@ -1,66 +1,73 @@
-import { useCallback, useEffect, useState } from 'react'
-import AdminDashboard from './pages/admin/AdminDashboard'
-import LoginPage from './pages/LoginPage'
-import { AppProvider, AUTH_EVENT, useApp } from './pages/store'
-import { ensureAdminSession } from './services/auth'
+import { useEffect } from "react"
+import { App as CapacitorApp } from "@capacitor/app"
+import MobileApp from "./pages/mobile/MobileApp"
+import LoginPage from "./pages/LoginPage"
+import { AppProvider, useApp } from "./pages/store"
+import { initializeSync } from "./services/sync"
+import { syncOnResume } from "./services/adminPull"
+import { initOfflineDb } from "./services/offlineDb"
+// OLD OTA SYSTEM DISABLED - Using Custom Self-Hosted API Update System instead
+// import { restoreBundleFromStorage } from "./services/ota"
+import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
+import UpdateNotifier from "./components/UpdateNotifier"
 
-// ── Build detection ─────────────────────────────────────────────────────────
 
-/** Admin build ditandai atribut `data-admin` di <html>. MobileApp di-stub saja karena admin bundle tidak butuh mobile screens. */
-export function isAdminBuild(): boolean {
-  try {
-    return document.documentElement.hasAttribute('data-admin')
-  } catch { return false }
-}
-
-/** Sinkronisasi LoginPage → Shell: bersihkan sesi tersimpan. */
-export function clearSession() {
-  try { localStorage.removeItem('trip.auth.admin.v1') } catch { /* noop */ }
-}
-
-// ── Shell: guard utama admin build. Hanya mengenali sesi administrator murni. ──
 function Shell() {
-  const [status, setStatus] = useState<'loading' | 'admin' | 'login'>('loading')
-  const { logout } = useApp()
+  const { loggedIn, login, logout, userType } = useApp()
 
-  const validate = useCallback(async () => {
-    setStatus('loading')
-    try {
-      const s = await ensureAdminSession()
-      setStatus(s.ok ? 'admin' : 'login')
-    } catch {
-      setStatus('login')
-    }
+  useEffect(() => {
+    initializeSync()
+    void initOfflineDb()
+    // OLD OTA SYSTEM DISABLED
+    // void restoreBundleFromStorage()
+    void syncGeofencesFromBackend()
   }, [])
 
-  useEffect(() => { validate() }, [validate])
 
-  // Setelah LoginPage menyimpan kredensial baru, validasi ulang.
+  
   useEffect(() => {
-    function onLogin() { validate() }
-    window.addEventListener(AUTH_EVENT, onLogin)
-    return () => window.removeEventListener(AUTH_EVENT, onLogin)
-  }, [validate])
+    const onAuthExpired = () => {
+      console.warn('[App] Sesi backend invalid (401) → kembali ke layar login')
+      logout()
+    }
+    window.addEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+    return () => window.removeEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+  }, [logout])
 
-  if (status === 'loading') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: '14px', color: '#374151' }}>
-        <p>Memuat sesi…</p>
-      </div>
-    )
-  }
+  // Foreground resume: cek OTA ditangani UpdateNotifier; di sini cukup sync data.
+  useEffect(() => {
+    let sub: { remove?: () => void } | undefined
+    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) syncOnResume()
+    }).then(s => { sub = s })
+    return () => { sub?.remove?.() }
+  }, [])
 
-  if (status === 'admin') {
-    return <AdminDashboard onLogout={() => { logout(); setStatus('login') }} />
-  }
+  const isAdminSession = loggedIn && userType === 'admin'
 
-  return <LoginPage onLogin={validate} />
+  // Sesi admin tidak memakai shell mobile — dipulihkan di effect (dulu logout()
+  // dipanggil saat render, padahal render boleh berjalan berkali-kali).
+  useEffect(() => {
+    if (isAdminSession) logout()
+  }, [isAdminSession, logout])
+
+  return (
+    <div className="app-root bg-slate-50">
+      {/* UpdateNotifier menangani semua state OTA: check, download, ready, error, offline.
+          Sengaja dirender di LUAR gerbang login: sebelumnya komponen ini berada
+          SETELAH `if (!loggedIn) return <LoginPage/>`, sehingga perangkat yang
+          berhenti di layar login (mis. token kedaluwarsa) TIDAK PERNAH memeriksa
+          versi baru — rilis baru jadi tidak terdeteksi sampai ada yang login. */}
+      <UpdateNotifier
+        autoCheck={true}
+      />
+      {loggedIn && !isAdminSession
+        ? <MobileApp />
+        : <LoginPage onLogin={() => login('member')} />}
+    </div>
+  )
 }
 
 export default function App() {
-  return (
-    <AppProvider>
-      <Shell />
-    </AppProvider>
-  )
+  return <AppProvider><Shell /></AppProvider>
 }

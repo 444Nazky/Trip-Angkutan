@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Navigation, Loader2, ShieldAlert, RefreshCw } from 'lucide-react'
+import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Lock, RefreshCw, AlertTriangle, MapPinOff } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
-import { getGeofencedLocation, getGeofenceConfig } from '../../services/location'
-import { findActiveGeofenceRule, getHardLockedRoute, syncGeofenceConfig, type GeofenceRule } from '../../services/geofence'
+import {
+  getActiveGeofenceSnapshot,
+  forceSyncGeofencesFromBackend,
+  resetGpsFixCache,
+  GEOFENCE_UPDATED_EVENT,
+  type GeofencePoint,
+} from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
+import { isDevMode } from '../../services/runtimeEnv'
 
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
@@ -27,56 +33,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   // Rute dari backend. selectedDockId null = popup dermaga terbuka, kosong. TIDAK fallback semua dock.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
   const [loading, setLoading] = useState(false)
-  const [geofenceRule, setGeofenceRule] = useState<GeofenceRule | null>(null)
-  const [geofenceError, setGeofenceError] = useState<string | null>(null)
-
-  // ── GEOFENCE-FIRST GATE ────────────────────────────────────────────────────
-  // Rute TIDAK ditampilkan sebelum pemeriksaan lokasi selesai: ambil GPS fix,
-  // cocokkan ke titik geofence aktif (config hasil sync admin), lalu:
-  //   • di dalam titik → lock rute yang diizinkan (hanya rute tsb tampil)
-  //   • GPS gagal / bocor → error state, tombol "Coba Lagi"; RUTE DISEMBUNYIKAN
-  // Rute tanpa gate = petugas bisa pilih rute salah sebelum validasi selesai.
-  const geoConfig = getGeofenceConfig()
-  const gateRequired = geoConfig.rules.length > 0 // tanpa rule → wajar tampil semua
-  const [geoStatus, setGeoStatus] = useState<'pending' | 'ok' | 'error'>(gateRequired ? 'pending' : 'ok')
-
-  const runGeoCheck = async () => {
-    // Baca config SEGAR setiap kali (bukan variabel render yang bisa basi setelah
-    // sync geofence mengisi rule di latar belakang).
-    if (getGeofenceConfig().rules.length === 0) { setGeoStatus('ok'); return }
-    setGeoStatus('pending')
-    setGeofenceError(null)
-    const loc = await getGeofencedLocation()
-    if (!loc) {
-      setGeofenceError('Lokasi GPS tidak terbaca. Aktifkan GPS/literan dan coba lagi — rute tampil setelah lokasi terverifikasi.')
-      setGeoStatus('error')
-      return
-    }
-    const rule = findActiveGeofenceRule(loc.latitude, loc.longitude, getGeofenceConfig(), loc.accuracy)
-    setGeofenceRule(rule)
-    setGeoStatus('ok')
-  }
-
-  useEffect(() => {
-    void runGeoCheck()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // ── SELF-HEAL: rule belum ada = sync belum pernah berhasil (biasanya karena
-  // percobaan pertama terjadi SEBELUM token siap → 401). Tanpa ini, gate gagal-
-  // terbuka: semua rute tampil tanpa kunci geofence, dan tidak ada yang pernah
-  // menarik konfigurasi lagi sampai app di-resume. Tarik sekarang, lalu ulangi
-  // pemeriksaan — begitu rule masuk, kunci rute ikut aktif di layar ini juga.
-  useEffect(() => {
-    let alive = true
-    if (getGeofenceConfig().rules.length > 0) return
-    void syncGeofenceConfig().then(ok => {
-      if (!alive || !ok) return
-      if (getGeofenceConfig().rules.length > 0) void runGeoCheck()
-    })
-    return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Segarkan rute tiap layar dibuka (Master Rute admin terlihat langsung).
   useEffect(() => {
@@ -94,20 +50,160 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     : []
 
   const isEmptyTrip = draft.condition === 'kosong'
+  // ── Geofence real-time: titik aktif mengunci rute yang boleh dipilih ──
+  const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
+  const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked' | 'mismatch'>('checking')
+  /** Blokir karena KONFIGURASI belum ada (bukan karena lokasi) → tawarkan sync. */
+  const [configMissing, setConfigMissing] = useState(false)
+  const [syncingGeo, setSyncingGeo] = useState(false)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
+  /** DERMAGA MISMATCH: petugas di dermaga berbeda dari yang dipilih */
+  const [dockMismatch, setDockMismatch] = useState<{
+    selectedDock: string
+    actualGeofence: string
+    actualGeofenceId: string
+  } | null>(null)
 
-  // Hard-lock route berdasarkan hasil geofence nyata (bukan stub lagi):
-  // saat petugas di dalam titik geofence, hanya rute yang diizinkan tampil.
-  // (Dideklarasi SEBELUM 'list' yang memakainya.)
-  const lockedRoute = getHardLockedRoute(geofenceRule)
+  useEffect(() => {
+    let alive = true
 
-  // GATE: saat geofence memeriksa (pending) / gagal (error), RUTE DISEMBUNYIKAN.
-  // Saat lock aktif, hanya rute yang diizinkan titik geofence yang tampil.
-  const list = geoStatus !== 'ok'
+    const evaluate = async (): Promise<void> => {
+      const result = await getActiveGeofenceSnapshot()
+      if (!alive) return
+
+      if (result.valid && result.activePoint) {
+        setActiveGeofence(result.activePoint)
+        setConfigMissing(false)
+        setSyncNote(null)
+
+        // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
+        // Jika dermaga dipilih DAN ada titik geofence aktif,
+        // cek apakah lokasi petugas sesuai dengan dermaga yang dipilih.
+        if (dockId && result.activePoint.dermagaId) {
+          if (result.activePoint.dermagaId !== dockId) {
+            // Petugas ADA DI geofence, tapi BUKAN dermaga yang dipilih
+            setDockMismatch({
+              selectedDock: dockId,
+              actualGeofence: result.activePoint.name,
+              actualGeofenceId: result.activePoint.id,
+            })
+            setGeoStatus('mismatch')
+            return
+          }
+        }
+        // Lokasi sesuai dermaga
+        setDockMismatch(null)
+        setGeoStatus('inside')
+      } else {
+        // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
+        setActiveGeofence(null)
+        setDockMismatch(null)
+        setGeoStatus('blocked')
+        setConfigMissing(result.configMissing === true)
+      }
+    }
+
+    /**
+     * Self-heal: konfigurasi kosong = masalah SINKRONISASI (bukan lokasi).
+     * Tarik sekali dari Master Rute admin, lalu nilai ulang — petugas tidak
+     * perlu tahu-menahu soal cache/token dan tidak dituduh "di luar area".
+     */
+    const evaluateWithSelfHeal = async (): Promise<void> => {
+      const first = await getActiveGeofenceSnapshot()
+      if (!alive) return
+      if (first.valid || !first.configMissing) { void evaluate(); return }
+
+      setSyncingGeo(true)
+      const sync = await forceSyncGeofencesFromBackend()
+      if (!alive) return
+      setSyncingGeo(false)
+      if (sync.ok && sync.count > 0) {
+        await evaluate()
+        return
+      }
+      setActiveGeofence(null)
+      setDockMismatch(null)
+      setGeoStatus('blocked')
+      setConfigMissing(true)
+      setSyncNote(
+        sync.reason === 'unauthorized'
+          ? 'Sesi ke server belum siap — hubungi admin untuk mendaftarkan titik lokasi Master Rute.'
+          : sync.reason === 'empty'
+            ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
+            : 'Konfigurasi geofence belum tersimpan dan server tidak terjangkau — sambungkan ke jaringan lalu tekan Sinkronkan.',
+      )
+    }
+
+    void evaluateWithSelfHeal()
+    const timer = window.setInterval(() => { void evaluate() }, 15000)
+    const onFocus = () => { void evaluate() }
+    const onOnline = () => { void evaluateWithSelfHeal() }
+    const onGeofenceUpdated = () => { void evaluate() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    window.addEventListener(GEOFENCE_UPDATED_EVENT, onGeofenceUpdated)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener(GEOFENCE_UPDATED_EVENT, onGeofenceUpdated)
+    }
+  }, [])
+
+  /** Tombol fallback: tarik konfigurasi terbaru dari Admin lalu nilai ulang. */
+  const handleSyncGeofence = async () => {
+    setSyncingGeo(true)
+    setSyncNote(null)
+    const sync = await forceSyncGeofencesFromBackend()
+    const snap = await getActiveGeofenceSnapshot()
+    setSyncingGeo(false)
+    if (snap.valid && snap.activePoint) {
+      setActiveGeofence(snap.activePoint)
+      setConfigMissing(false)
+
+      // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
+      if (dockId && snap.activePoint.dermagaId) {
+        if (snap.activePoint.dermagaId !== dockId) {
+          setDockMismatch({
+            selectedDock: dockId,
+            actualGeofence: snap.activePoint.name,
+            actualGeofenceId: snap.activePoint.id,
+          })
+          setGeoStatus('mismatch')
+          setSyncNote(`Ditemukan di ${snap.activePoint.name} — bukan ${dock?.name ?? dockId}`)
+          return
+        }
+      }
+      setDockMismatch(null)
+      setGeoStatus('inside')
+      setSyncNote(`Konfigurasi terbaru diterima (${sync.count} titik)`)
+      return
+    }
+    setActiveGeofence(null)
+    setDockMismatch(null)
+    setGeoStatus('blocked')
+    setConfigMissing(snap.configMissing === true)
+    setSyncNote(
+      sync.reason === 'empty'
+        ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin.'
+        : sync.reason === 'unauthorized'
+          ? 'Sesi server belum siap — coba lagi setelah beberapa detik.'
+          : sync.ok
+            ? 'Konfigurasi sudah terbaru, tetapi lokasi Anda masih di luar area.'
+            : 'Gagal menghubungi server — periksa jaringan.',
+    )
+  }
+
+  // GATE: rute DISEMBUNYIKAN sampai GPS berhasil memeriksa titik geofence.
+  // - 'checking' → daftar kosong (user hanya melihat spinner status)
+  // - 'blocked'  → daftar kosong SELAMA GPS belum membuktikan lokasi valid
+  // - 'inside'   → hanya rute yang diizinkan titik geofence yang tampil
+  const list = geoStatus === 'checking' || geoStatus === 'blocked'
     ? []
-    : lockedRoute
-      ? dermagaFiltered.filter(r => r.code === lockedRoute)
-      : dermagaFiltered
-  const isRouteLocked = lockedRoute !== null && list.some(r => r.code === lockedRoute)
+    : activeGeofence
+      ? dermagaFiltered.filter(r => activeGeofence.allowedRoutes.includes(r.code))
+      : []
 
   // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
@@ -116,23 +212,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
-    if (!validSelected) {
-      // Jika ada rute yang di-lock, tampilkan info
-      if (isRouteLocked) {
-        const locked = list.find(r => r.code === lockedRoute)
-        if (locked) {
-          patchDraft({ routeCode: locked.code })
-          if (draft.condition === 'muatan') {
-            go('vehicle-form')
-          } else {
-            patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' })
-            go('camera')
-          }
-          return
-        }
-      }
-      return
-    }
+    if (!validSelected) return
+    // Guard akhir sebelum lanjut: kunci mutlak geofence.
+    if (activeGeofence && !activeGeofence.allowedRoutes.includes(validSelected)) return
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
@@ -177,42 +259,123 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         <Map size={16} className="text-slate-600 shrink-0" />
       </div>
 
-      {/* GEOFENCE GATE: loading & error — rute disembunyikan hingga lokasi terverifikasi */}
-      {gateRequired && geoStatus === 'pending' && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 mb-4 flex items-center gap-3 text-[12px] text-blue-800">
-          <Loader2 size={16} className="animate-spin text-blue-600 shrink-0" />
-          <div>
-            <p className="font-bold">Memeriksa lokasi Anda…</p>
-            <p className="text-[10px] text-blue-600 mt-0.5">Validasi geofencing berjalan — daftar rute muncul setelah titik lokasi terverifikasi.</p>
-          </div>
+      {/* ── Status geofence real-time ── */}
+      {geoStatus === 'checking' && (
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3 flex items-center gap-2 text-[12px] text-slate-500">
+          <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          Memeriksa lokasi GPS...
         </div>
       )}
-      {gateRequired && geoStatus === 'error' && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 mb-4 flex items-start gap-3 text-[12px] text-red-800">
-          <ShieldAlert size={16} className="shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-bold">Lokasi belum terverifikasi</p>
-            <p className="text-[10px] text-red-600 mt-0.5">{geofenceError}</p>
-            <button
-              onClick={() => void runGeoCheck()}
-              className="mt-2 flex items-center gap-1.5 bg-red-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-red-700 active:scale-95 transition-all"
-            >
-              <RefreshCw size={12} /> Coba Lagi
-            </button>
-          </div>
+      {geoStatus === 'inside' && activeGeofence && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-3 flex items-center gap-2">
+          <Lock size={13} className="text-blue-600 shrink-0" />
+          <p className="text-[12px] text-blue-700">
+            <span className="font-semibold">{activeGeofence.name}</span>
+            <span className="text-blue-500"> — rute dikunci ke {activeGeofence.allowedRoutes.join(', ')} (radius {activeGeofence.radiusMeters}m)</span>
+          </p>
         </div>
       )}
+      {/* ── DERMAGA MISMATCH: petugas di dermaga berbeda ── */}
+      {geoStatus === 'mismatch' && dockMismatch && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <MapPinOff size={18} className="text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800 text-[13px] mb-1">
+                Lokasi Tidak Sesuai Dermaga
+              </p>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Anda terdeteksi di <span className="font-semibold">{dockMismatch.actualGeofence}</span>,
+                bukan di <span className="font-semibold">{dock?.name ?? dockMismatch.selectedDock}</span>.
+                Silakan berpindah ke dermaga yang sesuai untuk melanjutkan input trip.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              resetGpsFixCache()
+              void handleSyncGeofence()
+            }}
+            disabled={syncingGeo}
+            className="mt-3 w-full py-2.5 rounded-lg bg-white border border-amber-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-amber-700 active:scale-[0.98] transition-all hover:bg-amber-50"
+          >
+            <RefreshCw size={14} className={syncingGeo ? 'animate-spin' : ''} />
+            {syncingGeo ? 'Memeriksa Lokasi…' : 'Periksa Ulang Lokasi'}
+          </button>
+          {syncNote && (
+            <p className="text-[11px] text-amber-600 mt-2 text-center font-medium">{syncNote}</p>
+          )}
+        </div>
+      )}
+      {geoStatus === 'blocked' && (
+        <div className="rounded-xl border border-red-200 bg-rose-50 p-4 mb-3 shadow-sm">
+          {/* Header dengan ikon AlertTriangle */}
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={18} className="text-[#DC2626]" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-red-800 text-[13px] mb-1">
+                Di Luar Area Geofence Resmi
+              </p>
+              <p className="text-[11px] text-red-700 leading-relaxed">
+                {configMissing
+                  ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
+                  : 'Lokasi Anda saat ini berada di luar area bertugas yang diizinkan. Silakan berpindah ke titik lokasi/dermaga resmi untuk melanjutkan input trip.'
+                }
+              </p>
+            </div>
+          </div>
 
-      {/* Geofencing Lock Banner */}
-      {isRouteLocked && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
-          <Navigation size={18} className="text-blue-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-[12px] font-bold text-blue-800">Rute Dikunci Otomatis</p>
-            <p className="text-[10px] text-blue-600 mt-1">
-              Berdasarkan lokasi Anda, rute dipaksa: <span className="font-semibold">{lockedRoute?.replace('-', ' → ')}</span>
-            </p>
-          </div>
+          {/* Tombol Periksa Ulang Lokasi */}
+          <button
+            onClick={() => {
+              // Reset GPS cache agar langsung pindai ulang
+              resetGpsFixCache()
+              void handleSyncGeofence()
+            }}
+            disabled={syncingGeo}
+            className="mt-3 w-full py-2.5 rounded-lg bg-white border border-red-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all hover:bg-red-50"
+          >
+            <RefreshCw size={14} className={syncingGeo ? 'animate-spin' : ''} />
+            {syncingGeo ? 'Memeriksa Lokasi…' : 'Periksa Ulang Lokasi'}
+          </button>
+
+          {/* Catatan sinkronisasi */}
+          {syncNote && (
+            <p className="text-[11px] text-red-600 mt-2 text-center font-medium">{syncNote}</p>
+          )}
+
+          {/* ── DEV MODE OVERRIDE: hanya terlihat di development build ── */}
+          {isDevMode() && (
+            <div className="mt-3 pt-3 border-t border-red-200">
+              <button
+                onClick={() => {
+                  // Bypass geofence check di dev mode - untuk testing UI
+                  setActiveGeofence({
+                    id: 'dev-override',
+                    name: 'DEV MODE Override',
+                    latitude: -6.1891005,
+                    longitude: 106.8371641,
+                    radiusMeters: 1000,
+                    allowedRoutes: dermagaFiltered.map(r => r.code),
+                    enabled: true,
+                    strictEnforceOutsideArea: false,
+                  })
+                  setGeoStatus('inside')
+                  setConfigMissing(false)
+                }}
+                className="w-full py-2 rounded-lg bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-800 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              >
+                🔧 DEV MODE: Lewati Geofence (Testing Only)
+              </button>
+              <p className="text-[9px] text-amber-600 mt-1.5 text-center">
+                Mode pengembangan — tombol ini tidak muncul di production build
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -224,14 +387,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && list.length === 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800 mb-4">
-          {dockName
-            ? `Tidak ada rute untuk ${dockName}. Hubungi admin untuk menambahkan rute.`
-            : 'Pilih dermaga untuk melihat rute.'}
-        </div>
-      )}
 
       <div className="space-y-2.5 mb-5">
         {!loading && list.map(r => {
@@ -271,7 +426,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
       <button
         onClick={handleContinue}
-        disabled={!validSelected}
+        disabled={!validSelected || geoStatus !== 'inside'}
         className="w-full bg-[#0F172A] text-white font-bold py-4 rounded-2xl text-[13px] disabled:opacity-40 hover:bg-slate-800 active:scale-[0.98] transition-all"
       >
         {!draft.condition

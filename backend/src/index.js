@@ -3,7 +3,6 @@ const cors = require('cors');
 const dbModule = require('./db');
 const authRoutes = require('./routes/auth');
 const tripRoutes = require('./routes/trips');
-const geofenceRoutes = require('./routes/geofences');
 const tariffRoutes = require('./routes/tariffs');
 const regionTariffRoutes = require('./routes/region-tariffs');
 const plateRoutes = require('./routes/plates');
@@ -12,19 +11,34 @@ const regionRoutes = require('./routes/regions');
 const dermagaRoutes = require('./routes/dermagas');
 const routeRoutes = require('./routes/routes');
 const reportRoutes = require('./routes/reports');
+const geofenceRoutes = require('./routes/geofences');
 const appVersionRoutes = require('./routes/appVersion');
 const appDownloadRoutes = require('./routes/appDownload');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Railway/Cloudflare taruh IP asli di X-Forwarded-For; tanpa ini rate limit
+// menghitung SEMUA request sebagai 1 IP proxy.
+app.set('trust proxy', 1);
+
+// CORS: allowlist dari env (koma-terpisah). '*' hanya non-production.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+const corsOptions = process.env.NODE_ENV === 'production' && allowedOrigins.length
+  ? { origin: allowedOrigins }
+  : {};
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10kb' }));
 
 // Serve uploaded photos publicly (folder yang sama dengan tujuan multer)
 const { UPLOADS_DIR } = require('./uploads-dir');
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Serve APK releases (static files)
+const path = require('path');
+const releasesDir = path.join(__dirname, '..', 'public', 'releases');
+app.use('/releases', express.static(releasesDir));
 
 // Attach db to all requests
 app.use((req, _res, next) => {
@@ -42,30 +56,14 @@ app.use('/api/officers', officerRoutes);
 app.use('/api/regions', regionRoutes);
 app.use('/api/dermagas', dermagaRoutes);
 app.use('/api/routes', routeRoutes);
-app.use('/api/geofences', geofenceRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/geofences', geofenceRoutes);
 app.use('/api/v1', appVersionRoutes);
 app.use('/api/v1', appDownloadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// OTA Version endpoint - serves current app version for mobile update checks
-app.get('/api/version', (req, res) => {
-  const version = process.env.APP_VERSION || '1.0.0';
-  const buildNumber = process.env.BUILD_NUMBER || Date.now().toString();
-  const commitHash = process.env.COMMIT_HASH || 'unknown';
-
-  res.json({
-    version: version,
-    buildNumber: buildNumber,
-    commitHash: commitHash,
-    releaseDate: new Date().toISOString(),
-    releaseNotes: process.env.RELEASE_NOTES || 'Latest build',
-    downloadUrl: `${req.protocol}://${req.get('host')}`,
-  });
 });
 
 // Error handling

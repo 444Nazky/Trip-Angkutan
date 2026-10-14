@@ -1,422 +1,557 @@
-/**
- * UpdateNotifier Component
- * Runtime handler untuk notifikasi dan penerapan pembaruan web assets
- *
- * Fitur:
- * - Pengecekan versi & unduh di background (tanpa blocking UI)
- * - Pemberitahuan interaktif saat update siap diterapkan
- * - Hot-swap/reload runtime tanpa install ulang APK
- * - Progress download yang informatif
- * - Release notes untuk user
- * - Fallback aman jika OTA gagal
- *
- * Untuk web assets update (hot-swap):
- * - Bundle di-cache ke Capacitor Filesystem
- * - Service worker menyajikan bundle baru
- * - applyUpdate() mengaktifkan bundle → reload halaman
- */
+// ─── Update Notifier Component ───────────────────────────────────────────────
+// Custom Self-Hosted API Update System UI
 
-import { useEffect, useState, useCallback } from 'react'
-import { Download, RefreshCw, X, Check, AlertCircle, WifiOff } from 'lucide-react'
-import {
-  getCurrentVersion,
-  checkForUpdate,
-  applyUpdate,
-  resetOtaStorage,
-  type UpdateState
-} from '../services/ota'
+import { useState, useEffect, useCallback } from 'react';
+import { updateService, type UpdateState, type UpdateInfo, type UpdateError } from '../services/updateService';
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
-export interface UpdateNotifierProps {
-  /** Apakah auto-check saat mount (default: true) */
-  autoCheck?: boolean
-  /** Interval auto-check dalam ms (default: 30 menit) */
-  checkInterval?: number
-  /** Delay sebelum check pertama dalam ms (default: 5 detik) */
-  initialDelay?: number
-  /** Minimal versi app yang diperlukan untuk update ini */
-  minAppVersion?: string
-  /** Callback saat state berubah */
-  onStateChange?: (state: UpdateState) => void
-  /** Callback saat update berhasil diterapkan */
-  onUpdateApplied?: (version: string) => void
-  /** Posisi notifikasi: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' */
-  position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
-  /** Z-index override jika diperlukan */
-  zIndex?: number
+interface UpdateNotifierProps {
+  /** Callback when update is ready to install */
+  onUpdateReady?: (version: string) => void;
+  /** Callback when update is applied (app will restart) */
+  onUpdateApplied?: () => void;
+  /** Callback when error occurs */
+  onError?: (error: UpdateError) => void;
+  /** Auto-check on mount (default: true) */
+  autoCheck?: boolean;
+  /** Show force update banner (default: true) */
+  showForceUpdate?: boolean;
 }
 
-// ─── Posisi styling ───────────────────────────────────────────────────────────
-
-const positionClasses = {
-  'bottom-right': 'bottom-20 right-4',
-  'bottom-left': 'bottom-20 left-4',
-  'top-right': 'top-4 right-4',
-  'top-left': 'top-4 left-4',
-} as const
-
-// ─── Progress bar component ────────────────────────────────────────────────────
-
-function ProgressBar({ progress }: { progress?: number }) {
-  if (progress === undefined) return null
-
-  return (
-    <div className="mt-2">
-      <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>Mengunduh...</span>
-        <span>{progress}%</span>
-      </div>
-      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300 ease-out"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-    </div>
-  )
+interface UpdateNotifierUI {
+  state: UpdateState;
+  info: UpdateInfo | null;
+  error: UpdateError | null;
+  pendingVersion: string | null;
+  currentVersion: string;
 }
 
-// ─── Icon component ──────────────────────────────────────────────────────────────
+export function useUpdateNotifier(): UpdateNotifierUI {
+  const [state, setState] = useState<UpdateState>('idle');
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [error, setError] = useState<UpdateError | null>(null);
 
-function StatusIcon({ status }: { status: UpdateState['status'] }) {
-  const iconClass = "shrink-0"
-
-  switch (status) {
-    case 'checking':
-    case 'downloading':
-      return <Download className={`${iconClass} animate-bounce text-blue-500`} size={18} />
-    case 'ready':
-      return <Check className={`${iconClass} text-green-500`} size={18} />
-    case 'error':
-    case 'offline':
-      return <AlertCircle className={`${iconClass} text-amber-500`} size={18} />
-    default:
-      return <RefreshCw className={`${iconClass} text-slate-400`} size={18} />
-  }
-}
-
-// ─── Badge variant (compact) ────────────────────────────────────────────────────
-
-interface CompactBadgeProps {
-  state: UpdateState
-  onApply: () => void
-  onDismiss: () => void
-  position: string
-}
-
-function CompactBadge({ state, onApply, onDismiss, position }: CompactBadgeProps) {
-  // Hanya tampil saat state critical atau ready
-  if (state.status !== 'ready') return null
-
-  return (
-    <div className={`fixed ${position} z-50 animate-in slide-in-from-bottom-2 fade-in duration-300`}>
-      <div className="flex items-center gap-3 bg-slate-800/95 backdrop-blur-sm text-white rounded-full pl-4 pr-1 py-1.5 shadow-2xl border border-slate-700/50">
-        <StatusIcon status={state.status} />
-        <span className="text-sm font-medium">
-          Update {state.latestVersion} siap
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onApply}
-            className="p-1.5 rounded-full bg-blue-500 hover:bg-blue-400 active:scale-95 transition-all"
-            title="Terapkan update"
-          >
-            <RefreshCw size={14} />
-          </button>
-          <button
-            onClick={onDismiss}
-            className="p-1.5 rounded-full hover:bg-slate-700 active:scale-95 transition-all"
-            title="Nanti saja"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Sheet variant (full) ─────────────────────────────────────────────────────
-
-interface SheetProps {
-  state: UpdateState
-  onApply: () => void
-  onDismiss: () => void
-  onRetry: () => void
-  onHardReset: () => void
-  position: string
-  zIndex: number
-}
-
-function UpdateSheet({ state, onApply, onDismiss, onRetry, onHardReset }: SheetProps) {
-  const { status, error, latestVersion } = state
-
-  // Tidak tampil jika idle atau checking
-  if (status === 'idle' || status === 'checking') return null
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200" style={{ zIndex: 100 }}>
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-white">
-            <StatusIcon status={status} />
-            <span className="font-bold text-lg">
-              {status === 'downloading' ? 'Memperbarui...' :
-               status === 'ready' ? 'Update Siap!' :
-               status === 'offline' ? 'Offline' : 'Update Gagal'}
-            </span>
-          </div>
-          {status !== 'downloading' && (
-            <button
-              onClick={onDismiss}
-              className="p-1 rounded-full hover:bg-white/20 transition-colors"
-            >
-              <X size={18} className="text-white" />
-            </button>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          {/* Version info */}
-          {latestVersion && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-slate-500 text-sm">Versi baru:</span>
-              <span className="font-mono font-semibold text-slate-800">{latestVersion}</span>
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {state.status === 'downloading' && (
-            <ProgressBar progress={state.progress} />
-          )}
-
-          {/* Error message */}
-          {status === 'error' && error && (
-            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-amber-700">{error}</p>
-            </div>
-          )}
-
-     
-          {status === 'offline' && (
-            <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-              <WifiOff size={16} className="text-slate-500 shrink-0" />
-              <p className="text-sm text-slate-600">
-                pastikan sudah terhubung ke jaringan intranet
-              </p>
-            </div>
-          )}
-
-      
-          {status === 'ready' && (
-            <p className="text-base text-slate-600 mb-4">
-              Update sudah siap diterapkan. Aplikasi akan memperbarui secara otomatis saat Anda menekan tombol di bawah.
-            </p>
-          )}
-
-   
-          <div className="flex gap-2 mt-4">
-            {status === 'error' && (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={onRetry}
-                  className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={16} />
-                  Coba Lagi
-                </button>
-                <button
-                  onClick={onHardReset}
-                  className="flex-1 py-3.5 px-4 bg-slate-800 text-base hover:bg-slate-900 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={16} />
-                  Reset Update
-                </button>
-              </div>
-            )}
-
-            {status === 'ready' && (
-              <>
-                <button
-                  onClick={onDismiss}
-                  className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
-                >
-                  Nanti
-                </button>
-                <button
-                  onClick={onApply}
-                  className="flex-1 py-3.5 px-4 bg-blue-500 text-base hover:bg-blue-600 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <Check size={16} />
-                  Terapkan
-                </button>
-              </>
-            )}
-
-            {status === 'offline' && (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={onDismiss}
-                  className="flex-1 py-3.5 px-4 bg-slate-100 text-base hover:bg-slate-200 active:scale-[0.98] text-slate-600 font-medium rounded-xl transition-all"
-                >
-                  Tutup
-                </button>
-                <button
-                  onClick={onHardReset}
-                  className="flex-1 py-3.5 px-4 bg-slate-800 text-base hover:bg-slate-900 active:scale-[0.98] text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={16} />
-                  Reset Koneksi
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Main component ────────────────────────────────────────────────────────────
-
-export default function UpdateNotifier({
-  autoCheck = true,
-  checkInterval = 30 * 60 * 1000,
-  initialDelay = 5000,
-  onStateChange,
-  onUpdateApplied,
-  position = 'bottom-right',
-  zIndex = 50,
-}: UpdateNotifierProps) {
-  const [state, setState] = useState<UpdateState>({ status: 'idle' })
-  const [currentVersion, setCurrentVersion] = useState<string>('0.0.0')
-  const positionClass = position in positionClasses ? positionClasses[position] : positionClasses['bottom-right']
-
-  // Initialize version on mount
   useEffect(() => {
-    getCurrentVersion().then(v => {
-      if (v) {
-        setCurrentVersion(v)
-      }
-    })
-  }, [])
+    // Subscribe to update service state changes
+    const unsubscribe = updateService.subscribe((newState, newInfo, newError) => {
+      setState(newState);
+      setInfo(newInfo || null);
+      setError(newError || null);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  return {
+    state,
+    info,
+    error,
+    pendingVersion: updateService.pendingVersion,
+    currentVersion: updateService.currentVersion,
+  };
+}
+
+export function UpdateNotifier({
+  onUpdateReady,
+  onUpdateApplied,
+  onError,
+  autoCheck = true,
+  showForceUpdate = true,
+}: UpdateNotifierProps) {
+  const { state, info, error, pendingVersion, currentVersion } = useUpdateNotifier();
+
+  // Auto-check for updates on mount
+  useEffect(() => {
+    if (autoCheck && (state === 'idle' || state === 'up-to-date')) {
+      checkForUpdates();
+    }
+  }, [autoCheck]);
 
   // Notify parent of state changes
   useEffect(() => {
-    onStateChange?.(state)
-  }, [state, onStateChange])
-
-  // Check for updates
-  const performCheck = useCallback(async () => {
-    try {
-      await checkForUpdate(currentVersion, setState)
-    } catch (err) {
-      console.warn('[UpdateNotifier] Check failed:', err)
+    if (state === 'ready' && pendingVersion) {
+      onUpdateReady?.(pendingVersion);
     }
-  }, [currentVersion])
-
-  // Auto-check on mount
-  useEffect(() => {
-    if (!autoCheck) return
-
-    // Initial delay to let app load first
-    const timer = setTimeout(() => {
-      void performCheck()
-    }, initialDelay)
-
-    return () => clearTimeout(timer)
-  }, [autoCheck, initialDelay, performCheck])
-
-  // Periodic background check
-  useEffect(() => {
-    if (!autoCheck) return
-
-    const intervalId = setInterval(() => {
-      void performCheck()
-    }, checkInterval)
-
-    return () => clearInterval(intervalId)
-  }, [autoCheck, checkInterval, performCheck])
-
-  // Cek ulang segera saat perangkat kembali online
-  useEffect(() => {
-    if (!autoCheck) return
-    const onOnline = () => { void performCheck() }
-    window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
-  }, [autoCheck, performCheck])
-
-  // Terapkan update + paksa reload. Bila gagal, nyediakan opsi pemaksa reset OTA.
-  const handleApply = useCallback(async () => {
-    const success = await applyUpdate()
-    if (success) {
-      onUpdateApplied?.(currentVersion)
-      // Service worker akan serve bundle baru setelah reload.
-      window.location.reload()
-    } else {
-      // Jika update macet / bundle tidak utuh, beri jalan keluar: reset OTA.
-      try {
-        await resetOtaStorage()
-        setState({ status: 'idle', latestVersion: await getCurrentVersion() ?? '0.0.0' })
-      } catch { /* best-effort */ }
+    if (state === 'installing') {
+      onUpdateApplied?.();
     }
-  }, [currentVersion, onUpdateApplied])
+    if (state === 'error' && error) {
+      onError?.(error);
+    }
+  }, [state, pendingVersion, error, onUpdateReady, onUpdateApplied, onError]);
 
-  // Dismiss update notification
-  const handleDismiss = useCallback(() => {
-    setState({ status: 'idle' })
-  }, [])
+  const checkForUpdates = useCallback(async () => {
+    await updateService.checkForUpdate();
+  }, []);
 
-  // Hard reset OTA: pakai ini bila perangkat macet di update lama / bundle tidak utuh.
-  const handleHardReset = useCallback(async () => {
-    try {
-      await resetOtaStorage()
-      setState({ status: 'idle', latestVersion: await getCurrentVersion() ?? '0.0.0' })
-    } catch { /* best-effort */ }
-  }, [])
+  const installUpdate = useCallback(async () => {
+    await updateService.installUpdate();
+  }, []);
 
-  // Retry failed update
-  const handleRetry = useCallback(() => {
-    void performCheck()
-  }, [performCheck])
+  const retryUpdate = useCallback(async () => {
+    if (info?.downloadUrl) {
+      await updateService.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash);
+    }
+  }, [info]);
 
-  // Render based on state
-  const shouldShowBadge = state.status === 'ready'
-  const shouldShowSheet = state.status !== 'idle' && state.status !== 'checking'
+  const resetUpdate = useCallback(async () => {
+    await updateService.reset();
+  }, []);
 
-  if (!shouldShowBadge && !shouldShowSheet) {
-    return null
+  // Don't show anything if up-to-date or idle
+  if (state === 'up-to-date' || state === 'idle') {
+    return null;
   }
 
-  return (
-    <>
-      {/* Compact badge for ready state */}
-      {shouldShowBadge && (
-        <CompactBadge
-          state={state}
-          onApply={handleApply}
-          onDismiss={handleDismiss}
-          position={positionClass}
-        />
-      )}
+  // Force update banner (can't be dismissed)
+  if (showForceUpdate && info?.isForceUpdate && state !== 'installing') {
+    return (
+      <div className="update-notifier update-notifier--force">
+        <div className="update-notifier__icon">🔒</div>
+        <div className="update-notifier__content">
+          <h4>Update Wajib</h4>
+          <p>
+            Aplikasi harus diperbarui ke versi <strong>{info?.latestVersion}</strong> untuk melanjutkan.
+          </p>
+          {info?.releaseNotes && (
+            <p className="update-notifier__notes">{info.releaseNotes}</p>
+          )}
+        </div>
+        <div className="update-notifier__actions">
+          {state === 'downloading' ? (
+            <button className="btn btn--loading" disabled>
+              <span className="spinner"></span>
+              Mengunduh...
+            </button>
+          ) : state === 'ready' ? (
+            <button className="btn btn--primary" onClick={installUpdate}>
+              Pasang Update
+            </button>
+          ) : state === 'error' ? (
+            <button className="btn btn--primary" onClick={retryUpdate}>
+              Coba Lagi
+            </button>
+          ) : (
+            <button className="btn btn--primary" onClick={checkForUpdates} disabled={state === 'checking'}>
+              {state === 'checking' ? 'Mengecek...' : 'Update Sekarang'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-      {/* Full sheet for other states */}
-      {shouldShowSheet && state.status !== 'ready' && (
-        <UpdateSheet
-          state={state}
-          onApply={handleApply}
-          onDismiss={handleDismiss}
-          onRetry={handleRetry}
-          onHardReset={handleHardReset}
-          position={positionClass}
-          zIndex={zIndex}
-        />
-      )}
-    </>
-  )
+  // Normal update notification
+  return (
+    <div className={`update-notifier update-notifier--${state}`}>
+      {/* Header */}
+      <div className="update-notifier__header">
+        <span className="update-notifier__icon">
+          {state === 'checking' && '🔄'}
+          {state === 'downloading' && '⬇️'}
+          {state === 'ready' && '✅'}
+          {state === 'installing' && '🔄'}
+          {state === 'error' && '❌'}
+        </span>
+        <div className="update-notifier__title">
+          {state === 'checking' && 'Mengecek Pembaruan...'}
+          {state === 'downloading' && `Mengunduh Update ${pendingVersion || ''}`}
+          {state === 'ready' && 'Update Siap Diinstal'}
+          {state === 'installing' && 'Memasang Update...'}
+          {state === 'error' && 'Update Gagal'}
+        </div>
+        {!info?.isForceUpdate && state !== 'installing' && (
+          <button
+            className="update-notifier__close"
+            onClick={resetUpdate}
+            aria-label="Tutup"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="update-notifier__content">
+        {/* Progress for downloading */}
+        {state === 'downloading' && (
+          <div className="update-notifier__progress">
+            <div className="progress-bar">
+              <div className="progress-bar__fill progress-bar__fill--animated"></div>
+            </div>
+            <span className="progress-text">Mengunduh file...</span>
+          </div>
+        )}
+
+        {/* Version info */}
+        {(state === 'downloading' || state === 'ready' || state === 'error') && (
+          <p className="update-notifier__version">
+            {currentVersion} → <strong>{info?.latestVersion || pendingVersion}</strong>
+          </p>
+        )}
+
+        {/* Release notes */}
+        {info?.releaseNotes && (state === 'ready' || state === 'downloading') && (
+          <details className="update-notifier__details">
+            <summary>Catatan Rilis</summary>
+            <p>{info.releaseNotes}</p>
+          </details>
+        )}
+
+        {/* Error message */}
+        {state === 'error' && error && (
+          <p className="update-notifier__error">{error.message}</p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="update-notifier__actions">
+        {state === 'checking' && (
+          <button className="btn btn--secondary" disabled>
+            <span className="spinner spinner--small"></span>
+            Mengecek...
+          </button>
+        )}
+
+        {state === 'downloading' && (
+          <button className="btn btn--secondary" disabled>
+            <span className="spinner spinner--small"></span>
+            Mengunduh...
+          </button>
+        )}
+
+        {state === 'ready' && (
+          <button className="btn btn--primary" onClick={installUpdate}>
+            Pasang Update
+          </button>
+        )}
+
+        {state === 'installing' && (
+          <button className="btn btn--primary" disabled>
+            <span className="spinner spinner--small"></span>
+            Memasang...
+          </button>
+        )}
+
+        {state === 'error' && (
+          <>
+            <button className="btn btn--primary" onClick={retryUpdate}>
+              Coba Lagi
+            </button>
+            <button className="btn btn--ghost" onClick={resetUpdate}>
+              Tutup
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
-// ─── Hook for direct usage ─────────────────────────────────────────────────────
+// ─── Update Status Badge ─────────────────────────────────────────────────────
+
+interface UpdateStatusBadgeProps {
+  className?: string;
+}
+
+export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
+  const { state, info, currentVersion } = useUpdateNotifier();
+
+  if (state === 'up-to-date' || state === 'idle') {
+    return (
+      <span className={`update-badge update-badge--current ${className}`}>
+        ✅ v{currentVersion}
+      </span>
+    );
+  }
+
+  if (state === 'checking' || state === 'downloading' || state === 'ready') {
+    return (
+      <span className={`update-badge update-badge--available ${className}`}>
+        🔄 v{info?.latestVersion || '?'}
+      </span>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <span className={`update-badge update-badge--error ${className}`}>
+        ❌ Update Gagal
+      </span>
+    );
+  }
+
+  return null;
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+// These styles can be added to your global CSS or Tailwind config
+export const updateStyles = `
+.update-notifier {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  max-width: 400px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 1rem;
+  z-index: 1000;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.update-notifier--force {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.update-notifier--force .update-notifier__icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.update-notifier--force h4 {
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.update-notifier--force p {
+  opacity: 0.9;
+  max-width: 300px;
+}
+
+.update-notifier__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.update-notifier__icon {
+  font-size: 1.5rem;
+}
+
+.update-notifier__title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.update-notifier__close {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 1rem;
+}
+
+.update-notifier__close:hover {
+  opacity: 1;
+}
+
+.update-notifier__content {
+  margin: 0.5rem 0;
+}
+
+.update-notifier__version {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0.25rem 0;
+}
+
+.update-notifier__notes {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0.5rem 0 0;
+}
+
+.update-notifier__details {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.update-notifier__details summary {
+  cursor: pointer;
+  color: #007AFF;
+  font-weight: 500;
+}
+
+.update-notifier__details p {
+  margin: 0.5rem 0 0;
+  color: #666;
+  padding-left: 1rem;
+}
+
+.update-notifier__error {
+  color: #FF3B30;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.update-notifier__progress {
+  margin: 0.5rem 0;
+}
+
+.progress-bar {
+  height: 4px;
+  background: #E5E5EA;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: #007AFF;
+  transition: width 0.3s ease;
+}
+
+.progress-bar__fill--animated {
+  width: 100%;
+  animation: progress-indeterminate 1.5s infinite linear;
+  background: linear-gradient(90deg, #007AFF 0%, #5AC8FA 50%, #007AFF 100%);
+  background-size: 200% 100%;
+}
+
+@keyframes progress-indeterminate {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.progress-text {
+  font-size: 0.75rem;
+  color: #888;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.update-notifier__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn--primary {
+  background: #007AFF;
+  color: white;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #0056CC;
+}
+
+.btn--secondary {
+  background: #E5E5EA;
+  color: #333;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: #666;
+}
+
+.btn--ghost:hover {
+  background: #F0F0F0;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn--loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Spinner */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner--small {
+  width: 12px;
+  height: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Update Badge */
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.update-badge--current {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.update-badge--available {
+  background: #E3F2FD;
+  color: #1565C0;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.update-badge--error {
+  background: #FFEBEE;
+  color: #C62828;
+}
+
+/* Force Update Override Button Styles */
+.update-notifier--force .btn--primary {
+  background: white;
+  color: #667eea;
+  font-size: 1rem;
+  padding: 0.75rem 2rem;
+  margin-top: 1rem;
+}
+
+.update-notifier--force .btn--loading {
+  background: rgba(255, 255, 255, 0.3);
+}
+`;
+
+export default UpdateNotifier;

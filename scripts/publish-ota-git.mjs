@@ -5,22 +5,24 @@
  *
  * Langkah:
  *   1. git worktree add sementara ke origin/mobile
- *   2. hapus aset lama di root worktree yang berasal dari build sebelumnya
- *   3. salin isi www/ ke root worktree
- *   4. generate version.json (versi manusiawi berbasis short SHA + timestamp)
- *   5. commit & push origin HEAD:mobile
+ *   2. hapus ALL chunk/main/styles/asset/ota lama dari tree publish
+ *   3. salin www/ ke ota/ dan root untuk kompatibilitas aplikasi lama
+ *   4. generate version.json (versi = semver+timestamp; hash SHA-256 per file)
+ *   5. commit + push (manifest di-`git add -f`, lihat catatan di bawah)
  *
- * ⚠️  PENTING — `.gitignore` repo ini mengabaikan `/version.json`, `/index.html`,
- * `/sw.js`, `/chunk-*.js`, `/main-*.js`, `/styles-*.css` (aturan "Build output").
- * Akibatnya `git add -A` TIDAK pernah men-stage manifest → version.json hilang
- * dari cabang publish dan semua klien menerima 404 ("update tidak pernah
- * muncul"). Karena itu berkas wajib di-stage eksplisit dengan `git add -f`.
+ * ⚠️  PENTING — `.gitignore` cabang ini mengabaikan `/version.json`, `/index.html`,
+ * `/sw.js`, `/chunk-*.js`, `/main-*.js`, `/styles-*.css` (aturan "Build output",
+ * commit e3fe52c). Akibatnya `git add -A` TIDAK pernah men-stage manifest,
+ * sehingga version.json hilang dari cabang publish dan SEMUA klien menerima 404
+ * → sistem OTA diam total ("update tidak pernah muncul"). Karena itu berkas
+ * wajib itu di-stage secara eksplisit dengan `git add -f`.
  */
+
 import { execSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import crypto from 'node:crypto'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const WEB_DIR = path.join(ROOT, 'www')
@@ -39,36 +41,6 @@ function collectAssets(dir, base = dir) {
   return out
 }
 
-function sha256File(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
-}
-
-/**
- * Guard: index.html pasti menunjuk aset yang benar-benar ada di www/.
- * Tanpa ini, manifest bisa menjanjikan bundle yang index.html-nya merujuk
- * file tak-terunggah → perangkat "berhasil update" tapi kode tak berubah.
- */
-function assertIndexConsistent(assets) {
-  const idx = path.join(WEB_DIR, 'index.html')
-  if (!fs.existsSync(idx)) {
-    console.error('❌  www/index.html tidak ditemukan — build belum jalan? jalankan `npm run build` dulu.')
-    process.exit(1)
-  }
-  const html = fs.readFileSync(idx, 'utf8')
-  const refs = [...html.matchAll(/(?:src|href)="([^"?#]+\.(?:js|css))"/g)].map(m => m[1])
-  const missing = refs.filter(r => !assets.includes(r.replace(/^\.\//, '')))
-  if (missing.length) {
-    console.error('❌  index.html merujuk aset yang TIDAK ada di www/:', missing)
-    console.error('   Publish dibatalkan — bundle hasil unduh tidak akan pernah cocok (update palsu).')
-    process.exit(1)
-  }
-  if (!refs.length) {
-    console.warn('⚠️  Tidak menemukan rujukan <script>/<link> di index.html — lanjut tanpa guard.')
-  } else {
-    console.log(`✔ index.html konsisten (${refs.length} rujukan aset cocok)`)
-  }
-}
-
 try {
   run(`git fetch origin ${BRANCH}`)
   run(`git worktree add --detach ${TMP} origin/${BRANCH}`)
@@ -76,34 +48,75 @@ try {
   const assets = collectAssets(WEB_DIR)
   console.log(`Found ${assets.length} built assets in ${WEB_DIR}`)
 
-  // Guard konsistensi: pastikan index.html merujuk aset yang benar-benar ikut terbit.
-  assertIndexConsistent(assets)
+  // Guard: jangan pernah publish bundel kosong/parsial. Ini yang bikin perangkat
+  // menarik versi baru lalu diam (manifest.assets kosong → app tak unduh apa pun).
+  if (!assets.includes('index.html') || assets.length < 3) {
+    console.error(`❌ www/ tampak belum dibuild (index.html=${assets.includes('index.html')}, total=${assets.length}). Jalankan "npm run build" dulu.`)
+    process.exit(1)
+  }
 
-  // Peta integritas SHA-256 — klien memverifikasi setiap file unduhan.
-  // WAJIB lengkap: tanpa hash, klien hanya bisa memastikan file "tidak kosong".
+  // ── 2a — versi semantik manusiawi + bundle cleanup bersih ─────────────────
+  // Versi target: "<semver>+<timestamp>" (contoh: "1.0.2+1791495863895").
+  // Semver manusiawi; timestamp-layer tetap jadi guard anti-stuck/ambigu di
+  // isNewer() (pencarian segmen numerik) tanpa mengubah semantik banding.
+  let baseSemver = '1.0.0'
+  try {
+    const prevRaw = fs.readFileSync(path.join(TMP, 'version.json'), 'utf8')
+    const prev = JSON.parse(prevRaw)
+    if (prev.version && typeof prev.version === 'string') {
+      const m = prev.version.match(/^([\d.]+)/)
+      if (m) baseSemver = m[1]
+    }
+  } catch { /* fallback 1.0.0 */ }
+  const parts = baseSemver.split('.').map(Number)
+  parts[0] = parts[0] ?? 0
+  parts[1] = parts[1] ?? 0
+  parts[2] = (parts[2] ?? 0) + 1
+  const semver = `${parts[0]}.${parts[1]}.${parts[2]}`
+  const version = `${semver}+${Date.now()}`
+
+  // Hapus semua artifact bundel lama dari tree origin/mobile SEBELUM copy baru.
+  // Tanpa ini, chunk/main/styles yang basi menumpuk & bisa serve versi lama /
+  // membuat perangkat "tidak deteksi perubahan" (bug pull kedua).
+  for (const name of fs.readdirSync(TMP)) {
+    if (/^(?:chunk|main|styles)-[\w-]+\.(?:js|css)$/.test(name)) {
+      fs.rmSync(path.join(TMP, name), { force: true })
+    }
+  }
+  fs.rmSync(path.join(TMP, 'assets'), { recursive: true, force: true })
+  fs.rmSync(path.join(TMP, 'ota'), { recursive: true, force: true })
+
+  fs.cpSync(WEB_DIR, path.join(TMP, 'ota'), { recursive: true })
+  fs.cpSync(WEB_DIR, TMP, { recursive: true })
+
+  // Rebuild manifest aset dari disk (jangan pakai daftar yang mungkin masih
+  // mengandung build lama yang masih terselip di WEB_DIR).
+  const seen = new Set()
+  const manifestAssets = []
+  for (const a of assets) {
+    if (seen.has(a)) continue
+    seen.add(a)
+    const full = path.join(TMP, a)
+    if (!fs.statSync(full).isFile()) continue
+    manifestAssets.push(a)
+  }
+
+  // Integritas: hitung ulang SHA-256 aset nyata yang ada di tree publish.
+  // WAJIB lengkap — klien (ota.ts) memverifikasi tiap berkas terhadap daftar ini
+  // dan menganggap manifest tanpa integrity sebagai "tidak terverifikasi".
   const integrity = {}
-  for (const asset of assets) integrity[asset] = sha256File(path.join(WEB_DIR, asset))
-  const missingHash = assets.filter(a => !integrity[a])
+  for (const name of manifestAssets) {
+    const full = path.join(TMP, name)
+    if (!fs.statSync(full).isFile()) continue
+    integrity[name] = crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
+  }
+  const missingHash = manifestAssets.filter(name => !integrity[name])
   if (missingHash.length) {
     console.error(`❌ ${missingHash.length} aset tanpa hash (contoh: ${missingHash.slice(0, 3).join(', ')}). Publikasi dibatalkan.`)
     process.exit(1)
   }
 
-  // Bersihkan aset build lama di root worktree agar tidak menumpuk
-  for (const top of fs.readdirSync(WEB_DIR)) {
-    fs.rmSync(path.join(TMP, top), { recursive: true, force: true })
-  }
-  fs.cpSync(WEB_DIR, TMP, { recursive: true })
-
-  // ── Versi manusiawi: SemVer "1.0.<build>" berbasis SHA short + timestamp ──
-  // Tetap monoton naik dan stabil dibaca manusia, tapi tetap bisa diurutkan
-  // oleh isNewer() (prefix SemVer diprioritaskan, timestamp jadi tie-breaker).
-  const short = run('git rev-parse --short=7 HEAD')
-  const ts = Date.now()
-  const build = (ts % 1_000_000)
-  const version = `1.0.${build}+${short}`
-
-  const manifest = JSON.stringify({ version, assets, integrity }, null, 2)
+  const manifest = JSON.stringify({ version, assets: manifestAssets, integrity }, null, 2)
   fs.writeFileSync(path.join(TMP, 'version.json'), manifest)
 
   run('git add -A', TMP)
@@ -117,10 +130,9 @@ try {
     console.log('Tidak ada perubahan aset — skip push.')
     process.exit(0)
   }
-  run(`git commit -m "chore(ota): bump to ${version}"`, TMP)
+  run(`git commit -m "chore(ota): bump version to ${version} [skip ci]"`, TMP)
   run(`git push origin HEAD:${BRANCH}`, TMP)
   console.log('✅ OTA assets + version.json pushed to', BRANCH)
-  console.log(`   version=${version}`)
 } finally {
   try { run(`git worktree remove --force ${TMP}`) } catch { /* */ }
   fs.rmSync(TMP, { recursive: true, force: true })
