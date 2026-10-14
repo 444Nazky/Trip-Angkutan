@@ -77,6 +77,7 @@ function getDownloadUrl(version) {
 
   // 6. Hardcoded fallback for production (update URL when new release)
   const HARDCODED_URLS = {
+    '1.0.3': 'https://files.catbox.moe/bmkh1o.apk',
     '1.0.2': 'https://files.catbox.moe/dfvc89.apk',
     '1.0.1': 'https://files.catbox.moe/dfvc89.apk',
     '1.0.0': 'https://files.catbox.moe/f67x5q.apk',
