@@ -133,40 +133,51 @@ router.post('/member-login', (req, res) => {
   try {
     const { username, password } = req.body || {};
     const normalizedUsername = username?.toLowerCase();
-    const memberPass = process.env.MEMBER_PASSWORD || '123456';
+    // Verifikasi sebagai PIN petugas, bukan password bersama.
+    // Identitas diperoleh dari username / nama / ID petugas yang aktif.
+    let officer = null;
 
-    if (password !== memberPass) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (normalizedUsername) {
+      officer = db.prepare(`
+        SELECT o.*, r.name as region_name, r.code as region_code
+        FROM officers o
+        JOIN regions r ON o.region_id = r.id
+        WHERE (LOWER(o.username) = LOWER(?) OR LOWER(o.name) = LOWER(?)) AND o.is_active = 1
+      `).get(normalizedUsername, normalizedUsername);
     }
 
-    // First try DB username field, fallback to legacy map
-    let officerName = null;
-    let officerUsername = normalizedUsername;
-
-    const officerByUsername = db.prepare(`SELECT * FROM officers WHERE LOWER(username) = ? AND is_active = 1`).get(normalizedUsername);
-    if (officerByUsername) {
-      officerName = officerByUsername.name;
-      officerUsername = officerByUsername.username?.toLowerCase() || normalizedUsername;
-    } else {
-      // Fallback to legacy map
-      officerName = OFFICER_USERNAME_MAP[normalizedUsername];
-    }
-
-    if (!officerName) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Get full officer from database
-    const officer = db.prepare(`
-      SELECT o.*, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
-    `).get(officerName);
-
+    // Fallback: cari dari nama lengkap petugas demo / legacy
     if (!officer) {
-      return res.status(401).json({ error: 'Officer not found in database' });
+      const legacyName = OFFICER_USERNAME_MAP[normalizedUsername];
+      if (legacyName) {
+        officer = db.prepare(`
+          SELECT o.*, r.name as region_name, r.code as region_code
+          FROM officers o
+          JOIN regions r ON o.region_id = r.id
+          WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
+        `).get(legacyName);
+      }
     }
+
+    // Terakhir: biarkan PIN polos cocok sementara (migration window).
+    // Setelah demo selesai, login sebaiknya hanya lewat POST /auth/login.
+    if (!officer) {
+      return res.status(401).json({ error: 'Petugas tidak ditemukan' });
+    }
+
+    let validPin = false;
+    try {
+      validPin = bcrypt.compareSync(String(password ?? ''), officer.pin);
+    } catch (_) { /* bukan hash valid */ }
+    if (!validPin && String(officer.pin) === String(password ?? '')) {
+      validPin = true;
+    }
+
+    if (!validPin) {
+      return res.status(401).json({ error: 'PIN salah' });
+    }
+
+    const effectiveUsername = officer.username || normalizedUsername || '';
 
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
@@ -179,7 +190,7 @@ router.post('/member-login', (req, res) => {
       officer: {
         id: String(officer.id),
         name: officer.name,
-        username: officer.username || officerUsername,
+        username: effectiveUsername,
         regionId: officer.region_id,
         regionName: officer.region_name,
         regionCode: officer.region_code
