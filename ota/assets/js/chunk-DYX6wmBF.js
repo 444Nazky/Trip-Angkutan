@@ -1,0 +1,1 @@
+import{m as o}from"./main-SQE5RKUL.js";export{o as App};
