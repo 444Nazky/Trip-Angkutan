@@ -21,7 +21,9 @@ const appDownloadRoutes = require('./routes/appDownload');
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.set('trust proxy', 1);// Origin dev lokal (web dev-server + shell native Capacitor/Ionic). Tanpa ini,
+app.set('trust proxy', 1);
+
+// Origin dev lokal (web dev-server + shell native Capacitor/Ionic). Tanpa ini,
 // NODE_ENV=production + CORS_ORIGIN (mis. hanya domain dashboard) membuat
 // dev-server di localhost:5173 tidak menerima Access-Control-Allow-Origin →
 // semua request diblokir browser dan muncul "Server tidak merespon".
@@ -69,7 +71,17 @@ app.use(cors(corsOptions));
 
 
 
-app.use(express.json({ limit: '10kb' }));
+// Batas 10kb tetap berlaku untuk seluruh API, kecuali publish APK: endpoint itu
+// menerima apkBase64 (belasan MB), jadi tanpa parser longgar khusus ia selalu
+// ditolak 413 sebelum sempat menyentuh route-nya (APK tak pernah sampai ke server).
+const jsonDefault = express.json({ limit: '10kb' });
+const jsonApkUpload = express.json({ limit: '64mb' });
+const APK_UPLOAD_PATH = '/api/v1/publish-version';
+
+app.use((req, res, next) => {
+  const parse = req.method === 'POST' && req.path === APK_UPLOAD_PATH ? jsonApkUpload : jsonDefault;
+  return parse(req, res, next);
+});
 
 const { UPLOADS_DIR } = require('./uploads-dir');
 
