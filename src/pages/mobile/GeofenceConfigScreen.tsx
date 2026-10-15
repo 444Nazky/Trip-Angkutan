@@ -53,7 +53,7 @@ function parseRoutes(raw: string): string[] {
 
 
 export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) {
-  const { userType, officer, refreshOfficers } = useApp()
+  const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
   const [points, setPoints] = useState<GeofencePoint[]>(() => getStoredGeofencePoints())

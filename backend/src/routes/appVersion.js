@@ -7,13 +7,8 @@ const { absoluteBase } = require('../absolute-url');
 
 
 
-
-// APK_DIR/METADATA_DIR harus menghormati env: di Railway variabel APK_DIR=/data/apks
-// menunjuk volume persisten. Dulu nilai ini diabaikan (selalu <image>/apks yang
-// kosong), jadi apk-list selalu 0 dan setiap unduhan APK gagal.
 const APK_DIR = process.env.APK_DIR || path.join(__dirname, '..', '..', 'apks');
 const METADATA_DIR = process.env.METADATA_DIR || path.join(__dirname, '..', '..', 'metadata');
-
 
 
 
@@ -22,12 +17,10 @@ const RAILWAY_STATIC_URL = process.env.RAILWAY_STATIC_URL || '';
 
 
 
-
 function ensureDirs() {
   if (!fs.existsSync(APK_DIR)) fs.mkdirSync(APK_DIR, { recursive: true });
   if (!fs.existsSync(METADATA_DIR)) fs.mkdirSync(METADATA_DIR, { recursive: true });
 }
-
 
 
 
@@ -44,7 +37,6 @@ function loadVersionMetadata() {
 
 
 
-
 function saveVersionMetadata(metadata) {
   ensureDirs();
   const metadataPath = path.join(METADATA_DIR, 'versions.json');
@@ -53,9 +45,8 @@ function saveVersionMetadata(metadata) {
 
 
 
-
 function compareVersions(current, latest) {
-  const parse = (v) => v.split('.').map(Number);
+  const parse = (v) => String(v ?? '0').split('.').map(n => Number(n) || 0);
   const [c1, c2, c3] = parse(current);
   const [l1, l2, l3] = parse(latest);
   if (l1 > c1) return 1;
@@ -66,48 +57,189 @@ function compareVersions(current, latest) {
 
 
 
+function isAbsoluteUrl(value) {
+  return /^https?:\/\//i.test(String(value ?? '').trim());
+}
 
-function getDownloadUrl(version) {
-  const metadata = loadVersionMetadata();
 
-  const envKey = `APK_DOWNLOAD_URL_${version.replace(/\./g, '_')}`;
-  if (process.env[envKey]) return process.env[envKey];
 
-  if (process.env.APK_DOWNLOAD_URL_LATEST && metadata?.latest?.version === version) {
-    return process.env.APK_DOWNLOAD_URL_LATEST;
+// Info berkas APK lokal (ukuran + SHA-256) — di-cache per versi+mtime supaya
+// hash 16 MB tidak dihitung ulang tiap kali aplikasi mobile cek versi.
+const apkInfoCache = new Map();
+
+function localApkInfo(version) {
+  const file = path.join(APK_DIR, `app-${version}.apk`);
+  let stat;
+  try {
+    stat = fs.statSync(file);
+  } catch {
+    return null;
   }
+  const key = `${stat.size}:${stat.mtimeMs}`;
+  const cached = apkInfoCache.get(version);
+  if (cached && cached.key === key) return cached;
 
-  if (metadata?.releases?.[version]?.downloadUrl) return metadata.releases[version].downloadUrl;
-  if (metadata?.latest?.version === version && metadata?.latest?.downloadUrl) return metadata.latest.downloadUrl;
+  let sha256 = '';
+  try {
+    sha256 = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  } catch {
+    sha256 = '';
+  }
+  const info = { key, file, size: stat.size, sha256 };
+  apkInfoCache.set(version, info);
+  return info;
+}
 
-  // APK yang benar-benar ada di server (APK_DIR, mis. volume /data/apks) adalah
-  // satu-satunya sumber yang pasti bisa diunduh klien → utamakan itu.
-  const apkPath = path.join(APK_DIR, `app-${version}.apk`);
-  if (fs.existsSync(apkPath)) return `/api/v1/app-download/${version}`;
 
-  // URL unduhan wajib absolut: URL tanpa skema (RAILWAY_STATIC_URL memang
-  // disediakan tanpa skema) dianggap path relatif oleh klien → update gagal.
+
+// URL unduhan ENV untuk satu versi (mis. APK_DOWNLOAD_URL_1_0_9)
+function envDownloadUrl(version) {
+  const envKey = `APK_DOWNLOAD_URL_${version.replace(/\./g, '_')}`;
+  return isAbsoluteUrl(process.env[envKey]) ? String(process.env[envKey]).trim() : '';
+}
+
+
+
+// URL CDN/static bila env-nya diisi (hanya dipakai untuk versi yang memang punya berkas)
+function cdnDownloadUrl(version) {
   const cdnBase = absoluteBase(APK_CDN_BASE);
   if (cdnBase) return `${cdnBase}/app-${version}.apk`;
-
   const staticBase = absoluteBase(RAILWAY_STATIC_URL);
   if (staticBase) return `${staticBase}/releases/app-${version}.apk`;
+  return '';
+}
 
-  const HARDCODED_URLS = {
-    '1.0.3': 'https://files.catbox.moe/bmkh1o.apk',
-    '1.0.2': 'https://files.catbox.moe/dfvc89.apk',
-    '1.0.1': 'https://files.catbox.moe/dfvc89.apk',
-    '1.0.0': 'https://files.catbox.moe/f67x5q.apk',
-  };
-  if (HARDCODED_URLS[version]) return HARDCODED_URLS[version];
 
-  return null;
+
+// URL berkas milik API ini sendiri → hanya sah kalau APK-nya benar-benar ada.
+function isSelfDownloadUrl(url) {
+  return /\/api\/v1\/app-download\//i.test(String(url ?? ''));
+}
+
+
+
+const headCache = new Map();
+
+/**
+ * Cek cepat (HEAD) apakah URL eksternal benar-benar menyajikan berkas.
+ * Di-cache 60 detik agar /app-version tetap ringan.
+ */
+async function remoteUrlIsAlive(url) {
+  const hit = headCache.get(url);
+  if (hit && Date.now() - hit.at < 60_000) return hit.alive;
+  let alive = false;
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(4000) });
+    alive = res.ok;
+  } catch {
+    alive = false;
+  }
+  headCache.set(url, { at: Date.now(), alive });
+  return alive;
+}
+
+
+
+/**
+ * Tentukan PAKET mana yang benar-benar bisa diunduh untuk sebuah versi.
+ *
+ * Ini akar kegagalan update: `versions.json` pernah menunjuk 1.0.12 padahal
+ * berkasnya tidak ada, sehingga server menyatakan "ada update", aplikasi
+ * mengunduh ke /app-download/1.0.12, menerima 404 JSON, lalu update selalu gagal.
+ * Sekarang versi tanpa paket nyata tidak pernah diiklankan.
+ */
+/**
+ * Apakah paket versi ini benar-benar berisi versi tersebut?
+ *
+ * Metadata menyimpan `apkVersionName` hasil pembacaan APK nyata (aapt2) saat
+ * rilis. Ini penting: di repositori ini app-1.0.8.apk sebenarnya berisi 1.0.6 dan
+ * app-1.0.12.apk berisi 1.0.9. Server lalu mengiklankan update, aplikasi memasang
+ * "versi baru" yang isinya versi lama → versi tak pernah berubah dan popup update
+ * muncul selamanya.
+ */
+function declaredVersionMatches(version, release) {
+  const declared = String(release?.apkVersionName ?? '').trim();
+  if (!declared) return true; // metadata lama tanpa penanda → jangan blokir
+  return declared === String(version).trim();
 }
 
 
 
 
-router.get('/app-version', (req, res) => {
+async function resolvePackage(version, release) {
+  if (!declaredVersionMatches(version, release)) {
+    console.warn(`[update] v${version} dilewati: metadata menyatakan APK berisi ${release?.apkVersionName}`);
+    return { available: false, source: 'version-mismatch', size: null, sha256: null, url: null };
+  }
+
+  const local = localApkInfo(version);
+  if (local) {
+    return {
+      available: true,
+      source: 'local',
+      size: local.size,
+      sha256: local.sha256 || release?.apkHash || null,
+      url: `/api/v1/app-download/${version}`,
+    };
+  }
+
+  const candidates = [envDownloadUrl(version), release?.downloadUrl, cdnDownloadUrl(version)]
+    .map(v => String(v ?? '').trim())
+    .filter(Boolean);
+  const external = candidates.find(u => isAbsoluteUrl(u) && !isSelfDownloadUrl(u));
+  if (external && await remoteUrlIsAlive(external)) {
+    return { available: true, source: 'remote', size: release?.apkSize ?? null, sha256: release?.apkHash ?? null, url: external };
+  }
+
+  return { available: false, source: 'none', size: null, sha256: null, url: null };
+}
+
+
+
+// Kandidat rilis: gabungan latest + releases, diurutkan versi terbaru dulu.
+function releaseCandidates(metadata) {
+  const map = new Map();
+  if (metadata?.latest?.version) map.set(String(metadata.latest.version), metadata.latest);
+  for (const [version, release] of Object.entries(metadata?.releases || {})) {
+    if (!map.has(version)) map.set(version, release);
+  }
+  return [...map.entries()]
+    .map(([version, release]) => ({ version, release }))
+    .sort((a, b) => compareVersions(b.version, a.version))
+    .filter(({ version }) => /^\d+\.\d+\.\d+$/.test(version));
+}
+
+
+
+/** Rilis terbaru yang PAKET-nya benar-benar bisa diunduh. */
+async function latestDeliverableRelease(metadata) {
+  for (const candidate of releaseCandidates(metadata)) {
+    const pkg = await resolvePackage(candidate.version, candidate.release);
+    if (pkg.available) return { ...candidate, pkg };
+  }
+  return null;
+}
+
+
+
+function parseReleaseNotes(text) {
+  return String(text ?? '')
+    .split(/[\n;]+/)
+    .map(line => line.replace(/^[-*•]\s*/, '').trim())
+    .filter(Boolean)
+    .map(line => ({
+      type: /fix|perbaikan|bug/i.test(line) ? 'bugfix'
+        : /security|keamanan/i.test(line) ? 'security'
+          : /improve|peningkat|optim/i.test(line) ? 'improvement'
+            : 'feature',
+      title: line,
+      description: '',
+    }));
+}
+
+
+
+router.get('/app-version', async (req, res) => {
   try {
     const { current = '0.0.0' } = req.query;
     const metadata = loadVersionMetadata();
@@ -121,19 +253,40 @@ router.get('/app-version', (req, res) => {
       });
     }
 
-    const latestVersion = metadata.latest.version;
-    const updateAvailable = compareVersions(current, latestVersion) > 0;
+    const deliverable = await latestDeliverableRelease(metadata);
+    if (!deliverable) {
+      // Tidak ada paket yang bisa diunduh (mis. metadata menunjuk versi tanpa APK).
+      // Jangan berbohong: kirim "tidak ada update" + alasan, biar tidak memicu
+      // unduhan yang pasti gagal di perangkat.
+      return res.json({
+        latestVersion: current,
+        updateAvailable: false,
+        isForceUpdate: false,
+        downloadUrl: null,
+        releaseNotes: null,
+        apkSize: null,
+        apkHash: null,
+        minVersion: metadata.latest.minVersion || null,
+        releaseDate: null,
+        apkAvailable: false,
+        reason: 'NO_DELIVERABLE_PACKAGE',
+      });
+    }
+
+    const { version, release, pkg } = deliverable;
+    const updateAvailable = compareVersions(current, version) > 0;
 
     res.json({
-      latestVersion,
+      latestVersion: version,
       updateAvailable,
-      isForceUpdate: metadata.latest.isForceUpdate || false,
-      downloadUrl: getDownloadUrl(latestVersion),
-      releaseNotes: metadata.latest.releaseNotes || 'Update tersedia',
-      apkSize: null,
-      apkHash: null,
-      minVersion: metadata.latest.minVersion || null,
-      releaseDate: metadata.latest.releaseDate || null
+      isForceUpdate: Boolean(release?.isForceUpdate),
+      downloadUrl: pkg.url,
+      releaseNotes: release?.releaseNotes || 'Update tersedia',
+      apkSize: pkg.size,
+      apkHash: pkg.sha256,
+      minVersion: release?.minVersion || null,
+      releaseDate: release?.releaseDate || null,
+      apkAvailable: true,
     });
   } catch (error) {
     console.error('Error checking app version:', error);
@@ -141,6 +294,27 @@ router.get('/app-version', (req, res) => {
   }
 });
 
+
+
+router.get('/release-notes/:version', (req, res) => {
+  try {
+    const version = String(req.params.version || '').trim();
+    const metadata = loadVersionMetadata();
+    const release = metadata?.releases?.[version]
+      || (metadata?.latest?.version === version ? metadata.latest : null);
+    if (!release) {
+      return res.status(404).json({ error: 'RELEASE_NOT_FOUND', message: `Catatan rilis ${version} tidak ditemukan` });
+    }
+    res.json({
+      version,
+      releaseDate: release.releaseDate || null,
+      notes: parseReleaseNotes(release.releaseNotes),
+    });
+  } catch (error) {
+    console.error('Error reading release notes:', error);
+    res.status(500).json({ error: 'RELEASE_NOTES_FAILED', message: 'Gagal membaca catatan rilis' });
+  }
+});
 
 
 
@@ -158,7 +332,6 @@ router.get('/apk-list', (req, res) => {
 
 
 
-
 router.post('/publish-version', (req, res) => {
   try {
     const secret = req.headers['x-publish-secret'];
@@ -167,7 +340,7 @@ router.post('/publish-version', (req, res) => {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Unauthorized' });
     }
 
-    const { version, downloadUrl, apkBase64, releaseNotes, isForceUpdate, minVersion } = req.body;
+    const { version, downloadUrl, apkBase64, releaseNotes, isForceUpdate, minVersion, apkVersionName, apkVersionCode } = req.body;
 
     if (!version) return res.status(400).json({ error: 'MISSING_VERSION', message: 'Versi harus diisi' });
 
@@ -180,11 +353,23 @@ router.post('/publish-version', (req, res) => {
       return res.status(400).json({ error: 'MISSING_SOURCE', message: 'Harus ada downloadUrl atau apkBase64' });
     }
 
+    // URL relatif tidak berguna: klien mobile memperlakukannya terhadap base URL-nya
+    // sendiri dan berakhir 404. Tolak lebih awal dengan pesan yang jelas.
+    if (downloadUrl && !isAbsoluteUrl(downloadUrl)) {
+      return res.status(400).json({
+        error: 'INVALID_DOWNLOAD_URL',
+        message: 'downloadUrl harus absolut (http/https). Untuk berkas lokal, pakai apkBase64.',
+      });
+    }
+
     ensureDirs();
 
     if (apkBase64 && !downloadUrl) {
       try {
         const apkBuffer = Buffer.from(apkBase64, 'base64');
+        if (apkBuffer.length < 1_000_000) {
+          return res.status(400).json({ error: 'APK_TOO_SMALL', message: `Data APK terlalu kecil (${apkBuffer.length} byte) — kemungkinan bukan berkas APK.` });
+        }
         const apkPath = path.join(APK_DIR, `app-${version}.apk`);
         fs.writeFileSync(apkPath, apkBuffer);
         console.log(`APK saved: ${apkBuffer.length} bytes`);
@@ -193,6 +378,8 @@ router.post('/publish-version', (req, res) => {
       }
     }
 
+    // Hash & ukuran nyata dari berkas lokal (bila ada) supaya klien bisa verifikasi.
+    const local = localApkInfo(version);
     const metadata = loadVersionMetadata() || { latest: null, releases: {} };
     const releaseData = {
       version,
@@ -201,6 +388,12 @@ router.post('/publish-version', (req, res) => {
       releaseNotes: releaseNotes || '',
       isForceUpdate: isForceUpdate || false,
       minVersion: minVersion || null,
+      apkSize: local ? local.size : null,
+      apkHash: local ? local.sha256 : null,
+      // Versi yang BENAR-BENAR ada di dalam APK (hasil `aapt2 dump badging` saat
+      // rilis). Dipakai /app-version untuk menolak paket yang salah label.
+      apkVersionName: apkVersionName ? String(apkVersionName).trim() : null,
+      apkVersionCode: Number.isFinite(Number(apkVersionCode)) ? Number(apkVersionCode) : null,
     };
 
     if (!metadata.latest || compareVersions(metadata.latest.version, version) < 0) {
@@ -209,13 +402,20 @@ router.post('/publish-version', (req, res) => {
     metadata.releases[version] = releaseData;
     saveVersionMetadata(metadata);
 
-    res.json({ success: true, version, message: `Versi ${version} dipublish` });
+    const deliverable = local ? true : Boolean(downloadUrl);
+    res.json({
+      success: true,
+      version,
+      apkAvailable: deliverable,
+      apkHash: releaseData.apkHash,
+      apkSize: releaseData.apkSize,
+      message: `Versi ${version} dipublish`,
+    });
   } catch (error) {
     console.error('Error publishing:', error);
     res.status(500).json({ error: 'PUBLISH_FAILED', message: 'Gagal publish' });
   }
 });
-
 
 
 

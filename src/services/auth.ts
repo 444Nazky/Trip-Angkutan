@@ -6,7 +6,7 @@ import {
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
-import { findSeedOfficer, verifySeedPin } from './seedData'
+import { findSeedOfficer } from './seedData'
 
 
 
@@ -622,8 +622,9 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     return true
   }
 
-  if (verifySeedPin(officerId, pin) || verifySeedPin(identifier, pin)) return true
-
+  // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah
+  // temuan F001 (login offline "123456" tanpa server). Verifikasi hanya lewat
+  // credential hasil sinkron server (verifyStoredPin di atas) atau server online.
   return false
 }
 

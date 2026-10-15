@@ -41,6 +41,8 @@ const h = vi.hoisted(() => ({
   dermaga: null as null | { id: string },
   /** Rute penugasan petugas dari sesi (untuk scoping lokal). */
   routes: [] as { code: string }[],
+  /** Respons khusus per-path (mis. backend lama: filter dermaga kosong, master berisi). */
+  byPath: {} as Record<string, { ok: boolean; data?: unknown; error?: { code?: string; message?: string } }>,
 }))
 
 vi.mock('./api', () => ({
@@ -49,7 +51,7 @@ vi.mock('./api', () => ({
     isAuthenticated: true,
     async get(path: string) {
       h.paths.push(path)
-      return h.response
+      return h.byPath[path] ?? h.response
     },
   },
 }))
@@ -107,6 +109,7 @@ beforeEach(() => {
   h.dermaga = null
   h.routes = []
   h.response = { ok: true, data: [] }
+  h.byPath = {}
   resetGpsFixCache()
 })
 
@@ -225,6 +228,25 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
   })
 
+  it('titik TANPA kode rute (berlaku umum) tetap tersimpan walau petugas punya penugasan', async () => {
+    // Dashboard admin tidak selalu mengisi kode rute; dulu titik begini ikut
+    // ter-filter → perangkat berakhir kosong ("Belum ada titik geofence tersimpan")
+    // dan petugas tidak bisa input trip sama sekali.
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    h.response = {
+      ok: true,
+      data: [
+        backendRow({ id: 'geo-umum', locationName: 'Pos Umum', allowedRouteCodes: [] }),
+        backendRow({ id: 'geo-wilayah-lain', locationName: 'Entikong Dermaga 1', allowedRouteCodes: ['ENT-SRN'] }),
+      ],
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-umum'])
+  })
+
   it('scopedGeofencePoints tetap longgar sebelum rute penugasan tersimpan', () => {
     const points: GeofencePoint[] = [POINT, { ...POINT, id: 'geo-2', enabled: false }]
     expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1'])
@@ -237,6 +259,37 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     await forceSyncGeofencesFromBackend()
 
     expect(h.paths[0]).toBe('/geofences?dermagaId=dm-badau-1')
+  })
+
+  it('backend lama (filter dermaga kosong) → fallback master /geofences, titik admin tetap masuk', async () => {
+    // Backend yang belum di-deploy menyaring HANYA `dermaga_id = ?`; titik buatan
+    // dashboard tersimpan dengan dermaga_id NULL → hasil filter kosong. Dulu itu
+    // berakhir "Belum ada titik geofence tersimpan" dan petugas tak bisa input trip.
+    h.dermaga = { id: 'dm-badau-1' }
+    h.byPath = {
+      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [] },
+      '/geofences': { ok: true, data: [backendRow({ allowedRouteCodes: [] })] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(h.paths).toEqual(['/geofences?dermagaId=dm-badau-1', '/geofences'])
+    expect(result.ok).toBe(true)
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('filter dermaga kosong & master juga kosong → tetap kosong (admin memang belum menyimpan titik)', async () => {
+    h.dermaga = { id: 'dm-badau-1' }
+    h.byPath = {
+      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [] },
+      '/geofences': { ok: true, data: [] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.reason).toBe('empty')
+    expect(getStoredGeofencePoints()).toEqual([])
   })
 
   it('server/jaringan gagal → konfigurasi lama TIDAK dibuang', async () => {

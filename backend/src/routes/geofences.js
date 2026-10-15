@@ -130,13 +130,16 @@ router.get('/', authenticate, (req, res) => {
     let rows;
     const isAdmin = req.user.role === 'admin';
 
-    if (dermagaId) {
-      // Filter by specific dermagaId - use COALESCE for compatibility
+    if (dermagaId && scope !== 'all') {
+      // Titik untuk dermaga petugas + titik "berlaku umum" (dermaga_id kosong).
+      // Query lama (`id = ? OR location_name LIKE %dermagaId%`) selalu kosong:
+      // dermagaId adalah UUID, bukan nama lokasi — petugas tidak pernah menerima
+      // satu titik pun walau admin sudah menyimpannya.
       rows = db.prepare(`
         SELECT * FROM geofences
-        WHERE id = ? OR COALESCE(location_name, name, '') LIKE ?
+        WHERE dermaga_id = ? OR dermaga_id IS NULL OR TRIM(COALESCE(dermaga_id, '')) = ''
         ORDER BY COALESCE(location_name, name, id)
-      `).all(String(dermagaId), `%${String(dermagaId)}%`);
+      `).all(String(dermagaId));
       console.log(`[geofence] GET with dermagaId=${dermagaId}: found ${rows.length} rows`);
     } else if (scope === 'all' && isAdmin) {
       // Admin wants all geofences

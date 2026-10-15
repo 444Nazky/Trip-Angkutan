@@ -84,6 +84,8 @@ export function resolveApiBaseUrl(): string {
   try {
     const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
     if (override && override.trim()) return normalizeBaseUrl(override)
+    const auto = readAutoDetectedBaseUrl()
+    if (auto) return auto
   } catch {}
   const runtime = (globalThis as { __TRIP_API_BASE_URL__?: string }).__TRIP_API_BASE_URL__
   if (typeof runtime === 'string' && runtime.trim()) {
@@ -106,6 +108,10 @@ export interface ServerProbeResult {
   blockedByCors: boolean
   /** berhenti karena timeout, bukan karena koneksi ditolak */
   timedOut?: boolean
+  /** URL http:// non-localhost di APK (diblokir Android, bukan masalah jaringan) */
+  cleartextBlocked?: boolean
+  /** ringkasan penyebab gagal — supaya petugas tahu apa yang harus diperbaiki */
+  detail?: string
 }
 
 
@@ -124,9 +130,29 @@ export function normalizeApiBaseInput(raw: string): string {
 // Access-Control-Allow-Origin — padahal servernya menjawab 200. Dulu itu dilaporkan
 // sebagai "server tidak merespon" sehingga petugas mengganti-ganti URL padahal URL-nya
 // benar. Di sini kegagalan dibedakan: benar-benar mati / timeout / diblokir CORS.
+//
+// Jalur native memakai HTTP native (tanpa CORS), tetapi plugin native bisa tak
+// tersedia di build tertentu (mis. APK lama tanpa CapacitorHttp aktif) dan gagal
+// dalam hitungan milidetik — itu dulu langsung dilaporkan "server tidak merespon".
+// Sekarang kegagalan native di-fallback ke fetch WebView sebelum disimpulkan mati.
 export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise<ServerProbeResult> {
   const url = normalizeApiBaseInput(raw)
   const t0 = Date.now()
+
+  // Android memblokir cleartext http:// ke host non-lokal (network_security_config).
+  // Lebih baik dijelaskan terang-terangan daripada berbunyi "server tidak merespon".
+  if (Capacitor.isNativePlatform() && /^http:\/\//i.test(url)) {
+    const host = url.replace(/^http:\/\//i, '').split('/')[0]
+    if (!/^(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/i.test(host)) {
+      return {
+        reachable: false,
+        ms: Date.now() - t0,
+        blockedByCors: false,
+        cleartextBlocked: true,
+        detail: `APK hanya mengizinkan HTTPS (http://${host} diblokir Android). Pakai https:// atau alamat LAN yang diizinkan.`,
+      }
+    }
+  }
 
   // Aplikasi native (APK) tidak punya CORS → pakai HTTP native agar hasilnya pasti.
   if (Capacitor.isNativePlatform()) {
@@ -138,13 +164,20 @@ export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise
         headers: { 'Cache-Control': 'no-cache' },
       })
       return {
-        reachable: res.status >= 200 && res.status < 400,
+        // Ada respons HTTP apa pun (200/401/404) = server HIDUP. Dulu hanya 2xx-3xx
+        // yang dianggap hidup, sehingga server yang menjawab 401/404 (mis. versi
+        // rute health berbeda) dilaporkan "Server tidak merespon" dan URL yang
+        // benar ikut dibuang.
+        reachable: Number.isFinite(res.status) && res.status > 0,
         status: res.status,
         ms: Date.now() - t0,
         blockedByCors: false,
+        detail: res.status >= 200 && res.status < 400 ? undefined : `HTTP ${res.status}`,
       }
-    } catch {
-      return { reachable: false, ms: Date.now() - t0, blockedByCors: false }
+    } catch (err) {
+      // Plugin native tak tersedia / gagal → lanjut ke fetch WebView di bawah,
+      // jangan langsung menyimpulkan server mati.
+      console.warn('[probe] HTTP native gagal, fallback ke fetch WebView:', err)
     }
   }
 
@@ -159,8 +192,16 @@ export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise
 
   try {
     try {
+      // Sama seperti jalur native: respons apa pun = server hidup. Yang menandakan
+      // server mati hanya kegagalan jaringan (koneksi ditolak/timeout/CORS).
       const res = await hit()
-      return { reachable: res.ok, status: res.status, ms: Date.now() - t0, blockedByCors: false }
+      return {
+        reachable: true,
+        status: res.status,
+        ms: Date.now() - t0,
+        blockedByCors: false,
+        detail: res.ok ? undefined : `HTTP ${res.status}`,
+      }
     } catch (err) {
       // Timeout → server tak menjawab sama sekali.
       if (controller.signal.aborted) {
@@ -175,8 +216,12 @@ export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise
         }
         return { reachable: true, status: res.status, ms: Date.now() - t0, blockedByCors: false }
       } catch {
-        void err
-        return { reachable: false, ms: Date.now() - t0, blockedByCors: false }
+        return {
+          reachable: false,
+          ms: Date.now() - t0,
+          blockedByCors: false,
+          detail: err instanceof Error ? err.message : undefined,
+        }
       }
     }
   } finally {
@@ -224,6 +269,94 @@ export function setApiBaseUrlOverride(url: string | null): void {
 
 export function getApiBaseUrl(): string {
   return getBaseUrl()
+}
+
+
+
+
+// ── Kandidat endpoint bawaan (auto-deteksi) ──────────────────────────────────
+// Dulu endpoint hanya bisa dari env (build rilis = Railway), sehingga saat
+// petugas/admin memakai server uji (laptop/tunnel/LAN) mereka harus mengetik URL
+// panjang dan gagal tes karena salah satu pihak tidak bisa dijangkau. Sekarang ada
+// daftar kandidat: yang bisa dijangkau dipakai otomatis, dan URL manual tetap menang.
+export interface ApiBaseCandidate {
+  label: string
+  url: string
+}
+
+const API_BASE_AUTODETECT_KEY = 'trip.api.autoBaseUrl'
+const AUTODETECT_TTL_MS = 10 * 60 * 1000
+
+
+
+
+export function apiBaseCandidates(): ApiBaseCandidate[] {
+  const urls: ApiBaseCandidate[] = [
+    { label: 'Default build', url: normalizeBaseUrl(environment.apiBaseUrl) },
+    { label: 'Produksi (Railway)', url: 'https://aplikasi-trip-api-production.up.railway.app/api' },
+    { label: 'Backend lokal laptop', url: 'http://localhost:3000/api' },
+    { label: 'Emulator Android', url: 'http://10.0.2.2:3000/api' },
+  ]
+  const seen = new Set<string>()
+  return urls.filter(c => {
+    if (!c.url || seen.has(c.url)) return false
+    seen.add(c.url)
+    return true
+  })
+}
+
+
+
+
+function readAutoDetectedBaseUrl(): string | null {
+  try {
+    const raw = localStorage.getItem(API_BASE_AUTODETECT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { url?: string; at?: number }
+    if (!parsed?.url) return null
+    if (Date.now() - Number(parsed.at ?? 0) > AUTODETECT_TTL_MS) return null
+    return normalizeBaseUrl(parsed.url)
+  } catch {
+    return null
+  }
+}
+
+
+
+
+/**
+ * Cari endpoint yang benar-benar menjawab dari daftar kandidat, lalu simpan
+ * sementara (TTL 10 menit). URL manual (override) selalu diprioritaskan dan
+ * tidak pernah ditimpa fungsi ini.
+ */
+export async function autoDetectApiBaseUrl(timeoutMs = 3500): Promise<string | null> {
+  let hasOverride = false
+  try {
+    const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
+    hasOverride = !!override && !!override.trim()
+  } catch { /* storage mati */ }
+  if (hasOverride) return resolveApiBaseUrl()
+
+  for (const candidate of apiBaseCandidates()) {
+    const probe = await probeServerHealth(candidate.url, timeoutMs)
+    if (!probe.reachable) continue
+    try {
+      localStorage.setItem(API_BASE_AUTODETECT_KEY, JSON.stringify({ url: candidate.url, at: Date.now() }))
+    } catch { /* storage penuh */ }
+    api?.refreshBaseUrl()
+    console.log(`[api] Endpoint auto-detect: ${candidate.label} → ${candidate.url}`)
+    return candidate.url
+  }
+  return null
+}
+
+
+
+
+/** Label kandidat yang cocok dengan URL aktif (untuk ditampilkan di UI). */
+export function apiBaseCandidateLabel(url: string): string | null {
+  const target = normalizeBaseUrl(url)
+  return apiBaseCandidates().find(c => c.url === target)?.label ?? null
 }
 
 

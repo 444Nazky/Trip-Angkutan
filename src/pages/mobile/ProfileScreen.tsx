@@ -65,12 +65,18 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   }
 
   const applyNow = async () => {
-    setNote('Menerapkan pembaruan…')
+    setNote('Menerapkan pembaruan modul…')
     if (await applyUpdate()) {
-      await hardReloadToNewBundle((await getCurrentVersion()) ?? undefined)
+      const modul = (await getCurrentVersion()) ?? ''
+      // OTA hanya mengganti MODUL web (bundle), bukan versi APK. Dulu pesannya
+      // "berhasil update" sehingga petugas mengira versi aplikasi naik padahal
+      // versi native (dan pengecekan versi dari server) tetap yang lama.
+      setNote(`Modul ${semverLabel(modul)} diterapkan. Versi APK tetap ${appVersion} — pembaruan APK lewat notifikasi di beranda.`)
+      setUpdateVersion(null)
+      await hardReloadToNewBundle(modul || undefined)
     } else {
       setUpdateVersion(null)
-      setNote('Gagal menerapkan pembaruan')
+      setNote('Gagal menerapkan pembaruan modul')
     }
   }
 
@@ -156,8 +162,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <div className="flex items-center gap-3 p-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Pembaruan aplikasi</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">{note ?? `Versi ${appVersion !== '—' ? appVersion : currentVersion !== '—' ? semverLabel(currentVersion) : '—'} · periksa versi terbaru`}</p>
+            <p className="text-xs font-medium text-slate-800">Pembaruan modul (OTA)</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{note ?? `Versi APK ${appVersion} · modul ${currentVersion !== '—' ? semverLabel(currentVersion) : '—'}`}</p>
           </div>
           <button
             onClick={() => void (updateVersion ? applyNow() : checkForAppUpdate())}
@@ -169,7 +175,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         </div>
         {updateVersion && !checkingUpdate && (
           <div className="flex items-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-[10px] text-emerald-800">
-            <AlertCircle size={13} /> Pembaruan versi {semverLabel(updateVersion)} siap dipasang.
+            <AlertCircle size={13} /> Modul {semverLabel(updateVersion)} siap dipasang (versi APK tidak berubah).
           </div>
         )}
       </section>

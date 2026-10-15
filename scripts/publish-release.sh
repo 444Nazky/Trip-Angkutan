@@ -49,6 +49,40 @@ APK=$(find android/app/build/outputs/apk/release -name "*.apk" -printf "%T@ %p\n
 if [[ -z "${APK:-}" || ! -f "$APK" ]]; then echo "APK tidak ketemu setelah build."; exit 1; fi
 echo " APK: $APK ($(du -h "$APK" | cut -f1))"
 
+# ── Verifikasi versi DI DALAM APK ─────────────────────────────────────────────
+# Ini penjaga kegagalan update paling mahal yang pernah terjadi di repo ini:
+# berkas app-1.0.8.apk ternyata berisi 1.0.6 dan app-1.0.12.apk berisi 1.0.9.
+# Server mengiklankan versi X, petugas memasang berkas yang isinya versi lama,
+# versi aplikasi tak pernah berubah → popup update muncul selamanya dan mobile
+# selalu "mismatch" saat mendeteksi versi dari server.
+echo "[1b/4] Verifikasi versionName/versionCode di dalam APK..."
+AAPT="$(ls -d "$HOME"/Android/Sdk/build-tools/*/aapt2 2>/dev/null | tail -1 || true)"
+if [[ -z "${AAPT:-}" ]]; then AAPT="$(command -v aapt2 || true)"; fi
+if [[ -z "${AAPT:-}" || ! -x "$AAPT" ]]; then
+  echo "GAGAL: aapt2 tidak ditemukan — tidak bisa memastikan versi APK."
+  echo " Set ANDROID_HOME ke Android SDK (build-tools/*/aapt2) lalu ulangi."
+  exit 1
+fi
+BADGING=$("$AAPT" dump badging "$APK" 2>/dev/null | head -1 || true)
+APK_VER=$(printf '%s' "$BADGING" | sed -E "s/.*versionName='([^']+)'.*/\1/")
+APK_CODE=$(printf '%s' "$BADGING" | sed -E "s/.*versionCode='([0-9]+)'.*/\1/")
+if [[ "$APK_VER" != "$VERSION" ]]; then
+  echo "GAGAL: APK berisi versionName '$APK_VER', bukan '$VERSION'."
+  echo " Android akan memasang berkas ini sebagai versi $APK_VER → versi tak pernah naik."
+  echo " Perbaiki android/app/build.gradle (versionName/versionCode) lalu rebuild."
+  exit 1
+fi
+PREV_CODE=$(node -e "try{const m=require('./backend/metadata/versions.json');const c=Object.values(m.releases||{}).map(r=>Number(r.apkVersionCode)||0);console.log(Math.max(0,...c))}catch{console.log(0)}" 2>/dev/null || echo 0)
+if [[ -n "$APK_CODE" && "$APK_CODE" -le "$PREV_CODE" ]]; then
+  echo "GAGAL: versionCode $APK_CODE <= rilis terakhir ($PREV_CODE) — Android menolak downgrade."
+  echo " Naikkan versionCode di android/app/build.gradle."
+  exit 1
+fi
+echo " ✓ APK berisi versi $APK_VER (versionCode $APK_CODE)"
+mkdir -p backend/apks
+cp -f "$APK" "backend/apks/app-$VERSION.apk"
+echo " Salinan lokal: backend/apks/app-$VERSION.apk"
+
 echo "[2/4] Uploading..."
 URL=$(curl -sS -m 180 --retry 2 -F "reqtype=fileupload" -F "fileToUpload=@$APK" https://catbox.moe/user/api.php)
 echo " URL: $URL"
@@ -58,7 +92,7 @@ echo "[3/4] Updating backend..."
 # Idempoten: ganti entri versi-bila-ada, jangan prepend duplikat.
 # Menulis backend/metadata/versions.json (sumber update API) + HARDCODED_URLS
 # sebagai fallback. Mirror ke backend endpoint bila layout monorepo ada.
-NOTES="$NOTES" node -e "
+NOTES="$NOTES" APK_VER="$APK_VER" APK_CODE="$APK_CODE" node -e "
 const fs = require('fs'), path = require('path');
 const cmp = (a, b) => {
   const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
@@ -68,7 +102,7 @@ const cmp = (a, b) => {
 const targets = ['backend/metadata/versions.json'];
 const sib = '../endpoint-trip Endpoint Branch/backend/metadata/versions.json';
 if (fs.existsSync(sib)) targets.push(sib);
-const entry = { version: '$VERSION', downloadUrl: '$URL', releaseDate: new Date().toISOString(), releaseNotes: process.env.NOTES || '', isForceUpdate: false, minVersion: '1.0.0' };
+const entry = { version: '$VERSION', downloadUrl: '$URL', releaseDate: new Date().toISOString(), releaseNotes: process.env.NOTES || '', isForceUpdate: false, minVersion: '1.0.0', apkVersionName: process.env.APK_VER || '$VERSION', apkVersionCode: Number(process.env.APK_CODE) || null };
 for (const t of targets) {
   let m = { latest: null, releases: {} };
   try { m = JSON.parse(fs.readFileSync(t, 'utf8')); } catch {}

@@ -1,12 +1,15 @@
 {
   "latest": {
-    "version": "1.0.12",
-    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.12",
-    "releaseDate": "2026-10-15T09:00:00.000Z",
-    "releaseNotes": "APK rebuilt after clean build.",
+    "version": "1.0.6",
+    "downloadUrl": "/api/v1/app-download/1.0.6",
+    "releaseDate": "2026-10-15T07:29:29.054Z",
+    "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "81ceb907a0e6d30b82ce22fad88638d3e9def6d78fd3ebf038445ae174ec4554"
+    "apkVersionName": "1.0.6",
+    "apkVersionCode": 7,
+    "apkSize": 16289076,
+    "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
   },
   "releases": {
     "1.0.3": {
@@ -19,75 +22,27 @@
     },
     "1.0.5": {
       "version": "1.0.5",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.5",
+      "downloadUrl": "/api/v1/app-download/1.0.5",
       "releaseDate": "2026-10-15T06:13:17.156Z",
-      "releaseNotes": "Sinkron versi native 1.0.5 + installer APK otomatis via FileOpener.",
+      "releaseNotes": "Sinkron versi native + installer APK via FileOpener.",
       "isForceUpdate": false,
       "minVersion": "1.0.0",
+      "apkVersionName": "1.0.5",
+      "apkVersionCode": 6,
+      "apkSize": 16289080,
       "apkHash": "c66560259763f23c9d40105bdefa5f4fc08c5ed7532c622e0f024ed5c2becb6c"
     },
     "1.0.6": {
       "version": "1.0.6",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
+      "downloadUrl": "/api/v1/app-download/1.0.6",
       "releaseDate": "2026-10-15T07:29:29.054Z",
-      "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout, skema backend selaras.",
+      "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout.",
       "isForceUpdate": false,
       "minVersion": "1.0.0",
-      "apkHash": "12a0994bfbd1356afc331b2d46d01f8cd18097c5980950b699e0f2263de08d52"
-    },
-    "1.0.7": {
-      "version": "1.0.7",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.7",
-      "releaseDate": "2026-10-15T07:35:00.000Z",
-      "releaseNotes": "Fix 401 unauthorized, purge cache on login, auto-refresh token geofence sync, APK path fix.",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "91ca3340000ef64a738697a491284717364f461ffe78f48a2b2a3b97bc2853e2"
-    },
-    "1.0.8": {
-      "version": "1.0.8",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.8",
-      "releaseDate": "2026-10-15T07:45:00.000Z",
-      "releaseNotes": "Fix schema mismatch geofence: name/allowed_routes sinkron dengan database.",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "9d39aa7380d7e60640504197d84a64aed8f83be2abfa6bbdeff69ef93f38b419"
-    },
-    "1.0.9": {
-      "version": "1.0.9",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
-      "releaseDate": "2026-10-15T08:51:19.002Z",
-      "releaseNotes": "Rilis 1.0.9 terverifikasi biner.",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "a5712955af584776449d4bc17e382c73b1c4dfa4a4b961bf8f28620476daf375"
-    },
-    "1.0.10": {
-      "version": "1.0.10",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.10",
-      "releaseDate": "2026-10-15T08:15:00.000Z",
-      "releaseNotes": "Fix schema sync: mobile uses same columns as admin dashboard (location_name, allowed_route_codes).",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "d2c2a550ac68ca117c84bcda277b2f87afacca4e82d26a9aa6ffd5e0e0115818"
-    },
-    "1.0.11": {
-      "version": "1.0.11",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.11",
-      "releaseDate": "2026-10-15T08:30:00.000Z",
-      "releaseNotes": "Fix backend db.js seedDefaultGeofences().",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "e851c81f8d94a0a6045c8ea6659b00e9ac581191379161b042ac9784147d8959"
-    },
-    "1.0.12": {
-      "version": "1.0.12",
-      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.12",
-      "releaseDate": "2026-10-15T09:00:00.000Z",
-      "releaseNotes": "APK rebuilt after clean build.",
-      "isForceUpdate": false,
-      "minVersion": "1.0.0",
-      "apkHash": "81ceb907a0e6d30b82ce22fad88638d3e9def6d78fd3ebf038445ae174ec4554"
+      "apkVersionName": "1.0.6",
+      "apkVersionCode": 7,
+      "apkSize": 16289076,
+      "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
     }
   }
 }

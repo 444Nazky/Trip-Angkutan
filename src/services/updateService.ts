@@ -134,6 +134,41 @@ const STORAGE_KEYS = {
 
 
 
+/** SHA-256 heksadesimal dari byte; null bila WebCrypto tidak tersedia (uji/web lama). */
+async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const digest = await subtle.digest('SHA-256', bytes as unknown as BufferSource)
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+
+
+
+/** base64 → byte (hasil Filesystem.readFile). */
+function base64ToBytes(base64: string): Uint8Array | null {
+  try {
+    const clean = base64.includes(',') ? base64.slice(base64.indexOf(',') + 1) : base64
+    if (typeof atob === 'function') {
+      const bin = atob(clean)
+      const out = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+      return out
+    }
+    const B = (globalThis as { Buffer?: { from: (s: string, e: string) => Uint8Array } }).Buffer
+    return B ? B.from(clean, 'base64') : null
+  } catch {
+    return null
+  }
+}
+
+
+
+
 // versi native (App Info Android) — biar UI tak beda dgn sistem
 export async function getNativeVersion(): Promise<string | null> {
   try {
@@ -156,11 +191,17 @@ export function getUpdateApiUrl(): string {
 
 
 
-// downloadUrl dari server bisa absolute (Railway) atau relatif
+// downloadUrl dari server bisa absolute (Railway/CDN) atau relatif.
+// Path relatif harus ditempel ke ORIGIN, bukan ke api.baseUrl: baseUrl sudah
+// berakhir `/api`, sehingga '/releases/x.apk' dulu menjadi '/api/releases/x.apk'
+// (404 — static /releases dilayani di root) dan '/api/v1/...' menjadi
+// '/api/api/v1/...'. Keduanya membuat unduhan APK selalu gagal.
 export function resolveDownloadUrl(downloadUrl: string): string {
   const url = String(downloadUrl ?? '').trim();
   if (/^https?:\/\//i.test(url)) return url;
-  return `${api.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  if (!url) return url;
+  const origin = api.baseUrl.replace(/\/api\/?$/i, '');
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 
@@ -202,35 +243,71 @@ export function shouldForceUpdate(current: string, minVersion: string | null | u
 
 
 
-async function checkVersionFromServer(currentVersion: string): Promise<UpdateInfo | null> {
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Accept': 'application/json',
+} as const;
+
+
+
+
+/**
+ * Ambil JSON dari server update.
+ *
+ * Jalur native memakai CapacitorHttp, tetapi plugin native bisa tidak aktif di
+ * build tertentu (gagal dalam milidetik) — dulu itu membuat cek versi SELALU
+ * gagal diam-diam dan update tak pernah terdeteksi. Sekarang ada fallback ke
+ * fetch WebView (tanpa CORS di shell Capacitor).
+ */
+async function httpJson(url: string): Promise<{ status: number; data: unknown } | null> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await CapacitorHttp.request({ url, method: 'GET', headers: { ...NO_CACHE_HEADERS } })
+      return { status: res.status, data: res.data }
+    } catch (error) {
+      console.warn('[Update] HTTP native gagal, fallback ke fetch WebView:', error)
+    }
+  }
+  try {
+    const res = await fetch(url, { cache: 'no-store', headers: { ...NO_CACHE_HEADERS } })
+    const data = await res.json().catch(() => null)
+    return { status: res.status, data }
+  } catch (error) {
+    console.error('[Update] Request gagal:', error)
+    return null
+  }
+}
+
+
+
+
+type VersionCheck = { ok: true; info: UpdateInfo } | { ok: false; reason: 'not-available' | 'network' }
+
+
+
+
+async function checkVersionFromServer(currentVersion: string): Promise<VersionCheck> {
   const url = `${getUpdateApiUrl()}/app-version?current=${encodeURIComponent(currentVersion)}&t=${Date.now()}`;
 
-  try {
-    const response = await CapacitorHttp.request({
-      url,
-      method: 'GET',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'Accept': 'application/json',
-      },
-    });
+  const res = await httpJson(url)
+  if (!res) return { ok: false, reason: 'network' }
 
-    if (response.status === 200) {
-      return response.data as UpdateInfo;
+  if (res.status === 200) {
+    if (!res.data || typeof (res.data as UpdateInfo).latestVersion !== 'string') {
+      return { ok: false, reason: 'network' }
     }
-
-    if (response.status === 404) {
-      console.log('[Update] Update API not available yet (404)');
-      return null;
-    }
-
-    throw new Error(`Server returned status ${response.status}`);
-  } catch (error) {
-    console.error('[Update] Version check failed:', error);
-    return null;
+    return { ok: true, info: res.data as UpdateInfo }
   }
+
+  if (res.status === 404) {
+    console.log('[Update] Update API not available yet (404)')
+    return { ok: false, reason: 'not-available' }
+  }
+
+  console.warn(`[Update] Cek versi gagal: status ${res.status}`)
+  return { ok: false, reason: 'network' }
 }
 
 
@@ -238,24 +315,9 @@ async function checkVersionFromServer(currentVersion: string): Promise<UpdateInf
 
 async function fetchReleaseNotes(version: string): Promise<ReleaseNotes | null> {
   const url = `${getUpdateApiUrl()}/release-notes/${encodeURIComponent(version)}?t=${Date.now()}`;
-
-  try {
-    const response = await CapacitorHttp.request({
-      url,
-      method: 'GET',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Accept': 'application/json',
-      },
-    });
-
-    if (response.status === 200) {
-      return response.data as ReleaseNotes;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const res = await httpJson(url)
+  if (!res || res.status !== 200 || !res.data) return null
+  return res.data as ReleaseNotes
 }
 
 
@@ -287,7 +349,7 @@ function openApkWithSystemInstaller(uri: string): Promise<void> {
       open: (path: string, mime: string, opt: { success: () => void; error: (e: unknown) => void }) => void
     } } } }).cordova?.plugins?.fileOpener2
     if (!plugin) {
-      reject(new Error('Installer tak tersedia'))
+      reject(new Error('Installer APK tidak tersedia di perangkat ini — minta admin mengirim APK terbaru untuk dipasang manual'))
       return
     }
     plugin.open(uri, 'application/vnd.android.package-archive', {
@@ -401,33 +463,11 @@ class UpdateService {
   }
 
   private async init(): Promise<void> {
-    try {
-      const { App } = await import('@capacitor/app');
-      const info = await App.getInfo();
-      if (info?.version) {
-        this._currentVersion = info.version;
-        setStoredVersion(info.version);
-        console.log('[Update] Current app version (native):', this._currentVersion);
-
-        // LAPORKAN VERSI KE BACKEND saat startup
-        // Ini memastikan server tahu versi yang terinstall meskipun tidak ada update
-        reportVersionToServer(info.version).catch(() => {});
-        return;
-      }
-    } catch { /* bukan native (web/test) — lanjut fallback */ }
-    try {
-      const storedVersion = getStoredVersion();
-      this._currentVersion = storedVersion || '1.0.0';
-      console.log('[Update] Current app version (stored):', this._currentVersion);
-
-      // Laporkan versi stored ke backend
-      if (storedVersion) {
-        reportVersionToServer(storedVersion).catch(() => {});
-      }
-    } catch {
-      console.log('[Update] Could not get app version, using default');
-      this._currentVersion = '1.0.0';
-    }
+    // Versi NATIVE (App.getInfo) adalah sumber kebenaran; versi tersimpan hanya
+    // cadangan untuk web. Nilai lama yang sempat ditulis setelah unduh (padahal
+    // belum terpasang) tidak boleh dipercaya — itu akar klaim "sudah update" palsu.
+    const version = await this.refreshInstalledVersion()
+    console.log('[Update] Versi terpasang:', version)
   }
 
   get state(): UpdateState {
@@ -474,38 +514,61 @@ class UpdateService {
     this.notify();
 
     try {
+      // Versi native selalu jadi acuan: build yang di-download belum tentu terpasang.
+      await this.refreshInstalledVersion();
+
       const result = await checkVersionFromServer(this._currentVersion);
 
-      if (result === null) {
-        this._state = 'up-to-date';
+      if (!result.ok) {
+        // API update belum ada (404) → anggap tidak ada update; jaringan/server
+        // bermasalah → BERI TAHU, jangan diam-diam bilang "sudah terbaru".
+        this._state = result.reason === 'not-available' ? 'up-to-date' : 'error';
         this._updateInfo = null;
+        if (result.reason !== 'not-available') {
+          this._error = {
+            code: 'NETWORK_ERROR',
+            message: `Gagal menghubungi server update (${getUpdateApiUrl()})`,
+          };
+        }
         this.notify();
         return null;
       }
 
-      this._updateInfo = result;
+      const info = result.info;
+      this._updateInfo = info;
+
+      if (!info.updateAvailable) {
+        this._state = 'up-to-date';
+        this._error = null;
+        this.notify();
+        return info;
+      }
 
       try {
-        localStorage.setItem(STORAGE_KEYS.UPDATE_INFO, JSON.stringify(result));
+        localStorage.setItem(STORAGE_KEYS.UPDATE_INFO, JSON.stringify(info));
         localStorage.setItem(STORAGE_KEYS.LAST_CHECK, new Date().toISOString());
       } catch {
         // Ignore storage errors
       }
 
-      if (result.updateAvailable) {
-        this._state = 'downloading';
-        this._pendingVersion = result.latestVersion;
-        this.notify();
+      this._state = 'downloading';
+      this._pendingVersion = info.latestVersion;
+      this.notify();
 
-        if (result.downloadUrl) {
-          await this.downloadUpdate(result.latestVersion, result.downloadUrl, result.apkHash);
-        }
+      if (info.downloadUrl) {
+        await this.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash);
       } else {
-        this._state = 'up-to-date';
+        // Server menyatakan ada update tetapi tidak memberi URL unduhan yang sah —
+        // laporkan apa adanya daripada menampilkan tombol "Pasang" yang pasti gagal.
+        this._state = 'error';
+        this._error = {
+          code: 'DOWNLOAD_FAILED',
+          message: 'Server menyatakan ada versi baru, tetapi paket APK-nya tidak tersedia. Laporkan ke admin.',
+        };
         this.notify();
       }
 
-      return result;
+      return info;
     } catch (error) {
       this._state = 'error';
       this._error = {
@@ -517,9 +580,10 @@ class UpdateService {
     }
   }
 
-  async downloadUpdate(version: string, downloadUrl: string, _expectedHash?: string | null): Promise<boolean> {
+  async downloadUpdate(version: string, downloadUrl: string, expectedHash?: string | null): Promise<boolean> {
     this._state = 'downloading';
     this._pendingVersion = version;
+    this._error = null;
     this.notify();
 
     let retries = 0;
@@ -527,17 +591,25 @@ class UpdateService {
 
     while (retries < maxRetries) {
       try {
-        await downloadApk(version, downloadUrl);
+        const path = await downloadApk(version, downloadUrl);
 
+        // Verifikasi integritas SEBELUM menawarkan pemasangan.
+        const verified = await this.verifyApkHash(path, version, expectedHash)
+        if (!verified.ok) {
+          try { await Filesystem.deleteFile({ path, directory: Directory.Data }) } catch { /* sudah hilang */ }
+          this._state = 'error';
+          this._error = { code: 'HASH_MISMATCH', message: verified.message };
+          this.notify();
+          return false;
+        }
+
+        // CATATAN PENTING: versi aplikasi TIDAK diubah di sini. Berkas baru saja
+        // diunduh; instalasi bisa dibatalkan pengguna. Menulis versi di sini dulu
+        // membuat aplikasi (dan server) mengklaim sudah ter-update padahal masih
+        // versi lama. Versi resmi hanya berubah bila APK benar-benar terpasang
+        // (dibaca ulang dari App.getInfo() saat aplikasi hidup lagi).
         this._state = 'ready';
-        setStoredVersion(version);
-        this._currentVersion = version;
         this.notify();
-
-        // LAPORKAN VERSI KE BACKEND setelah download APK berhasil
-        // Ini penting agar server tahu mobile sudah menarik update
-        reportVersionToServer(version).catch(() => {});
-
         return true;
 
       } catch (error) {
@@ -573,6 +645,7 @@ class UpdateService {
     }
 
     this._state = 'installing';
+    this._error = null;
     this.notify();
 
     try {
@@ -581,11 +654,37 @@ class UpdateService {
       // web tak punya installer, panduan manual yang tampil
       if (!Capacitor.isNativePlatform()) return true;
 
+      // Berkas wajib ada dan berukuran wajar. Dulu kegagalan unduhan (mis. respons
+      // 404 JSON beberapa ratus byte) tetap "berhasil" dibuka sebagai APK.
+      const info = await Filesystem.stat({ path: apkPath, directory: Directory.Data }).catch(() => null)
+      if (!info) {
+        this._state = 'error';
+        this._error = {
+          code: 'DOWNLOAD_FAILED',
+          message: 'Berkas APK tidak ditemukan di perangkat. Unduh ulang pembaruan.',
+        };
+        this.notify();
+        return false;
+      }
+      if (typeof info.size === 'number' && info.size > 0 && info.size < 1_000_000) {
+        this._state = 'error';
+        this._error = {
+          code: 'DOWNLOAD_FAILED',
+          message: `Berkas APK cacat (${info.size} byte) — kemungkinan respons error server. Unduh ulang.`,
+        };
+        this.notify();
+        return false;
+      }
+
       const { uri } = await Filesystem.getUri({ path: apkPath, directory: Directory.Data })
 
       // buka installer sistem (ACTION_VIEW via FileProvider)
       await openApkWithSystemInstaller(uri)
-      return true;
+
+      // Installer sistem yang berjalan TIDAK berarti sudah terpasang (pengguna bisa
+      // membatalkan). Status tetap di keputusan pengguna sampai versi native benar-
+      // benar berubah — diperiksa `refreshInstalledVersion()` saat aplikasi aktif lagi.
+      return true
     } catch (error) {
       console.error('[Update] Install failed:', error);
       this._state = 'error';
@@ -595,6 +694,98 @@ class UpdateService {
       };
       this.notify();
       return false;
+    }
+  }
+
+
+
+
+  /**
+   * Sinkronkan versi terpasang dengan kenyataan (App.getInfo).
+   *
+   * Dipanggil saat cek update dan saat aplikasi kembali aktif: kalau APK baru
+   * benar-benar terpasang, versi native naik → laporkan ke server & bersihkan
+   * tawaran update. Kalau masih versi lama, jangan pernah mengklaim berhasil.
+   */
+  async refreshInstalledVersion(): Promise<string> {
+    let native: string | null = null
+    try {
+      const { App } = await import('@capacitor/app')
+      const info = await App.getInfo()
+      native = info?.version || null
+    } catch { /* non-native */ }
+
+    if (native) {
+      const berubah = native !== this._currentVersion
+      this._currentVersion = native
+      setStoredVersion(native)
+      if (berubah) {
+        console.log('[Update] Versi native sekarang:', native)
+        reportVersionToServer(native).catch(() => {})
+      }
+      const pending = this._pendingVersion
+      if (pending) {
+        // `pending` sudah terpasang kalau versi native tidak lebih lama darinya.
+        const sudahTerpasang = !isNewerVersion(native, pending)
+        if (sudahTerpasang) {
+          this._pendingVersion = null
+          this._updateInfo = null
+          this._state = 'up-to-date'
+          this._error = null
+          this.notify()
+        } else if (this._state === 'installing') {
+          // Installer dibuka tetapi versi belum berubah → jangan klaim sukses.
+          this._state = 'ready'
+          this._error = {
+            code: 'INSTALL_FAILED',
+            message: `Pemasangan belum selesai — aplikasi masih versi ${native}. Tekan Pasang lagi, lalu setujui dialog pemasangan Android.`,
+          }
+          this.notify()
+        }
+      }
+      return native
+    }
+
+    const stored = getStoredVersion()
+    this._currentVersion = stored || (this._currentVersion === '0.0.0' ? '1.0.0' : this._currentVersion) || '1.0.0'
+    return this._currentVersion
+  }
+
+
+
+
+  /** Cocokkan SHA-256 berkas APK dengan hash dari server (bila tersedia). */
+  private async verifyApkHash(
+    path: string,
+    version: string,
+    expectedHash?: string | null,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const expected = String(expectedHash ?? '').trim().toLowerCase()
+    if (!expected) {
+      console.warn(`[Update] Server tidak mengirim hash untuk ${version} — integritas tidak diverifikasi`)
+      return { ok: true }
+    }
+    try {
+      const file = await Filesystem.readFile({ path, directory: Directory.Data })
+      const raw = typeof file.data === 'string' ? file.data : ''
+      const bytes = raw ? base64ToBytes(raw) : null
+      if (!bytes) {
+        console.warn('[Update] Isi APK tidak bisa dibaca untuk verifikasi hash — lanjut tanpa verifikasi')
+        return { ok: true }
+      }
+      const actual = await sha256Hex(bytes)
+      if (!actual) {
+        console.warn('[Update] WebCrypto tidak tersedia — hash tidak diverifikasi')
+        return { ok: true }
+      }
+      if (actual !== expected) {
+        return { ok: false, message: `Hash APK tidak cocok (file rusak/tidak lengkap). Unduh ulang pembaruan ${version}.` }
+      }
+      console.log(`[Update] Hash APK ${version} terverifikasi`)
+      return { ok: true }
+    } catch (error) {
+      console.warn('[Update] Verifikasi hash gagal dijalankan:', error)
+      return { ok: true }
     }
   }
 

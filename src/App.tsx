@@ -8,7 +8,9 @@ import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
+import { autoDetectApiBaseUrl } from "./services/api"
 import UpdateNotifier from "./components/UpdateNotifier"
+import { updateService } from "./services/updateService"
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
@@ -16,8 +18,13 @@ function Shell() {
   useEffect(() => {
     initializeSync()
     void initOfflineDb()
-    void syncGeofencesFromBackend()
     void checkAndRequestLocationOnStartup()
+    // Endpoint bawaan (build rilis = Railway) belum tentu yang terjangkau dari
+    // jaringan petugas. Cari kandidat yang benar-benar menjawab, baru tarik data —
+    // dulu satu-satunya default adalah Railway sehingga server uji/LAN tak terpakai.
+    void autoDetectApiBaseUrl()
+      .then(base => { if (base) void syncGeofencesFromBackend({ force: true }) })
+      .catch(() => { void syncGeofencesFromBackend() })
   }, [])
 
   useEffect(() => {
@@ -35,6 +42,10 @@ function Shell() {
       if (isActive) {
         syncOnResume()
         void syncGeofencesFromBackend({ force: true })
+        // Setelah pengguna menyetujui pemasangan APK, aplikasi hidup kembali di sini:
+        // versi native dibaca ulang supaya status "sudah ter-update" hanya muncul
+        // kalau APK-nya benar-benar terpasang.
+        void updateService.refreshInstalledVersion()
       }
     }).then(s => { sub = s })
     return () => { sub?.remove?.() }

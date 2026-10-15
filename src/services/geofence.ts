@@ -444,12 +444,19 @@ function assignedRouteCodes(): Set<string> {
 
 
 
-// sisakan cuma titik aktif + yang masuk penugasan petugas
+// sisakan cuma titik aktif + yang masuk penugasan petugas.
+// Titik TANPA kode rute (allowedRoutes kosong) = berlaku di semua rute, jadi
+// JANGAN dibuang: dulu titik begini ikut ter-filter sehingga perangkat petugas
+// berakhir dengan daftar kosong ("Belum ada titik geofence tersimpan") padahal
+// admin sudah menyimpan titik di dashboard.
 export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   const aktif = points.filter(p => p.enabled !== false)
   const penugasan = assignedRouteCodes()
   if (penugasan.size === 0) return aktif
-  return aktif.filter(p => p.allowedRoutes.some(code => penugasan.has(String(code).trim().toUpperCase())))
+  return aktif.filter(p => {
+    if (p.allowedRoutes.length === 0) return true
+    return p.allowedRoutes.some(code => penugasan.has(String(code).trim().toUpperCase()))
+  })
 }
 
 
@@ -514,13 +521,31 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
-    console.log('[geofence] Sync: got', result.data.length, 'items from server')
+    // Backend lama menyaring HANYA `dermaga_id = ?`, sedangkan titik yang dibuat
+    // admin dashboard disimpan tanpa dermagaId (NULL) — hasilnya daftar kosong dan
+    // petugas melihat "Belum ada titik geofence tersimpan" walau admin sudah
+    // menyimpannya. Kalau permintaan terfilter kosong, ambil master lengkap sekali
+    // lagi supaya titik itu tetap sampai ke perangkat tanpa menunggu deploy server.
+    let rows = result.data
+    if (rows.length === 0 && dermagaId) {
+      console.log('[geofence] Sync: hasil filter dermaga kosong → fallback master /geofences')
+      const all = await api.get<BackendGeofence[]>('/geofences')
+      if (all.ok && Array.isArray(all.data) && all.data.length > 0) {
+        rows = all.data
+        console.log('[geofence] Sync: fallback master memberi', rows.length, 'titik')
+      }
+    }
+
+    console.log('[geofence] Sync: got', rows.length, 'items from server')
     const points = scopedGeofencePoints(
-      result.data
+      rows
         .map(mapBackendToGeofence)
         .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
     )
     console.log('[geofence] Sync: after scoped filter,', points.length, 'points remain')
+    if (points.length === 0 && rows.length > 0) {
+      console.warn('[geofence] Sync: server mengirim', rows.length, 'titik tetapi semuanya tersaring oleh kode rute perangkat')
+    }
     const berubah = JSON.stringify(backup) !== JSON.stringify(points)
 
     saveGeofencePoints(points)

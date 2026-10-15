@@ -159,13 +159,9 @@ async function seedDefaultOfficers(): Promise<void> {
             ],
           )
         }
-        const cred = await conn.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [s.id])
-        if (!cred.values?.length) {
-          await conn.run(
-            'INSERT INTO credentials (officer_id, pin_hash, updated_at) VALUES (?, ?, ?)',
-            [s.id, s.pinHash, now],
-          )
-        }
+        // SENGAJA tidak menulis credential untuk petugas seed (temuan F001):
+        // PIN hanya boleh berasal dari sinkron server. Menanam PIN default di
+        // perangkat membuat siapa pun bisa login offline sebagai petugas mana pun.
       }
       return
     } catch (err) {
@@ -191,16 +187,7 @@ async function seedDefaultOfficers(): Promise<void> {
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
 
-    const creds = lsCredentials()
-    let changed = false
-    for (const s of SEED_OFFICERS) {
-      const officerId = String(s.id)
-      if (!creds[officerId]) {
-        creds[officerId] = s.pinHash
-        changed = true
-      }
-    }
-    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
+    // Tidak ada seeding credential di jalur localStorage (lihat catatan F001 di atas).
   } catch {}
 }
 

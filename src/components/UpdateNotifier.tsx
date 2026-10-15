@@ -96,7 +96,13 @@ export function UpdateNotifier({
 
 
   const installUpdate = useCallback(async () => {
-    await updateService.installUpdate()
+    const started = await updateService.installUpdate()
+    // Installer sudah dibuka tetapi versi baru belum pasti terpasang: cek lagi saat
+    // aplikasi kembali aktif (lihat App.tsx) — jangan pernah mengklaim "berhasil"
+    // sebelum versi native benar-benar berubah.
+    if (started) {
+      setTimeout(() => { void updateService.refreshInstalledVersion() }, 5000)
+    }
   }, [])
 
 
@@ -121,6 +127,27 @@ export function UpdateNotifier({
     return null
   }
 
+  // Pemasangan sedang berjalan → jangan tampilkan panel "gagal" yang menyesatkan.
+  if (state === 'installing') {
+    return (
+      <div className="fixed top-4 inset-x-0 z-[9990] flex justify-center px-4 pointer-events-none">
+        <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-slate-200/80 bg-white/95 p-3.5 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <Download size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs font-bold text-slate-800">Menyelesaikan pemasangan…</h4>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                Setujui dialog pemasangan Android. Versi baru terhitung setelah aplikasi hidup kembali.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (dismissed && !info?.isForceUpdate) {
     return null
   }
@@ -128,7 +155,7 @@ export function UpdateNotifier({
 
 
   // modal update wajib
-  if (showForceUpdate && info?.isForceUpdate && state !== 'installing') {
+  if (showForceUpdate && info?.isForceUpdate) {
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
