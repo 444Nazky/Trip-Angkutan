@@ -798,14 +798,6 @@ function seedDefaultGeofences() {
   check.free();
   console.log('[geofence] Seed default: Badau Dermaga 1 & 2');
 }
-        console.warn('[geofence] Seed insert failed:', e2.message);
-      }
-    }
-  }
-  check.free();
-  ins.free();
-  console.log('[geofence] Seed default: Badau Dermaga 1 & 2');
-}
 
 
 
