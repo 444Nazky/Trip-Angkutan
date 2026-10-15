@@ -7,7 +7,9 @@
     "isForceUpdate": false,
     "minVersion": "1.0.0",
     "apkVersionName": "1.0.17",
-    "apkVersionCode": 19
+    "apkVersionCode": 19,
+    "apkSize": 16295794,
+    "apkHash": "5fac0d4d42759d38d543df266a6a1e715deb6455c92c56e8d5d2724c78efa611"
   },
   "releases": {
     "1.0.3": {
@@ -61,7 +63,9 @@
       "isForceUpdate": false,
       "minVersion": "1.0.0",
       "apkVersionName": "1.0.17",
-      "apkVersionCode": 19
+      "apkVersionCode": 19,
+      "apkSize": 16295794,
+      "apkHash": "5fac0d4d42759d38d543df266a6a1e715deb6455c92c56e8d5d2724c78efa611"
     }
   }
 }
