@@ -626,25 +626,37 @@ function initialize() {
 
   // Migration 2: fix geofence data that was stored in wrong columns
   // Copy data from location_name -> name and allowed_route_codes -> allowed_routes
+  // Only run if both source and target columns exist
   try {
-    db.run(`UPDATE geofences SET name = location_name WHERE (name IS NULL OR name = '') AND location_name IS NOT NULL AND location_name != ''`);
-    db.run(`UPDATE geofences SET allowed_routes = allowed_route_codes WHERE (allowed_routes IS NULL OR allowed_routes = '' OR allowed_routes = '[]') AND allowed_route_codes IS NOT NULL AND allowed_route_codes != ''`);
+    const geofenceCols = qAll(`PRAGMA table_info(geofences)`).map(c => c.name);
+    if (geofenceCols.includes('location_name') && geofenceCols.includes('name')) {
+      db.run(`UPDATE geofences SET name = location_name WHERE (name IS NULL OR name = '') AND location_name IS NOT NULL AND location_name != ''`);
+    }
+    if (geofenceCols.includes('allowed_route_codes') && geofenceCols.includes('allowed_routes')) {
+      db.run(`UPDATE geofences SET allowed_routes = allowed_route_codes WHERE (allowed_routes IS NULL OR allowed_routes = '' OR allowed_routes = '[]') AND allowed_route_codes IS NOT NULL AND allowed_route_codes != ''`);
+    }
     console.log('[geofence] Migration: copied data from legacy columns');
   } catch (e) {
     console.warn('[geofence] Migration data copy failed:', e.message);
   }
 
   // Migration 3: fix geofence dermaga_id to use actual UUIDs
+  // Only run if dermaga_id column exists
   try {
-    const badau = q1(`SELECT id FROM regions WHERE code = 'BADAU'`);
-    if (badau) {
-      const d1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [badau.id]);
-      const d2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [badau.id]);
+    const geofenceCols = qAll(`PRAGMA table_info(geofences)`).map(c => c.name);
+    if (!geofenceCols.includes('dermaga_id')) {
+      console.log('[geofence] Migration: dermaga_id column not found, skipping');
+    } else {
+      const badau = q1(`SELECT id FROM regions WHERE code = 'BADAU'`);
+      if (badau) {
+        const d1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [badau.id]);
+        const d2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [badau.id]);
 
-      if (d1 && d2) {
-        db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d1' AND (dermaga_id = 'BADAU-D1' OR dermaga_id IS NULL)`, [d1.id]);
-        db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d2' AND (dermaga_id = 'BADAU-D2' OR dermaga_id IS NULL)`, [d2.id]);
-        console.log('[geofence] Migration: fixed dermaga_id for default geofences');
+        if (d1 && d2) {
+          db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d1' AND (dermaga_id = 'BADAU-D1' OR dermaga_id IS NULL)`, [d1.id]);
+          db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d2' AND (dermaga_id = 'BADAU-D2' OR dermaga_id IS NULL)`, [d2.id]);
+          console.log('[geofence] Migration: fixed dermaga_id for default geofences');
+        }
       }
     }
   } catch (e) {
