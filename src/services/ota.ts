@@ -1,4 +1,5 @@
-import { Capacitor, CapacitorHttp, Device } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Device } from '@capacitor/device'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 import { isDevMode } from './runtimeEnv'
@@ -25,14 +26,17 @@ async function getDeviceId(): Promise<string> {
   if (_cachedDeviceId) return _cachedDeviceId
   try {
     const info = await Device.getId()
-    _cachedDeviceId = info?.identifier || info?.uuid || `device-${Date.now()}`
-  } catch {
-    _cachedDeviceId = localStorage.getItem('trip.deviceId')
-    if (!_cachedDeviceId) {
-      _cachedDeviceId = `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
-      localStorage.setItem('trip.deviceId', _cachedDeviceId)
+    const id = (info as { identifier?: string })?.identifier
+    if (id) {
+      _cachedDeviceId = id
+      return id
     }
+  } catch {
+    // Fallback: continue ke localStorage
   }
+  // Fallback: generate ID acak dan simpan di localStorage
+  _cachedDeviceId = localStorage.getItem('trip.deviceId') || `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  localStorage.setItem('trip.deviceId', _cachedDeviceId)
   return _cachedDeviceId
 }
 

@@ -124,45 +124,28 @@ function shape(rows) {
 
 router.get('/', authenticate, (req, res) => {
   try {
-    const { dermagaId } = req.query;
-    console.log(`[geofence] GET - officerId: ${req.user.officerId}, role: ${req.user.role}, dermagaId: ${dermagaId}`);
-
-    // Debug: log officer's assigned dermagas
-    if (req.user.officerId) {
-      try {
-        const assignedDergamas = db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ?`).all(String(req.user.officerId));
-        console.log(`[geofence] Officer's dermagas:`, assignedDergamas.map(d => d.dermaga_id));
-      } catch (e) { console.log(`[geofence] Error getting officer dermagas:`, e.message); }
-    }
+    const { dermagaId, scope } = req.query;
+    console.log(`[geofence] GET - officerId: ${req.user.officerId}, role: ${req.user.role}, dermagaId: ${dermagaId}, scope: ${scope}`);
 
     let rows;
+    const isAdmin = req.user.role === 'admin';
 
     if (dermagaId) {
+      // Filter by specific dermagaId
       rows = db.prepare(`
-        SELECT g.* FROM geofences g
-        JOIN dermagas d ON g.dermaga_id = d.id
-        JOIN officer_dermagas od ON d.id = od.dermaga_id
-        WHERE od.officer_id = ? AND g.dermaga_id = ?
-        ORDER BY g.name
-      `).all(String(req.user.officerId), String(dermagaId));
+        SELECT * FROM geofences
+        WHERE id = ? OR location_name LIKE ?
+        ORDER BY location_name
+      `).all(String(dermagaId), `%${String(dermagaId)}%`);
       console.log(`[geofence] GET with dermagaId=${dermagaId}: found ${rows.length} rows`);
+    } else if (scope === 'all' && isAdmin) {
+      // Admin wants all geofences
+      rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
+      console.log(`[geofence] GET admin (all): found ${rows.length} rows`);
     } else {
-      if (req.user.role === 'admin') {
-        rows = db.prepare(`SELECT * FROM geofences ORDER BY name`).all();
-        console.log(`[geofence] GET admin (all): found ${rows.length} rows`);
-      } else {
-        // First check all geofences to debug
-        const allGeo = db.prepare(`SELECT g.id, g.name, g.dermaga_id FROM geofences g`).all();
-        console.log(`[geofence] All geofences in DB:`, allGeo.map(g => ({ id: g.id, name: g.name, dermaga_id: g.dermaga_id })));
-
-        rows = db.prepare(`
-          SELECT g.* FROM geofences g
-          JOIN officer_dermagas od ON g.dermaga_id = od.dermaga_id
-          WHERE od.officer_id = ?
-          ORDER BY g.name
-        `).all(String(req.user.officerId));
-        console.log(`[geofence] GET officer filter: found ${rows.length} rows`);
-      }
+      // For officers, return all geofences (admin dashboard filters by route codes on client side)
+      rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
+      console.log(`[geofence] GET returning ${rows.length} geofences for officer`);
     }
 
     const shaped = shape(rows);

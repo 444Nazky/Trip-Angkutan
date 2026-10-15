@@ -30,16 +30,19 @@ async function getDeviceId(): Promise<string> {
 
   try {
     const info = await Device.getId();
-    // Gunakan UUID atau identifier yang tersedia
-    _cachedDeviceId = info?.identifier || info?.uuid || `device-${Date.now()}`;
-  } catch {
-    // Fallback: generate ID acak dan simpan di localStorage
-    _cachedDeviceId = localStorage.getItem('trip.deviceId');
-    if (!_cachedDeviceId) {
-      _cachedDeviceId = `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-      localStorage.setItem('trip.deviceId', _cachedDeviceId);
+    // Gunakan identifier yang tersedia
+    const id = (info as { identifier?: string })?.identifier;
+    if (id) {
+      _cachedDeviceId = id;
+      return id;
     }
+  } catch {
+    // Fallback: continue ke localStorage
   }
+
+  // Fallback: generate ID acak dan simpan di localStorage
+  _cachedDeviceId = localStorage.getItem('trip.deviceId') || `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  localStorage.setItem('trip.deviceId', _cachedDeviceId);
   return _cachedDeviceId;
 }
 
