@@ -10,7 +10,6 @@ import {
 } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
-import { isDevMode } from '../../services/runtimeEnv'
 
 
 
@@ -111,10 +110,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       setConfigMissing(true)
       setSyncNote(
         sync.reason === 'unauthorized'
-          ? 'Sesi ke server belum siap — hubungi admin untuk mendaftarkan titik lokasi Master Rute.'
+          ? 'Sesi server belum siap.'
           : sync.reason === 'empty'
-            ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
-            : 'Konfigurasi geofence belum tersimpan dan server tidak terjangkau — sambungkan ke jaringan lalu tekan Sinkronkan.',
+            ? 'Titik lokasi resmi belum terdaftar.'
+            : 'Server tidak terjangkau. Periksa jaringan.',
       )
     }
 
@@ -168,12 +167,12 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     setConfigMissing(snap.configMissing === true)
     setSyncNote(
       sync.reason === 'empty'
-        ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin.'
+        ? 'Titik lokasi resmi belum terdaftar.'
         : sync.reason === 'unauthorized'
-          ? 'Sesi server belum siap — coba lagi setelah beberapa detik.'
+          ? 'Sesi server belum siap.'
           : sync.ok
-            ? 'Konfigurasi sudah terbaru, tetapi lokasi Anda masih di luar area.'
-            : 'Gagal menghubungi server — periksa jaringan.',
+            ? 'Lokasi di luar area resmi.'
+            : 'Server tidak terjangkau. Periksa jaringan.',
     )
   }
 
@@ -286,70 +285,40 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
       )}
       {geoStatus === 'blocked' && (
-        <div className="rounded-xl border border-red-200 bg-rose-50 p-4 mb-3 shadow-sm">
-          {/* Header dengan ikon AlertTriangle */}
+        <div className="rounded-xl border border-red-200 bg-rose-50 p-3 mb-3">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-              <AlertTriangle size={18} className="text-[#DC2626]" />
+            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={16} className="text-[#DC2626]" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-red-800 text-[13px] mb-1">
-                Di Luar Area Geofence Resmi
+              <p className="font-semibold text-red-800 text-[13px]">
+                {configMissing ? 'Geofence belum tersedia' : 'Di luar area resmi'}
               </p>
-              <p className="text-[11px] text-red-700 leading-relaxed">
+              <p className="text-[11px] text-red-700 leading-snug mt-0.5">
                 {configMissing
-                  ? 'Geofence belum dikonfigurasi admin (Master Rute) — hubungi admin untuk mendaftarkan titik lokasi — pindah ke dermaga resmi untuk input trip.'
-                  : 'Lokasi Anda saat ini berada di luar area bertugas yang diizinkan. Silakan berpindah ke titik lokasi/dermaga resmi untuk melanjutkan input trip.'
+                  ? 'Hubungi admin untuk mendaftarkan titik lokasi.'
+                  : 'Pindah ke dermaga resmi untuk input trip.'
                 }
               </p>
             </div>
           </div>
 
-          {/* Tombol Periksa Ulang Lokasi */}
           <button
             onClick={() => {
               resetGpsFixCache()
               void handleSyncGeofence()
             }}
             disabled={syncingGeo}
-            className="mt-3 w-full py-2.5 rounded-lg bg-white border border-red-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all hover:bg-red-50"
+            className="mt-2.5 w-full py-2 rounded-lg bg-white border border-red-200 text-[12px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 text-red-700 active:scale-[0.98] transition-all hover:bg-red-50"
           >
             <RefreshCw size={14} className={syncingGeo ? 'animate-spin' : ''} />
-            {syncingGeo ? 'Memeriksa Lokasi…' : 'Periksa Ulang Lokasi'}
+            {syncingGeo ? 'Memeriksa lokasi…' : 'Cek lokasi lagi'}
           </button>
 
-          {/* Catatan sinkronisasi */}
           {syncNote && (
-            <p className="text-[11px] text-red-600 mt-2 text-center font-medium">{syncNote}</p>
+            <p className="text-[10px] text-red-600 mt-2 text-center">{syncNote}</p>
           )}
 
-          {/* ── DEV MODE OVERRIDE: hanya terlihat di development build ── */}
-          {isDevMode() && (
-            <div className="mt-3 pt-3 border-t border-red-200">
-              <button
-                onClick={() => {
-                  setActiveGeofence({
-                    id: 'dev-override',
-                    name: 'DEV MODE Override',
-                    latitude: -6.1891005,
-                    longitude: 106.8371641,
-                    radiusMeters: 1000,
-                    allowedRoutes: dermagaFiltered.map(r => r.code),
-                    enabled: true,
-                    strictEnforceOutsideArea: false,
-                  })
-                  setGeoStatus('inside')
-                  setConfigMissing(false)
-                }}
-                className="w-full py-2 rounded-lg bg-amber-100 border border-amber-300 text-[11px] font-bold text-amber-800 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-              >
-                🔧 DEV MODE: Lewati Geofence (Testing Only)
-              </button>
-              <p className="text-[9px] text-amber-600 mt-1.5 text-center">
-                Mode pengembangan — tombol ini tidak muncul di production build
-              </p>
-            </div>
-          )}
         </div>
       )}
 

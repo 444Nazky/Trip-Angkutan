@@ -70,6 +70,15 @@
       "isForceUpdate": false,
       "minVersion": "1.0.0",
       "apkHash": "d2c2a550ac68ca117c84bcda277b2f87afacca4e82d26a9aa6ffd5e0e0115818"
+    },
+    "1.0.11": {
+      "version": "1.0.11",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.11",
+      "releaseDate": "2026-10-15T08:30:00.000Z",
+      "releaseNotes": "Fix backend db.js seedDefaultGeofences() to use old schema columns.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "e851c81f8d94a0a6045c8ea6659b00e9ac581191379161b042ac9784147d8959"
     }
   }
 }
