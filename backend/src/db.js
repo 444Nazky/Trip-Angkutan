@@ -621,6 +621,8 @@ function initialize() {
   seedData();
 
   // Migration 1: add columns that might not exist yet
+  // name is NOT NULL in schema, so we need to add it with a default value
+  try { db.run(`ALTER TABLE geofences ADD COLUMN name TEXT DEFAULT ''`); } catch (e) { /* already exists */ }
   try { db.run(`ALTER TABLE geofences ADD COLUMN location_name TEXT`); } catch (e) { /* already exists */ }
   try { db.run(`ALTER TABLE geofences ADD COLUMN allowed_route_codes TEXT`); } catch (e) { /* already exists */ }
 
@@ -707,11 +709,22 @@ function seedDefaultGeofences() {
 
   if (!d1 || !d2) return;
 
+  // Check which columns exist in geofences table
+  const cols = qAll(`PRAGMA table_info(geofences)`).map(c => c.name);
+  const hasName = cols.includes('name');
+  const hasLocationName = cols.includes('location_name');
+  const hasAllowedRouteCodes = cols.includes('allowed_route_codes');
+  const hasEnabled = cols.includes('enabled');
+
+  if (!hasName && !hasLocationName) {
+    console.warn('[geofence] Seed: neither name nor location_name column exists, skipping seed');
+    return;
+  }
+
   const defaults = [
     {
       id: 'badau-d1',
       name: 'Badau Dermaga 1',
-      dermaga_id: d1.id,
       latitude: -6.1891005,
       longitude: 106.8371641,
       radius_meters: 100,
@@ -720,7 +733,6 @@ function seedDefaultGeofences() {
     {
       id: 'badau-d2',
       name: 'Badau Dermaga 2',
-      dermaga_id: d2.id,
       latitude: -6.2389899548617285,
       longitude: 106.97475839406252,
       radius_meters: 100,
@@ -731,13 +743,37 @@ function seedDefaultGeofences() {
   // Check if geofences table has data already
   const check = db.prepare('SELECT id FROM geofences WHERE id = ?');
 
-  // Insert with all required columns:
-  // - name: NOT NULL (use name for both name and location_name for compatibility)
-  // - allowed_route_codes: for mobile app compatibility
-  // - enabled: has DEFAULT 1 in schema, explicitly set to 1
+  // Build INSERT statement based on available columns
+  let colNames = ['id'];
+  let placeholders = ['?'];
+  let values = [];
+
+  // location_name is the primary name column (used by mobile)
+  if (hasLocationName) {
+    colNames.push('location_name');
+    placeholders.push('?');
+  }
+  if (hasName) {
+    colNames.push('name');
+    placeholders.push('?');
+  }
+
+  colNames.push('latitude', 'longitude', 'radius_meters');
+  placeholders.push('?', '?', '?');
+
+  if (hasAllowedRouteCodes) {
+    colNames.push('allowed_route_codes');
+    placeholders.push('?');
+  }
+
+  if (hasEnabled) {
+    colNames.push('enabled');
+    placeholders.push('?');
+  }
+
   const ins = db.prepare(`
-    INSERT OR IGNORE INTO geofences (id, name, location_name, latitude, longitude, radius_meters, allowed_route_codes, enabled)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    INSERT OR IGNORE INTO geofences (${colNames.join(', ')})
+    VALUES (${placeholders.join(', ')})
   `);
 
   for (const g of defaults) {
@@ -746,8 +782,22 @@ function seedDefaultGeofences() {
     check.reset();
     if (!exists) {
       try {
-        ins.run([g.id, g.name, g.name, g.latitude, g.longitude, g.radius_meters, g.allowed_routes]);
+        values = [g.id];
+        if (hasLocationName) values.push(g.name);
+        if (hasName) values.push(g.name);
+        values.push(g.latitude, g.longitude, g.radius_meters);
+        if (hasAllowedRouteCodes) values.push(g.allowed_routes);
+        if (hasEnabled) values.push(1);
+        ins.run(values);
       } catch (e2) {
+        console.warn('[geofence] Seed insert failed:', e2.message);
+      }
+    }
+  }
+  ins.free();
+  check.free();
+  console.log('[geofence] Seed default: Badau Dermaga 1 & 2');
+}
         console.warn('[geofence] Seed insert failed:', e2.message);
       }
     }

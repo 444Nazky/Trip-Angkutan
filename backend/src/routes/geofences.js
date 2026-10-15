@@ -131,20 +131,20 @@ router.get('/', authenticate, (req, res) => {
     const isAdmin = req.user.role === 'admin';
 
     if (dermagaId) {
-      // Filter by specific dermagaId
+      // Filter by specific dermagaId - use COALESCE for compatibility
       rows = db.prepare(`
         SELECT * FROM geofences
-        WHERE id = ? OR location_name LIKE ?
-        ORDER BY location_name
+        WHERE id = ? OR COALESCE(location_name, name, '') LIKE ?
+        ORDER BY COALESCE(location_name, name, id)
       `).all(String(dermagaId), `%${String(dermagaId)}%`);
       console.log(`[geofence] GET with dermagaId=${dermagaId}: found ${rows.length} rows`);
     } else if (scope === 'all' && isAdmin) {
       // Admin wants all geofences
-      rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
+      rows = db.prepare(`SELECT * FROM geofences ORDER BY COALESCE(location_name, name, id)`).all();
       console.log(`[geofence] GET admin (all): found ${rows.length} rows`);
     } else {
       // For officers, return all geofences (admin dashboard filters by route codes on client side)
-      rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
+      rows = db.prepare(`SELECT * FROM geofences ORDER BY COALESCE(location_name, name, id)`).all();
       console.log(`[geofence] GET returning ${rows.length} geofences for officer`);
     }
 
