@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-# Publish rilis APK: build → upload CDN → catat metadata → (opsional) git push.
-# Jalankan dari ROOT branch mobile-trip: ./scripts/publish-release.sh 1.0.3
 set -euo pipefail
 
 VERSION=""
@@ -15,16 +12,18 @@ for arg in "$@"; do
   esac
 done
 
+
+
 if [[ -z "$VERSION" ]]; then echo "Usage: $0 <version>"; exit 1; fi
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Invalid version format: $VERSION"; exit 1; fi
 
-# ── Guard: harus dari root branch ──────────────────────────────────────────
+
 if [[ ! -f package.json || ! -d android || ! -d backend ]]; then
   echo "Jalankan dari ROOT branch mobile-trip (ada package.json, android/, backend/)."
   exit 1
 fi
 
-# ── Guard: VERSION arg wajib = android versionName (anti-mismatch) ─────────
+
 NATIVE_VER=$(grep -m1 'versionName' android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')
 if [[ "$VERSION" != "$NATIVE_VER" ]]; then
   echo "MISMATCH: arg $VERSION != android versionName $NATIVE_VER."

@@ -40,6 +40,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const launchedRef = useRef(false)
   const busyRef = useRef(false)
 
+
+
+
   const isOcr = draft.cameraMode === 'ocr'
   const retake = draft.retakeTarget
   const returnTo: MobileScreen = retake
@@ -52,15 +55,24 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
+
+
+
   useEffect(() => {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
   }, [])
 
+
+
+
   const stopStream = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
   }
+
+
+
 
   const startStream = async () => {
     if (streamRef.current) return
@@ -83,6 +95,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     }
   }
 
+
+
+
   useEffect(() => {
     if (launchedRef.current) return
     launchedRef.current = true
@@ -95,6 +110,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+
+
+
   useEffect(() => {
     const v = videoRef.current
     if (liveState === 'ready' && v && streamRef.current && v.srcObject !== streamRef.current) {
@@ -102,6 +120,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       void v.play().catch(() => { /* autoplay blocked */ })
     }
   }, [liveState])
+
+
+
 
   const snapshotFromCanvas = (): string | null => {
     const v = videoRef.current
@@ -111,6 +132,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     cv.getContext('2d')?.drawImage(v, 0, 0)
     return cv.toDataURL('image/jpeg', 0.92)
   }
+
+
+
 
   async function addWatermark(
     dataUrl: string,
@@ -129,6 +153,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       if (!ctx) return dataUrl
       ctx.drawImage(img, 0, 0, w, h)
 
+
+
+
       const lines: Array<{ text: string; color: string; font: string }> = [
         {
           text: capturedAt.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }),
@@ -143,6 +170,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           font: '12px monospace',
         },
       ]
+
+
+
       if (region) lines.push({ text: region.toUpperCase(), color: '#fde68a', font: '11px monospace' })
 
       const padX = 12, padY = 8, lineH = 17
@@ -151,10 +181,16 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         ctx.font = l.font
         return ctx.measureText(l.text).width
       }), 0)
+
+
+
       const boxW = Math.min(w - 2 * padX, textW + padX * 2)
       const boxH = lines.length * lineH + padY * 2
       const bx = w - boxW - padX
       const by = h - boxH - padY
+
+
+
 
       ctx.save()
       ctx.fillStyle = 'rgba(0,0,0,0.55)'
@@ -163,6 +199,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       else ctx.rect(bx, by, boxW, boxH)
       ctx.fill()
       ctx.restore()
+
+
+
 
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
@@ -183,6 +222,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     }
   }
 
+
+
+
+
   const deliver = async (rawDataUrl: string) => {
     const capturedAt = new Date()
     setBusy(true)
@@ -197,6 +240,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       lon = pos.coords.longitude
     } catch { /* lokasi gagal — tetap lanjut */ }
 
+
+
+
     const watermarked = await addWatermark(rawDataUrl, lat, lon, regionLabel, capturedAt)
 
     if (isOcr) {
@@ -210,6 +256,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
 
+
+
+
+    
     const capturedIso = capturedAt.toISOString()
 
     if (retake) {
@@ -229,11 +279,17 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           photoLongitude: lon,
         })
       }
+
+
+
       patchDraft({ retakeTarget: undefined })
       setBusy(false)
       go('history-detail')
       return
     }
+
+
+
 
     if (draft.selfieMode) {
       patchDraft({
@@ -246,6 +302,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       go(returnTo)
       return
     }
+
+
+
 
     if (draft.cameraFrom === 'vehicle-form') {
       patchDraft({
@@ -270,6 +329,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     go(returnTo)
   }
 
+
+
+
+
   async function openNativeCamera() {
     if (busyRef.current) return
     busyRef.current = true
@@ -282,11 +345,18 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
       })
+
+
+
+
       if (image?.dataUrl) {
         busyRef.current = false
         await deliver(image.dataUrl)
         return
       }
+
+
+
       busyRef.current = false
       setBusy(false)
       go(returnTo)
@@ -298,11 +368,18 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         go(returnTo)
         return
       }
+
+
+
       console.warn('[camera] native gagal', err)
       await startStream()
       setErrorMsg('Kamera tidak terbuka — ketuk tombol untuk mencoba lagi')
     }
   }
+
+
+
+
 
   const handleCapture = async () => {
     if (busy) return
@@ -313,6 +390,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
 
+
+
+
+
     if (!streamRef.current) await startStream()
     const dataUrl = snapshotFromCanvas()
     if (!dataUrl) {
@@ -321,6 +402,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     }
     await deliver(dataUrl)
   }
+
+
+
+
 
   const now = new Date()
 
@@ -337,6 +422,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         />
       )}
 
+
+
+
       {/* ── Header overlay ── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <button
@@ -350,6 +438,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         </span>
         <div className="w-10" />
       </div>
+
+
+
 
       {/* ── Pratinjau watermark (GPS + waktu berjalan) ── */}
       <div className="absolute right-4 bottom-32 z-20 flex flex-col items-end gap-1 text-right pointer-events-none">
@@ -367,6 +458,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         </div>
       </div>
 
+
+
+
+
       {/* ── Kontrol bawah ── */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-10 pb-9 px-6 flex flex-col items-center gap-3">
         {errorMsg && (
@@ -374,17 +469,27 @@ export default function CameraScreen({ go }: CameraScreenProps) {
             <AlertCircle size={12} /> {errorMsg}
           </div>
         )}
+
+
+
+
         <button
           onClick={() => void handleCapture()}
           disabled={busy}
           aria-label="Ambil foto"
           className="w-[74px] h-[74px] rounded-full bg-white/95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-transform flex items-center justify-center shadow-[0_0_0_4px_rgba(255,255,255,0.25)]"
         >
+
+
+          
           {busy
             ? <Loader2 size={28} className="animate-spin text-slate-500" />
             : <span className="w-14 h-14 rounded-full ring-4 ring-black/10" />
           }
         </button>
+
+
+        
         <span className="text-white/70 text-[10px] font-semibold uppercase tracking-[0.2em]">
           {busy ? 'Memproses…' : 'Tap untuk memotret'}
         </span>
