@@ -239,18 +239,18 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
 
     if (b.locationName !== undefined || b.name !== undefined) {
       const n = String(b.locationName || b.name || '').trim();
-      if (n) { sets.push('name = ?'); args.push(n); }
+      if (n) { sets.push('location_name = ?'); args.push(n); }
     }
     if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
     if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
     if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
     if (b.allowedRouteCodes !== undefined) {
-      sets.push('allowed_routes = ?');
+      sets.push('allowed_route_codes = ?');
       args.push(Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes));
     }
-    if (b.dermagaId !== undefined) {
-      sets.push('dermaga_id = ?');
-      args.push(b.dermagaId ? String(b.dermagaId) : null);
+    if (b.allowedDirections !== undefined) {
+      sets.push('allowed_directions = ?');
+      args.push(Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections));
     }
     if (b.description !== undefined) { sets.push('description = ?'); args.push(String(b.description ?? '')); }
 

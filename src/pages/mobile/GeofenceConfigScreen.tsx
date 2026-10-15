@@ -5,10 +5,10 @@ import {
   saveGeofencePoints,
   isValidGeofencePoint,
   getActiveGeofenceSnapshot,
-  syncGeofencesFromBackend,
   GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
+import { api } from '../../services/api'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
