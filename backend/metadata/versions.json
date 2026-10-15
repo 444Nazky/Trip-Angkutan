@@ -1,12 +1,12 @@
 {
   "latest": {
-    "version": "1.0.10",
-    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.10",
-    "releaseDate": "2026-10-15T08:15:00.000Z",
-    "releaseNotes": "Fix schema sync: mobile uses same columns as admin dashboard (location_name, allowed_route_codes).",
+    "version": "1.0.9",
+    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
+    "releaseDate": "2026-10-15T08:51:19.002Z",
+    "releaseNotes": "Rilis 1.0.9 terverifikasi biner.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "d2c2a550ac68ca117c84bcda277b2f87afacca4e82d26a9aa6ffd5e0e0115818"
+    "apkHash": "a5712955af584776449d4bc17e382c73b1c4dfa4a4b961bf8f28620476daf375"
   },
   "releases": {
     "1.0.3": {
@@ -56,11 +56,11 @@
     "1.0.9": {
       "version": "1.0.9",
       "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
-      "releaseDate": "2026-10-15T08:00:00.000Z",
-      "releaseNotes": "Full audit geofence: fix schema mismatch, migration data, debug logging.",
+      "releaseDate": "2026-10-15T08:51:19.002Z",
+      "releaseNotes": "Rilis 1.0.9 terverifikasi biner.",
       "isForceUpdate": false,
       "minVersion": "1.0.0",
-      "apkHash": "fb6164328dd85726fb3630649e6b0bf1ceea8d614554af222be24d27699e364e"
+      "apkHash": "a5712955af584776449d4bc17e382c73b1c4dfa4a4b961bf8f28620476daf375"
     },
     "1.0.10": {
       "version": "1.0.10",
