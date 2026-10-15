@@ -53,6 +53,12 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
     }
   }
 
+
+
+  
+
+
+
   useEffect(() => {
     void loadOfficers()
   }, [])
@@ -75,6 +81,9 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
       setSyncing(false)
     }
   }
+
+
+
 
   const formatSyncTime = (ts: number | null) => {
     if (!ts) return 'Belum pernah'
