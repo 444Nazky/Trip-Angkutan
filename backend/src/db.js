@@ -666,6 +666,30 @@ function initialize() {
   try {
     db.run(`ALTER TABLE geofences ADD COLUMN strict_enforce_outside INTEGER DEFAULT 1`);
   } catch (e) { /* kolom sudah ada */ }
+
+  // Migration 4: Repair existing geofence records with missing name column
+  try {
+    const cols = qAll(`PRAGMA table_info(geofences)`).map(c => c.name);
+    if (cols.includes('name') && cols.includes('location_name')) {
+      // Set name from location_name if name is empty/null
+      db.run(`UPDATE geofences SET name = location_name WHERE (name IS NULL OR name = '') AND location_name IS NOT NULL AND location_name != ''`);
+      // Set location_name from name if location_name is empty/null
+      db.run(`UPDATE geofences SET location_name = name WHERE (location_name IS NULL OR location_name = '') AND name IS NOT NULL AND name != ''`);
+      console.log('[geofence] Migration 4: repaired name/location_name columns');
+    }
+    // Set allowed_route_codes from allowed_routes if missing
+    if (cols.includes('allowed_route_codes') && cols.includes('allowed_routes')) {
+      db.run(`UPDATE geofences SET allowed_route_codes = allowed_routes WHERE (allowed_route_codes IS NULL OR allowed_route_codes = '') AND allowed_routes IS NOT NULL AND allowed_routes != '' AND allowed_routes != '[]'`);
+    }
+    // Set enabled = 1 if missing (NULL)
+    if (cols.includes('enabled')) {
+      db.run(`UPDATE geofences SET enabled = 1 WHERE enabled IS NULL`);
+    }
+    console.log('[geofence] Migration 4: completed');
+  } catch (e) {
+    console.warn('[geofence] Migration 4 failed:', e.message);
+  }
+
   seedDefaultGeofences();
   saveDb();
 }
