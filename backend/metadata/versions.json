@@ -1,12 +1,12 @@
 {
   "latest": {
-    "version": "1.0.9",
-    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
-    "releaseDate": "2026-10-15T08:51:19.002Z",
-    "releaseNotes": "Rilis 1.0.9 terverifikasi biner.",
+    "version": "1.0.12",
+    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.12",
+    "releaseDate": "2026-10-15T09:00:00.000Z",
+    "releaseNotes": "APK rebuilt after clean build.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "a5712955af584776449d4bc17e382c73b1c4dfa4a4b961bf8f28620476daf375"
+    "apkHash": "81ceb907a0e6d30b82ce22fad88638d3e9def6d78fd3ebf038445ae174ec4554"
   },
   "releases": {
     "1.0.3": {
@@ -75,10 +75,19 @@
       "version": "1.0.11",
       "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.11",
       "releaseDate": "2026-10-15T08:30:00.000Z",
-      "releaseNotes": "Fix backend db.js seedDefaultGeofences() to use old schema columns.",
+      "releaseNotes": "Fix backend db.js seedDefaultGeofences().",
       "isForceUpdate": false,
       "minVersion": "1.0.0",
       "apkHash": "e851c81f8d94a0a6045c8ea6659b00e9ac581191379161b042ac9784147d8959"
+    },
+    "1.0.12": {
+      "version": "1.0.12",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.12",
+      "releaseDate": "2026-10-15T09:00:00.000Z",
+      "releaseNotes": "APK rebuilt after clean build.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "81ceb907a0e6d30b82ce22fad88638d3e9def6d78fd3ebf038445ae174ec4554"
     }
   }
 }
