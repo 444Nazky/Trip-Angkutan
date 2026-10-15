@@ -139,18 +139,17 @@ export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise
   const url = normalizeApiBaseInput(raw)
   const t0 = Date.now()
 
-  // Android memblokir cleartext http:// ke host non-lokal (network_security_config).
-  // Lebih baik dijelaskan terang-terangan daripada berbunyi "server tidak merespon".
-  if (Capacitor.isNativePlatform() && /^http:\/\//i.test(url)) {
+  // APK hanya mengizinkan http:// untuk host LAN/privat (lihat
+  // android/app/src/main/res/xml/network_security_config.xml). Host PUBLIK tetap
+  // wajib https. Bedakan sejak awal supaya pesannya jelas, bukan "tidak merespon".
+  if (Capacitor.isNativePlatform() && /^http:\/\//i.test(url) && !isPrivateHostUrl(url)) {
     const host = url.replace(/^http:\/\//i, '').split('/')[0]
-    if (!/^(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/i.test(host)) {
-      return {
-        reachable: false,
-        ms: Date.now() - t0,
-        blockedByCors: false,
-        cleartextBlocked: true,
-        detail: `APK hanya mengizinkan HTTPS (http://${host} diblokir Android). Pakai https:// atau alamat LAN yang diizinkan.`,
-      }
+    return {
+      reachable: false,
+      ms: Date.now() - t0,
+      blockedByCors: false,
+      cleartextBlocked: true,
+      detail: `Host publik wajib https:// (http://${host} diblokir Android). Alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost) tetap boleh http://.`,
     }
   }
 
@@ -234,6 +233,26 @@ export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise
 
 // host lokal/LAN boleh tanpa TLS; host publik wajib https.
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i
+
+
+
+/**
+ * Apakah host URL ini loopback/LAN privat (boleh http:// di APK)?
+ *
+ * Dipakai bersama oleh probe kesehatan server dan penyimpanan URL manual, supaya
+ * tidak ada lagi ketidakcocokan: dulu normalizeBaseUrl menganggap 192.168.x LOKAL
+ * (tetap http) sementara probe menyebutnya "diblokir APK" — petugas melihat
+ * "Server tidak merespon (8 ms)" untuk server LAN yang sebenarnya sehat.
+ */
+export function isPrivateHostUrl(raw: string): boolean {
+  const value = String(raw ?? '').trim()
+  if (!value) return false
+  const authority = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split('/')[0].split('@').pop() ?? ''
+  const host = authority.startsWith('[')
+    ? authority.slice(1, authority.includes(']') ? authority.indexOf(']') : undefined)
+    : authority.replace(/:\d+$/, '')
+  return LOCAL_HOST.test(host) || host === '::1'
+}
 
 
 

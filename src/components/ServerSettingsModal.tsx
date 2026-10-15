@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Server, X } from 'lucide-react'
-import { api, apiBaseCandidateLabel, apiBaseCandidates, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from '../services/api'
+import { api, apiBaseCandidateLabel, apiBaseCandidates, isPrivateHostUrl, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from '../services/api'
 import { environment } from '../environments/environment'
 
 
@@ -78,8 +78,8 @@ export default function ServerSettingsModal({ onClose }: Props) {
       setStatus({ kind: 'fail', msg: 'URL kosong.' })
       return
     }
-    if (/^http:\/\//i.test(v) && !/localhost|127\.0\.0\.1|192\.168\.|10\./.test(v)) {
-      setStatus({ kind: 'fail', msg: 'Pakai https, kecuali localhost/LAN.' })
+    if (/^http:\/\//i.test(v) && !isPrivateHostUrl(v)) {
+      setStatus({ kind: 'fail', msg: 'Pakai https untuk host publik, kecuali alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost).' })
       return
     }
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })

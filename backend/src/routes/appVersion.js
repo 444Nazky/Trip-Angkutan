@@ -118,6 +118,26 @@ function isSelfDownloadUrl(url) {
 
 
 
+/**
+ * Basis URL absolut untuk request ini (mis. https://aplikasi-trip-api-production.up.railway.app).
+ *
+ * Dipakai untuk menyusun URL unduhan APK lokal supaya SELALU absolut. Klien yang
+ * lebih tua menggabungkan path relatif terhadap base URL-nya sendiri sehingga
+ * `/api/v1/app-download/1.0.6` menjadi `.../api/api/v1/app-download/1.0.6` → 404
+ * JSON → berkas "dokumen" kecil tersimpan, verifikasi hash gagal, dan petugas
+ * melihat update yang selalu gagal.
+ */
+function requestBase(req) {
+  const forwardedProto = String(req?.headers?.['x-forwarded-proto'] ?? '').split(',')[0].trim();
+  const proto = forwardedProto || req?.protocol || 'https';
+  const forwardedHost = String(req?.headers?.['x-forwarded-host'] ?? '').split(',')[0].trim();
+  const host = forwardedHost || req?.get?.('host') || '';
+  if (!host) return absoluteBase(process.env.PUBLIC_BASE_URL || '');
+  return `${proto}://${host}`;
+}
+
+
+
 const headCache = new Map();
 
 /**
@@ -166,7 +186,7 @@ function declaredVersionMatches(version, release) {
 
 
 
-async function resolvePackage(version, release) {
+async function resolvePackage(version, release, baseUrl = '') {
   if (!declaredVersionMatches(version, release)) {
     console.warn(`[update] v${version} dilewati: metadata menyatakan APK berisi ${release?.apkVersionName}`);
     return { available: false, source: 'version-mismatch', size: null, sha256: null, url: null };
@@ -179,7 +199,8 @@ async function resolvePackage(version, release) {
       source: 'local',
       size: local.size,
       sha256: local.sha256 || release?.apkHash || null,
-      url: `/api/v1/app-download/${version}`,
+      // URL ABSOLUT (bukan path relatif) — lihat catatan di requestBase().
+      url: `${baseUrl}/api/v1/app-download/${version}`,
     };
   }
 
@@ -212,9 +233,9 @@ function releaseCandidates(metadata) {
 
 
 /** Rilis terbaru yang PAKET-nya benar-benar bisa diunduh. */
-async function latestDeliverableRelease(metadata) {
+async function latestDeliverableRelease(metadata, baseUrl = '') {
   for (const candidate of releaseCandidates(metadata)) {
-    const pkg = await resolvePackage(candidate.version, candidate.release);
+    const pkg = await resolvePackage(candidate.version, candidate.release, baseUrl);
     if (pkg.available) return { ...candidate, pkg };
   }
   return null;
@@ -253,7 +274,7 @@ router.get('/app-version', async (req, res) => {
       });
     }
 
-    const deliverable = await latestDeliverableRelease(metadata);
+    const deliverable = await latestDeliverableRelease(metadata, requestBase(req));
     if (!deliverable) {
       // Tidak ada paket yang bisa diunduh (mis. metadata menunjuk versi tanpa APK).
       // Jangan berbohong: kirim "tidak ada update" + alasan, biar tidak memicu

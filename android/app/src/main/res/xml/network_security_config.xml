@@ -1,15 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Production: Only allow HTTPS traffic -->
-    <base-config cleartextTrafficPermitted="false">
+    <!--
+        Kebijakan cleartext (SESI 2026-10-15 — perubahan sadar, tercatat di audit):
+
+        Dulu base-config cleartextTrafficPermitted="false" + pengecualian hanya
+        localhost/10.0.2.2/127.0.0.1. Akibatnya server kantor di LAN
+        (http://192.168.x.x:3000) SELALU gagal dalam hitungan milidetik dan
+        dilaporkan sebagai "Server tidak merespon (8 ms)... URL lama tetap dipakai"
+        — petugas tidak bisa memindahkan endpoint dari Railway ke PC kantor.
+
+        Android tidak mendukung rentang IP/CIDR pada elemen <domain>, jadi tidak
+        mungkin mengizinkan 192.168.0.0/16 secara selektif di sini. Karena itu
+        cleartext diizinkan di level platform, TETAPI kebijakan https-only untuk
+        host publik tetap ditegakkan di kode aplikasi:
+          - src/services/api.ts → normalizeBaseUrl() memaksa https untuk host publik
+          - src/services/api.ts → probeServerHealth() menolak http:// host publik
+            dengan pesan jelas (cleartextBlocked) sebelum request dikirim
+          - ServerSettingsModal hanya menyimpan URL publik bila https
+
+        Sisa permukaan: aplikasi/webview yang dikompromikan masih bisa membuka
+        http:// ke host publik. Mitigasi terjadwal: tinjau ulang saat server kantor
+        sudah memakai TLS (cloudflared tunnel) → kembalikan ke "false".
+    -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <!-- Allow cleartext only for local development -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-    </domain-config>
 </network-security-config>

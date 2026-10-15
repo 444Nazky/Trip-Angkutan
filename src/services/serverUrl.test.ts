@@ -22,7 +22,7 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
-import { api, autoDetectApiBaseUrl, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from './api'
+import { api, autoDetectApiBaseUrl, isPrivateHostUrl, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from './api'
 import { environment } from '../environments/environment'
 
 
@@ -202,14 +202,22 @@ describe('probeServerHealth di APK (native)', () => {
     expect(seen).toHaveLength(1) // server yang hidup TIDAK lagi dilaporkan mati
   })
 
-  it('URL http:// ke host non-lokal diblokir Android → dijelaskan, bukan "tidak merespon"', async () => {
+  it('server LAN http:// (192.168.x) BOLEH dipakai — dulu dilaporkan "tidak merespon (8 ms)"', async () => {
+    const r = await probeServerHealth('192.168.1.5:3000')
+
+    expect(r.reachable).toBe(true)
+    expect(r.cleartextBlocked).toBeFalsy()
+    expect(cap.calls).toBe(1) // benar-benar ditembak, bukan ditolak di depan
+  })
+
+  it('http:// ke host PUBLIK tetap diblokir (https-only) → dijelaskan, bukan "tidak merespon"', async () => {
     const seen: string[] = []
     globalThis.fetch = vi.fn(async (url: string) => {
       seen.push(String(url))
       return { ok: true, status: 200, type: 'cors' } as unknown as Response
     }) as unknown as typeof fetch
 
-    const r = await probeServerHealth('192.168.1.5:3000')
+    const r = await probeServerHealth('http://api.example.com')
 
     expect(r.reachable).toBe(false)
     expect(r.cleartextBlocked).toBe(true)
@@ -265,5 +273,36 @@ describe('autoDetectApiBaseUrl', () => {
 
     expect(await autoDetectApiBaseUrl(40)).toBeNull()
     expect(resolveApiBaseUrl()).toBe(environment.apiBaseUrl.replace(/\/+$/, ''))
+  })
+})
+
+// ── Kebijakan http/https per host (selaras dengan network_security_config) ───
+
+describe('isPrivateHostUrl', () => {
+  it('host LAN/privat boleh http (server kantor)', () => {
+    for (const u of [
+      'http://192.168.1.5:3000/api',
+      '192.168.1.5:3000',
+      'http://10.10.10.2:3000',
+      'http://172.16.5.4:3000',
+      'http://172.31.9.9',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ]) {
+      expect(isPrivateHostUrl(u), u).toBe(true)
+    }
+  })
+
+  it('host publik & rentang privat palsu tidak dianggap lokal', () => {
+    for (const u of [
+      'http://api.example.com',
+      'https://aplikasi-trip-api-production.up.railway.app/api',
+      'http://172.15.0.1:3000',
+      'http://172.32.0.1:3000',
+      'http://192.169.1.5:3000',
+      '',
+    ]) {
+      expect(isPrivateHostUrl(u), u).toBe(false)
+    }
   })
 })

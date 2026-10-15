@@ -83,6 +83,16 @@ mkdir -p backend/apks
 cp -f "$APK" "backend/apks/app-$VERSION.apk"
 echo " Salinan lokal: backend/apks/app-$VERSION.apk"
 
+# Salinan ke backend endpoint (Railway) supaya /api/v1/app-download/<versi> juga
+# dilayani langsung dari server, bukan hanya CDN. Sesi 2026-10-15: metadata pernah
+# menunjuk versi tanpa berkas di server → update di HP selalu gagal.
+SIB_APK_DIR="../endpoint-trip Endpoint Branch/backend/apks"
+if [[ -d "$SIB_APK_DIR" ]]; then
+  cp -f "$APK" "$SIB_APK_DIR/app-$VERSION.apk"
+  echo " Salinan mirror endpoint: $SIB_APK_DIR/app-$VERSION.apk"
+  echo "   (commit di repo endpoint: git -C '../endpoint-trip Endpoint Branch' add -f backend/apks/app-$VERSION.apk)"
+fi
+
 echo "[2/4] Uploading..."
 URL=$(curl -sS -m 180 --retry 2 -F "reqtype=fileupload" -F "fileToUpload=@$APK" https://catbox.moe/user/api.php)
 echo " URL: $URL"
