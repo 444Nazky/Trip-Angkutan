@@ -1,6 +1,6 @@
 {
   "name": "ionic-app-base",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": "Ionic Framework",
   "homepage": "https://ionicframework.com/",
   "engines": {
@@ -31,6 +31,7 @@
     "@capacitor/geolocation": "^8.2.3",
     "@capacitor/network": "^8.0.0",
     "bcryptjs": "^3.0.3",
+    "cordova-plugin-file-opener2": "^4.0.0",
     "express": "^4.19.2",
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",

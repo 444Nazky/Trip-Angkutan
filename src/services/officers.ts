@@ -55,7 +55,8 @@ function saveCache(officers: BackendOfficer[]) {
 
 
 
-async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
+// null = sesi/jaringan belum siap → pemanggil pakai data lokal, tanpa error
+async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | null> {
   if (!force) {
     const cache = loadCache()
     if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
@@ -64,17 +65,25 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
   }
 
   const ok = await ensureBackendSession()
-  if (!ok || !api.isAuthenticated) throw new Error('Sesi petugas tidak valid. Masuk ulang secara online.')
+  if (!ok || !api.isAuthenticated) {
+    // token usang → buang biar tidak nembak server terus-terusan
+    if (api.isAuthenticated) api.setToken(null)
+    return loadCache()?.officers ?? null
+  }
 
   const result = await api.get<BackendOfficer[]>('/officers/my-region')
   if (!result.ok) {
-    if (result.error?.code === '401' || result.error?.code === '403') {
-      throw new Error('Sesi petugas tidak valid. Masuk ulang secara online.')
+    const code = result.error?.code
+    if (code === '401' || code === '403') {
+      // sesi ditolak server → bersihin token, lanjut pakai data lokal
+      api.setToken(null)
+      return loadCache()?.officers ?? null
     }
-    if (result.error?.code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
-    throw new Error(result.error?.message || 'Server gagal mengirim daftar petugas.')
+    if (code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
+    // jaringan putus / CORS / timeout → jangan ganggu petugas
+    return loadCache()?.officers ?? null
   }
-  if (!Array.isArray(result.data)) throw new Error('Data petugas dari server tidak valid.')
+  if (!Array.isArray(result.data)) return loadCache()?.officers ?? null
   saveCache(result.data)
   return result.data
 }
@@ -106,7 +115,8 @@ function toMobileOfficer(bo: BackendOfficer) {
 
 export async function syncOfficersToLocal(force = false): Promise<ReturnType<typeof toMobileOfficer>[]> {
   const backendOfficers = await fetchBackendOfficers(force)
-  if (!backendOfficers.length) return []
+  // sesi mati / offline → roster lokal dipakai apa adanya
+  if (!backendOfficers?.length) return []
   const mobileOfficers = backendOfficers.map(toMobileOfficer)
 
   const missingPinHash = backendOfficers.filter(o => o.is_active && !o.pin_hash)

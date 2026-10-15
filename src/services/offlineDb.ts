@@ -6,7 +6,6 @@ import {
   SEED_VERSION_KEY,
   seedRosterIfAbsent,
   seedRouteCacheIfAbsent,
-  seedGeofencePointsIfAbsent,
   type SeedOfficer,
 } from './seedData'
 
@@ -222,7 +221,7 @@ export function initOfflineDb(): Promise<LocalBackend> {
         await seedDefaultOfficers()
         seedRosterIfAbsent()
         seedRouteCacheIfAbsent()
-        seedGeofencePointsIfAbsent()
+        // geofence TIDAK di-seed di sini — titik lokasi cuma boleh dari server
         try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch {}
       } catch (err) {
         console.warn('[offline-db] seed data bawaan gagal:', err)

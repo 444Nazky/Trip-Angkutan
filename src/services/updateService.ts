@@ -1,4 +1,4 @@
-import { CapacitorHttp } from '@capacitor/core';
+import { CapacitorHttp, Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { api } from './api';
 
@@ -65,8 +65,19 @@ const STORAGE_KEYS = {
 
 
 
-function getUpdateApiUrl(): string {
-  return `${api.baseUrl}/api/v1`;
+// baseUrl sudah berakhiran /api — jangan ditambah /api lagi
+export function getUpdateApiUrl(): string {
+  return `${api.baseUrl.replace(/\/api\/?$/i, '')}/api/v1`;
+}
+
+
+
+
+// downloadUrl dari server bisa absolute (Railway) atau relatif
+export function resolveDownloadUrl(downloadUrl: string): string {
+  const url = String(downloadUrl ?? '').trim();
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${api.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 
@@ -186,14 +197,33 @@ async function getApkPath(version: string): Promise<string> {
 
 
 
-async function downloadApk(version: string, downloadUrl: string): Promise<string> {
-  const apkPath = await getApkPath(version);
+// lempar apk ke installer android
+function openApkWithSystemInstaller(uri: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const plugin = (window as unknown as { cordova?: { plugins?: { fileOpener2?: {
+      open: (path: string, mime: string, opt: { success: () => void; error: (e: unknown) => void }) => void
+    } } } }).cordova?.plugins?.fileOpener2
+    if (!plugin) {
+      reject(new Error('Installer tak tersedia'))
+      return
+    }
+    plugin.open(uri, 'application/vnd.android.package-archive', {
+      success: () => resolve(),
+      error: (e) => reject(e instanceof Error ? e : new Error('Gagal membuka installer')),
+    })
+  })
+}
+
+
+
+
+async function downloadApk(version: string, downloadUrl: string): Promise<string> {  const apkPath = await getApkPath(version);
 
   await cleanupOldApkFiles(version);
 
   try {
     const result = await Filesystem.downloadFile({
-      url: `${api.baseUrl}${downloadUrl}?t=${Date.now()}`,
+      url: `${resolveDownloadUrl(downloadUrl)}?t=${Date.now()}`,
       path: apkPath,
       directory: Directory.Data,
     });
@@ -450,9 +480,13 @@ class UpdateService {
     try {
       const apkPath = await getApkPath(this._pendingVersion);
 
-      console.log('[Update] APK ready for installation:', apkPath);
-      console.log('[Update] On native Android, this would trigger the package installer');
+      // web tak punya installer, panduan manual yang tampil
+      if (!Capacitor.isNativePlatform()) return true;
 
+      const { uri } = await Filesystem.getUri({ path: apkPath, directory: Directory.Data })
+
+      // buka installer sistem (ACTION_VIEW via FileProvider)
+      await openApkWithSystemInstaller(uri)
       return true;
     } catch (error) {
       console.error('[Update] Install failed:', error);

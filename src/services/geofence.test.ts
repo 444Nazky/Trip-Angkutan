@@ -1,20 +1,25 @@
 /**
  * Tes sinkronisasi & validasi geofence (sisi mobile).
  *
- * Fokus: rantai yang membuat petugas melihat "Geofence belum dikonfigurasi
- * admin" padahal admin SUDAH mengisi Master Rute:
+ * Fokus: data di perangkat harus SAMA dengan yang di-set admin:
  *   1. Kontrak respons backend → titik geofence lokal (nama, koordinat, radius
- *      default 100m, allowedRouteCodes).
+ *      default 100m, allowedRouteCodes, dermagaId).
  *   2. Jalur sync: force (setelah login / tombol manual) mengabaikan cooldown;
- *      siklus otomatis menghormatinya; 401 dilaporkan sebagai `unauthorized`.
- *   3. Daftar kosong dari server TIDAK menghapus konfigurasi lokal (offline-first).
- *   4. Blokir karena konfigurasi kosong ditandai `configMissing` supaya UI
+ *      siklus otomatis menghormatinya; 401/403 → `unauthorized` + event sesi.
+ *   3. PURGE-FIRST: cache lokal dibersihkan tiap fetch, sisa data lama/fiktif
+ *      tidak menumpuk; daftar kosong dari server ikut mengosongkan perangkat.
+ *   4. Cuma titik aktif + rute penugasan petugas yang disimpan.
+ *   5. Server gagal/jaringan mati → data lama tetap dipakai (petugas tidak
+ *      "mati lampu" saat offline).
+ *   6. Blokir karena konfigurasi kosong ditandai `configMissing` supaya UI
  *      menawarkan tombol Sinkronkan, bukan menyuruh petugas pindah lokasi.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
+  purgeGeofenceCache,
+  scopedGeofencePoints,
   syncGeofencesFromBackend,
   forceSyncGeofencesFromBackend,
   getActiveGeofenceSnapshot,
@@ -22,6 +27,7 @@ import {
   getCurrentPosition,
   resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
+  GEOFENCE_AUTH_EXPIRED_EVENT,
   type GeofencePoint,
 } from './geofence'
 
@@ -31,6 +37,10 @@ const h = vi.hoisted(() => ({
   paths: [] as string[],
   /** Jumlah pemanggilan NATIVE ke GPS — ukuran performa (dedup + cache). */
   gpsCalls: 0,
+  /** Dermaga aktif yang dipilih petugas (permintaan ke backend). */
+  dermaga: null as null | { id: string },
+  /** Rute penugasan petugas dari sesi (untuk scoping lokal). */
+  routes: [] as { code: string }[],
 }))
 
 vi.mock('./api', () => ({
@@ -42,6 +52,11 @@ vi.mock('./api', () => ({
       return h.response
     },
   },
+}))
+
+vi.mock('./auth', () => ({
+  getStoredDermaga: () => h.dermaga,
+  getStoredRoutes: () => h.routes,
 }))
 
 vi.mock('@capacitor/geolocation', () => ({
@@ -89,6 +104,8 @@ beforeEach(() => {
   h.paths.length = 0
   h.position = null
   h.gpsCalls = 0
+  h.dermaga = null
+  h.routes = []
   h.response = { ok: true, data: [] }
   resetGpsFixCache()
 })
@@ -155,7 +172,7 @@ describe('kebijakan sinkronisasi', () => {
     expect(h.paths.length).toBe(2)
   })
 
-  it('daftar kosong dari server TIDAK menghapus konfigurasi lokal', async () => {
+  it('daftar kosong dari server MENGOSONGKAN perangkat (ikut admin, tanpa sisa data)', async () => {
     saveGeofencePoints([{ id: 'lama', name: 'Titik Lama', latitude: -6.1, longitude: 106.8, radiusMeters: 100, allowedRoutes: ['A-B'], enabled: true }])
     h.response = { ok: true, data: [] }
 
@@ -163,14 +180,92 @@ describe('kebijakan sinkronisasi', () => {
 
     expect(result.ok).toBe(true)
     expect(result.reason).toBe('empty')
-    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['lama'])
+    expect(result.count).toBe(0)
+    expect(getStoredGeofencePoints()).toEqual([])
+  })
+})
+
+describe('purge-first, scoping penugasan & jalur sesi habis', () => {
+  it('purgeGeofenceCache menghapus titik + penanda sync', () => {
+    saveGeofencePoints([POINT])
+    localStorage.setItem(SYNC_KEY, String(Date.now()))
+
+    purgeGeofenceCache()
+
+    expect(getStoredGeofencePoints()).toEqual([])
+    expect(localStorage.getItem(SYNC_KEY)).toBeNull()
   })
 
-  it('401 dilaporkan sebagai unauthorized (bukan diam-diam gagal)', async () => {
-    h.response = { ok: false, error: { code: '401', message: 'Unauthorized' } }
+  it('titik hasil testing (id lain) tidak lagi nyangkut setelah tarik data baru', async () => {
+    saveGeofencePoints([
+      { id: 'seed:badau-d1', name: 'Badau Dermaga 1', latitude: -1.3, longitude: 110.5, radiusMeters: 200, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+      { id: 'seed:entikong-d1', name: 'Entikong Dermaga 1', latitude: 0.8, longitude: 110.1, radiusMeters: 200, allowedRoutes: ['A4A4-B8B8'], enabled: true },
+    ])
+    h.response = { ok: true, data: [backendRow()] }
+
+    await forceSyncGeofencesFromBackend()
+
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('hanya titik aktif + sesuai rute penugasan yang disimpan', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    h.response = {
+      ok: true,
+      data: [
+        backendRow(),
+        backendRow({ id: 'geo-wilayah-lain', locationName: 'Entikong Dermaga 1', allowedRouteCodes: ['ENT-SRN'] }),
+        backendRow({ id: 'geo-nonaktif', locationName: 'Titik Nonaktif', enabled: false }),
+      ],
+    }
+
     const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('scopedGeofencePoints tetap longgar sebelum rute penugasan tersimpan', () => {
+    const points: GeofencePoint[] = [POINT, { ...POINT, id: 'geo-2', enabled: false }]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('dermaga aktif dipakai sebagai filter permintaan ke backend', async () => {
+    h.dermaga = { id: 'dm-badau-1' }
+    h.response = { ok: true, data: [backendRow()] }
+
+    await forceSyncGeofencesFromBackend()
+
+    expect(h.paths[0]).toBe('/geofences?dermagaId=dm-badau-1')
+  })
+
+  it('server/jaringan gagal → konfigurasi lama TIDAK dibuang', async () => {
+    saveGeofencePoints([POINT])
+    h.response = { ok: false, error: { code: 'NETWORK', message: 'Server tidak merespon' } }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('network')
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('401 dilaporkan sebagai unauthorized + memicu event sesi habis', async () => {
+    const seen: string[] = []
+    const onAuthExpired = () => seen.push('expired')
+    window.addEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+
+    saveGeofencePoints([POINT])
+    h.response = { ok: false, error: { code: '401', message: 'Unauthorized' } }
+
+    const result = await forceSyncGeofencesFromBackend()
+    window.removeEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
+
     expect(result.ok).toBe(false)
     expect(result.reason).toBe('unauthorized')
+    expect(seen).toEqual(["expired"]) // petugas diarahkan login ulang, token dibersihkan
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
     expect(localStorage.getItem(SYNC_KEY)).toBeNull() // tidak mengunci cooldown
   })
 

@@ -92,7 +92,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         onLogin('member')
         if (navigator.onLine) {
           void establishOnlineSession(u, p)
-          void syncOfficersToLocal(true)
+          void syncOfficersToLocal(true).catch(() => undefined)
         }
         return
       }
@@ -105,7 +105,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
-        if (navigator.onLine) void syncOfficersToLocal(true)
+        if (navigator.onLine) void syncOfficersToLocal(true).catch(() => undefined)
         onLogin('member')
         return
       }

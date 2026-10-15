@@ -1,5 +1,6 @@
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
+import { getStoredDermaga, getStoredRoutes } from './auth'
 import { isDevMode } from './runtimeEnv'
 
 
@@ -125,6 +126,16 @@ export function saveGeofencePoints(points: GeofencePoint[]): void {
   } catch {
     console.warn('[geofence] Gagal menyimpan konfigurasi geofence')
   }
+}
+
+
+
+// hapus total cache geofence lokal (data lama/fiktif tidak boleh nyangkut)
+export function purgeGeofenceCache(): void {
+  try {
+    localStorage.removeItem(GEOFENCE_STORAGE_KEY)
+    localStorage.removeItem(GEOFENCE_SYNC_KEY)
+  } catch { /* storage mati */ }
 }
 
 
@@ -349,6 +360,8 @@ export async function validateRouteForCurrentLocation(
 const GEOFENCE_SYNC_KEY = 'trip.geofence.lastSync'
 const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000
 
+let inFlightSync: Promise<GeofenceSyncResult> | null = null
+
 
 
 
@@ -417,52 +430,101 @@ function mapBackendToGeofence(g: BackendGeofence): GeofencePoint {
 
 
 
+// kode rute yang jadi penugasan petugas di perangkat ini
+function assignedRouteCodes(): Set<string> {
+  const codes = new Set<string>()
+  try {
+    for (const route of getStoredRoutes()) {
+      const code = String(route?.code ?? '').trim().toUpperCase()
+      if (code) codes.add(code)
+    }
+  } catch { /* storage mati */ }
+  return codes
+}
+
+
+
+// sisakan cuma titik aktif + yang masuk penugasan petugas
+export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
+  const aktif = points.filter(p => p.enabled !== false)
+  const penugasan = assignedRouteCodes()
+  if (penugasan.size === 0) return aktif
+  return aktif.filter(p => p.allowedRoutes.some(code => penugasan.has(String(code).trim().toUpperCase())))
+}
+
+
+
 export async function syncGeofencesFromBackend(opts: { force?: boolean } = {}): Promise<GeofenceSyncResult> {
-  const cachedCount = () => getStoredGeofencePoints().length
+  if (inFlightSync) return inFlightSync
+
+  const run = pullGeofencesFromBackend(opts)
+  inFlightSync = run
+  try {
+    return await run
+  } finally {
+    inFlightSync = null
+  }
+}
+
+
+
+async function pullGeofencesFromBackend(opts: { force?: boolean }): Promise<GeofenceSyncResult> {
+  const cached = () => getStoredGeofencePoints()
 
   if (!opts.force) {
     try {
       const lastSync = Number(localStorage.getItem(GEOFENCE_SYNC_KEY) || 0)
       if (Date.now() - lastSync < GEOFENCE_SYNC_INTERVAL) {
-        return { ok: true, count: cachedCount(), reason: 'cached' }
+        return { ok: true, count: cached().length, reason: 'cached' }
       }
     } catch { /* storage tidak tersedia */ }
   }
 
+  if (!api.isAuthenticated) {
+    return { ok: false, count: cached().length, reason: 'unauthorized' }
+  }
+
+  // simpan dulu isi lama — dipakai balik kalau server gagal
+  const backup = cached()
+
+  // bersihin cache geofence sebelum tarik data baru
+  purgeGeofenceCache()
+
   try {
-    if (!api.isAuthenticated) {
-      return { ok: false, count: cachedCount(), reason: 'unauthorized' }
-    }
-    const result = await api.get<BackendGeofence[]>('/geofences')
+    const dermagaId = getStoredDermaga()?.id
+    const path = dermagaId ? `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}` : '/geofences'
+    const result = await api.get<BackendGeofence[]>(path)
+
     if (!result.ok || !Array.isArray(result.data)) {
-      if (result.error?.code === '401') {
+      const sesiMati = result.error?.code === '401' || result.error?.code === '403'
+      if (sesiMati) {
+        // token ditolak → petugas login ulang, jangan pakai data setengah jalan
         try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
-        return { ok: false, count: cachedCount(), reason: 'unauthorized' }
       }
-      return { ok: false, count: cachedCount(), reason: 'network' }
+      saveGeofencePoints(backup)
+      return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
-    const points = result.data
-      .map(mapBackendToGeofence)
-      .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+    const points = scopedGeofencePoints(
+      result.data
+        .map(mapBackendToGeofence)
+        .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
+    )
+    const berubah = JSON.stringify(backup) !== JSON.stringify(points)
 
-    if (points.length === 0) {
-      try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* */ }
-      return { ok: true, count: cachedCount(), reason: 'empty' }
-    }
-
-    const before = JSON.stringify(getStoredGeofencePoints())
+    // isi bersih dari admin — tanpa merge
     saveGeofencePoints(points)
-    try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* */ }
+    try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* storage mati */ }
 
-    if (before !== JSON.stringify(points)) {
+    if (berubah) {
       try {
         window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: points.length } }))
       } catch { /* non-browser */ }
     }
-    return { ok: true, count: points.length, reason: 'ok' }
+    return { ok: true, count: points.length, reason: points.length > 0 ? 'ok' : 'empty' }
   } catch {
-    return { ok: false, count: cachedCount(), reason: 'network' }
+    saveGeofencePoints(backup)
+    return { ok: false, count: backup.length, reason: 'network' }
   }
 }
 
