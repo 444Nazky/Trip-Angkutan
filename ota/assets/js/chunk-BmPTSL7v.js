@@ -1,0 +1,1 @@
+import{m as o}from"./main-5WZI3WPC.js";export{o as App};
