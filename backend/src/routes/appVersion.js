@@ -188,4 +188,113 @@ router.post('/publish-version', (req, res) => {
 
 
 
+// =============================================================================
+// LAPORAN VERSI MOBILE → SERVER
+// Mobile Wajib melaporkan versinya setiap kali berhasil update OTA atau startup
+// agar server bisa lacak versi berapa yang benar-benar terinstall di client
+// =============================================================================
+const DEVICE_VERSIONS_FILE = path.join(METADATA_DIR, 'device_versions.json')
+
+function loadDeviceVersions() {
+  ensureDirs()
+  const filePath = DEVICE_VERSIONS_FILE
+  if (fs.existsSync(filePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    } catch { return {} }
+  }
+  return {}
+}
+
+function saveDeviceVersions(data) {
+  ensureDirs()
+  fs.writeFileSync(DEVICE_VERSIONS_FILE, JSON.stringify(data, null, 2))
+}
+
+/**
+ * POST /api/v1/report-version
+ * Body: { deviceId: string, version: string, platform?: string }
+ *
+ * Mobile HARUS memanggil endpoint ini setiap:
+ * 1. Setelah OTA update BERHASIL diinstall
+ * 2. Saat startup aplikasi
+ *
+ * Ini memastikan server selalu tahu versi sebenarnya yang terinstall di mobile
+ */
+router.post('/report-version', (req, res) => {
+  try {
+    const { deviceId, version, platform } = req.body
+
+    if (!deviceId || !version) {
+      return res.status(400).json({ error: 'MISSING_FIELDS', message: 'deviceId dan version wajib diisi' })
+    }
+
+    const semverRegex = /^\d+\.\d+\.\d+/
+    if (!semverRegex.test(version)) {
+      return res.status(400).json({ error: 'INVALID_VERSION', message: 'Format versi tidak valid' })
+    }
+
+    const deviceVersions = loadDeviceVersions()
+    const now = new Date().toISOString()
+
+    // Update data perangkat
+    deviceVersions[deviceId] = {
+      version,
+      platform: platform || 'android',
+      lastReported: now,
+      firstSeen: deviceVersions[deviceId]?.firstSeen || now,
+    }
+
+    saveDeviceVersions(deviceVersions)
+    console.log(`[Version] Device ${deviceId} melaporkan versi: ${version}`)
+
+    res.json({ success: true, message: `Versi ${version} tercatat` })
+  } catch (error) {
+    console.error('Error reporting version:', error)
+    res.status(500).json({ error: 'REPORT_FAILED', message: 'Gagal mencatat versi' })
+  }
+})
+
+/**
+ * GET /api/v1/device-versions
+ * Query: deviceId (optional)
+ *
+ * Admin bisa lihat versi yang terinstall di semua/perangkat tertentu
+ */
+router.get('/device-versions', (req, res) => {
+  try {
+    const { deviceId } = req.query
+    const deviceVersions = loadDeviceVersions()
+
+    if (deviceId) {
+      const data = deviceVersions[deviceId]
+      if (!data) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Device tidak ditemukan' })
+      }
+      return res.json({ deviceId, ...data })
+    }
+
+    // Tampilkan semua perangkat
+    const summary = Object.entries(deviceVersions).map(([id, data]) => ({
+      deviceId: id,
+      ...data,
+    })).sort((a, b) => new Date(b.lastReported) - new Date(a.lastReported))
+
+    // Hitung statistik versi
+    const versionStats = {}
+    for (const device of summary) {
+      versionStats[device.version] = (versionStats[device.version] || 0) + 1
+    }
+
+    res.json({
+      totalDevices: summary.length,
+      versionStats,
+      devices: summary,
+    })
+  } catch (error) {
+    console.error('Error getting device versions:', error)
+    res.status(500).json({ error: 'FETCH_FAILED', message: 'Gagal mengambil data' })
+  }
+})
+
 module.exports = router
