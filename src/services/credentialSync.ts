@@ -1,6 +1,6 @@
 import { api } from './api'
 import { getStoredOfficer, refreshStoredRoutes } from './auth'
-import { syncOfficersToLocal } from './officers'
+import { isSessionCooldownActive, syncOfficersToLocal } from './officers'
 import { probeServer } from './sync'
 
 
@@ -34,6 +34,11 @@ export function syncOfficerCredentials(): Promise<SyncResult> {
 
     try {
       const officers = await syncOfficersToLocal(true)
+      // Sesi bisa dibersihkan saat fallback ke cache (token usang). Laporkan
+      // sebagai masalah sesi, bukan sukses palsu.
+      if (isSessionCooldownActive() || !api.isAuthenticated) {
+        return { synced: 0, error: 'Sesi petugas tidak valid. Masuk ulang secara online.' }
+      }
       if (!officers.length) {
         return { synced: 0, error: 'Sesi petugas tidak valid atau tidak ada data. Masuk ulang secara online.' }
       }

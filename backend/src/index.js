@@ -20,15 +20,67 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.set('trust proxy', 1);
 
-const allowedOrigins = (process.env.CORS_ORIGIN || '')
+// Origin dev lokal (web dev-server + shell native Capacitor/Ionic) yang harus
+// selalu diizinkan agar aplikasi bisa diuji dari mesin pengembang tanpa
+// menyentuh konfigurasi Railway.
+const DEV_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+];
+
+const envOrigins = (process.env.CORS_ORIGIN || '')
   .split(',').map(s => s.trim()).filter(Boolean);
-const corsOptions = process.env.NODE_ENV === 'production' && allowedOrigins.length
-  ? { origin: allowedOrigins }
-  : {};
 
+// Gabungan: origin dari env (mis. domain dashboard di produksi) + origin dev.
+// '*' pada env berarti "izinkan semua" (dipakai hanya bila memang diinginkan).
+const allowedOrigins = [...new Set([...envOrigins, ...DEV_ORIGINS])];
+const allowAnyOrigin = allowedOrigins.includes('*');
 
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const NATIVE_SHELL_ORIGIN = /^(capacitor|ionic):\/\/localhost$/;
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Request tanpa Origin (curl, health-check Railway, server-to-server): loloskan.
+    if (!origin) return callback(null, true);
+    if (allowAnyOrigin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Port dev-server dapat berubah → izinkan localhost/127.0.0.1 di port apa pun.
+    if (LOCALHOST_ORIGIN.test(origin) || NATIVE_SHELL_ORIGIN.test(origin)) {
+      return callback(null, true);
+    }
+    // Origin tak dikenal: jangan kirim header CORS (browser memblokir),
+    // tetapi jangan melempar error agar tidak menimbulkan 500.
+    return callback(null, false);
+  },
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'X-Admin-Token',
+  ],
+  exposedHeaders: ['Content-Length'],
+  // Autentikasi memakai header Authorization (Bearer), bukan cookie.
+  credentials: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+};
 
 app.use(cors(corsOptions));
+
+// Tangani preflight OPTIONS untuk semua route (Express 4).
+app.options('*', cors(corsOptions));
 
 
 

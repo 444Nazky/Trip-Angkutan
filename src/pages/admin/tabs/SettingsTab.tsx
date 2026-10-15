@@ -2,7 +2,7 @@ import { Settings, LogOut, Sun, Moon } from 'lucide-react'
 import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, applyTheme, type AdminTheme } from '../../../services/theme'
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import { environment } from '../../../environments/environment'
+import { resolveApiBaseUrl } from '../../../services/api'
 import { ChangePasswordSection } from '../ChangePassword'
 
 
@@ -122,10 +122,10 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, localTri
                 {serverState === 'online' ? 'Backend Online' : serverState === 'offline' ? 'Offline (Lokal)' : 'Menghubungi...'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 break-all">{environment.apiBaseUrl}</p>
+            <p className="text-[11px] text-slate-400 break-all">{resolveApiBaseUrl()}</p>
             <button
               onClick={async () => {
-                try { await fetch(environment.apiBaseUrl); showToast('Backend aktif', 'success') } catch { showToast('Gagal', 'error') }
+                try { await fetch(resolveApiBaseUrl()); showToast('Backend aktif', 'success') } catch { showToast('Gagal', 'error') }
               }}
               className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700"
             >

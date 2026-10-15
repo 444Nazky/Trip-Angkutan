@@ -19,11 +19,50 @@ export interface BackendOfficer {
 const OFFICER_CACHE_KEY = 'trip.officers.cache.v1'
 const OFFICER_CACHE_TTL = 5 * 60 * 1000
 
+// Saat sesi petugas terbukti tidak valid (token usang/kedaluwarsa), jangan
+// mencoba lagi di setiap event online/session-ready — itu yang memicu
+// crash-loop sinkronisasi offline→online. Tahan percobaan berikutnya selama
+// cooldown berikut, lalu coba lagi otomatis.
+const SESSION_COOLDOWN_MS = 60 * 1000
+let _sessionCooldownUntil = 0
+
 
 
 interface CacheEntry {
   officers: BackendOfficer[]
   timestamp: number
+}
+
+
+
+/**
+ * Error khusus sesi petugas: dibedakan dari kegagalan jaringan/server agar
+ * pemanggil bisa melakukan fallback secara graceful, bukan mengulang tanpa henti.
+ */
+export class SessionInvalidError extends Error {
+  readonly code = 'SESSION_INVALID'
+  constructor(message = 'Sesi petugas tidak valid. Masuk ulang secara online.') {
+    super(message)
+    this.name = 'SessionInvalidError'
+  }
+}
+
+
+
+/** True bila sinkron petugas sedang menahan diri setelah sesi terbukti tidak valid. */
+export function isSessionCooldownActive(): boolean {
+  return Date.now() < _sessionCooldownUntil
+}
+
+
+
+/**
+ * Bersihkan token lokal yang usang lalu mulai masa cooldown. Ini memutus
+ * siklus "sync gagal → event online → sync gagal lagi" tanpa menggantung UI.
+ */
+function clearStaleSession(): void {
+  try { api.setToken(null) } catch {}
+  _sessionCooldownUntil = Date.now() + SESSION_COOLDOWN_MS
 }
 
 
@@ -49,25 +88,37 @@ function saveCache(officers: BackendOfficer[]) {
 }
 
 async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
-  if (!force) {
-    const cache = loadCache()
-    if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
-      return cache.officers
-    }
+  const cache = loadCache()
+  if (!force && cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
+    return cache.officers
+  }
+
+  // Masih dalam cooldown sesi → pakai cache terakhir (graceful fallback)
+  // alih-alih menembak server lagi dan gagal berulang kali.
+  if (isSessionCooldownActive()) {
+    return cache?.officers ?? []
   }
 
   const ok = await ensureBackendSession()
-  if (!ok || !api.isAuthenticated) throw new Error('Sesi petugas tidak valid. Masuk ulang secara online.')
+  if (!ok || !api.isAuthenticated) {
+    clearStaleSession()
+    if (cache?.officers.length) return cache.officers
+    throw new SessionInvalidError()
+  }
 
   const result = await api.get<BackendOfficer[]>('/officers/my-region')
   if (!result.ok) {
     if (result.error?.code === '401' || result.error?.code === '403') {
-      throw new Error('Sesi petugas tidak valid. Masuk ulang secara online.')
+      clearStaleSession()
+      if (cache?.officers.length) return cache.officers
+      throw new SessionInvalidError()
     }
     if (result.error?.code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
     throw new Error(result.error?.message || 'Server gagal mengirim daftar petugas.')
   }
   if (!Array.isArray(result.data)) throw new Error('Data petugas dari server tidak valid.')
+  // Sesi sehat → buka kembali jalur sinkron normal.
+  _sessionCooldownUntil = 0
   saveCache(result.data)
   return result.data
 }

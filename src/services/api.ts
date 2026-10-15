@@ -3,6 +3,7 @@ import { environment } from '../environments/environment'
 
 
 const TOKEN_KEY = 'trip.auth.token.v1'
+const API_BASE_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
 
 
 
@@ -62,8 +63,48 @@ export interface LoginResponse {
 
 
 
+/**
+ * Normalisasi base URL: buang slash di ujung dan pastikan berakhiran `/api`
+ * (seluruh endpoint backend berada di bawah `/api/...`).
+ */
+function normalizeBaseUrl(raw: string): string {
+  let url = String(raw ?? '').trim().replace(/\/+$/, '')
+  if (!url) return url
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `http://${url}`
+  if (!/\/api$/i.test(url)) url = `${url}/api`
+  return url
+}
+
+/**
+ * Base URL efektif untuk klien:
+ *  1. Override runtime (localStorage / window.__TRIP_API_BASE_URL__) — build
+ *     rilis bisa diarahkan ke LAN atau server lain tanpa rebuild ulang.
+ *  2. Nilai build-time dari environment: dev → http://localhost:3000/api,
+ *     rilis → URL Railway (lihat fileReplacements di angular.json).
+ */
+export function resolveApiBaseUrl(): string {
+  try {
+    const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
+    if (override && override.trim()) return normalizeBaseUrl(override)
+  } catch {}
+  const runtimeOverride = (globalThis as { __TRIP_API_BASE_URL__?: string }).__TRIP_API_BASE_URL__
+  if (typeof runtimeOverride === 'string' && runtimeOverride.trim()) {
+    return normalizeBaseUrl(runtimeOverride)
+  }
+  return normalizeBaseUrl(environment.apiBaseUrl)
+}
+
+/** Setel/hapus override base URL saat runtime (null → kembali ke env build). */
+export function setApiBaseUrlOverride(url: string | null): void {
+  try {
+    if (url && url.trim()) localStorage.setItem(API_BASE_URL_OVERRIDE_KEY, url.trim())
+    else localStorage.removeItem(API_BASE_URL_OVERRIDE_KEY)
+  } catch {}
+  api?.refreshBaseUrl()
+}
+
 function getBaseUrl(): string {
-  return environment.apiBaseUrl
+  return resolveApiBaseUrl()
 }
 
 
