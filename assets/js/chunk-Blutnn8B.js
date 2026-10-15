@@ -1,0 +1,1 @@
+import{m as o}from"./main-Y4VZKCS5.js";export{o as App};
