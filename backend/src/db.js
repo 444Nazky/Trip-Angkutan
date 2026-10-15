@@ -704,12 +704,16 @@ function seedDefaultGeofences() {
     },
   ];
 
+  // Check if geofences table has data already
   const check = db.prepare('SELECT id FROM geofences WHERE id = ?');
 
-  // Use old schema columns (location_name, allowed_route_codes) to ensure compatibility
+  // Insert with all required columns:
+  // - name: NOT NULL (use name for both name and location_name for compatibility)
+  // - allowed_route_codes: for mobile app compatibility
+  // - enabled: has DEFAULT 1 in schema, explicitly set to 1
   const ins = db.prepare(`
-    INSERT OR IGNORE INTO geofences (id, location_name, latitude, longitude, radius_meters, allowed_route_codes)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO geofences (id, name, location_name, latitude, longitude, radius_meters, allowed_route_codes, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
   `);
 
   for (const g of defaults) {
@@ -718,7 +722,7 @@ function seedDefaultGeofences() {
     check.reset();
     if (!exists) {
       try {
-        ins.run([g.id, g.name, g.latitude, g.longitude, g.radius_meters, g.allowed_routes]);
+        ins.run([g.id, g.name, g.name, g.latitude, g.longitude, g.radius_meters, g.allowed_routes]);
       } catch (e2) {
         console.warn('[geofence] Seed insert failed:', e2.message);
       }
