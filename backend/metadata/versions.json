@@ -1,12 +1,12 @@
 {
   "latest": {
-    "version": "1.0.5",
-    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.5",
-    "releaseDate": "2026-10-15T06:13:17.156Z",
-    "releaseNotes": "Sinkron versi native 1.0.5 + installer APK otomatis via FileOpener.",
+    "version": "1.0.6",
+    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
+    "releaseDate": "2026-10-15T06:33:18.941Z",
+    "releaseNotes": "Rilis 1.0.6: purge-first OTA terverifikasi beruntun, installer otomatis, versi native sinkron.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "c66560259763f23c9d40105bdefa5f4fc08c5ed7532c622e0f024ed5c2becb6c"
+    "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
   },
   "releases": {
     "1.0.3": {
@@ -25,6 +25,15 @@
       "isForceUpdate": false,
       "minVersion": "1.0.0",
       "apkHash": "c66560259763f23c9d40105bdefa5f4fc08c5ed7532c622e0f024ed5c2becb6c"
+    },
+    "1.0.6": {
+      "version": "1.0.6",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
+      "releaseDate": "2026-10-15T06:33:18.941Z",
+      "releaseNotes": "Rilis 1.0.6: purge-first OTA terverifikasi beruntun, installer otomatis, versi native sinkron.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
     }
   }
 }
