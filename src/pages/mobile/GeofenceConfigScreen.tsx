@@ -6,6 +6,7 @@ import {
   isValidGeofencePoint,
   getActiveGeofenceSnapshot,
   GEOFENCE_UPDATED_EVENT,
+  forceSyncGeofencesFromBackend,
   type GeofencePoint,
 } from '../../services/geofence'
 import { useApp } from '../store'
@@ -79,10 +80,20 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setError(null)
     try {
-      // sekali tarik: titik + roster baru, tanpa logout
-      await refreshOfficers(true)
+      // Langsung sinkronkan geofence dengan force
+      const result = await forceSyncGeofencesFromBackend()
+      console.log('[GeofenceConfig] Sync result:', result)
+      if (result.reason === 'unauthorized') {
+        setError('Sesi habis. Silakan logout dan login ulang.')
+      } else if (result.reason === 'network') {
+        setError('Gagal terhubung ke server. Periksa koneksi internet.')
+      } else if (result.count === 0) {
+        setError('Tidak ada data geofence di server.')
+      }
+      // Refresh tampilan
       setPoints(getStoredGeofencePoints())
-    } catch {
+    } catch (e) {
+      console.error('[GeofenceConfig] Sync error:', e)
       setError('Gagal menyinkronkan. Coba lagi nanti.')
     } finally {
       setSyncing(false)
