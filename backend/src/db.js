@@ -618,6 +618,23 @@ function initialize() {
     )
   `);
 
+  // Telemetri versi perangkat (POST /api/v1/report-version).
+  //
+  // Klien mobile melaporkan versi yang aktif setiap selesai OTA. Endpoint-nya
+  // dulu TIDAK PERNAH ada di backend, jadi semua laporan berakhir 404 dan tidak
+  // ada satu pun versi perangkat yang tercatat — tidak ada cara memastikan
+  // perangkat benar-benar sudah memakai build terbaru.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS device_versions (
+      device_id TEXT PRIMARY KEY,
+      version TEXT NOT NULL,
+      platform TEXT DEFAULT 'unknown',
+      report_count INTEGER DEFAULT 1,
+      first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   seedData();
 
   // Migration 1: add columns that might not exist yet

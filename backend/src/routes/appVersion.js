@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { absoluteBase } = require('../absolute-url');
+const { db } = require('../db');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 
 
@@ -435,6 +437,86 @@ router.post('/publish-version', (req, res) => {
   } catch (error) {
     console.error('Error publishing:', error);
     res.status(500).json({ error: 'PUBLISH_FAILED', message: 'Gagal publish' });
+  }
+});
+
+
+
+// ─── Telemetri versi perangkat ───────────────────────────────────────────────
+//
+// Aplikasi mobile memanggil POST /api/v1/report-version SETIAP selesai OTA
+// (lihat src/services/ota.ts → reportOtaVersion) dan hanya menganggap status 200
+// sebagai berhasil. Route ini dulu tidak pernah ada di backend sehingga tiap
+// laporan berakhir 404 (Cannot POST) dan versi perangkat tak pernah tercatat.
+//
+// Tanpa token: permintaan dikirim langsung dari perangkat (CapacitorHttp) yang
+// belum tentu punya sesi login. Karena itu payload divalidasi ketat dan hanya
+// boleh memperbarui barisnya sendiri (device_id = PRIMARY KEY).
+const REPORT_VERSION_MAX = { deviceId: 128, version: 32, platform: 32 };
+
+router.post('/report-version', (req, res) => {
+  try {
+    const body = req.body || {};
+    const deviceId = String(body.deviceId ?? '').trim();
+    const version = String(body.version ?? '').trim();
+    const platform = String(body.platform ?? '').trim() || 'unknown';
+
+    if (!deviceId || !version) {
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'deviceId & version wajib diisi' });
+    }
+    if (deviceId.length > REPORT_VERSION_MAX.deviceId
+      || version.length > REPORT_VERSION_MAX.version
+      || platform.length > REPORT_VERSION_MAX.platform) {
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'deviceId/version/platform terlalu panjang' });
+    }
+
+    // Upsert: satu baris per perangkat. Versi terakhir menang, jumlah laporan naik
+    // (dipakai untuk membedakan perangkat yang benar-benar aktif dari yang sekali
+    // lapor). Report ulang versi yang sama tidak boleh menggandakan baris.
+    db.prepare(`
+      INSERT INTO device_versions (device_id, version, platform, report_count, first_seen, last_seen)
+      VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(device_id) DO UPDATE SET
+        version = excluded.version,
+        platform = excluded.platform,
+        report_count = device_versions.report_count + 1,
+        last_seen = CURRENT_TIMESTAMP
+    `).run(deviceId, version, platform);
+
+    // Status 200 (bukan 201): klien hanya menganggap 200 sebagai sukses.
+    res.json({ success: true, version, platform });
+  } catch (error) {
+    console.error('Report version error:', error && error.message);
+    res.status(500).json({ error: 'REPORT_VERSION_FAILED', message: 'Gagal menyimpan versi perangkat' });
+  }
+});
+
+
+
+
+// Sebaran versi perangkat — supaya laporan di atas bisa dibaca (tanpa ini data
+// telemetri hanya menumpuk tanpa cara memeriksanya).
+router.get('/device-versions', authenticate, requireAdmin, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT version, platform, COUNT(*) AS devices, MAX(last_seen) AS last_seen
+        FROM device_versions
+       GROUP BY version, platform
+       ORDER BY version DESC
+    `).all();
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM device_versions`).get();
+    res.json({
+      totalDevices: Number(total && total.n) || 0,
+      versions: (rows || []).map(r => ({
+        version: r.version,
+        platform: r.platform,
+        devices: Number(r.devices) || 0,
+        lastSeen: r.last_seen || null,
+      })),
+    });
+  } catch (error) {
+    console.error('Device versions error:', error && error.message);
+    res.status(500).json({ error: 'DEVICE_VERSIONS_FAILED' });
   }
 });
 
