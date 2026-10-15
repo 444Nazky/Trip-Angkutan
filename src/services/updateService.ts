@@ -754,7 +754,6 @@ class UpdateService {
 
 
 
-  /** Cocokkan SHA-256 berkas APK dengan hash dari server (bila tersedia). */
   private async verifyApkHash(
     path: string,
     version: string,
@@ -765,6 +764,15 @@ class UpdateService {
       console.warn(`[Update] Server tidak mengirim hash untuk ${version} — integritas tidak diverifikasi`)
       return { ok: true }
     }
+
+    // skip hash kalo di web — berkas APK tidak bisa dibaca via FilesystemWeb
+    try {
+      if (Capacitor.getPlatform() === 'web') {
+        console.warn(`[Update] Skip verifikasi hash di web untuk ${version}`)
+        return { ok: true }
+      }
+    } catch { /* Capacitor belum siap */ }
+
     try {
       const file = await Filesystem.readFile({ path, directory: Directory.Data })
       const raw = typeof file.data === 'string' ? file.data : ''

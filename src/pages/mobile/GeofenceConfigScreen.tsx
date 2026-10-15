@@ -9,6 +9,7 @@ import {
   forceSyncGeofencesFromBackend,
   type GeofencePoint,
 } from '../../services/geofence'
+import { api } from '../../services/api'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -80,7 +81,11 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setError(null)
     try {
-      // Langsung sinkronkan geofence dengan force
+      // check session dulu, jangan spam retry kalau belum login
+      if (!api.isAuthenticated) {
+        setError('Belum login. Buka profil lalu masuk dulu sebelum sinkronisasi geofence.')
+        return
+      }
       const result = await forceSyncGeofencesFromBackend()
       console.log('[GeofenceConfig] Sync result:', result)
       if (result.reason === 'unauthorized') {
@@ -90,7 +95,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       } else if (result.count === 0) {
         setError('Tidak ada data geofence di server.')
       }
-      // Refresh tampilan
       setPoints(getStoredGeofencePoints())
     } catch (e) {
       console.error('[GeofenceConfig] Sync error:', e)

@@ -1,6 +1,6 @@
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
-import { getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
+import { getStoredDermaga, getStoredOfficer, getStoredRoutes, renewSessionIfNeeded } from './auth'
 import { isDevMode } from './runtimeEnv'
 
 
@@ -361,6 +361,9 @@ const GEOFENCE_SYNC_KEY = 'trip.geofence.lastSync'
 const GEOFENCE_SYNC_INTERVAL = 15 * 60 * 1000
 
 let inFlightSync: Promise<GeofenceSyncResult> | null = null
+// ponytail: throttle global — satu 401 menahan sync otomatis 60 dtk, manual (force) tetap lolos
+let lastUnauthorizedAt = 0
+const UNAUTH_THROTTLE_MS = 60_000
 
 
 
@@ -488,12 +491,22 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
     } catch { /* storage tidak tersedia */ }
   }
 
+  // ponytail: belum pernah login (tanpa officer tersimpan) = renew pasti gagal.
+  // Diam total — jangan penuhi console sebelum user pertama kali login.
+  if (!api.isAuthenticated && !getStoredOfficer()) {
+    return { ok: false, count: cached().length, reason: 'unauthorized' }
+  }
+
   // auto-refresh token before sync
   if (!api.isAuthenticated) {
+    if (!opts.force && Date.now() - lastUnauthorizedAt < UNAUTH_THROTTLE_MS) {
+      return { ok: false, count: cached().length, reason: 'unauthorized' }
+    }
     console.log('[geofence] Sync: not authenticated, trying to renew session')
     const refreshed = await renewSessionIfNeeded()
     if (!refreshed) {
       console.log('[geofence] Sync: session renewal failed')
+      lastUnauthorizedAt = Date.now()
       return { ok: false, count: cached().length, reason: 'unauthorized' }
     }
   }
@@ -501,8 +514,7 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
   const backup = cached()
   console.log('[geofence] Sync: fetching from', api.baseUrl)
 
-  // clear cache geofence - fresh data only
-  purgeGeofenceCache()
+  // ponytail: cache tidak pernah dihapus sebelum sukses — save menimpa atomis
 
   try {
     // petugas mengambil titik untuk dermaga yang ia pilih (jika ada) PLUS titik
@@ -516,8 +528,10 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
   let dermagaFilter: { id?: string; cacheKey?: string } = { id: dermagaId ?? undefined }
   if (dermagaId) {
     path = `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}`
+    dermagaFilter.cacheKey = `dermaga-${dermagaId}`
   } else {
     path = '/geofences'
+    dermagaFilter.cacheKey = 'all'
   }
   console.log('[geofence] Sync: GET', path)
   const result = await api.get<BackendGeofence[]>(path)
@@ -527,9 +541,9 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       const sesiMati = result.error?.code === '401' || result.error?.code === '403'
       console.log('[geofence] Sync: request failed, sesiMati:', sesiMati)
       if (sesiMati) {
+        lastUnauthorizedAt = Date.now()
         try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
       }
-      saveGeofencePoints(backup)
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
@@ -583,7 +597,6 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
     return { ok: true, count: points.length, reason: points.length > 0 ? 'ok' : 'empty' }
   } catch (e) {
     console.error('[geofence] Sync: exception:', e)
-    saveGeofencePoints(backup)
     return { ok: false, count: backup.length, reason: 'network' }
   }
 }

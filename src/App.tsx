@@ -23,7 +23,7 @@ function Shell() {
     // jaringan petugas. Cari kandidat yang benar-benar menjawab, baru tarik data —
     // dulu satu-satunya default adalah Railway sehingga server uji/LAN tak terpakai.
     void autoDetectApiBaseUrl()
-      .then(base => { if (base) void syncGeofencesFromBackend({ force: true }) })
+      .then(base => { if (base) void syncGeofencesFromBackend() })
       .catch(() => { void syncGeofencesFromBackend() })
   }, [])
 
@@ -41,7 +41,8 @@ function Shell() {
     CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
         syncOnResume()
-        void syncGeofencesFromBackend({ force: true })
+        // ponytail: resume = background, jangan force (throttle 60 dtk berlaku)
+        void syncGeofencesFromBackend()
         // Setelah pengguna menyetujui pemasangan APK, aplikasi hidup kembali di sini:
         // versi native dibaca ulang supaya status "sudah ter-update" hanya muncul
         // kalau APK-nya benar-benar terpasang.

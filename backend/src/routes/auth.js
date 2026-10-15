@@ -132,65 +132,99 @@ const OFFICER_USERNAME_MAP = {
 router.post('/member-login', (req, res) => {
   try {
     const { username, password } = req.body || {};
-    const normalizedUsername = username?.toLowerCase();
-    let officer = null;
+    const normalizedUsername = username?.toLowerCase().trim();
 
-    if (normalizedUsername) {
-      officer = db.prepare(`
-        SELECT o.*, r.name as region_name, r.code as region_code
-        FROM officers o
-        JOIN regions r ON o.region_id = r.id
-        WHERE (LOWER(o.username) = LOWER(?) OR LOWER(o.name) = LOWER(?)) AND o.is_active = 1
-      `).get(normalizedUsername, normalizedUsername);
+    if (!normalizedUsername) {
+      return res.status(400).json({ error: 'Username wajib diisi' });
     }
 
-    if (!officer) {
+    // Cari SEMUA officer dengan username/name yang cocok
+    const candidates = db.prepare(`
+      SELECT o.*, r.name as region_name, r.code as region_code
+      FROM officers o
+      JOIN regions r ON o.region_id = r.id
+      WHERE LOWER(o.username) = LOWER(?) OR LOWER(o.name) = LOWER(?)
+    `).all(normalizedUsername, normalizedUsername);
+
+    if (candidates.length === 0) {
+      // Cek legacy name map
       const legacyName = OFFICER_USERNAME_MAP[normalizedUsername];
       if (legacyName) {
-        officer = db.prepare(`
+        const legacyCandidates = db.prepare(`
           SELECT o.*, r.name as region_name, r.code as region_code
           FROM officers o
           JOIN regions r ON o.region_id = r.id
-          WHERE LOWER(o.name) = LOWER(?) AND o.is_active = 1
-        `).get(legacyName);
+          WHERE LOWER(o.name) = LOWER(?)
+        `).all(legacyName);
+        if (legacyCandidates.length > 0) {
+          // Proses legacy candidates
+          for (const officer of legacyCandidates) {
+            if (!officer.is_active) {
+              return res.status(401).json({ error: 'Akun nonaktif' });
+            }
+            let validPin = false;
+            try { validPin = bcrypt.compareSync(String(password ?? ''), officer.pin); } catch (_) {}
+            if (validPin) {
+              const token = jwt.sign(
+                { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+              );
+              return res.json({
+                token,
+                officer: {
+                  id: String(officer.id),
+                  name: officer.name,
+                  username: officer.username || normalizedUsername,
+                  regionId: officer.region_id,
+                  regionName: officer.region_name,
+                  regionCode: officer.region_code
+                }
+              });
+            }
+          }
+          return res.status(401).json({ error: 'PIN salah' });
+        }
+      }
+      return res.status(401).json({ error: 'Username tidak terdaftar' });
+    }
+
+    // Cek apakah ada yang aktif
+    const activeCandidates = candidates.filter(o => o.is_active);
+    if (activeCandidates.length === 0) {
+      return res.status(401).json({ error: 'Akun nonaktif' });
+    }
+
+    // Cocokkan PIN ke semua kandidat aktif sampai ketemu
+    for (const officer of activeCandidates) {
+      let validPin = false;
+      try { validPin = bcrypt.compareSync(String(password ?? ''), officer.pin); } catch (_) {}
+      if (validPin) {
+        const effectiveUsername = officer.username || normalizedUsername || '';
+        const token = jwt.sign(
+          { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        return res.json({
+          token,
+          officer: {
+            id: String(officer.id),
+            name: officer.name,
+            username: effectiveUsername,
+            regionId: officer.region_id,
+            regionName: officer.region_name,
+            regionCode: officer.region_code
+          }
+        });
       }
     }
 
-    if (!officer) {
-      return res.status(401).json({ error: 'Petugas tidak ditemukan' });
-    }
-
-    let validPin = false;
-    try {
-      validPin = bcrypt.compareSync(String(password ?? ''), officer.pin);
-    } catch (_) { validPin = false; }
-
-    if (!validPin) {
-      return res.status(401).json({ error: 'PIN salah' });
-    }
-
-    const effectiveUsername = officer.username || normalizedUsername || '';
-
-    const token = jwt.sign(
-      { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      token,
-      officer: {
-        id: String(officer.id),
-        name: officer.name,
-        username: effectiveUsername,
-        regionId: officer.region_id,
-        regionName: officer.region_name,
-        regionCode: officer.region_code
-      }
-    });
+    // Tidak ada PIN yang cocok
+    return res.status(401).json({ error: 'PIN salah' });
   } catch (error) {
     console.error('Member login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Login gagal' });
   }
 });
 

@@ -5,7 +5,7 @@ import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, re
 import { api } from '../services/api'
 import { dbAll, dbClear, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
-import { forceSyncGeofencesFromBackend } from '../services/geofence'
+import { syncGeofencesFromBackend } from '../services/geofence'
 import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
@@ -699,7 +699,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (force) {
       // tarik manual = segarkan semua: petugas + titik (tanpa logout)
-      void forceSyncGeofencesFromBackend()
+      // ponytail: background, jangan force — throttle unauthorized berlaku
+      void syncGeofencesFromBackend()
 
       const ok = await refreshBackendSession(String(officerId))
 
@@ -730,7 +731,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
-      void forceSyncGeofencesFromBackend()
+      void syncGeofencesFromBackend()
     }
     const onOnline = () => pullAuthorizedMasterData()
     const onSessionReady = () => pullAuthorizedMasterData()

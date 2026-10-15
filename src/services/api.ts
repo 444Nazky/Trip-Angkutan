@@ -303,7 +303,8 @@ export interface ApiBaseCandidate {
   url: string
 }
 
-const API_BASE_AUTODETECT_KEY = 'trip.api.autoBaseUrl'
+// ponytail: kunci berversi — cache auto-detect lama (era default localhost) diabaikan sekali.
+const API_BASE_AUTODETECT_KEY = 'trip.api.autoBaseUrl.v2'
 const AUTODETECT_TTL_MS = 10 * 60 * 1000
 
 
@@ -311,8 +312,9 @@ const AUTODETECT_TTL_MS = 10 * 60 * 1000
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   const urls: ApiBaseCandidate[] = [
-    { label: 'Default build', url: normalizeBaseUrl(environment.apiBaseUrl) },
+    // ponytail: default = Railway; kandidat lokal hanya fallback bila Railway mati.
     { label: 'Produksi (Railway)', url: 'https://aplikasi-trip-api-production.up.railway.app/api' },
+    { label: 'Default build', url: normalizeBaseUrl(environment.apiBaseUrl) },
     { label: 'Backend lokal laptop', url: 'http://localhost:3000/api' },
     { label: 'Emulator Android', url: 'http://10.0.2.2:3000/api' },
   ]
@@ -381,9 +383,16 @@ export function apiBaseCandidateLabel(url: string): string | null {
 
 
 
+function isAuthPath(path: string): boolean {
+  return /(^|\/)auth\/(login|member-login)\b/i.test(String(path ?? ''))
+}
+
 class ApiService {
   private _baseUrl = getBaseUrl()
   private _token: string | null = null
+
+  // ponytail: satu-satunya pengecualian 401-tanpa-logout; refresh tetap logout bila gagal
+  // karena ia memakai token sesi, bukan kredensial yang diketik.
 
   constructor() {
     try {
@@ -464,7 +473,8 @@ class ApiService {
       })
 
       if (!res.ok) {
-        if (res.status === 401) this.setToken(null)
+        // ponytail: 401 dari /auth/* = kredensial salah, jangan hapus token valid
+        if (res.status === 401 && !isAuthPath(path)) this.setToken(null)
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
 
@@ -506,7 +516,8 @@ class ApiService {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (res.status === 401) this.setToken(null)
+        // ponytail: 401 dari /auth/* = kredensial salah, jangan hapus token valid
+        if (res.status === 401 && !isAuthPath(path)) this.setToken(null)
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
       return { ok: true, data }

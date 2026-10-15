@@ -115,19 +115,51 @@ router.get('/my-region', authenticate, (req, res) => {
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
-    const { name, pin, regionId, regionIds, dermagaIds } = req.body;
-const { randomUUID } = require('crypto');
-    const hashedPin = bcrypt.hashSync(pin, 10);
+    const { name, pin, regionId, regionIds, dermagaIds, username: providedUsername } = req.body;
+    const { randomUUID } = require('crypto');
+
+    // Validasi nama wajib ada
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Nama petugas wajib diisi' });
+    }
+
+    // Validasi PIN min 4 digit
+    const pinStr = String(pin ?? '');
+    if (pinStr.length < 4) {
+      return res.status(400).json({ error: 'PIN minimal 4 digit' });
+    }
+
+    const hashedPin = bcrypt.hashSync(pinStr, 10);
     const id = randomUUID();
+
+    // Generate username unik dari nama
+    const baseUsername = (providedUsername || name.trim())
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    if (!baseUsername) {
+      return res.status(400).json({ error: 'Nama tidak valid untuk generate username' });
+    }
+
+    // Cek username unik: cari suffix -2, -3, dst jika sudah ada
+    let finalUsername = baseUsername;
+    let counter = 1;
+    while (true) {
+      const existing = db.prepare(`SELECT id FROM officers WHERE LOWER(username) = LOWER(?)`).get(finalUsername);
+      if (!existing) break;
+      counter++;
+      finalUsername = `${baseUsername}-${counter}`;
+    }
 
     const ids = Array.isArray(regionIds) && regionIds.length > 0
       ? regionIds.map(String)
       : [String(regionId)];
 
     db.prepare(`
-      INSERT INTO officers (id, name, pin, region_id)
-      VALUES (?, ?, ?, ?)
-    `).run(id, name, hashedPin, ids[0]);
+      INSERT INTO officers (id, name, username, pin, region_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, name.trim(), finalUsername, hashedPin, ids[0]);
 
     const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
     for (const rid of ids) link.run(id, rid);
@@ -139,7 +171,7 @@ const { randomUUID } = require('crypto');
       }
     }
 
-    res.status(201).json({ id, name, regionIds: ids });
+    res.status(201).json({ id, name, username: finalUsername, regionIds: ids });
   } catch (error) {
     console.error('Create officer error:', error);
     res.status(500).json({ error: 'Failed to create officer' });
@@ -204,8 +236,14 @@ router.put('/:id/regions', authenticate, requireAdmin, (req, res) => {
 router.put('/:id/pin', authenticate, requireAdmin, (req, res) => {
   try {
     const { pin } = req.body;
-    const hashedPin = bcrypt.hashSync(pin, 10);
 
+    // Validasi PIN min 4 digit
+    const pinStr = String(pin ?? '');
+    if (pinStr.length < 4) {
+      return res.status(400).json({ error: 'PIN minimal 4 digit' });
+    }
+
+    const hashedPin = bcrypt.hashSync(pinStr, 10);
     db.prepare(`UPDATE officers SET pin = ? WHERE id = ?`).run(hashedPin, req.params.id);
     res.json({ success: true });
   } catch (error) {

@@ -2,14 +2,12 @@ import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
 import {
-  getStoredOfficer,
   loginOffline,
-  loginWithPin,
   memberLogin,
   SESSION_READY_EVENT,
   verifyPinOffline,
 } from '../services/auth'
-import { initializeSync, syncNow } from '../services/sync'
+import { initializeSync } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 import ServerSettingsModal from '../components/ServerSettingsModal'
 
@@ -87,56 +85,47 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const u = username.trim()
     const p = password
     try {
-      if (await tryOfflineLogin(u, p)) {
-        void initializeSync()
-        onLogin('member')
-        if (navigator.onLine) {
-          void establishOnlineSession(u, p)
+      // ponytail: online-first — 401 server = kredensial salah, jangan ditutupi login offline.
+      // Offline hanya fallback saat jaringan mati, bukan saat kredensial ditolak.
+      if (navigator.onLine) {
+        const result = await memberLogin(u, p)
+        if (result.success) {
+          void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)
+          window.dispatchEvent(new Event(SESSION_READY_EVENT))
+          onLogin('member')
+          return
+        }
+        const msg = result.error || ''
+        if (/timeout|network|failed|fetch|terjangkau|merespon|unreachable/i.test(msg)) {
+          if (await tryOfflineLogin(u, p)) {
+            void initializeSync()
+            onLogin('member')
+            void syncOfficersToLocal(true).catch(() => undefined)
+            return
+          }
+          setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
+        } else {
+          // ponytail: tampilkan pesan spesifik backend (tidak terdaftar/nonaktif/PIN salah)
+          // supaya admin tahu apa yang harus dicocokkan di dashboard.
+          setError(/tidak terdaftar|nonaktif|PIN salah/i.test(msg) ? msg : 'Username atau password salah.')
         }
         return
       }
 
-      if (!navigator.onLine) {
-        setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
-        return
-      }
-
-      const result = await memberLogin(u, p)
-      if (result.success) {
+      if (await tryOfflineLogin(u, p)) {
         void initializeSync()
-        if (navigator.onLine) void syncOfficersToLocal(true).catch(() => undefined)
-        window.dispatchEvent(new Event(SESSION_READY_EVENT))
         onLogin('member')
         return
       }
-      const msg = result.error || ''
-      if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
-        setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
-      } else if (/unauthorized|401|invalid/i.test(msg)) {
-        setError('Username atau password salah.')
-      } else {
-        setError(msg || 'Login gagal.')
-      }
+
+      setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
+      return
     } catch {
       setError('Verifikasi gagal. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
-  }
-
-  async function establishOnlineSession(u: string, p: string): Promise<void> {
-    try {
-      await memberLogin(u, p)
-      if (!api.isAuthenticated) {
-        const id = getStoredOfficer()?.id
-        if (id) await loginWithPin(String(id), p)
-      }
-      if (api.isAuthenticated) {
-        void syncNow().catch(() => undefined)
-        window.dispatchEvent(new Event(SESSION_READY_EVENT))
-      }
-    } catch { /* tetap mode offline — sinkron menyusul saat koneksi ada */ }
   }
 
   const onKey = (e: React.KeyboardEvent) => {

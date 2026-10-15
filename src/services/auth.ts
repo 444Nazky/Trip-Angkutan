@@ -546,6 +546,15 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
 }
 
 
+export async function isSessionReady(): Promise<boolean> {
+  if (!api.isAuthenticated) return false
+  if (!(await ensureBackendSession())) return false
+  const exp = jwtExpiryMs(api.token)
+  if (exp === null) return false
+  return Date.now() < exp
+}
+
+
 
 
 export async function ensureBackendSession(officerId?: string): Promise<boolean> {
