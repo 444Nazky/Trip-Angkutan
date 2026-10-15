@@ -3,14 +3,26 @@ import { getStoredOfficer, refreshStoredRoutes } from './auth'
 import { syncOfficersToLocal } from './officers'
 import { probeServer } from './sync'
 
+
+
+
 const LAST_SYNC_KEY = 'trip.credentials.last_sync'
+
+
+
 
 type SyncResult = { synced: number; error?: string }
 let syncing: Promise<SyncResult> | null = null
 
+
+
+
 export function getLastCredentialsSync(): number {
   try { return Number(localStorage.getItem(LAST_SYNC_KEY)) || 0 } catch { return 0 }
 }
+
+
+
 
 export function syncOfficerCredentials(): Promise<SyncResult> {
   if (syncing) return syncing

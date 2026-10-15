@@ -1,12 +1,15 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Daftar petugas yang memiliki akses ke dermaga ini.
-// Dipakai mobile saat login ONLINE untuk meng-cache seluruh petugas satu
-// dermaga ke penyimpanan lokal (verifikasi PIN & ganti petugas saat offline).
-// Tidak butuh token admin — petugas biasa pun boleh membaca daftar ini.
+
+
+
 router.get('/:id/officers', authenticate, (req, res) => {
   try {
     const dermagaId = String(req.params.id);
@@ -48,7 +51,9 @@ router.get('/:id/officers', authenticate, (req, res) => {
   }
 });
 
-// Get all dermagas with region info
+
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const dermagas = db.prepare(`
@@ -63,7 +68,9 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Create dermaga
+
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { region_id, name, code } = req.body;
@@ -78,7 +85,9 @@ const { randomUUID } = require('crypto');
   }
 });
 
-// Update dermaga
+
+
+
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, code } = req.body;
@@ -89,19 +98,21 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Delete dermaga
+
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
-    // Delete related routes first
     db.prepare(`DELETE FROM routes WHERE dermaga_id = ?`).run(req.params.id);
-    // Delete officer access
     db.prepare(`DELETE FROM officer_dermagas WHERE dermaga_id = ?`).run(req.params.id);
-    // Delete dermaga
     db.prepare(`DELETE FROM dermagas WHERE id = ?`).run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete dermaga' });
   }
 });
+
+
+
 
 module.exports = router;

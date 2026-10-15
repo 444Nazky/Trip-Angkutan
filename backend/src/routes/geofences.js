@@ -1,14 +1,16 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { randomUUID } = require('crypto');
 
-/**
- * Koersi koordinat ke number yang VALID, atau null bila tidak layak.
- * Menolak: kosong, null, NaN, string placeholder ('Otomatis dari Link Maps'),
- * dan nilai di luar rentang lat ±90 / lng ±180. Angka dalam string diterima.
- */
+
+
+
 function numericCoordinate(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'boolean') return null;
@@ -16,20 +18,26 @@ function numericCoordinate(value) {
   if (!Number.isFinite(n)) return null;
   return n;
 }
+
+
+
+
 function validLatLng(lat, lng) {
   return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 }
-/** Radius wajib bilangan real 1–10000 meter; di luar itu → fallback 100 (default). */
+
+
+
+
 function clampRadius(value) {
   const n = numericCoordinate(value);
   if (n === null || n < 1 || n > 10000) return 100;
   return n;
 }
 
-// ── Resolve short-link Google Maps (server-side, bebas CORS) ─────────────────
-// GET /api/geofences/resolve-link?url=https://maps.app.goo.gl/xxxx
-// Mengikuti redirect di server, lalu mengekstrak koordinat dari URL final
-// maupun dari HTML halaman (Google kadang menyajikan halaman consent).
+
+
+
 function parseCoordsFromText(text) {
   if (!text) return null;
   const patterns = [
@@ -51,13 +59,14 @@ function parseCoordsFromText(text) {
   return null;
 }
 
+
+
+
 router.get('/resolve-link', authenticate, async (req, res) => {
   const raw = String(req.query.url || '').trim();
   if (!/^https?:\/\//i.test(raw)) {
     return res.status(400).json({ error: 'url wajib berupa http(s) URL' });
   }
-  // ── SSRF guard: hanya host resmi Google Maps short-link yang boleh di-fetch ──
-  // Tanpa ini endpoint bisa dipakai memindai host internal (localhost, 169.254.169.254, dll).
   let host = '';
   try {
     host = new URL(raw).hostname.toLowerCase();
@@ -72,17 +81,14 @@ router.get('/resolve-link', authenticate, async (req, res) => {
     const response = await fetch(raw, {
       redirect: 'follow',
       headers: {
-        // UA desktop agar Google tidak menyajikan halaman app-redirect kosong
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
         'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
       },
     });
     const finalUrl = response.url || raw;
-    // 1) Koordinat dari URL final (kasus normal)
     const fromUrl = parseCoordsFromText(finalUrl);
     if (fromUrl) return res.json({ url: finalUrl, ...fromUrl });
 
-    // 2) Fallback: baca body HTML (max 256 KB) dan cari koordinat di dalamnya
     const html = await response.text();
     const fromHtml = parseCoordsFromText(html.slice(0, 262144));
     if (fromHtml) return res.json({ url: finalUrl, ...fromHtml });
@@ -93,7 +99,10 @@ router.get('/resolve-link', authenticate, async (req, res) => {
     return res.status(502).json({ error: 'Gagal membuka link — periksa koneksi atau tempel URL penuh Google Maps' });
   }
 });
-// Bentuk baris SQLite → kontrak JSON yang dipakai mobile & dashboard admin.
+
+
+
+
 function shape(rows) {
   return (rows || []).map(r => ({
     id: r.id,
@@ -107,7 +116,9 @@ function shape(rows) {
   }));
 }
 
-// GET semua rule — publik untuk petugas (tanpa data sensitif); admin juga bisa.
+
+
+
 router.get('/', authenticate, (req, res) => {
   try {
     const rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
@@ -118,7 +129,9 @@ router.get('/', authenticate, (req, res) => {
   }
 });
 
-// POST rule baru (admin)
+
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { locationName, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description } = req.body || {};
@@ -153,7 +166,9 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// PUT rule (admin) — update sebagian kolom
+
+
+
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const id = String(req.params.id);
@@ -164,7 +179,6 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
     const sets = [];
     const args = [];
 
-    // Koordinat: bila dikirim, WAJIB angka valid (tolak placeholder/kosong)
     const lat = b.latitude !== undefined ? numericCoordinate(b.latitude) : undefined;
     const lng = b.longitude !== undefined ? numericCoordinate(b.longitude) : undefined;
     if ((b.latitude !== undefined && lat === null) || (b.longitude !== undefined && lng === null)) {
@@ -199,7 +213,9 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// DELETE rule (admin)
+
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     db.prepare(`DELETE FROM geofences WHERE id = ?`).run(String(req.params.id));
@@ -208,5 +224,8 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to delete geofence' });
   }
 });
+
+
+
 
 module.exports = router;

@@ -1,8 +1,13 @@
 const jwt = require('jsonwebtoken');
 
+
+
+
 const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
 
-// Attach req.user / req.officer if the JWT is valid
+
+
+
 function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -20,7 +25,6 @@ function authenticate(req, res, next) {
     };
 
     req.user = ctx;
-    // Back-compat for existing routes that read req.officer.*
     req.officer = ctx;
 
     next();
@@ -29,12 +33,17 @@ function authenticate(req, res, next) {
   }
 }
 
-// Must be used after authenticate — gates routes to admin role only
+
+
+
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
+
+
+
 
 module.exports = { authenticate, requireAdmin };

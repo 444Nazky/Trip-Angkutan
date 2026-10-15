@@ -5,7 +5,9 @@ import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
-// Confirmation dialog state
+
+
+
 interface ConfirmDialog {
   isOpen: boolean
   message: string
@@ -13,9 +15,15 @@ interface ConfirmDialog {
   countdown: number
 }
 
+
+
+
 interface TripSummaryScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const {
@@ -28,7 +36,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
 
-  // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog>({
     isOpen: false,
     message: '',
@@ -36,7 +43,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     countdown: 0,
   })
 
-  // Open confirmation dialog with pending action
   const openConfirmDialog = useCallback((message: string, action: () => void) => {
     setConfirmDialog({
       isOpen: true,
@@ -46,12 +52,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     })
   }, [])
 
-  // Close confirmation dialog
   const closeConfirmDialog = useCallback(() => {
     setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
   }, [])
 
-  // Execute confirmed action
   const executeConfirm = useCallback(() => {
     if (confirmDialog.pendingAction) {
       confirmDialog.pendingAction()
@@ -59,7 +63,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     closeConfirmDialog()
   }, [confirmDialog.pendingAction, closeConfirmDialog])
 
-  // Geofence polling
   useEffect(() => {
     if (!draft.routeCode) return
     let alive = true
@@ -80,7 +83,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     return () => { alive = false; window.clearInterval(timer); window.removeEventListener('focus', run) }
   }, [draft.routeCode])
 
-  // Confirmation dialog countdown
   useEffect(() => {
     if (!confirmDialog.isOpen || confirmDialog.countdown <= 0) return
     const timer = window.setInterval(() => {
@@ -100,7 +102,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const canSubmit = hasTripPhoto && vehicles.filter(v => !v.photoUrl).length === 0
 
-  // Submit handler
   const handleSubmit = async () => {
     if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
     const result = await validateRouteForCurrentLocation(draft.routeCode!)
@@ -114,7 +115,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     go('trip-complete')
   }
 
-  // Batal
   const handleBatal = () => {
     openConfirmDialog('Apakah Anda yakin ingin membatalkan trip ini?', () => {
       resetDraft()
@@ -300,15 +300,13 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">Konfirmasi</h3>
               <button
-                onClick={closeConfirmDialog} // Close confirmation pas dialog
+                onClick={closeConfirmDialog}
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200"
               >
 
-
-                
                 <X size={16} />
-              </button> 
-            </div>      
+              </button>
+            </div>
             <p className="mb-5 text-sm text-slate-600">{confirmDialog.message}</p>
             <div className="flex gap-2">
               <button
@@ -317,7 +315,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               >
                 Batal
               </button>
-              <button    
+              <button
                 onClick={executeConfirm}
                 disabled={confirmDialog.countdown > 0}
                 className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-all ${

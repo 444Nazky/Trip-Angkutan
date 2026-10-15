@@ -2,10 +2,17 @@ const express = require('express');
 const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
+
+
+
+
 const router = express.Router();
 const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
+
+
+
 
 const photoExtension = (mimetype) => ({
   'image/jpeg': '.jpg',
@@ -13,8 +20,6 @@ const photoExtension = (mimetype) => ({
   'image/webp': '.webp',
 }[mimetype]);
 
-// Folder tujuan foto harus sama dengan yang disajikan static server
-// (satu konstanta di backend/src/uploads-dir.js)
 const { UPLOADS_DIR } = require('../uploads-dir');
 const uploadDocumentation = multer({
   storage: multer.diskStorage({
@@ -27,23 +32,32 @@ const uploadDocumentation = multer({
   },
 });
 
+
+
+
 const validPhotoIndex = (value, files) =>
   value === null || value === undefined
     ? null
     : Number.isInteger(value) && value >= 0 && value < files.length ? value : undefined;
 
+
+
+
 const numericCoordinate = (value) => Number.isFinite(value) ? value : null;
 
-// Generate trip number
+
+
+
 function generateTripNo() {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  // crypto.randomBytes (4 bytes = ~4 miliar kombinasi) — tidak dapat diprediksi
   const random = require('crypto').randomBytes(4).toString('hex').toUpperCase();
   return `TRP${dateStr}${random}`;
 }
 
-// Create a trip with its complete photo manifest in one multipart request.
+
+
+
 router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), (req, res) => {
   const files = req.files || [];
   const writtenFiles = files.map(file => file.path);
@@ -58,10 +72,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       return res.status(400).json({ error: 'statusMuatan wajib diisi' });
     }
 
-    // ── IDEMPOTENSI: klien mobile mengirim clientTripId (id trip lokal).
-    // Bila trip yang sama sudah pernah diterima (mis. request sebelumnya
-    // timeout SETELAH server menulis data), balas 200 tanpa insert ulang dan
-    // buang berkas duplikat — antrean offline boleh dikirim ulang dengan aman.
     const clientTripId = typeof payload.clientTripId === 'string' && payload.clientTripId.trim()
       ? payload.clientTripId.trim()
       : null;
@@ -70,10 +80,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         `SELECT id, no_trip FROM trips WHERE client_trip_id = ? LIMIT 1`,
       ).get(clientTripId);
       if (existing) {
-        // Trip sudah ada DAN payload membawa perubahan (mis. petugas mengedit
-        // foto/plat/rute dari Riwayat) → UPDATE, bukan hanya balas duplikat.
-        // Bila petugas sengaja kirim ulang payload sama (retry timeout),UPDATE
-        // yang dilakukan identik hasilnya — idempoten dari sisi klien.
         const tripPhotoIndexDup = validPhotoIndex(payload.tripPhotoIndex, files);
         const vehiclePhotoIndexesDup = vehicles.map(v => validPhotoIndex(v.photoIndex, files));
         if (tripPhotoIndexDup === null || tripPhotoIndexDup === undefined ||
@@ -181,8 +187,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       const masterTariff = db.prepare(`
         SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
       `).get(vehicle.vehicleType);
-      // Amount yang DIBAYAR petugas = source of truth (mobile yang pegang kas).
-      // Master tariff hanya fallback kalau mobile tidak mengirim amount valid.
       const amount = (typeof vehicle.tariffAmount === 'number' && vehicle.tariffAmount > 0)
         ? vehicle.tariffAmount
         : (masterTariff
@@ -213,7 +217,9 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
   }
 });
 
-// Create trip
+
+
+
 router.post('/', authenticate, (req, res) => {
   try {
     const { statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath } = req.body;
@@ -226,10 +232,6 @@ router.post('/', authenticate, (req, res) => {
     const tripId = randomUUID();
     const noTrip = generateTripNo();
 
-    // trips.dermaga_id wajib terisi, tapi klien mobile tidak pernah mengirim
-    // dermaga (layar mobile tidak memilih dermaga). Ambil dari penugasan
-    // petugas, lalu fallback ke dermaga mana pun di region-nya, terakhir null
-    // (kolom kini nullable — lihat migrasi di db.js).
     const dermagaId =
       req.body.dermagaId ||
       (db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ? LIMIT 1`).get(officerId)?.dermaga_id) ||
@@ -249,7 +251,9 @@ router.post('/', authenticate, (req, res) => {
   }
 });
 
-// Get trips — officers see their region, admins see everything
+
+
+
 router.get('/', authenticate, (req, res) => {
   try {
     const { regionId, role } = req.officer;
@@ -283,5 +287,8 @@ router.get('/', authenticate, (req, res) => {
     res.status(500).json({ error: 'Failed to fetch trips' });
   }
 });
+
+
+
 
 module.exports = router;

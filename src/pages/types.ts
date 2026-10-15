@@ -1,4 +1,7 @@
-// ─── Shared Types ─────────────────────────────────────────────────────────────
+
+
+
+
 export type MobileScreen =
   | 'home'
   | 'route-select'
@@ -14,11 +17,18 @@ export type MobileScreen =
   | 'profile'
   | 'local-officers'
   | 'geofence-config'
+
+
+
+
 export interface Region {
   id: string
   name: string
   code: string
 }
+
+
+
 
 export interface Dermaga {
   id: string
@@ -28,6 +38,9 @@ export interface Dermaga {
   region_name?: string
   region_code?: string
 }
+
+
+
 
 export interface Route {
   id: string
@@ -39,7 +52,9 @@ export interface Route {
   duration?: string | null
 }
 
-/** Akses petugas ke dermaga (dipakai filter Ganti Petugas & pilih rute). */
+
+
+
 export interface DermagaAccess {
   id: string
   code?: string
@@ -47,7 +62,9 @@ export interface DermagaAccess {
   region_id?: string
 }
 
-/** Profil petugas — dipakai store mobile & layar Ganti Petugas. */
+
+
+
 export interface Officer {
   id: string
   name: string

@@ -2,10 +2,16 @@ import { useState, useCallback, useEffect } from 'react'
 import { Home, List, User, X } from 'lucide-react'
 import type { ElementType } from 'react'
 
+
+
+
 export interface FloatingBottomNavProps {
   activeScreen: string
   onNavigate: (screen: string) => void
 }
+
+
+
 
 interface NavItem {
   id: string
@@ -19,13 +25,18 @@ const navItems: NavItem[] = [
   { id: 'profile', label: 'Profil', icon: User },
 ]
 
-// Navigation confirmation dialog
+
+
+
 interface NavConfirmDialog {
   isOpen: boolean
   message: string
   pendingAction: (() => void) | null
   countdown: number
 }
+
+
+
 
 export default function FloatingBottomNav({ activeScreen, onNavigate }: FloatingBottomNavProps) {
   const [confirmDialog, setConfirmDialog] = useState<NavConfirmDialog>({
@@ -55,7 +66,6 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
     closeConfirmDialog()
   }, [confirmDialog.pendingAction, closeConfirmDialog])
 
-  // Countdown effect
   useEffect(() => {
     if (!confirmDialog.isOpen || confirmDialog.countdown <= 0) return
     const timer = window.setInterval(() => {

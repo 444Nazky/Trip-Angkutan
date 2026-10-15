@@ -1,10 +1,16 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Get all officers — officer database is admin-only
+
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const officers = db.prepare(`
@@ -14,7 +20,6 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
       ORDER BY o.name
     `).all();
 
-    // Get dermaga access for each officer
     const dermagaStmt = db.prepare(`
       SELECT d.id, d.name, d.code, d.region_id
       FROM officer_dermagas od
@@ -23,9 +28,6 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
       ORDER BY d.code
     `);
 
-    // Wilayah petugas: sumber kebenaran = junction officer_regions
-    // (tempat admin menyimpan hasil "pindah akses region"). Turunan dari dermaga
-    // dan kolom lama hanya dipakai sebagai fallback bila junction masih kosong.
     const officerRegionsStmt = db.prepare(`
       SELECT DISTINCT reg.id, reg.name, reg.code
       FROM officer_regions orr
@@ -55,15 +57,14 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Daftar petugas satu wilayah (dipakai mobile untuk fitur Ganti Petugas).
-// Dipakai petugas aktif biasa — tidak butuh token admin, sehingga mobile tidak
-// perlu menimpa token petugas dengan token admin hanya untuk membaca daftar ini.
+
+
+
 router.get('/my-region', authenticate, (req, res) => {
   try {
     const meId = String(req.user.officerId ?? '');
     if (!meId) return res.status(401).json({ error: 'Not authenticated' });
 
-    // Wilayah yang dipegang petugas peminta (junction, fallback kolom lama)
     let myRegions = db.prepare(`SELECT region_id FROM officer_regions WHERE officer_id = ?`).all(meId);
     if (myRegions.length === 0) {
       const me = db.prepare(`SELECT region_id FROM officers WHERE id = ?`).get(meId);
@@ -100,7 +101,6 @@ router.get('/my-region', authenticate, (req, res) => {
       if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
       o.regions = regions;
       o.dermagas = dermagaStmt.all(String(o.id));
-      // Tampilkan petugas yang berbagi minimal satu wilayah dengan peminta
       if (regions.some(r => myRegionIds.has(String(r.id)))) out.push(o);
     }
 
@@ -110,7 +110,9 @@ router.get('/my-region', authenticate, (req, res) => {
   }
 });
 
-// Create officer
+
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, pin, regionId, regionIds, dermagaIds } = req.body;
@@ -118,7 +120,6 @@ const { randomUUID } = require('crypto');
     const hashedPin = bcrypt.hashSync(pin, 10);
     const id = randomUUID();
 
-    // regionIds (banyak) untuk many-to-many; regionId tunggal = fallback lama
     const ids = Array.isArray(regionIds) && regionIds.length > 0
       ? regionIds.map(String)
       : [String(regionId)];
@@ -131,7 +132,6 @@ const { randomUUID } = require('crypto');
     const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
     for (const rid of ids) link.run(id, rid);
 
-    // Akses dermaga (banyak-ke-banyak) — menentukan Master Rute yang dipakai petugas
     if (Array.isArray(dermagaIds) && dermagaIds.length > 0) {
       const linkDm = db.prepare(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`);
       for (const dm of dermagaIds) {
@@ -146,8 +146,9 @@ const { randomUUID } = require('crypto');
   }
 });
 
-// Atur akses dermaga petugas (banyak-ke-banyak) — hasil akhir = daftar rute
-// yang dilihat petugas di layar Pilih Rute (GET /routes/mine).
+
+
+
 router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
   try {
     const { dermagaIds } = req.body || {};
@@ -172,7 +173,9 @@ router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Atur banyak region untuk satu petugas (many-to-many)
+
+
+
 router.put('/:id/regions', authenticate, requireAdmin, (req, res) => {
   try {
     const { regionIds } = req.body || {};
@@ -187,7 +190,6 @@ router.put('/:id/regions', authenticate, requireAdmin, (req, res) => {
     const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
     for (const rid of regionIds) link.run(String(req.params.id), String(rid));
 
-    // officers.region_id (dipakai JWT & kompatibilitas lama) = region pertama
     db.prepare(`UPDATE officers SET region_id = ? WHERE id = ?`).run(String(regionIds[0]), String(req.params.id));
 
     res.json({ success: true, regionIds: regionIds.map(String) });
@@ -196,7 +198,9 @@ router.put('/:id/regions', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Update officer PIN
+
+
+
 router.put('/:id/pin', authenticate, requireAdmin, (req, res) => {
   try {
     const { pin } = req.body;
@@ -209,7 +213,9 @@ router.put('/:id/pin', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Toggle officer status
+
+
+
 router.put('/:id/status', authenticate, requireAdmin, (req, res) => {
   try {
     const { isActive } = req.body;
@@ -220,7 +226,9 @@ router.put('/:id/status', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Delete officer
+
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     db.prepare(`DELETE FROM officer_regions WHERE officer_id = ?`).run(req.params.id);
@@ -231,5 +239,8 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to delete officer' });
   }
 });
+
+
+
 
 module.exports = router;

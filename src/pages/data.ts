@@ -1,6 +1,7 @@
-// ─── Shared Data ──────────────────────────────────────────────────────────────
-
 import { getStoredRoutes, hasDockScopedRoutes, type UiRoute } from '../services/auth'
+
+
+
 
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
@@ -9,14 +10,18 @@ export const ROUTES = [
   { code: 'BDAU-SJRE', from: 'BDAU', to: 'SJRE', label: 'Badau → Sijangkung', distance: '18 km', duration: '35m' },
 ]
 
-/** Prefer backend routes scoped to the active dock; use static defaults only before route data exists. */
+
+
+
 export function activeRoutes(): UiRoute[] {
   const stored = getStoredRoutes()
   return stored.length > 0 || hasDockScopedRoutes() ? stored : ROUTES
 }
 
-/** Seed trips — dikosongkan agar data dummy tidak tampil di history. */
 export const allTrips = []
+
+
+
 
 export const tariffData = [
   { golongan: 'I', type: 'Motor', loaded: 'Rp 15.000', loadedNum: 15000, empty: 'Rp 8.000', emptyNum: 8000, desc: 'Sepeda motor roda dua' },
@@ -25,6 +30,9 @@ export const tariffData = [
   { golongan: 'IV', type: 'Truck Sedang', loaded: 'Rp 280.000', loadedNum: 280000, empty: 'Rp 130.000', emptyNum: 130000, desc: 'Truck sedang 3–8 ton' },
   { golongan: 'V', type: 'Truck Besar', loaded: 'Rp 450.000', loadedNum: 450000, empty: 'Rp 200.000', emptyNum: 200000, desc: 'Truck besar / trailer di atas 8 ton' },
 ]
+
+
+
 
 export interface DermagaAccess {
   id: string
@@ -43,5 +51,3 @@ export const officerList = [
   { id: '7', name: 'Hendra Gunawan', initials: 'HG', region: 'KELAPAKAMPIT', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'KELAPAKAMPIT-D1', code: 'D1', name: 'Dermaga 1' }] },
   { id: '8', name: 'Maya Sari', initials: 'MS', region: 'KELAPAKAMPIT', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'KELAPAKAMPIT-D2', code: 'D2', name: 'Dermaga 2' }] },
 ]
-
-// 5 local 4 3 

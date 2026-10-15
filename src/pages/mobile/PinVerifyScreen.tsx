@@ -6,19 +6,19 @@ import { syncNow } from '../../services/sync'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// PinVerifyScreen — verifikasi PIN petugas untuk mulai trip / ganti petugas.
-// Berfungsi PULA saat offline: hash PIN tersimpan di penyimpanan lokal perangkat.
-// Alur: LOKAL-LEBIH-DULU (instan, tanpa jeda jaringan) → sesi online + update
-// roster dari dashboard admin ditarik di latar belakang bila ada koneksi.
+
+
 
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
 }
 
+
+
+
 export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
   const { officer, officers, pendingOfficerId, verifyIntent, setOfficerId, clearVerify } = useApp()
 
-  // Target: petugas yang dipilih (ganti petugas) atau petugas aktif
   const target = pendingOfficerId != null
     ? (officers.find(o => String(o.id) === String(pendingOfficerId)) ?? officer)
     : officer
@@ -31,21 +31,18 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
 
   const pressedPin = digits.join('')
 
-  /** Tambah digit / hapus digit terakhir */
   const press = (d: string) => {
     setError(false)
     if (d === 'del') { setDigits(p => p.slice(0, -1)); return }
     if (digits.length < 6) setDigits(p => [...p, d])
   }
 
-  /** Tampilkan feedback PIN salah */
   const rejectPin = (reason?: string) => {
     setError(true)
     setTimeout(() => { setDigits([]); setError(false) }, 700)
     if (reason) console.warn('[pin-verify] verifikasi gagal:', reason)
   }
 
-  /** Selesai — terapkan sesi hasil verifikasi ke state aplikasi. */
   const finishAuth = () => {
     if (verifyIntent === 'switch') setOfficerId(targetId)
     clearVerify()
@@ -58,7 +55,6 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      // 1. Coba verifikasi lokal dulu (instan, tanpa jaringan).
       const local = await loginOffline(targetId, pressedPin)
       if (local.success) {
         if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
@@ -66,7 +62,6 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         return
       }
 
-      // 2. Online: fallback ke server.
       if (navigator.onLine) {
         const result = await loginWithPin(targetId, pressedPin)
         if (result.success) {
@@ -83,7 +78,6 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         return
       }
 
-      // 3. Offline dan lokal gagal.
       rejectPin('Offline — hash PIN petugas belum tersimpan di perangkat ini')
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err ?? '')
@@ -97,7 +91,6 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     }
   }
 
-  /** LATAR BELAKANG: peroleh JWT + tarik perubahan petugas terbaru dari admin. */
   const refreshSessionInBackground = async (id: string, pin: string) => {
     try {
       await loginWithPin(id, pin)

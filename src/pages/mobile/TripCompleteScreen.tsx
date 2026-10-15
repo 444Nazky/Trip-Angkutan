@@ -4,9 +4,15 @@ import { useApp } from '../store'
 import { processSyncQueue } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface TripCompleteScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const { trips, detailTripId } = useApp()
@@ -14,7 +20,6 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   useEffect(() => {
     if (!detailTripId) go('home')
-    // Trigger background sync after trip is committed
     processSyncQueue()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

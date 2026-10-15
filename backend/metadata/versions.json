@@ -2,8 +2,8 @@
   "latest": {
     "version": "1.0.3",
     "downloadUrl": "https://files.catbox.moe/bmkh1o.apk",
-    "releaseDate": "2026-10-14T15:17:18.143Z",
-    "releaseNotes": "",
+    "releaseDate": "2026-10-14T15:17:47.682Z",
+    "releaseNotes": "Rebuild 1.0.3: PIN numerik, sesi lintas tab, native version, bcrypt-only",
     "isForceUpdate": false,
     "minVersion": "1.0.0"
   },
@@ -11,8 +11,8 @@
     "1.0.3": {
       "version": "1.0.3",
       "downloadUrl": "https://files.catbox.moe/bmkh1o.apk",
-      "releaseDate": "2026-10-14T15:17:18.143Z",
-      "releaseNotes": "",
+      "releaseDate": "2026-10-14T15:17:47.682Z",
+      "releaseNotes": "Rebuild 1.0.3: PIN numerik, sesi lintas tab, native version, bcrypt-only",
       "isForceUpdate": false,
       "minVersion": "1.0.0"
     }

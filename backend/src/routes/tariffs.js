@@ -1,10 +1,16 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Get all tariffs — price details are admin-only
+
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const tariffs = db.prepare(`
@@ -16,7 +22,9 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Create tariff
+
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { golongan, vehicleType, loadedTariff, emptyTariff, description } = req.body;
@@ -33,7 +41,9 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Update tariff — full row (admin form edits golongan/type/desc too, not just prices)
+
+
+
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const existing = db.prepare(`SELECT * FROM tariffs WHERE id = ?`).get(req.params.id);
@@ -60,7 +70,9 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Delete tariff
+
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const existing = db.prepare(`SELECT * FROM tariffs WHERE id = ?`).get(req.params.id);
@@ -74,5 +86,8 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to delete tariff' });
   }
 });
+
+
+
 
 module.exports = router;

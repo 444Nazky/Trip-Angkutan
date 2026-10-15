@@ -4,13 +4,21 @@ import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface HomeScreenProps {
   go: (s: MobileScreen) => void
-  /** Dipanggil saat petugas menekan "Mulai Trip". MobileApp menangani cek dual-access dermaga. */
   onStartTrip: () => void
 }
 
+
+
+
 type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
+
+
+
 
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
@@ -19,7 +27,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    // Refresh count saat focus window
     const h = () => setPendingCount(getPendingCount())
     window.addEventListener('focus', h)
     const unsub = onSyncQueueChange(setPendingCount)
@@ -27,8 +34,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
 
-  /** TOMBOL MANUAL — "Paksa Sinkronisasi". Verifikasi koneksi memakai ping
-   *  aktif, jadi tetap bisa ditekan walau navigator.onLine salah baca. */
   const handleSync = async () => {
     if (busy) return
     setBusy(true)
@@ -67,8 +72,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
   const queuedCount = myTrips.filter(t => t.synced !== true).length
-  // Tanpa akses dermaga → trip tidak bisa dimulai. Daripada senyap (console.warn),
-  // tampilkan pesan yang bisa dibaca petugas dan arahkan ke admin.
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   const units = new Set(
     myTrips
@@ -101,7 +104,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           )}
         </div>
       </div>
-
 
       {(busy || pendingCount > 0 || !!syncState) && (
         <button

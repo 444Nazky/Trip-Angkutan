@@ -4,6 +4,9 @@ import { listOfficers } from '../../services/offlineDb'
 import { getLastCredentialsSync, syncOfficerCredentials } from '../../services/credentialSync'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface LocalOfficer {
   id: string
   username?: string
@@ -18,9 +21,15 @@ interface LocalOfficer {
   isActive?: boolean
 }
 
+
+
+
 interface LocalOfficersScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
   const [officers, setOfficers] = useState<LocalOfficer[]>([])
@@ -102,8 +111,6 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
         </div>
       </div>
 
-
-
       <div className="bg-white rounded-2xl px-4 py-3.5 shadow-sm border border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${officers.length > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
@@ -114,7 +121,6 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
           </span>
         </div>
 
-        
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-slate-400">
             Sync: <span className="font-medium text-slate-500">{formatSyncTime(lastSync)}</span>

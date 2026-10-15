@@ -4,12 +4,16 @@ import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
-// ─── History Detail Screen ─────────────────────────────────────────────────────
+
+
+
 interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
 }
 
-/** Satu item dokumentasi: foto trip ATAU foto satu kendaraan. */
+
+
+
 interface DocPhoto {
   url: string
   label: string
@@ -17,14 +21,15 @@ interface DocPhoto {
   index?: number
 }
 
+
+
+
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const { trips, detailTripId, officer, patchDraft, patchVehiclePhoto } = useApp()
-  // Scope to this officer's trips — never leak another officer's trip detail
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const isSynced = t?.synced === true
 
-  // Re-render saat isi antrean berubah (mis. foto diperbaiki → status macet lepas)
   const [, setQueueTick] = useState(0)
   useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
 
@@ -33,12 +38,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
 
-  // Preview lightbox dokumentasi
   const [preview, setPreview] = useState<DocPhoto | null>(null)
 
-  // Edit info kendaraan (plat/jenis/kategori) pada trip yang SUDAH terkirim.
-  // Menyimpan → patchVehiclePhoto → antrean lokal → otomatis dikirim ulang
-  // (backend memperbarui trip berdasarkan clientTripId, bukan membuat duplikat).
   const [editVehicle, setEditVehicle] = useState<number | null>(null)
   const [editPlate, setEditPlate] = useState('')
   const [editType, setEditType] = useState('')
@@ -58,16 +59,12 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
-  // ── Tentukan apakah ini Trip Kosong
   const isEmptyTrip = t.load === 'Kosong'
 
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
-  // ── SELURUH foto dokumentasi trip ini — HANYA yang valid (ada url)
-  // Untuk trip kosong: hanya foto bukti trip
-  // Untuk trip muatan: foto bukti trip + foto per kendaraan yang ada fotonya
   const photos: DocPhoto[] = isEmptyTrip
     ? (t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : [])
     : [
@@ -80,7 +77,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         })).filter(p => !!p.url),
       ]
 
-  // Kendaraan yang belum difoto (hanya untuk trip muatan)
   const missingVehicles = isEmptyTrip
     ? []
     : vehicles

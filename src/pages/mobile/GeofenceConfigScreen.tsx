@@ -10,9 +10,15 @@ import {
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface GeofenceConfigScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 interface DraftPoint {
   id: string
@@ -36,12 +42,17 @@ const emptyDraft: DraftPoint = {
   dermagaId: '',
 }
 
-/** Parse "SJRE-SBDZ, SBDZ-SJRE" → ['SJRE-SBDZ','SBDZ-SJRE'] (tanpa duplikat). */
+
+
+
 function parseRoutes(raw: string): string[] {
   return Array.from(new Set(
     raw.split(/[,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean),
   ))
 }
+
+
+
 
 export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) {
   const { userType, officer } = useApp()

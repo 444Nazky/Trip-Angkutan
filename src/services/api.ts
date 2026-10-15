@@ -1,19 +1,29 @@
-// ─── API Service ──────────────────────────────────────────────────────────────
-
 import { environment } from '../environments/environment'
 
+
+
+
 const TOKEN_KEY = 'trip.auth.token.v1'
+
+
+
 
 export interface ApiError {
   message: string
   code?: string
 }
 
+
+
+
 export interface ApiResponse<T> {
   data?: T
   error?: ApiError
   ok: boolean
 }
+
+
+
 
 export interface OfficerInfo {
   id: string
@@ -23,6 +33,9 @@ export interface OfficerInfo {
   regionCode: string
 }
 
+
+
+
 export interface Dermaga {
   id: string
   name: string
@@ -30,6 +43,9 @@ export interface Dermaga {
   region_name: string
   region_code: string
 }
+
+
+
 
 export interface Route {
   id: string
@@ -40,6 +56,9 @@ export interface Route {
   duration?: string
 }
 
+
+
+
 export interface LoginResponse {
   token: string
   officer: OfficerInfo
@@ -48,21 +67,28 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// Get current base URL — semua build (dev & produksi) memakai endpoint Railway yang sama.
+
+
+
 function getBaseUrl(): string {
   return environment.apiBaseUrl
 }
 
+
+
+
 export function getApiBaseUrl(): string {
   return getBaseUrl()
 }
+
+
+
 
 class ApiService {
   private _baseUrl = getBaseUrl()
   private _token: string | null = null
 
   constructor() {
-    // Load token from localStorage on init
     try {
       this._token = localStorage.getItem(TOKEN_KEY)
     } catch { /* ignore */ }
@@ -83,20 +109,10 @@ class ApiService {
     } catch { /* quota */ }
   }
 
-  // Refresh base URL (call after setting custom URL)
   refreshBaseUrl() {
     this._baseUrl = getBaseUrl()
   }
 
-  /**
-   * PING AKTIF ke endpoint health backend.
-   *
-   * `navigator.onLine` sering menipu di dalam webview/Cordova (captive portal,
-   * DNS mati, sinyal lemah, WiFi tanpa akses internet) — statusnya tetap
-   * "online" padahal server tidak terjangkau. Karena itu sinkronisasi WAJIB
-   * memverifikasi koneksi dengan request ringan sungguhan ke `/api/health`
-   * sebelum menganggap antrean bisa dikirim.
-   */
   async ping(timeoutMs = 5000): Promise<boolean> {
     try {
       const controller = new AbortController()

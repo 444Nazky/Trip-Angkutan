@@ -1,6 +1,3 @@
-// ─── Auth Service ─────────────────────────────────────────────────────────────
-// Handles authentication with backend API
-
 import { api, type ApiError } from './api'
 import {
   findOfficer as findOfflineOfficer,
@@ -11,19 +8,26 @@ import {
 } from './offlineDb'
 import { findSeedOfficer, verifySeedPin } from './seedData'
 
-/**
- * Event window: sesi backend baru saja ditanam di latar belakang (login lokal
- * → sinkron online). Store memakainya untuk menarik roster terbaru dari
- * dashboard admin begitu token tersedia.
- */
+
+
+
 export const SESSION_READY_EVENT = 'trip:session-ready'
+
+
+
 
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'
 const AUTH_TIMEOUT_MS = 4000
 
+
+
+
 const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
+
+
+
 
 export interface Dermaga {
   id: string
@@ -32,6 +36,9 @@ export interface Dermaga {
   region_name: string
   region_code: string
 }
+
+
+
 
 export interface Route {
   id: string
@@ -42,15 +49,20 @@ export interface Route {
   duration?: string
 }
 
+
+
+
 export interface StoredOfficer {
   id: string
   name: string
   regionId: string
   regionName: string
   regionCode: string
-  /** Scope dermaga — agar UI tidak jatuh ke fallback `officers[0]` (swap akun). */
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
+
+
+
 
 export interface LoginResponse {
   token: string
@@ -60,12 +72,9 @@ export interface LoginResponse {
   isDualAccess?: boolean
 }
 
-// ── Revisi #4: login wilayah (langkah 1) ───────────────────────────────────
-/**
- * Login wilayah: kode region + password region (contoh BADAU / badau123).
- * Berhasil → daftar petugas wilayah tsb (tanpa PIN) untuk langkah berikutnya.
- */
-// ── Rute petugas (dari login PIN / pilih dermaga) ─────────────────────────────
+
+
+
 export interface UiRoute {
   code: string
   from: string
@@ -73,16 +82,20 @@ export interface UiRoute {
   label: string
   distance?: string
   duration?: string
-  /** ID dermaga asal rute — dipakai filter per dermaga di RouteSelectScreen */
   dermagaId?: string
 }
+
+
+
 
 function isValidRoute(r: unknown): r is Route {
   return typeof r === 'object' && r !== null && !!(r as Route).id && !!(r as Route).name
 }
 
+
+
+
 function saveRoutesMap(map: Record<string, Route[]>): void {
-  // Validasi & bersihkan data rute sebelum simpan — data corrupt/rusak diskard
   const clean: Record<string, Route[]> = {}
   if (map && typeof map === 'object') {
     for (const [k, list] of Object.entries(map)) {
@@ -95,10 +108,9 @@ function saveRoutesMap(map: Record<string, Route[]>): void {
   catch { /* quota */ }
 }
 
-/**
- * Rute milik petugas yang sedang login (dari backend, per dermaga).
- * Kembalikan bentuk UI — kosong bila belum pernah login (caller fallback data statis).
- */
+
+
+
 export function getStoredRoutes(): UiRoute[] {
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
@@ -127,12 +139,9 @@ export function getStoredRoutes(): UiRoute[] {
   }
 }
 
-/**
- * Muat ulang rute petugas dari backend (`GET /routes/mine`) — dipanggil saat
- * layar Pilih Rute dibuka supaya hasil edit Master Rute admin langsung
- * terlihat tanpa harus logout/login ulang.
- * Kembalikan daftar rute terbaru, atau null bila gagal (pakai cache).
- */
+
+
+
 export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   const result = await api.get<(Route & { dermaga_id: string })[]>('/routes/mine')
   if (!result.ok || !result.data) return null
@@ -140,7 +149,6 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   const map: Record<string, Route[]> = {}
   for (const r of result.data) {
     if (!map[r.dermaga_id]) map[r.dermaga_id] = []
-    // Simpan route_from/route_to terpisah dari dermaga_id agar map tetap bersih
     map[r.dermaga_id].push({
       id: r.id,
       name: r.name,
@@ -151,11 +159,12 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
     })
   }
   saveRoutesMap(map)
-  // getStoredRoutes() sudah menyertakan dermagaId dari key map
   return getStoredRoutes()
 }
 
-/** True when backend route data or a dock selection must prevent static fallback. */
+
+
+
 export function hasDockScopedRoutes(): boolean {
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
@@ -167,6 +176,9 @@ export function hasDockScopedRoutes(): boolean {
   }
 }
 
+
+
+
 export function getStoredOfficer(): StoredOfficer | null {
   try {
     const raw = localStorage.getItem(OFFICER_KEY)
@@ -175,6 +187,9 @@ export function getStoredOfficer(): StoredOfficer | null {
     return null
   }
 }
+
+
+
 
 export function getStoredDermaga(): Dermaga | null {
   try {
@@ -185,17 +200,26 @@ export function getStoredDermaga(): Dermaga | null {
   }
 }
 
+
+
+
 function saveOfficer(officer: StoredOfficer) {
   try {
     localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
   } catch { /* quota */ }
 }
 
+
+
+
 function saveDermaga(dermaga: Dermaga) {
   try {
     localStorage.setItem(DERMAGA_KEY, JSON.stringify(dermaga))
   } catch { /* quota */ }
 }
+
+
+
 
 function clearOfficer() {
   try {
@@ -205,7 +229,9 @@ function clearOfficer() {
   } catch { /* quota */ }
 }
 
-// Login with username/password (member login) and obtain backend JWT
+
+
+
 export async function memberLogin(
   username: string,
   password: string
@@ -213,7 +239,6 @@ export async function memberLogin(
   const result = await api.post<LoginResponse>('/auth/member-login', { username, password }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
-    // Gagal karena jaringan → coba verifikasi lokal agar petugas tetap bisa masuk
     if (isNetworkError(result.error)) {
       const offline = await loginOffline(username, password)
       if (offline.success) return { success: true, officer: offline.officer }
@@ -228,16 +253,15 @@ export async function memberLogin(
   await setPinHash(memberKey, await hashPin(memberKey, password))
   try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
 
-  // ── LOGIN PERTAMA KALI (ONLINE): tarik & simpan SEMUA petugas satu dermaga
-  //    ke penyimpanan lokal, supaya pergantian akun tetap jalan saat offline.
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
-  // Rute master per dermaga juga ikut di-cache untuk layar Pilih Rute offline.
   void refreshStoredRoutes().catch(() => null)
 
   return { success: true, officer: result.data.officer }
 }
 
-/** True bila error disebabkan jaringan (bukan kredensial salah). */
+
+
+
 function isNetworkError(err?: ApiError): boolean {
   if (!err) return true
   if (err.code === 'NETWORK' || err.code === 'TIMEOUT' || /^5\d\d$/.test(err.code ?? '')) return true
@@ -245,7 +269,9 @@ function isNetworkError(err?: ApiError): boolean {
   return /timeout|network|failed to fetch|terjangkau|offline|merespon|unreachable/i.test(err.message)
 }
 
-// Login with PIN (for officer switching).
+
+
+
 export async function loginWithPin(
   officerId: string,
   pin: string,
@@ -253,7 +279,6 @@ export async function loginWithPin(
   const result = await api.post<LoginResponse>('/auth/login', { officerId, pin }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
-    // Server tidak terjangkau → verifikasi PIN terhadap hash tersimpan di perangkat
     if (isNetworkError(result.error)) {
       const offline = await loginOffline(officerId, pin)
       if (offline.success && offline.session) {
@@ -269,22 +294,20 @@ export async function loginWithPin(
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-  // Simpan HASH PIN (wajib) agar verifikasi PIN offline berfungsi
   void cachePin(officerId, pin)
 
-  // Cache seluruh petugas satu dermaga ke penyimpanan lokal (offline-first)
   void cacheDockOfficers(String(result.data.officer?.id ?? officerId), result.data.dermagas)
 
-  // Simpan rute per dermaga agar layar Pilih Rute memakai data master terbaru
   if (result.data.routes) saveRoutesMap(result.data.routes)
 
-  // Single-dermaga: simpan otomatis
   if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
 
   return { success: true, data: result.data }
 }
 
-/** Bentuk petugas tersimpan di database offline (mobile format). */
+
+
+
 export interface OfflineOfficerRecord {
   id: string
   name: string
@@ -296,14 +319,12 @@ export interface OfflineOfficerRecord {
   regionCode?: string
   status?: string
   pin?: string
-  /** Scope dermaga akses — dipakai saat login offline untuk memilih dermaga */
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
-/**
- * Cari petugas di ROSTER localStorage (trip.officers.v1 / cache per-dermaga).
- * Pencadang bila baris di DB offline belum ada (mis. sebelum migrasi selesai).
- */
+
+
+
 function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | null {
   const key = String(identifier).toLowerCase()
   const pools: OfflineOfficerRecord[][] = []
@@ -315,7 +336,6 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
     } catch { return [] }
   }
   pools.push(read('trip.officers.v1'))
-  // Cache per-dermaga (semua dermaga yang pernah disimpan)
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
@@ -334,11 +354,9 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
   return null
 }
 
-/**
- * Bentuk petugas BAWAAN (seed) menjadi record offline — fallback terakhir
- * saat baris belum ada di DB offline maupun roster (mis. login pertama kali
- * begitu aplikasi dibuka, sebelum migrasi/seeding selesai).
- */
+
+
+
 function seedToRecord(identifier: string): OfflineOfficerRecord | null {
   const s = findSeedOfficer(identifier)
   if (!s) return null
@@ -355,17 +373,14 @@ function seedToRecord(identifier: string): OfflineOfficerRecord | null {
   }
 }
 
-/**
- * Susun sesi offline dari data petugas tersimpan di perangkat.
- * Menerima id ATAU username/ nama — resolusi dilakukan ke DB offline dulu,
- * lalu ke roster localStorage, sehingga pergantian antar petugas dalam satu
- * dermaga tetap mulus saat perangkat sedang offline.
- */
+
+
+
 async function buildOfflineSession(identifier: string): Promise<LoginResponse | null> {
   let row: OfflineOfficerRecord | null = null
   try { row = await findOfflineOfficer<OfflineOfficerRecord>(identifier) } catch { row = null }
   if (!row) row = findStoredOfficerRecord(identifier)
-  if (!row) row = seedToRecord(identifier) // data bawaan aplikasi (seed)
+  if (!row) row = seedToRecord(identifier)
   if (!row) return null
   if (row.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(row.status))) return null
 
@@ -396,11 +411,9 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
   return { token: '', officer }
 }
 
-/**
- * LOGIN OFFLINE: verifikasi PIN terhadap hash lokal lalu bangun sesi offline.
- * Dipakai LoginPage (`tryOfflineLogin`) dan PinVerifyScreen — menjamin
- * pergantian petugas dalam satu dermaga tetap jalan tanpa jaringan.
- */
+
+
+
 export async function loginOffline(
   identifier: string,
   pin: string,
@@ -413,7 +426,9 @@ export async function loginOffline(
   return { success: true, officer: session.officer, session }
 }
 
-// Select dermaga for dual-access officers
+
+
+
 export async function selectDermaga(dermagaId: string): Promise<{ success: boolean; error?: string }> {
   const result = await api.post<{ dermaga: Dermaga; routes: Route[] }>('/auth/select-dermaga', { dermagaId })
 
@@ -422,7 +437,6 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
   }
 
   saveDermaga(result.data.dermaga)
-  // Gabungkan rute dermaga terpilih dengan rute dermaga lain yang sudah tersimpan
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
     const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
@@ -432,24 +446,15 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
   return { success: true, error: undefined }
 }
 
-/**
- * Pilih dermaga SECARA LOKAL tanpa jaringan — dipakai petugas dual-access
- * yang memilih dermaga saat OFFLINE. Menyimpan ke kunci persis sama
- * (trip.auth.dermaga.v1) dengan selectDermaga() online, sehingga payload sync
- * (getStoredDermaga()?.id → field dermagaId) tetap terisi benar. Rute master
- * dermaga ini sudah di-cache (cacheDockOfficers/seedRouteCacheIfAbsent) untuk
- * dipakai layar Pilih Rute offline.
- *
- * Bila petugas nanti memilih dermaga secara online, selectDermaga() akan
- * menimpa entri ini dengan data resmi + rute terbaru dari server.
- */
+
+
+
 export async function selectDermagaLocal(
   dermagaId: string,
   opts?: { name?: string; code?: string; regionName?: string; regionCode?: string },
 ): Promise<{ success: boolean; error?: string }> {
   if (!dermagaId) return { success: false, error: 'ID dermaga kosong' }
   const officer = getStoredOfficer()
-  // Derive dari akses petugas bila info lengkap tidak disediakan caller
   const fromAccess = officer?.dermagaAccess?.find(d => String(d.id) === String(dermagaId))
   const name = opts?.name ?? fromAccess?.name ?? ''
   const code = opts?.code ?? fromAccess?.code ?? ''
@@ -460,14 +465,17 @@ export async function selectDermagaLocal(
   return { success: true, error: undefined }
 }
 
+
+
+
 export function logout() {
   api.setToken(null)
   clearOfficer()
 }
 
-/**
- * Refresh JWT with latest claims from database.
- */
+
+
+
 export async function refreshBackendSession(officerId?: string): Promise<boolean> {
   const id = officerId ?? getStoredOfficer()?.id
   if (!id || !(await ensureBackendSession(String(id)))) return false
@@ -481,7 +489,10 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
 
   return false
 }
-// Decode the stored JWT payload without verification (UI-level checks only)
+
+
+
+
 function jwtPayload(): { role?: string; officerId?: string | number } | null {
   const token = api.token
   if (!token) return null
@@ -493,7 +504,9 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   }
 }
 
-/** Masa berlaku JWT terakhir (epoch ms) — null bila tidak bisa dibaca. */
+
+
+
 function jwtExpiryMs(token?: string | null): number | null {
   const t = token ?? api.token
   if (!t) return null
@@ -506,22 +519,14 @@ function jwtExpiryMs(token?: string | null): number | null {
   }
 }
 
-/**
- * VALIDASI ULANG TOKEN sebelum antrean sinkron dikirim ulang.
- *
- * 1. Token masih berlaku (> 60 detik lagi) → langsung pakai.
- * 2. Token hampir kedaluwarsa → coba `POST /auth/refresh` (JWT lama masih
- *    diterima) sehingga sesi diperpanjang tanpa memasukkan ulang PIN.
- * 3. Refresh gagal → login ulang otomatis (ensureBackendSession).
- *
- * Mengembalikan false bila sesi benar-benar tidak bisa dipulihkan — caller
- * wajib MENUNDA pengiriman (jangan membakar percobaan 401 yang sia-sia).
- */
+
+
+
 export async function renewSessionIfNeeded(): Promise<boolean> {
   if (!(await ensureBackendSession())) return false
 
   const exp = jwtExpiryMs(api.token)
-  if (exp === null || Date.now() < exp - 60_000) return true // masih berlaku
+  if (exp === null || Date.now() < exp - 60_000) return true
 
   const r = await api.post<{ token?: string; officer?: StoredOfficer }>('/auth/refresh', {})
   if (r.ok && r.data?.token) {
@@ -533,9 +538,9 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
   return false
 }
 
-/**
- * Ensure we have a valid backend JWT for the given officer.
- */
+
+
+
 export async function ensureBackendSession(officerId?: string): Promise<boolean> {
   const stored = getStoredOfficer()
   const id = officerId ?? stored?.id
@@ -548,22 +553,23 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   return api.isAuthenticated
 }
 
-// ── Kredensial offline (hash PIN) ──────────────────────────────────────────
-// Map legacy menyimpan PIN polos — dipertahankan hanya untuk migrasi.
 const LEGACY_PIN_KEY = 'trip.auth.pin.v1'
+
+
+
 
 function loadLegacyPinMap(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') }
   catch { return {} }
 }
 
-/** Simpan HASH PIN petugas setelah login online berhasil (tidak pernah PIN polos). */
+
+
+
 async function cachePin(officerId: string, pin: string): Promise<void> {
   if (!officerId || !pin) return
   try {
     await setPinHash(officerId, await hashPin(officerId, pin))
-    // Hapus HANYA entri petugas ini dari map legacy — entri petugas LAIN
-    // harus tetap ada agar mereka tetap bisa diverifikasi saat offline.
     const legacy = loadLegacyPinMap()
     if (officerId in legacy) {
       delete legacy[officerId]
@@ -574,19 +580,12 @@ async function cachePin(officerId: string, pin: string): Promise<void> {
   } catch { /* quota */ }
 }
 
-/**
- * Verifikasi PIN terhadap kredensial tersimpan di perangkat — dipakai saat
- * server tidak terjangkau sehingga tidak memicu error jaringan.
- *
- * Urutan resolusi petugas (agar pergantian akun antar dermaga mulus):
- *   1. DB offline (IndexedDB/SQLite) — id / username / nama
- *   2. Roster localStorage (trip.officers.v1 + cache per-dermaga)
- * Lalu cocokkan hash PIN, terakhir fallback ke PIN polos legacy.
- */
+
+
+
 export async function verifyPinOffline(identifier: string, pin: string): Promise<boolean> {
   if (!identifier || !pin) return false
 
-  // Petugas bisa dicari lewat id, username, maupun nama
   let officerId = String(identifier)
   let resolved = false
   let inactive = false
@@ -609,7 +608,6 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     if (await verifyStoredPin(officerId, pin) || await verifyStoredPin(`member:${officerId}`, pin)) return true
   } catch { /* lanjut ke fallback legacy */ }
 
-  // Fallback data lama (PIN polos) → upgrade ke hash bila cocok
   const legacy = loadLegacyPinMap()
   const stored = legacy[officerId] ?? legacy[identifier]
   if (stored && (stored === pin || stored === `plain:${pin}`)) {
@@ -617,22 +615,21 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     return true
   }
 
-  // Fallback DATA BAWAAN (seed): hash PIN petugas tertanam di aplikasi,
-  // sehingga login tetap instan walau database lokal masih kosong.
   if (verifySeedPin(officerId, pin) || verifySeedPin(identifier, pin)) return true
 
   return false
 }
 
-/**
- * Hapus PIN polos legacy. Hash PIN tetap disimpan agar petugas tetap bisa
- * verifikasi offline setelah logout/login (hash tidak sensitif).
- */
+
+
+
 function evictPinCache() {
   try { localStorage.removeItem(LEGACY_PIN_KEY) } catch { /* quota */ }
 }
 
-/** Bentuk petugas dari backend untuk keperluan roster/dermaga. */
+
+
+
 interface RosterOfficer {
   id: string | number
   name: string
@@ -643,9 +640,11 @@ interface RosterOfficer {
   regions?: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id?: string }>
   is_active?: number | boolean
-  /** Hash bcrypt PIN dari server — untuk verifikasi PIN offline */
   pin_hash?: string
 }
+
+
+
 
 function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string; status?: string } {
   const primary = o.regions?.[0]
@@ -660,15 +659,13 @@ function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string;
   } as StoredOfficer & { username?: string; status?: string }
 }
 
-/**
- * Simpan roster ke DB offline (untuk login & verifikasi PIN) sekaligus ke
- * cache localStorage per-dermaga (untuk layar Ganti Petugas).
- */
+
+
+
 async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): Promise<void> {
   if (!officers.length) return
   const shaped = officers.map(toStoredOfficer)
 
-  // 1. DB offline (SQLite native / localStorage web)
   try {
     await saveOfficers(officers.map((o, i) => ({
       id: String(o.id),
@@ -680,14 +677,11 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
       isActive: o.is_active === undefined ? true : Boolean(o.is_active),
       payload: shaped[i],
     })))
-    // Simpan hash PIN server supaya PIN bisa diverifikasi OFFLINE untuk
-    // semua petugas di wilayah, bukan hanya yang pernah login di perangkat ini.
     for (const o of officers) {
       if (o.pin_hash) void setPinHash(String(o.id), o.pin_hash)
     }
   } catch { /* db belum siap — cache di bawah tetap jalan */ }
 
-  // 2. Cache per-dermaga (localStorage)
   for (const did of dermagaIds) {
     const subset = officers.filter(o => (o.dermagas ?? []).some(d => String(d.id) === String(did)))
     if (!subset.length) continue
@@ -707,17 +701,18 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
   }
 }
 
+
+
+
 async function fetchMyRegionRoster(): Promise<RosterOfficer[] | null> {
   const r = await api.get<RosterOfficer[]>('/officers/my-region')
   if (!r.ok || !Array.isArray(r.data)) return null
   return r.data
 }
 
-/**
- * Tarik & simpan SELURUH petugas satu dermaga (plus peminta) ke perangkat.
- * Dipanggil setiap login ONLINE berhasil — inilah yang membuat pergantian
- * akun antar petugas dalam dermaga yang sama tetap bisa saat offline.
- */
+
+
+
 export async function cacheDockOfficers(
   officerId?: string,
   dermagas?: Array<{ id: string }>,
@@ -740,22 +735,17 @@ export async function cacheDockOfficers(
         await persistRoster(list, [...dockIds])
         return
       }
-      // Tidak ada info dermaga → simpan seluruh petugas wilayah agar PIN
-      // tetap bisa diverifikasi offline.
       await persistRoster(all, [])
       return
     }
 
-    // Fallback: endpoint presisi per dermaga (bila my-region kosong/gagal)
     for (const did of dockIds) await syncDermagaOfficersToDb(did)
   } catch { /* offline — cache sebelumnya tetap aman */ }
 }
 
-/**
- * Sinkronisasi data petugas SATU dermaga ke penyimpanan lokal. Idempoten.
- * Endpoint utama : GET /dermagas/:id/officers (baru, presisi)
- * Cadangan       : GET /officers/my-region (backend lama tanpa endpoint utama)
- */
+
+
+
 export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void> {
   if (!dermagaId) return
   try {
@@ -764,7 +754,6 @@ export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void>
       await persistRoster(r.data.officers, [String(dermagaId)])
       return
     }
-    // Backend lama (404) → pakai roster wilayah, filter irisan dermaga
     if (r.error?.code === '404') {
       const all = await fetchMyRegionRoster()
       const subset = (all ?? []).filter(o =>
@@ -773,6 +762,3 @@ export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void>
     }
   } catch { /* offline — data sebelumnya tetap aman */ }
 }
-
-/** Hapus data petugas dermaga dari storage (logout/pergantian akun). */
-/** Ambil daftar petugas satu dermaga dari localStorage (hasil sync terbaru). */

@@ -1,21 +1,19 @@
-// ─── Update Notifier Component ───────────────────────────────────────────────
-// Custom Self-Hosted API Update System UI
-
 import { useState, useEffect, useCallback } from 'react';
 import { updateService, type UpdateState, type UpdateInfo, type UpdateError } from '../services/updateService';
 
+
+
+
 interface UpdateNotifierProps {
-  /** Callback when update is ready to install */
   onUpdateReady?: (version: string) => void;
-  /** Callback when update is applied (app will restart) */
   onUpdateApplied?: () => void;
-  /** Callback when error occurs */
   onError?: (error: UpdateError) => void;
-  /** Auto-check on mount (default: true) */
   autoCheck?: boolean;
-  /** Show force update banner (default: true) */
   showForceUpdate?: boolean;
 }
+
+
+
 
 interface UpdateNotifierUI {
   state: UpdateState;
@@ -25,13 +23,15 @@ interface UpdateNotifierUI {
   currentVersion: string;
 }
 
+
+
+
 export function useUpdateNotifier(): UpdateNotifierUI {
   const [state, setState] = useState<UpdateState>('idle');
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [error, setError] = useState<UpdateError | null>(null);
 
   useEffect(() => {
-    // Subscribe to update service state changes
     const unsubscribe = updateService.subscribe((newState, newInfo, newError) => {
       setState(newState);
       setInfo(newInfo || null);
@@ -50,6 +50,9 @@ export function useUpdateNotifier(): UpdateNotifierUI {
   };
 }
 
+
+
+
 export function UpdateNotifier({
   onUpdateReady,
   onUpdateApplied,
@@ -59,14 +62,12 @@ export function UpdateNotifier({
 }: UpdateNotifierProps) {
   const { state, info, error, pendingVersion, currentVersion } = useUpdateNotifier();
 
-  // Auto-check for updates on mount
   useEffect(() => {
     if (autoCheck && (state === 'idle' || state === 'up-to-date')) {
       checkForUpdates();
     }
   }, [autoCheck]);
 
-  // Notify parent of state changes
   useEffect(() => {
     if (state === 'ready' && pendingVersion) {
       onUpdateReady?.(pendingVersion);
@@ -97,12 +98,10 @@ export function UpdateNotifier({
     await updateService.reset();
   }, []);
 
-  // Don't show anything if up-to-date or idle
   if (state === 'up-to-date' || state === 'idle') {
     return null;
   }
 
-  // Force update banner (can't be dismissed)
   if (showForceUpdate && info?.isForceUpdate && state !== 'installing') {
     return (
       <div className="update-notifier update-notifier--force">
@@ -140,7 +139,6 @@ export function UpdateNotifier({
     );
   }
 
-  // Normal update notification
   return (
     <div className={`update-notifier update-notifier--${state}`}>
       {/* Header */}
@@ -247,11 +245,15 @@ export function UpdateNotifier({
   );
 }
 
-// ─── Update Status Badge ─────────────────────────────────────────────────────
+
+
 
 interface UpdateStatusBadgeProps {
   className?: string;
 }
+
+
+
 
 export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
   const { state, info, currentVersion } = useUpdateNotifier();
@@ -283,9 +285,6 @@ export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
   return null;
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
-
-// These styles can be added to your global CSS or Tailwind config
 export const updateStyles = `
 .update-notifier {
   position: fixed;
@@ -445,7 +444,6 @@ export const updateStyles = `
   margin-top: 0.75rem;
 }
 
-/* Buttons */
 .btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -490,7 +488,6 @@ export const updateStyles = `
   gap: 0.5rem;
 }
 
-/* Spinner */
 .spinner {
   width: 16px;
   height: 16px;
@@ -509,7 +506,6 @@ export const updateStyles = `
   to { transform: rotate(360deg); }
 }
 
-/* Update Badge */
 .update-badge {
   display: inline-flex;
   align-items: center;
@@ -540,7 +536,6 @@ export const updateStyles = `
   color: #C62828;
 }
 
-/* Force Update Override Button Styles */
 .update-notifier--force .btn--primary {
   background: white;
   color: #667eea;
@@ -553,5 +548,8 @@ export const updateStyles = `
   background: rgba(255, 255, 255, 0.3);
 }
 `;
+
+
+
 
 export default UpdateNotifier;

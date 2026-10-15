@@ -12,15 +12,16 @@ import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import { isDevMode } from '../../services/runtimeEnv'
 
+
+
+
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
-  /**
-   * ID dermaga yang dipilih di popup Mulai Trip.
-   * WAJIB dipakai filter — MobileApp pass ini saat petugas pilih dermaga.
-   * null/undefined = popup dermaga masih terbuka, tampilkan empty state.
-   */
   selectedDockId?: string | null
 }
+
+
+
 
 export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScreenProps) {
   const { draft, patchDraft, officer } = useApp()
@@ -30,11 +31,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const dock = dockId ? accessibleDermagas.find(d => d.id === dockId) ?? null : null
   const dockName = dock?.name ?? null
 
-  // Rute dari backend. selectedDockId null = popup dermaga terbuka, kosong. TIDAK fallback semua dock.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
   const [loading, setLoading] = useState(false)
 
-  // Segarkan rute tiap layar dibuka (Master Rute admin terlihat langsung).
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -44,20 +43,16 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     return () => { alive = false }
   }, [])
 
-  // Filter mutlak: hanya rute dockId yang dipilih.
   const dermagaFiltered = dockId
     ? routes.filter(r => r.dermagaId === dockId)
     : []
 
   const isEmptyTrip = draft.condition === 'kosong'
-  // ── Geofence real-time: titik aktif mengunci rute yang boleh dipilih ──
   const [activeGeofence, setActiveGeofence] = useState<GeofencePoint | null>(null)
   const [geoStatus, setGeoStatus] = useState<'checking' | 'inside' | 'blocked' | 'mismatch'>('checking')
-  /** Blokir karena KONFIGURASI belum ada (bukan karena lokasi) → tawarkan sync. */
   const [configMissing, setConfigMissing] = useState(false)
   const [syncingGeo, setSyncingGeo] = useState(false)
   const [syncNote, setSyncNote] = useState<string | null>(null)
-  /** DERMAGA MISMATCH: petugas di dermaga berbeda dari yang dipilih */
   const [dockMismatch, setDockMismatch] = useState<{
     selectedDock: string
     actualGeofence: string
@@ -76,12 +71,8 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setConfigMissing(false)
         setSyncNote(null)
 
-        // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
-        // Jika dermaga dipilih DAN ada titik geofence aktif,
-        // cek apakah lokasi petugas sesuai dengan dermaga yang dipilih.
         if (dockId && result.activePoint.dermagaId) {
           if (result.activePoint.dermagaId !== dockId) {
-            // Petugas ADA DI geofence, tapi BUKAN dermaga yang dipilih
             setDockMismatch({
               selectedDock: dockId,
               actualGeofence: result.activePoint.name,
@@ -91,11 +82,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             return
           }
         }
-        // Lokasi sesuai dermaga
         setDockMismatch(null)
         setGeoStatus('inside')
       } else {
-        // Skenario C: di luar geofence / GPS mati / akurasi buruk — BLOCK ALL.
         setActiveGeofence(null)
         setDockMismatch(null)
         setGeoStatus('blocked')
@@ -103,11 +92,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       }
     }
 
-    /**
-     * Self-heal: konfigurasi kosong = masalah SINKRONISASI (bukan lokasi).
-     * Tarik sekali dari Master Rute admin, lalu nilai ulang — petugas tidak
-     * perlu tahu-menahu soal cache/token dan tidak dituduh "di luar area".
-     */
     const evaluateWithSelfHeal = async (): Promise<void> => {
       const first = await getActiveGeofenceSnapshot()
       if (!alive) return
@@ -151,7 +135,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
   }, [])
 
-  /** Tombol fallback: tarik konfigurasi terbaru dari Admin lalu nilai ulang. */
   const handleSyncGeofence = async () => {
     setSyncingGeo(true)
     setSyncNote(null)
@@ -162,7 +145,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       setActiveGeofence(snap.activePoint)
       setConfigMissing(false)
 
-      // ── CEK DERMAGA MISMATCH ──────────────────────────────────────────────
       if (dockId && snap.activePoint.dermagaId) {
         if (snap.activePoint.dermagaId !== dockId) {
           setDockMismatch({
@@ -195,17 +177,12 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     )
   }
 
-  // GATE: rute DISEMBUNYIKAN sampai GPS berhasil memeriksa titik geofence.
-  // - 'checking' → daftar kosong (user hanya melihat spinner status)
-  // - 'blocked'  → daftar kosong SELAMA GPS belum membuktikan lokasi valid
-  // - 'inside'   → hanya rute yang diizinkan titik geofence yang tampil
   const list = geoStatus === 'checking' || geoStatus === 'blocked'
     ? []
     : activeGeofence
       ? dermagaFiltered.filter(r => activeGeofence.allowedRoutes.includes(r.code))
       : []
 
-  // Guard: rute lama tidak valid saat kondisi berubah.
   const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
     ? draft.routeCode
     : null
@@ -213,7 +190,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
     if (!validSelected) return
-    // Guard akhir sebelum lanjut: kunci mutlak geofence.
     if (activeGeofence && !activeGeofence.allowedRoutes.includes(validSelected)) return
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
@@ -332,7 +308,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           {/* Tombol Periksa Ulang Lokasi */}
           <button
             onClick={() => {
-              // Reset GPS cache agar langsung pindai ulang
               resetGpsFixCache()
               void handleSyncGeofence()
             }}
@@ -353,7 +328,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             <div className="mt-3 pt-3 border-t border-red-200">
               <button
                 onClick={() => {
-                  // Bypass geofence check di dev mode - untuk testing UI
                   setActiveGeofence({
                     id: 'dev-override',
                     name: 'DEV MODE Override',
@@ -386,7 +360,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           Memuat rute terbaru...
         </div>
       )}
-
 
       <div className="space-y-2.5 mb-5">
         {!loading && list.map(r => {

@@ -4,21 +4,21 @@ import { useApp } from '../store'
 import { getCurrentPosition } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface TripConditionScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 export default function TripConditionScreen({ go }: TripConditionScreenProps) {
   const { draft, patchDraft } = useApp()
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
   useEffect(() => { setCondition(draft.condition) }, [draft.condition])
 
-  // ── Pemanasan GPS ──────────────────────────────────────────────────────────
-  // Layar berikutnya (Pilih Rute) membutuhkan fix lokasi untuk gerbang geofence.
-  // Mulai ambil fix SEKARANG, saat petugas memilih kondisi trip, supaya saat layar
-  // rute dibuka fix sudah ada di cache → pemeriksaan instan, tanpa jeda pemanasan
-  // penerima GNSS (bisa 1–10 dtk). Hasilnya sengaja diabaikan; kalau gagal,
-  // layar rute tetap mengambil sendiri.
   useEffect(() => { void getCurrentPosition() }, [])
 
   const bgForCondition = (key: string) => {
@@ -47,7 +47,6 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
       <p className="text-slate-500 text-[13px] mb-4">Pilih status muatan trip ini sebelum memilih rute</p>
 
       <div className="space-y-3 mb-5">
-        {/* Kosong */}
         <button
           onClick={() => {
             setCondition('kosong')
@@ -80,7 +79,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             <div className="flex-1">
               <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kosong / Tidak Ada Muatan</p>
               <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan berjalan tanpa muatan — pilih rute bebas</p>
-              
+
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('kosong')}`}>
               {condition === 'kosong' && <div className="w-2 h-2 rounded-full bg-white" />}

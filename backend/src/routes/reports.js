@@ -1,11 +1,19 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Kode rute pada aplikasi mobile memakai 'BDAU', sedangkan kode region di
-// database adalah 'BADAU'. Dipetakan agar nama tempat tampil akurat.
+
+
+
 const ROUTE_CODE_ALIAS = { BDAU: 'BADAU' };
+
+
+
 
 function placeNameSubquery(col) {
   return `(SELECT rg.name FROM regions rg
@@ -13,7 +21,9 @@ function placeNameSubquery(col) {
            LIMIT 1)`;
 }
 
-// Get summary stats — revenue reporting is admin-only
+
+
+
 router.get('/summary', authenticate, requireAdmin, (req, res) => {
   try {
     const { startDate, endDate, regionId } = req.query;
@@ -26,21 +36,17 @@ router.get('/summary', authenticate, requireAdmin, (req, res) => {
       params.push(startDate, endDate);
     }
 
-    // Total trips
     const tripCount = db.prepare(`
       SELECT COUNT(*) as count FROM trips t
       WHERE 1=1 ${dateFilter}
     `).get(...params);
 
-    // Total vehicles
     const vehicleCount = db.prepare(`
       SELECT COUNT(*) as count FROM vehicles v
       JOIN trips t ON v.trip_id = t.id
       WHERE 1=1 ${dateFilter}
     `).get(...params);
 
-    // Total revenue — SELURUH tarif kendaraan yang dicatat (golongan bukan penanda
-    // 'Eksternal'; vehicle categories adalah kolom category, bukan golongan).
     const revenue = db.prepare(`
       SELECT COALESCE(SUM(v.tariff_amount), 0) as total FROM vehicles v
       JOIN trips t ON v.trip_id = t.id
@@ -57,9 +63,9 @@ router.get('/summary', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Filter laporan bersama (dipakai /trips dan /trips/export) supaya hasilnya konsisten.
-// - golongan     : cocokkan golongan master tarif (I..V) ATAU kolom golongan lama
-// - vehicleType  : jenis kendaraan (Motor, Mobil, Truck ...)
+
+
+
 function buildFilters(query) {
   const { startDate, endDate, route, golongan, vehicleType, status, regionId } = query;
   let sql = '';
@@ -71,7 +77,6 @@ function buildFilters(query) {
   }
 
   if (route) {
-    // Dukung kode rute mobile ('BDAU') maupun kode region ('BADAU')
     const alias = ROUTE_CODE_ALIAS[route] || route;
     const alt = Object.keys(ROUTE_CODE_ALIAS).find(k => ROUTE_CODE_ALIAS[k] === route) || route;
     const variants = Array.from(new Set([route, alias, alt]));
@@ -106,8 +111,9 @@ function buildFilters(query) {
   return { sql, params };
 }
 
-// Get trips report — contains revenue, admin-only
-// Menyertakan detail tempat (wilayah + asal/tujuan) dan waktu yang akurat.
+
+
+
 router.get('/trips', authenticate, requireAdmin, (req, res) => {
   try {
     const { sql: filterSql, params } = buildFilters(req.query);
@@ -128,7 +134,6 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
 
     const trips = db.prepare(query).all(...params);
 
-    // Attach full vehicle detail and documentation per trip.
     const vehStmt = db.prepare(`
       SELECT v.id, v.no_polisi, v.vehicle_type, v.golongan, v.has_load, v.tariff_amount,
         v.foto_path, v.foto_captured_at, v.latitude, v.longitude,
@@ -150,9 +155,9 @@ router.get('/trips', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Rekapitulasi terpusat per wilayah operasional (region + dermaga).
-// Trip dari petugas BERBEDA tetapi satu region/dermaga digabung jadi satu baris;
-// Daftar opsi filter laporan (golongan + jenis kendaraan dari master tarif)
+
+
+
 router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
   try {
     const rows = db.prepare(`
@@ -170,5 +175,8 @@ router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to fetch filter options' });
   }
 });
+
+
+
 
 module.exports = router;

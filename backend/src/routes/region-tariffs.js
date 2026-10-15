@@ -1,9 +1,15 @@
 const express = require('express');
+
+
+
+
 const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Daftar tarif region (gabungan region + baris konfigurasi lokal/eksternal)
+
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const regions = db.prepare(`
@@ -21,7 +27,9 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Upsert satu tarif region: { regionId, tariffType: 'lokal'|'eksternal', nominalTariff, isActive }
+
+
+
 router.put('/:regionId', authenticate, requireAdmin, (req, res) => {
   try {
     const { regionId } = req.params;
@@ -56,5 +64,8 @@ router.put('/:regionId', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to update region tariff' });
   }
 });
+
+
+
 
 module.exports = router;

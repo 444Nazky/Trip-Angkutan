@@ -12,24 +12,25 @@ import {
 import { initializeSync, syncNow } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 
+
+
+
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
 }
 
-/**
- * Verifikasi LOKAL instan — baca DB offline (SQLite/localStorage) yang sudah
- * mencakup DATA BAWAAN (seed), tanpa menyentuh jaringan.
- * Sukses → sesi offline dibangun; caller melanjutkan sync online di latar.
- *
- * Berada di lingkup MODUL (bukan di dalam komponen) agar bisa diuji unit test
- * (src/services/auth.test.ts) tanpa merender UI.
- */
+
+
+
 export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
   if (!u || !p) return false
 
   try {
     const res = await loginOffline(u, p)
-    if (res.success) return true
+    if (res.success) {
+      window.dispatchEvent(new Event(SESSION_READY_EVENT))
+      return true
+    }
   } catch {
     /* database offline belum siap — lanjut ke roster */
   }
@@ -47,11 +48,15 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
         regionCode: match.region,
         offlineMode: true,
       }))
+      window.dispatchEvent(new Event(SESSION_READY_EVENT))
       return true
     }
   } catch { /* no-op */ }
   return false
 }
+
+
+
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('')
@@ -61,7 +66,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showPw, setShowPw] = useState(false)
 
-  // ── Listener online/offline ─────────────────────────────────────
   useEffect(() => {
     const on  = () => setIsOnline(true)
     const off  = () => setIsOnline(false)
@@ -81,14 +85,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const u = username.trim()
     const p = password
     try {
-      // ── 1. VERIFIKASI LOKAL — selalu lebih dulu ───────────────────────
-      // Membaca database offline + DATA BAWAAN (seed) secara instan:
-      // tanpa jeda network request, langsung bisa100% offline.
       if (await tryOfflineLogin(u, p)) {
         void initializeSync()
         onLogin('member')
-        // ── 2. Ada internet → sesi backend + update petugas dari dashboard
-        //       admin ditarik SEKARANG (sinkron petugas baru).
         if (navigator.onLine) {
           void establishOnlineSession(u, p)
           void syncOfficersToLocal(true)
@@ -101,12 +100,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         return
       }
 
-      // ── 3. Gagal lokal & online → serahkan ke server ──────────────────
-      // Kasus: petugas baru dibuat admin / PIN baru yang belum tersinkron.
       const result = await memberLogin(u, p)
       if (result.success) {
         void initializeSync()
-        // Sinkron data petugas BARU SEKARANG agar bisa login di perangkat lain
         if (navigator.onLine) void syncOfficersToLocal(true)
         onLogin('member')
         return
@@ -126,25 +122,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
   }
 
-  /**
-   * LATAR BELAKANG setelah login lokal sukses (saat ada internet):
-   *   1. Ambil JWT (member-login → fallback login PIN per petugas).
-   *   2. Tarik penambahan / penonaktifan petugas dari dashboard admin ke
-   *      penyimpanan lokal (sinkron otomatis, data bawaan tidak dirusak).
-   *   3. Proses antrean trip yang tertunda.
-   * Gagal total → aplikasi tetap berjalan normal dalam mode offline.
-   */
   async function establishOnlineSession(u: string, p: string): Promise<void> {
     try {
       await memberLogin(u, p)
       if (!api.isAuthenticated) {
-        // Kata sandi bukan password member → coba PIN petugas per akun
         const id = getStoredOfficer()?.id
         if (id) await loginWithPin(String(id), p)
       }
       if (api.isAuthenticated) {
         void syncNow().catch(() => undefined)
-        // Beri tahu store: token siap → tarik roster admin terbaru.
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
     } catch { /* tetap mode offline — sinkron menyusul saat koneksi ada */ }
@@ -202,8 +188,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              maxLength={6}
               value={password}
-              onChange={e => { setError(null); setPassword(e.target.value) }}
+              onChange={e => { setError(null); setPassword(e.target.value.replace(/\D/g, '')) }}
               onKeyDown={onKey}
               placeholder="PIN"
               className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"

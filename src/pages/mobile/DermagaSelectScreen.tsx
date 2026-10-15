@@ -3,12 +3,18 @@ import { selectDermaga, selectDermagaLocal, type Dermaga } from '../../services/
 import { useState } from 'react'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface DermagaSelectScreenProps {
   go: (s: MobileScreen) => void
   dermagas: Dermaga[]
   onSelected: (dermaga: Dermaga) => void
   onCancel: () => void
 }
+
+
+
 
 export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: DermagaSelectScreenProps) {
   const [selected, setSelected] = useState<string | null>(null)
@@ -20,9 +26,6 @@ export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: 
     setLoading(true)
     setError('')
 
-    // Online dulu (ambil rute terbaru dari server). Bila jaringan tidak
-    // tembus, fallback PEMILIHAN LOKAL agar petugas dual-access tetap bisa
-    // memilih dermaga & mulai trip walau sedang offline.
     let result = await selectDermaga(selected)
     if (!result.success) {
       const chosen = dermagas.find(d => d.id === selected)

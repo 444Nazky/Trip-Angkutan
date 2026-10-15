@@ -1,11 +1,17 @@
 import FloatingBottomNav from './FloatingBottomNav'
 import type { MobileScreen } from '../types'
 
+
+
+
 interface MobileShellProps {
   children: React.ReactNode
   activeNav: string
   onNav: (s: MobileScreen) => void
 }
+
+
+
 
 export default function MobileShell({ children, activeNav, onNav }: MobileShellProps) {
   return (

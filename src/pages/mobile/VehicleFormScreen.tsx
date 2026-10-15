@@ -4,29 +4,34 @@ import { tariffFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 import {
+
+
+
+
   formatPlateNumber,
   validatePlate,
   sanitizePlateInput,
   PLATE_REGEX_STRICT,
 } from '../../utils/plateFormatter'
 
+
+
+
 interface VehicleFormScreenProps {
   go: (s: MobileScreen) => void
 }
 
-// Label "Pilih…" di select menandakan field belum diisi — sengaja dibuat
-// wajib (bukan opsional) untuk jenis kendaraan & kategori.
 const TYPE_PLACEHOLDER = 'Pilih jenis kendaraan'
 const CATEGORY_PLACEHOLDER = 'Pilih kategori'
+
+
+
 
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
   const { plate, type: vehicleType, category } = draft.vehicleForm
-  // Mode ubah (edit sebelum submit): indeks kendaraan yang sedang diperbaiki.
   const editingIndex = draft.editVehicleIndex ?? null
   const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
-  // Foto kendaraan MEMAKAI SLOT TERPISAH (vPhoto) — bukan foto trip,
-  // supaya tiap kendaraan (Truk 1, Truk 2, Mobil 1 …) punya foto sendiri.
   const photoTaken = draft.vPhoto
 
   const [check, setCheck] = useState<PlateCheck | null>(null)
@@ -34,15 +39,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const [plateError, setPlateError] = useState('')
   const [showModal, setShowModal] = useState(false)
 
-  // Ref for cursor position management
   const plateInputRef = useRef<HTMLInputElement>(null)
   const lastValueRef = useRef(plate)
 
   const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : ['Motor', 'Mobil', 'Truck Kecil', 'Truck Sedang', 'Truck Besar']
   const categories = ['Internal', 'Eksternal', 'Lokal']
 
-  // Semua field wajib — tidak ada satu pun yang opsional.
-  // Plate must match strict format: [1-2 letters] + space + [1-4 digits] + space + [1-3 letters]
   const plateOk = PLATE_REGEX_STRICT.test(plate.trim())
   const typeOk = !!vehicleType && vehicleType !== TYPE_PLACEHOLDER
   const categoryOk = !!category && category !== CATEGORY_PLACEHOLDER
@@ -62,14 +64,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
-  /**
-   * Smart plate input handler with auto-formatting
-   * - Auto-inserts space when transitioning from letters to digits
-   * - Auto-inserts space when transitioning from digits to letters
-   * - Auto-capitalizes all letters
-   * - Removes invalid characters
-   * - Maintains cursor position intelligently
-   */
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value
     const oldValue = lastValueRef.current
@@ -78,9 +72,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
     setPlateError('')
 
-    // Handle backspace/delete at space boundaries
     if (newLength < oldLength) {
-      // User pressed backspace - just remove the character
       const sanitized = sanitizePlateInput(rawValue)
       const formatted = formatPlateNumber(sanitized)
       lastValueRef.current = formatted
@@ -88,7 +80,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return
     }
 
-    // New character added - sanitize and format
     const sanitized = sanitizePlateInput(rawValue)
     const formatted = formatPlateNumber(sanitized)
 
@@ -96,9 +87,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setField({ plate: formatted })
   }
 
-  /**
-   * Validate plate format on blur/submit
-   */
   const validatePlateInput = (): boolean => {
     const result = validatePlate(plate)
     if (!result.valid) {
@@ -108,10 +96,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     return true
   }
 
-  // Handle OCR result with smart formatting
   useEffect(() => {
     if (draft.ocrResult) {
-      // Normalize OCR result: remove extra spaces, uppercase
       const sanitized = sanitizePlateInput(draft.ocrResult)
       const formattedPlate = formatPlateNumber(sanitized)
       if (formattedPlate.length >= 3) {
@@ -128,11 +114,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     go('camera')
   }
 
-  // Guard keras: tidak ada kendaraan yang tersimpan dengan field kosong.
-  // Mode edit → perbarui kendaraan pada tempatnya (indeks tidak berubah),
-  // sehingga foto dokumentasi yang sudah terpasang tidak tertukar.
   const pushVehicle = () => {
-    // Validate plate format before saving
     if (!validatePlateInput()) {
       return false
     }
@@ -165,7 +147,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     return true
   }
 
-  /** Batalkan mode ubah tanpa menyimpan perubahan. */
   const cancelEdit = () => {
     patchDraft({
       vehicleForm: { plate: '', type: '', category: '' },

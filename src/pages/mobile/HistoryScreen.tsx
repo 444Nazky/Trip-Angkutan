@@ -3,7 +3,9 @@ import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2 } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
-// ─── Sync Badge Component ─────────────────────────────────────────────────────
+
+
+
 function SyncBadge({ isSynced }: { isSynced: boolean }) {
   if (isSynced) {
     return (
@@ -20,7 +22,9 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
   )
 }
 
-// ─── Connection Indicator ──────────────────────────────────────────────────────
+
+
+
 function ConnectionIndicator() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
@@ -47,17 +51,21 @@ function ConnectionIndicator() {
   )
 }
 
-// ─── History Screen ────────────────────────────────────────────────────────────
+
+
+
 interface HistoryScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
+
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
   const { trips, setDetailTripId, officer, clearAllTrips } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Officers only see their own trips (matches HomeScreen)
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
@@ -65,7 +73,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
-  // Count summary
   const syncedCount = myTrips.filter(t => t.synced).length
   const localCount = myTrips.filter(t => !t.synced).length
 
