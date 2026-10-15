@@ -505,10 +505,22 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
   purgeGeofenceCache()
 
   try {
-    const dermagaId = getStoredDermaga()?.id
-    const path = dermagaId ? `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}` : '/geofences'
-    console.log('[geofence] Sync: GET', path)
-    const result = await api.get<BackendGeofence[]>(path)
+    // petugas mengambil titik untuk dermaga yang ia pilih (jika ada) PLUS titik
+  // "berlaku umum" (dermagaId kosong). Jika one-dermaga device tapi backend SSB
+  // masih DB lama tanpa kolom dermaga_id, endpoint masih 200 dan kita amankan di
+  // sisi klien: titik yang petugas itu dapat = yang dermagaId-nya cocok ATAU NULL
+  // (berlaku umum). Titik dermaga lain TIDAK ikut, jadi masing-masing petugas
+  // lihat subset yang ia miliki — sinkronisasi jadi benar-benar berbeda per device.
+  const dermagaId = getStoredDermaga()?.id
+  let path: string
+  let dermagaFilter: { id?: string; cacheKey?: string } = { id: dermagaId ?? undefined }
+  if (dermagaId) {
+    path = `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}`
+  } else {
+    path = '/geofences'
+  }
+  console.log('[geofence] Sync: GET', path)
+  const result = await api.get<BackendGeofence[]>(path)
     console.log('[geofence] Sync: response', JSON.stringify(result))
 
     if (!result.ok || !Array.isArray(result.data)) {
@@ -521,20 +533,32 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
-    // Backend lama menyaring HANYA `dermaga_id = ?`, sedangkan titik yang dibuat
-    // admin dashboard disimpan tanpa dermagaId (NULL) — hasilnya daftar kosong dan
-    // petugas melihat "Belum ada titik geofence tersimpan" walau admin sudah
-    // menyimpannya. Kalau permintaan terfilter kosong, ambil master lengkap sekali
-    // lagi supaya titik itu tetap sampai ke perangkat tanpa menunggu deploy server.
-    let rows = result.data
-    if (rows.length === 0 && dermagaId) {
-      console.log('[geofence] Sync: hasil filter dermaga kosong → fallback master /geofences')
-      const all = await api.get<BackendGeofence[]>('/geofences')
-      if (all.ok && Array.isArray(all.data) && all.data.length > 0) {
-        rows = all.data
-        console.log('[geofence] Sync: fallback master memberi', rows.length, 'titik')
-      }
-    }
+    // Jika bukan one-dermaga device (tanpa dermaga_diminta): dapat semua, titik
+    // berlaku umum + semua per-dermaga; frontend filter di scopedGeofencePoints.
+    //
+    // Jika one-dermaga device DAN backend sudah punya kolom dermaga_id (endpoint
+    // mobile branch yang live): hasilnya sudah tepat (titik dermaga tsb + umum).
+    //
+    // Jika one-dermaga device DAN endpoint SSB masih skema lama (tanpa kolom):
+    // tidak ada titik yang dermagaId-nya cocok, tapi titik umum (NULL) ikut sampai.
+    // Di sisi klien kita SIDAKAN titik lain: hasilnya harus = titik yang dermagaId
+    // pas ATAU dermagaId kosong (berlaku umum). Ini bukan fallback ke master —
+    // fallback ke master itu bikin titik D1 masuk device D2, yang bikin sinkron
+    // jadi SALAH per device. Setelah fix di server, guard ini tidak pernah dinyalakan
+    // karena semua device dapat subset yang tepat dari endpoint dermagaId.
+    let rows = result.data ?? []
+    // Sisi klien: satu-dermaga device hanya boleh dapat titik yang dermagaId-nya cocok
+    // ATAU dermagaId kosong (berlaku umum). Ini melindungi D1 device D2 selama backend
+    // masih berjalan di SSB skema lama yang belum punya kolom dermaga_id — selama itu,
+    // titik dermaga lain TIDAK ikut, jadi sinkron benar-benar berbeda per device.
+    //
+    // Sedangkan titik umum (dermagaId kosong) tetap dianggap milik semua device, jadi
+    // TIDAK pernah di-sidebar — itu memang yang sebenarnya harusnya sampai ke setiap
+    // perangkat. Setelah deploy backend terbaru (endpoint punya kolom dermaga_id),
+    // hasilnya tetap sama: hanya titik dermaga tsb + umum.
+    rows = rows.filter(
+      p => !dermagaId || !String(p.dermagaId || '').trim() || String(p.dermagaId).trim() === dermagaId,
+    ) as BackendGeofence[]
 
     console.log('[geofence] Sync: got', rows.length, 'items from server')
     const points = scopedGeofencePoints(

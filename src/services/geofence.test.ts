@@ -261,22 +261,32 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     expect(h.paths[0]).toBe('/geofences?dermagaId=dm-badau-1')
   })
 
-  it('backend lama (filter dermaga kosong) → fallback master /geofences, titik admin tetap masuk', async () => {
-    // Backend yang belum di-deploy menyaring HANYA `dermaga_id = ?`; titik buatan
-    // dashboard tersimpan dengan dermaga_id NULL → hasil filter kosong. Dulu itu
-    // berakhir "Belum ada titik geofence tersimpan" dan petugas tak bisa input trip.
+  it('titik geofence di-sidebar: satu-dermaga device hanya dapat titik dermaga + umum (bukan semua device)', async () => {
+    // Hanya titik yang dermagaId-nya cocok atau NULL yang masuk device ini. Titik
+    // milik dermaga lain TIDAK boleh masuk — itu krusial supaya sinkronisasi benar-
+    // benar berbeda per device (bukan semua device dapat semua titik).
     h.dermaga = { id: 'dm-badau-1' }
     h.byPath = {
-      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [] },
-      '/geofences': { ok: true, data: [backendRow({ allowedRouteCodes: [] })] },
+      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [
+        backendRow({ id: 'geo-d1', allowedRouteCodes: ['SJRE-SBDZ'] }),
+        backendRow({ id: 'geo-umum', dermagaId: '', allowedRouteCodes: ['SJRE-SBDZ'] }),
+        backendRow({ id: 'geo-d2', dermagaId: 'dm-badau-2', allowedRouteCodes: ['ENT-SRN'] }),
+      ] },
     }
 
     const result = await forceSyncGeofencesFromBackend()
 
-    expect(h.paths).toEqual(['/geofences?dermagaId=dm-badau-1', '/geofences'])
+    // Hanya satu permintaan: tidak ada fallback master (frontend tidak memaksa
+    // /geofences kedua kalinya; filter terjadi di sisi klien).
+    expect(h.paths).toEqual(['/geofences?dermagaId=dm-badau-1'])
     expect(result.ok).toBe(true)
-    expect(result.count).toBe(1)
-    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual([
+      'geo-d1',
+      'geo-umum',
+      // geo-d2 TIDAK ikut — milik dermaga lain.
+    ])
+    expect(getStoredGeofencePoints().filter(p => p.id === 'geo-d2')).toEqual([])
   })
 
   it('filter dermaga kosong & master juga kosong → tetap kosong (admin memang belum menyimpan titik)', async () => {
