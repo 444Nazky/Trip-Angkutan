@@ -1,21 +1,17 @@
-// ─── App Download API ────────────────────────────────────────────────────────
-// GET /api/v1/app-download/:version
-
 const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// Path to APK storage
 const APK_DIR = path.join(__dirname, '..', '..', 'apks');
 const METADATA_DIR = path.join(__dirname, '..', '..', 'metadata');
 
-// CDN/Static URL
 const APK_CDN_BASE = process.env.APK_CDN_URL || '';
 const RAILWAY_STATIC_URL = process.env.RAILWAY_STATIC_URL || '';
 
-// Load version metadata for hash verification
+
+
 function loadVersionMetadata() {
   const metadataPath = path.join(METADATA_DIR, 'versions.json');
   if (fs.existsSync(metadataPath)) {
@@ -28,12 +24,12 @@ function loadVersionMetadata() {
   return null;
 }
 
-// GET /api/v1/app-download/:version
+
+
 router.get('/app-download/:version', (req, res) => {
   try {
     const { version } = req.params;
 
-    // Validate version format
     const semverRegex = /^\d+\.\d+\.\d+$/;
     if (!semverRegex.test(version)) {
       return res.status(400).json({
@@ -42,14 +38,12 @@ router.get('/app-download/:version', (req, res) => {
       });
     }
 
-    // If CDN URL is configured, redirect to it
     if (APK_CDN_BASE) {
       const cdnUrl = `${APK_CDN_BASE}/app-${version}.apk`;
       console.log(`Redirecting to CDN: ${cdnUrl}`);
       return res.redirect(302, cdnUrl);
     }
 
-    // If Railway static URL is configured, redirect to it
     if (RAILWAY_STATIC_URL) {
       const staticUrl = `${RAILWAY_STATIC_URL}/releases/app-${version}.apk`;
       console.log(`Redirecting to static: ${staticUrl}`);
@@ -58,7 +52,6 @@ router.get('/app-download/:version', (req, res) => {
 
     const apkPath = path.join(APK_DIR, `app-${version}.apk`);
 
-    // Check if APK exists locally
     if (!fs.existsSync(apkPath)) {
       return res.status(404).json({
         error: 'APK_NOT_FOUND',
@@ -68,7 +61,6 @@ router.get('/app-download/:version', (req, res) => {
 
     const stats = fs.statSync(apkPath);
 
-    // Set headers for APK download
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
     res.setHeader('Content-Disposition', `attachment; filename="trip-angkut-${version}.apk"`);
     res.setHeader('Content-Length', stats.size);
@@ -76,7 +68,6 @@ router.get('/app-download/:version', (req, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // Stream the APK file
     const fileStream = fs.createReadStream(apkPath);
 
     fileStream.on('error', (error) => {
@@ -101,7 +92,8 @@ router.get('/app-download/:version', (req, res) => {
   }
 });
 
-// GET /api/v1/apk-info/:version - Get APK metadata without downloading
+
+
 router.get('/apk-info/:version', (req, res) => {
   try {
     const { version } = req.params;
@@ -137,7 +129,8 @@ router.get('/apk-info/:version', (req, res) => {
   }
 });
 
-// Helper function to format bytes
+
+
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -146,7 +139,8 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// GET /api/v1/apk-list - List all available APK versions
+
+
 router.get('/apk-list', (req, res) => {
   try {
     ensureDir(APK_DIR);
@@ -186,10 +180,14 @@ router.get('/apk-list', (req, res) => {
   }
 });
 
+
+
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
+
+
 
 module.exports = router;

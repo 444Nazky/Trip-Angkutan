@@ -18,6 +18,8 @@ export interface OfflineSession {
   loggedInAt: string
 }
 
+
+
 async function hashPassword(password: string, salt: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(salt + ':' + password)
@@ -25,6 +27,8 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer))
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
+
+
 
 async function hashPin(pin: string, salt: string): Promise<string> {
   return hashPassword(pin, salt)
@@ -36,9 +40,7 @@ export function getOfflineSession(): OfflineSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 
@@ -46,9 +48,7 @@ export function getOfflineSession(): OfflineSession | null {
 export function getActiveDermagaId(): string | null {
   try {
     return localStorage.getItem(ACTIVE_DERMAGA_KEY)
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 

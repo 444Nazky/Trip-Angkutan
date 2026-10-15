@@ -1,0 +1,110 @@
+{
+  "hash": "aef81404",
+  "configHash": "591775df",
+  "lockfileHash": "f2396c0f",
+  "browserHash": "764986f5",
+  "optimized": {
+    "@capacitor-community/sqlite": {
+      "src": "../../../../../../node_modules/@capacitor-community/sqlite/dist/esm/index.js",
+      "file": "@capacitor-community_sqlite.js",
+      "fileHash": "221ea754",
+      "needsInterop": false
+    },
+    "@capacitor/app": {
+      "src": "../../../../../../node_modules/@capacitor/app/dist/esm/index.js",
+      "file": "@capacitor_app.js",
+      "fileHash": "74b418bb",
+      "needsInterop": false
+    },
+    "@capacitor/camera": {
+      "src": "../../../../../../node_modules/@capacitor/camera/dist/esm/index.js",
+      "file": "@capacitor_camera.js",
+      "fileHash": "9afe7163",
+      "needsInterop": false
+    },
+    "@capacitor/core": {
+      "src": "../../../../../../node_modules/@capacitor/core/dist/index.js",
+      "file": "@capacitor_core.js",
+      "fileHash": "e907bfff",
+      "needsInterop": false
+    },
+    "@capacitor/filesystem": {
+      "src": "../../../../../../node_modules/@capacitor/filesystem/dist/esm/index.js",
+      "file": "@capacitor_filesystem.js",
+      "fileHash": "b9ae0e8f",
+      "needsInterop": false
+    },
+    "@capacitor/geolocation": {
+      "src": "../../../../../../node_modules/@capacitor/geolocation/dist/esm/index.js",
+      "file": "@capacitor_geolocation.js",
+      "fileHash": "64a05abb",
+      "needsInterop": false
+    },
+    "@capacitor/network": {
+      "src": "../../../../../../node_modules/@capacitor/network/dist/esm/index.js",
+      "file": "@capacitor_network.js",
+      "fileHash": "8069b5aa",
+      "needsInterop": false
+    },
+    "bcryptjs": {
+      "src": "../../../../../../node_modules/bcryptjs/index.js",
+      "file": "bcryptjs.js",
+      "fileHash": "e230f610",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../../../../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "file": "lucide-react.js",
+      "fileHash": "65b6d7bb",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../../../../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "82690ec6",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../../../../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "766196c2",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../../../../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "daf251da",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "rolldown-runtime-DC62tzP2": {
+      "file": "rolldown-runtime-DC62tzP2.js",
+      "isDynamicEntry": false
+    },
+    "synapse-DhWU51FR": {
+      "file": "synapse-DhWU51FR.js",
+      "isDynamicEntry": false
+    },
+    "web-5HRmOAZ0": {
+      "file": "web-5HRmOAZ0.js",
+      "isDynamicEntry": true
+    },
+    "web-8YuiPUEH": {
+      "file": "web-8YuiPUEH.js",
+      "isDynamicEntry": true
+    },
+    "web-AEK0fH6Z": {
+      "file": "web-AEK0fH6Z.js",
+      "isDynamicEntry": true
+    },
+    "web-B_JAPfM0": {
+      "file": "web-B_JAPfM0.js",
+      "isDynamicEntry": true
+    },
+    "web-C9MQ4OOn": {
+      "file": "web-C9MQ4OOn.js",
+      "isDynamicEntry": true
+    }
+  }
+}

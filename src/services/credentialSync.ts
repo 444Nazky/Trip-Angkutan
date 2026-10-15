@@ -24,14 +24,19 @@ export function syncOfficerCredentials(): Promise<SyncResult> {
   if (syncing) return syncing
 
   syncing = (async () => {
-    if (!(await probeServer(true))) return { synced: 0, error: 'Server tidak terjangkau. Coba lagi saat online.' }
+    if (!(await probeServer(true))) {
+      return { synced: 0, error: 'Server tidak terjangkau. Coba lagi saat online.' }
+    }
+
     if (!api.isAuthenticated || !getStoredOfficer()) {
       return { synced: 0, error: 'Masuk secara online terlebih dahulu untuk menyinkronkan petugas.' }
     }
 
     try {
       const officers = await syncOfficersToLocal(true)
-      if (!officers.length) return { synced: 0, error: 'Sesi petugas tidak valid atau tidak ada data. Masuk ulang secara online.' }
+      if (!officers.length) {
+        return { synced: 0, error: 'Sesi petugas tidak valid atau tidak ada data. Masuk ulang secara online.' }
+      }
 
       const routes = await refreshStoredRoutes()
       if (routes === null) {

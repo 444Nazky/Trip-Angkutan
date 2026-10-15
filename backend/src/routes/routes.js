@@ -3,8 +3,8 @@ const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Rute milik petugas yang sedang login — dipakai layar "Pilih Rute" mobile
-// agar daftar rute selalu sinkron dengan Master Rute terbaru tanpa re-login.
+
+
 router.get('/mine', authenticate, (req, res) => {
   try {
     const officerId = req.user && req.user.officerId;
@@ -26,7 +26,8 @@ router.get('/mine', authenticate, (req, res) => {
   }
 });
 
-// Get all routes with dermaga info
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const routes = db.prepare(`
@@ -42,7 +43,8 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Create route
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { dermaga_id, name, route_from, route_to, distance, duration } = req.body;
@@ -60,7 +62,8 @@ const { randomUUID } = require('crypto');
   }
 });
 
-// Update route
+
+
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, route_from, route_to, distance, duration } = req.body;
@@ -74,7 +77,8 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Delete route
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     db.prepare(`DELETE FROM routes WHERE id = ?`).run(req.params.id);
@@ -83,5 +87,7 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to delete route' });
   }
 });
+
+
 
 module.exports = router;

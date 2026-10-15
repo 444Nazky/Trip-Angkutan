@@ -3,8 +3,8 @@ const router = express.Router();
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Get all regions — wajib login + kolom minimal. SELECT * dulu membocorkan
-// kolom `password` (bcrypt) ke siapa pun tanpa token (rantai takeover).
+
+
 router.get('/', authenticate, (req, res) => {
   try {
     const regions = db.prepare(`SELECT id, name, code FROM regions ORDER BY name`).all();
@@ -14,7 +14,8 @@ router.get('/', authenticate, (req, res) => {
   }
 });
 
-// Create region
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, code } = req.body;
@@ -27,5 +28,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Failed to create region' });
   }
 });
+
+
 
 module.exports = router;

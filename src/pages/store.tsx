@@ -407,6 +407,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = () => {
       setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips))))
+      // tab lain login/logout → tab ini ikut
+      setLoggedIn(load(LS.session, false))
+      const so = getStoredOfficer()
+      if (so?.id) {
+        setOfficerIdState(prev => (String(prev) === String(so.id) ? prev : String(so.id)))
+        void ensureBackendSession(String(so.id))
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)

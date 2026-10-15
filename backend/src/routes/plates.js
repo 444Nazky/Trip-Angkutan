@@ -4,13 +4,14 @@ const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-// Normalisasi plat: "b 1234 xy" → "B1234XY" (pencocokan tanpa spasi/prefix)
+
+
 function normalizePlate(raw) {
   return String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
-// Tarif dari konfigurasi terpusat region_tariffs (region pos & jenis).
-// Tidak ada baris / non-aktif → 0 (kebijakan "gratis").
+
+
 function tariffForRegion(regionId, jenisTarif) {
   if (!regionId) return 0;
   const row = db.prepare(
@@ -20,7 +21,8 @@ function tariffForRegion(regionId, jenisTarif) {
   return row.nominal_tariff || 0;
 }
 
-// List plat terdaftar (admin) — ?plate= untuk filter
+
+
 router.get('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { plate } = req.query;
@@ -41,7 +43,8 @@ router.get('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Registrasi plat baru (admin)
+
+
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { plate, owner, originRegionId, status } = req.body || {};
@@ -66,7 +69,8 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Edit plat (admin)
+
+
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const existing = db.prepare(`SELECT * FROM vehicle_plates WHERE id = ?`).get(req.params.id);
@@ -102,7 +106,8 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// Hapus plat (admin)
+
+
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     const existing = db.prepare(`SELECT id FROM vehicle_plates WHERE id = ?`).get(req.params.id);
@@ -114,14 +119,8 @@ router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-// ── Cek plat (petugas) ──────────────────────────────────────────────────────
-// Region pos pemeriksaan = region petugas dari JWT (req.user.regionId).
-// Aturan:
-//   terdaftar 'internal'           → internal, tarif 0
-//   tidak terdaftar & asal = pos   → lokal    → tarif konfigurasi LOKAL pos
-//   tidak terdaftar & asal ≠ pos   → eksternal→ tarif konfigurasi EKSTERNAL pos
-//   terdaftar 'lokal'/'eksternal'  → status menurut registrasi
-// Semua hasil scan dicatat ke plate_scans.
+
+
 router.post('/check', authenticate, (req, res) => {
   try {
     const { plate, originRegionId } = req.body || {};
@@ -141,12 +140,12 @@ router.post('/check', authenticate, (req, res) => {
     } else if (registered && registered.status) {
       status = registered.status;
       origin = registered.origin_region_id || originRegionId || checkpointRegionId;
-      // Registered as lokal but origin differs from pos → still follow origin rule
+
       if (status === 'lokal' && origin && checkpointRegionId && origin !== checkpointRegionId) {
         status = 'eksternal';
       }
     } else {
-      // Tidak terdaftar: region asal dari input petugas, default = region pos (lokal)
+
       origin = originRegionId || checkpointRegionId;
       status = origin && checkpointRegionId && origin !== checkpointRegionId ? 'eksternal' : 'lokal';
     }
@@ -154,13 +153,12 @@ router.post('/check', authenticate, (req, res) => {
     const jenisTarif = status === 'internal' ? null : status;
     const tariffAmount = jenisTarif ? tariffForRegion(checkpointRegionId, jenisTarif) : 0;
 
-    // Catat transaksi scan (jejak audit penarifan)
     try {
       db.prepare(`
         INSERT INTO plate_scans (id, plate, status, origin_region_id, checkpoint_region_id, tariff_amount, officer_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(randomUUID(), norm, status, origin, checkpointRegionId, tariffAmount, req.user.officerId ?? null);
-    } catch (e) { /* log boleh gagal tanpa membatalkan check */ }
+    } catch (e) {}
 
     const originRow = origin ? db.prepare(`SELECT code FROM regions WHERE id = ?`).get(origin) : null;
     const cpRow = checkpointRegionId
@@ -183,5 +181,7 @@ router.post('/check', authenticate, (req, res) => {
     res.status(500).json({ error: 'Failed to check plate' });
   }
 });
+
+
 
 module.exports = router;

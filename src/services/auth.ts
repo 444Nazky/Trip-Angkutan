@@ -16,7 +16,6 @@ const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'
 const AUTH_TIMEOUT_MS = 4000
-
 const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
 
 
@@ -48,7 +47,6 @@ export interface StoredOfficer {
   regionId: string
   regionName: string
   regionCode: string
-
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
@@ -71,7 +69,6 @@ export interface UiRoute {
   label: string
   distance?: string
   duration?: string
-
   dermagaId?: string
 }
 
@@ -84,7 +81,6 @@ function isValidRoute(r: unknown): r is Route {
 
 
 function saveRoutesMap(map: Record<string, Route[]>): void {
-
   const clean: Record<string, Route[]> = {}
   if (map && typeof map === 'object') {
     for (const [k, list] of Object.entries(map)) {
@@ -93,8 +89,7 @@ function saveRoutesMap(map: Record<string, Route[]>): void {
       if (filtered.length) clean[k] = filtered
     }
   }
-  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(clean)) }
-  catch {}
+  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(clean)) } catch {}
 }
 
 
@@ -122,9 +117,7 @@ export function getStoredRoutes(): UiRoute[] {
       }
     }
     return out
-  } catch {
-    return []
-  }
+  } catch { return [] }
 }
 
 
@@ -136,7 +129,6 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
   const map: Record<string, Route[]> = {}
   for (const r of result.data) {
     if (!map[r.dermaga_id]) map[r.dermaga_id] = []
-
     map[r.dermaga_id].push({
       id: r.id,
       name: r.name,
@@ -147,7 +139,6 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
     })
   }
   saveRoutesMap(map)
-
   return getStoredRoutes()
 }
 
@@ -159,9 +150,7 @@ export function hasDockScopedRoutes(): boolean {
     if (!raw) return !!getStoredDermaga()
     const map = JSON.parse(raw) as Record<string, Route[]>
     return !!getStoredDermaga() || Object.keys(map).length > 0
-  } catch {
-    return !!getStoredDermaga()
-  }
+  } catch { return !!getStoredDermaga() }
 }
 
 
@@ -170,9 +159,7 @@ export function getStoredOfficer(): StoredOfficer | null {
   try {
     const raw = localStorage.getItem(OFFICER_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 
@@ -181,25 +168,19 @@ export function getStoredDermaga(): Dermaga | null {
   try {
     const raw = localStorage.getItem(DERMAGA_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 
 
 function saveOfficer(officer: StoredOfficer) {
-  try {
-    localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
-  } catch {}
+  try { localStorage.setItem(OFFICER_KEY, JSON.stringify(officer)) } catch {}
 }
 
 
 
 function saveDermaga(dermaga: Dermaga) {
-  try {
-    localStorage.setItem(DERMAGA_KEY, JSON.stringify(dermaga))
-  } catch {}
+  try { localStorage.setItem(DERMAGA_KEY, JSON.stringify(dermaga)) } catch {}
 }
 
 
@@ -221,7 +202,6 @@ export async function memberLogin(
   const result = await api.post<LoginResponse>('/auth/member-login', { username, password }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
-
     if (isNetworkError(result.error)) {
       const offline = await loginOffline(username, password)
       if (offline.success) return { success: true, officer: offline.officer }
@@ -235,11 +215,8 @@ export async function memberLogin(
   const memberKey = `member:${result.data.officer.id}`
   await setPinHash(memberKey, await hashPin(memberKey, password))
   try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
-
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
-
   void refreshStoredRoutes().catch(() => null)
-
   return { success: true, officer: result.data.officer }
 }
 
@@ -261,31 +238,22 @@ export async function loginWithPin(
   const result = await api.post<LoginResponse>('/auth/login', { officerId, pin }, AUTH_TIMEOUT_MS)
 
   if (!result.ok || !result.data) {
-
     if (isNetworkError(result.error)) {
       const offline = await loginOffline(officerId, pin)
       if (offline.success && offline.session) {
         return { success: true, offline: true, data: offline.session }
       }
-      return {
-        success: false,
-        error: { message: 'Server tidak terjangkau — PIN tidak dapat diverifikasi.' },
-      }
+      return { success: false, error: { message: 'Server tidak terjangkau — PIN tidak dapat diverifikasi.' } }
     }
     return { success: false, error: result.error }
   }
 
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
-
   void cachePin(officerId, pin)
-
   void cacheDockOfficers(String(result.data.officer?.id ?? officerId), result.data.dermagas)
-
   if (result.data.routes) saveRoutesMap(result.data.routes)
-
   if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
-
   return { success: true, data: result.data }
 }
 
@@ -302,7 +270,6 @@ export interface OfflineOfficerRecord {
   regionCode?: string
   status?: string
   pin?: string
-
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
 
@@ -355,6 +322,8 @@ function seedToRecord(identifier: string): OfflineOfficerRecord | null {
     dermagaAccess: s.dermagaAccess,
   }
 }
+
+
 
 async function buildOfflineSession(identifier: string): Promise<LoginResponse | null> {
   let row: OfflineOfficerRecord | null = null
@@ -409,13 +378,9 @@ export async function loginOffline(
 
 export async function selectDermaga(dermagaId: string): Promise<{ success: boolean; error?: string }> {
   const result = await api.post<{ dermaga: Dermaga; routes: Route[] }>('/auth/select-dermaga', { dermagaId })
-
-  if (!result.ok || !result.data) {
-    return { success: false, error: result.error?.message }
-  }
+  if (!result.ok || !result.data) return { success: false, error: result.error?.message }
 
   saveDermaga(result.data.dermaga)
-
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
     const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
@@ -463,7 +428,6 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
     saveOfficer(result.data.officer)
     return true
   }
-
   return false
 }
 
@@ -475,9 +439,7 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     return JSON.parse(atob(base64))
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 
@@ -489,9 +451,7 @@ function jwtExpiryMs(token?: string | null): number | null {
     const base64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     const payload = JSON.parse(atob(base64)) as { exp?: number }
     return typeof payload.exp === 'number' ? payload.exp * 1000 : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 
@@ -526,14 +486,17 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   return api.isAuthenticated
 }
 
+
+
 const LEGACY_PIN_KEY = 'trip.auth.pin.v1'
 
 
 
 function loadLegacyPinMap(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') }
-  catch { return {} }
+  try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') } catch { return {} }
 }
+
+
 
 async function cachePin(officerId: string, pin: string): Promise<void> {
   if (!officerId || !pin) return
@@ -558,11 +521,10 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   let officerId = String(identifier)
   let resolved = false
   let inactive = false
+
   try {
-    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number; payload?: { status?: string } }>(identifier)
+    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number }>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
-    const status = row?.status ?? row?.payload?.status
-    if (status && /^(nonaktif|non-aktif|inactive)$/i.test(String(status))) inactive = true
     if (row?.isActive === false || row?.is_active === 0) inactive = true
   } catch {}
 
@@ -585,7 +547,6 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   }
 
   if (verifySeedPin(officerId, pin) || verifySeedPin(identifier, pin)) return true
-
   return false
 }
 
@@ -607,7 +568,6 @@ interface RosterOfficer {
   regions?: Array<{ id: string; name: string; code: string }>
   dermagas?: Array<{ id: string; name: string; code: string; region_id?: string }>
   is_active?: number | boolean
-
   pin_hash?: string
 }
 
@@ -625,6 +585,8 @@ function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string;
     status: o.is_active === 0 || o.is_active === false ? 'Nonaktif' : 'Aktif',
   } as StoredOfficer & { username?: string; status?: string }
 }
+
+
 
 async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): Promise<void> {
   if (!officers.length) return
@@ -666,6 +628,8 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
   }
 }
 
+
+
 async function fetchMyRegionRoster(): Promise<RosterOfficer[] | null> {
   const r = await api.get<RosterOfficer[]>('/officers/my-region')
   if (!r.ok || !Array.isArray(r.data)) return null
@@ -689,14 +653,12 @@ export async function cacheDockOfficers(
 
       const mates = all.filter(o => (o.dermagas ?? []).some(d => dockIds.has(String(d.id))))
       const list = me && !mates.some(m => String(m.id) === String(me.id))
-        ? [me, ...mates]
-        : mates
+        ? [me, ...mates] : mates
 
       if (list.length) {
         await persistRoster(list, [...dockIds])
         return
       }
-
       await persistRoster(all, [])
       return
     }

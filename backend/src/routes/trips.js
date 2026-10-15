@@ -13,8 +13,6 @@ const photoExtension = (mimetype) => ({
   'image/webp': '.webp',
 }[mimetype]);
 
-// Folder tujuan foto harus sama dengan yang disajikan static server
-// (satu konstanta di backend/src/uploads-dir.js)
 const { UPLOADS_DIR } = require('../uploads-dir');
 const uploadDocumentation = multer({
   storage: multer.diskStorage({
@@ -34,21 +32,23 @@ const validPhotoIndex = (value, files) =>
 
 const numericCoordinate = (value) => Number.isFinite(value) ? value : null;
 
-// Generate trip number
+
+
 function generateTripNo() {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  // crypto.randomBytes (4 bytes = ~4 miliar kombinasi) — tidak dapat diprediksi
+
   const random = require('crypto').randomBytes(4).toString('hex').toUpperCase();
   return `TRP${dateStr}${random}`;
 }
 
-// Create a trip with its complete photo manifest in one multipart request.
+
+
 router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), (req, res) => {
   const files = req.files || [];
   const writtenFiles = files.map(file => file.path);
   const cleanupFiles = () => writtenFiles.forEach(filePath => {
-    try { fs.unlinkSync(filePath); } catch { /* already removed */ }
+    try { fs.unlinkSync(filePath); } catch {}
   });
   try {
     const payload = JSON.parse(req.body.payload || '{}');
@@ -58,14 +58,8 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       return res.status(400).json({ error: 'statusMuatan wajib diisi' });
     }
 
-    // IDEMPOTEN / UPSERT: klien mengirim `clientTripId` (ID trip di perangkat).
-    // Bila trip dengan id ini SUDAH ada — baik karena antrean dikirim ulang
-    // setelah timeout, maupun karena petugas MENGEDIT trip yang sudah terkirim
-    // (ganti plat / ambil ulang foto) — perbarui trip lama, JANGAN insert duplikat.
-    // Ini yang membuat hasil edit sampai ke dashboard admin.
     const clientTripId = typeof payload.clientTripId === 'string' ? payload.clientTripId.trim() : '';
-    // Scope ke officer peminta — tanpa itu petugas mana pun bisa OVERWRITE
-    // trip petugas lain via retry idempoten (IDOR).
+
     const existingTrip = clientTripId
       ? db.prepare(`SELECT id, no_trip FROM trips WHERE client_trip_id = ? AND officer_id = ? LIMIT 1`)
           .get(clientTripId, String(req.user?.officerId ?? ''))
@@ -99,8 +93,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       const masterTariff = db.prepare(`
         SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
       `).get(vehicle.vehicleType);
-      // Amount yang DIBAYAR petugas = source of truth (mobile yang pegang kas).
-      // Master tariff hanya fallback kalau mobile tidak mengirim amount valid.
+
       const amount = (typeof vehicle.tariffAmount === 'number' && vehicle.tariffAmount > 0)
         ? vehicle.tariffAmount
         : (masterTariff
@@ -123,7 +116,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
     };
 
     if (existingTrip) {
-      // ── PERBARUI trip yang sudah ada (edit pasca-kirim / retry) ──────────────
+
       db.prepare(`
         UPDATE trips SET
           status_muatan = ?, route_from = ?, route_to = ?, keterangan = ?,
@@ -136,7 +129,7 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         numericCoordinate(payload.tripPhotoLatitude), numericCoordinate(payload.tripPhotoLongitude),
         payload.startedAt || null, payload.completedAt || null, tripId
       );
-      // Ganti seluruh kendaraan lama dengan yang baru (foto & plat terbaru).
+
       const oldVehicles = db.prepare(`SELECT vehicle_id FROM trip_vehicles WHERE trip_id = ?`).all(tripId);
       for (const row of oldVehicles) {
         db.prepare(`DELETE FROM trip_vehicles WHERE trip_id = ? AND vehicle_id = ?`).run(tripId, row.vehicle_id);
@@ -146,7 +139,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       return res.status(200).json({ id: tripId, noTrip, updated: true });
     }
 
-    // ── INSERT trip baru ─────────────────────────────────────────────────────
     db.prepare(`
       INSERT INTO trips (
         id, no_trip, officer_id, region_id, dermaga_id, status_muatan,
@@ -171,7 +163,8 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
   }
 });
 
-// Create trip
+
+
 router.post('/', authenticate, (req, res) => {
   try {
     const { statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath } = req.body;
@@ -184,10 +177,6 @@ router.post('/', authenticate, (req, res) => {
     const tripId = randomUUID();
     const noTrip = generateTripNo();
 
-    // trips.dermaga_id wajib terisi, tapi klien mobile tidak pernah mengirim
-    // dermaga (layar mobile tidak memilih dermaga). Ambil dari penugasan
-    // petugas, lalu fallback ke dermaga mana pun di region-nya, terakhir null
-    // (kolom kini nullable — lihat migrasi di db.js).
     const dermagaId =
       req.body.dermagaId ||
       (db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ? LIMIT 1`).get(officerId)?.dermaga_id) ||
@@ -207,7 +196,8 @@ router.post('/', authenticate, (req, res) => {
   }
 });
 
-// Get trips — officers see their region, admins see everything
+
+
 router.get('/', authenticate, (req, res) => {
   try {
     const { regionId, role } = req.officer;
@@ -241,5 +231,7 @@ router.get('/', authenticate, (req, res) => {
     res.status(500).json({ error: 'Failed to fetch trips' });
   }
 });
+
+
 
 module.exports = router;

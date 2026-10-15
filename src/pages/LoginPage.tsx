@@ -25,7 +25,10 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
 
   try {
     const res = await loginOffline(u, p)
-    if (res.success) return true
+    if (res.success) {
+      window.dispatchEvent(new Event(SESSION_READY_EVENT))
+      return true
+    }
   } catch {
 
   }
@@ -43,6 +46,8 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
         regionCode: match.region,
         offlineMode: true,
       }))
+      // sesi offline siap, store ikut sinkron
+      window.dispatchEvent(new Event(SESSION_READY_EVENT))
       return true
     }
   } catch {}
@@ -179,8 +184,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              maxLength={6}
               value={password}
-              onChange={e => { setError(null); setPassword(e.target.value) }}
+              onChange={e => { setError(null); setPassword(e.target.value.replace(/\D/g, '')) }}
               onKeyDown={onKey}
               placeholder="PIN"
               className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"

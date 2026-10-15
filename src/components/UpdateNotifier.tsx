@@ -1,48 +1,41 @@
-import { useState, useEffect, useCallback } from 'react';
-import { updateService, type UpdateState, type UpdateInfo, type UpdateError } from '../services/updateService';
+import { useState, useEffect, useCallback } from 'react'
+import { updateService, type UpdateState, type UpdateInfo, type UpdateError } from '../services/updateService'
 
 
 
 interface UpdateNotifierProps {
-
-  onUpdateReady?: (version: string) => void;
-
-  onUpdateApplied?: () => void;
-
-  onError?: (error: UpdateError) => void;
-
-  autoCheck?: boolean;
-
-  showForceUpdate?: boolean;
+  onUpdateReady?: (version: string) => void
+  onUpdateApplied?: () => void
+  onError?: (error: UpdateError) => void
+  autoCheck?: boolean
+  showForceUpdate?: boolean
 }
 
 
 
 interface UpdateNotifierUI {
-  state: UpdateState;
-  info: UpdateInfo | null;
-  error: UpdateError | null;
-  pendingVersion: string | null;
-  currentVersion: string;
+  state: UpdateState
+  info: UpdateInfo | null
+  error: UpdateError | null
+  pendingVersion: string | null
+  currentVersion: string
 }
 
 
 
 export function useUpdateNotifier(): UpdateNotifierUI {
-  const [state, setState] = useState<UpdateState>('idle');
-  const [info, setInfo] = useState<UpdateInfo | null>(null);
-  const [error, setError] = useState<UpdateError | null>(null);
+  const [state, setState] = useState<UpdateState>('idle')
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+  const [error, setError] = useState<UpdateError | null>(null)
 
   useEffect(() => {
-
     const unsubscribe = updateService.subscribe((newState, newInfo, newError) => {
-      setState(newState);
-      setInfo(newInfo || null);
-      setError(newError || null);
-    });
-
-    return unsubscribe;
-  }, []);
+      setState(newState)
+      setInfo(newInfo || null)
+      setError(newError || null)
+    })
+    return unsubscribe
+  }, [])
 
   return {
     state,
@@ -50,7 +43,7 @@ export function useUpdateNotifier(): UpdateNotifierUI {
     error,
     pendingVersion: updateService.pendingVersion,
     currentVersion: updateService.currentVersion,
-  };
+  }
 }
 
 
@@ -62,47 +55,45 @@ export function UpdateNotifier({
   autoCheck = true,
   showForceUpdate = true,
 }: UpdateNotifierProps) {
-  const { state, info, error, pendingVersion, currentVersion } = useUpdateNotifier();
+  const { state, info, error, pendingVersion, currentVersion } = useUpdateNotifier()
 
   useEffect(() => {
     if (autoCheck && (state === 'idle' || state === 'up-to-date')) {
-      checkForUpdates();
+      checkForUpdates()
     }
-  }, [autoCheck]);
+  }, [autoCheck])
 
   useEffect(() => {
     if (state === 'ready' && pendingVersion) {
-      onUpdateReady?.(pendingVersion);
+      onUpdateReady?.(pendingVersion)
     }
     if (state === 'installing') {
-      onUpdateApplied?.();
+      onUpdateApplied?.()
     }
     if (state === 'error' && error) {
-      onError?.(error);
+      onError?.(error)
     }
-  }, [state, pendingVersion, error, onUpdateReady, onUpdateApplied, onError]);
+  }, [state, pendingVersion, error, onUpdateReady, onUpdateApplied, onError])
 
   const checkForUpdates = useCallback(async () => {
-    await updateService.checkForUpdate();
-  }, []);
+    await updateService.checkForUpdate()
+  }, [])
 
   const installUpdate = useCallback(async () => {
-    await updateService.installUpdate();
-  }, []);
+    await updateService.installUpdate()
+  }, [])
 
   const retryUpdate = useCallback(async () => {
     if (info?.downloadUrl) {
-      await updateService.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash);
+      await updateService.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash)
     }
-  }, [info]);
+  }, [info])
 
   const resetUpdate = useCallback(async () => {
-    await updateService.reset();
-  }, []);
+    await updateService.reset()
+  }, [])
 
-  if (state === 'up-to-date' || state === 'idle') {
-    return null;
-  }
+  if (state === 'up-to-date' || state === 'idle') return null
 
   if (showForceUpdate && info?.isForceUpdate && state !== 'installing') {
     return (
@@ -138,7 +129,7 @@ export function UpdateNotifier({
           )}
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -159,11 +150,7 @@ export function UpdateNotifier({
           {state === 'error' && 'Update Gagal'}
         </div>
         {!info?.isForceUpdate && state !== 'installing' && (
-          <button
-            className="update-notifier__close"
-            onClick={resetUpdate}
-            aria-label="Tutup"
-          >
+          <button className="update-notifier__close" onClick={resetUpdate} aria-label="Tutup">
             ✕
           </button>
         )}
@@ -237,26 +224,26 @@ export function UpdateNotifier({
         )}
       </div>
     </div>
-  );
+  )
 }
 
 
 
 interface UpdateStatusBadgeProps {
-  className?: string;
+  className?: string
 }
 
 
 
 export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
-  const { state, info, currentVersion } = useUpdateNotifier();
+  const { state, info, currentVersion } = useUpdateNotifier()
 
   if (state === 'up-to-date' || state === 'idle') {
     return (
       <span className={`update-badge update-badge--current ${className}`}>
         ✅ v{currentVersion}
       </span>
-    );
+    )
   }
 
   if (state === 'checking' || state === 'downloading' || state === 'ready') {
@@ -264,7 +251,7 @@ export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
       <span className={`update-badge update-badge--available ${className}`}>
         🔄 v{info?.latestVersion || '?'}
       </span>
-    );
+    )
   }
 
   if (state === 'error') {
@@ -272,10 +259,10 @@ export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
       <span className={`update-badge update-badge--error ${className}`}>
         ❌ Update Gagal
       </span>
-    );
+    )
   }
 
-  return null;
+  return null
 }
 
 
@@ -439,7 +426,6 @@ export const updateStyles = `
   margin-top: 0.75rem;
 }
 
-/* Buttons */
 .btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -484,7 +470,6 @@ export const updateStyles = `
   gap: 0.5rem;
 }
 
-/* Spinner */
 .spinner {
   width: 16px;
   height: 16px;
@@ -503,7 +488,6 @@ export const updateStyles = `
   to { transform: rotate(360deg); }
 }
 
-/* Update Badge */
 .update-badge {
   display: inline-flex;
   align-items: center;
@@ -534,7 +518,6 @@ export const updateStyles = `
   color: #C62828;
 }
 
-/* Force Update Override Button Styles */
 .update-notifier--force .btn--primary {
   background: white;
   color: #667eea;
@@ -546,8 +529,8 @@ export const updateStyles = `
 .update-notifier--force .btn--loading {
   background: rgba(255, 255, 255, 0.3);
 }
-`;
+`
 
 
 
-export default UpdateNotifier;
+export default UpdateNotifier

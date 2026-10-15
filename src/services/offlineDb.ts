@@ -48,10 +48,11 @@ export interface OfficerRow {
   regionName?: string
   regionCode?: string
   isActive?: boolean
-
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
   payload: unknown
 }
+
+
 
 let backend: LocalBackend = 'localStorage'
 
@@ -62,11 +63,15 @@ interface SqliteConn {
   run: (statement: string, values?: unknown[]) => Promise<unknown>
   query: (statement: string, values?: unknown[]) => Promise<{ values?: unknown[] }>
 }
+
 let conn: SqliteConn | null = null
 let initPromise: Promise<LocalBackend> | null = null
 
+
+
 async function openSqlite(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
+
   try {
     const mod = await import('@capacitor-community/sqlite')
     const sqlite = new mod.SQLiteConnection(mod.CapacitorSQLite)
@@ -88,6 +93,8 @@ async function openSqlite(): Promise<boolean> {
   }
 }
 
+
+
 async function migrateFromLocalStorage(): Promise<void> {
   try {
     const rawOfficers = localStorage.getItem(LS_OFFICERS)
@@ -101,6 +108,7 @@ async function migrateFromLocalStorage(): Promise<void> {
         }
       }
     }
+
     const rawCreds = localStorage.getItem(LS_CREDENTIALS)
     if (rawCreds) {
       const map = JSON.parse(rawCreds) as Record<string, string>
@@ -136,6 +144,8 @@ function seedPayload(s: SeedOfficer): Record<string, unknown> {
   }
 }
 
+
+
 async function seedDefaultOfficers(): Promise<void> {
   const now = Date.now()
 
@@ -153,6 +163,7 @@ async function seedDefaultOfficers(): Promise<void> {
             ],
           )
         }
+
         const cred = await conn.query('SELECT officer_id FROM credentials WHERE officer_id = ? LIMIT 1', [s.id])
         if (!cred.values?.length) {
           await conn.run(
@@ -184,15 +195,6 @@ async function seedDefaultOfficers(): Promise<void> {
       })
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
-
-    const creds = lsCredentials()
-    let changed = false
-    for (const s of SEED_OFFICERS) {
-
-      void s;
-    }
-
-    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
   } catch {}
 }
 
@@ -201,14 +203,18 @@ async function seedDefaultOfficers(): Promise<void> {
 export function initOfflineDb(): Promise<LocalBackend> {
   if (!initPromise) {
     initPromise = (async () => {
-
       let timer: ReturnType<typeof setTimeout> | undefined
       const timeout = new Promise<boolean>(res => {
-        timer = setTimeout(() => { console.warn('[offline-db] init timeout — fallback localStorage'); res(false) }, 5000)
+        timer = setTimeout(() => {
+          console.warn('[offline-db] init timeout — fallback localStorage')
+          res(false)
+        }, 5000)
       })
+
       const ok = await Promise.race([openSqlite(), timeout])
       clearTimeout(timer)
       backend = ok ? 'sqlite' : 'localStorage'
+
       if (ok) await migrateFromLocalStorage()
 
       try {
@@ -220,6 +226,7 @@ export function initOfflineDb(): Promise<LocalBackend> {
       } catch (err) {
         console.warn('[offline-db] seed data bawaan gagal:', err)
       }
+
       return backend
     })()
   }
@@ -242,6 +249,7 @@ export async function saveOfficers(rows: OfficerRow[], migrating = false): Promi
   if (!rows?.length) return
   if (!migrating) await initOfflineDb()
   const now = Date.now()
+
   const toRow = (r: OfficerRow): OfficerRow => ({
     id: String(r.id),
     username: r.username,
@@ -292,6 +300,7 @@ export async function saveOfficers(rows: OfficerRow[], migrating = false): Promi
 
 export async function listOfficers<T = OfficerRow>(): Promise<T[]> {
   await initOfflineDb()
+
   if (backend === 'sqlite' && conn) {
     try {
       const res = await conn.query('SELECT payload FROM officers ORDER BY name ASC')
@@ -306,6 +315,7 @@ export async function listOfficers<T = OfficerRow>(): Promise<T[]> {
       console.warn('[offline-db] gagal baca SQLite:', err)
     }
   }
+
   return lsOfficers().map(o => (o.payload as T) ?? (o as unknown as T))
 }
 
@@ -367,6 +377,7 @@ function fnv1a(str: string): string {
 export async function setPinHash(officerId: string, hash: string, migrating = false): Promise<void> {
   if (!officerId || !hash) return
   if (!migrating) await initOfflineDb()
+
   if (backend === 'sqlite' && conn) {
     try {
       await conn.run(
@@ -379,6 +390,7 @@ export async function setPinHash(officerId: string, hash: string, migrating = fa
       console.warn('[offline-db] gagal simpan kredensial:', err)
     }
   }
+
   try {
     const map = lsCredentials()
     map[String(officerId)] = hash
@@ -390,6 +402,7 @@ export async function setPinHash(officerId: string, hash: string, migrating = fa
 
 export async function getPinHash(officerId: string): Promise<string | null> {
   await initOfflineDb()
+
   if (backend === 'sqlite' && conn) {
     try {
       const res = await conn.query(
@@ -403,6 +416,7 @@ export async function getPinHash(officerId: string): Promise<string | null> {
       console.warn('[offline-db] gagal baca kredensial:', err)
     }
   }
+
   return lsCredentials()[String(officerId)] ?? null
 }
 

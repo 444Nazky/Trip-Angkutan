@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useState } from 'react'
 
 
 
 interface SideloadingHelperProps {
-
-  variant?: 'full' | 'compact' | 'inline';
-
-  onHelpRequested?: () => void;
+  variant?: 'full' | 'compact' | 'inline'
+  onHelpRequested?: () => void
 }
 
 
@@ -15,7 +13,7 @@ export function SideloadingHelper({
   variant = 'full',
   onHelpRequested
 }: SideloadingHelperProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false)
 
   if (variant === 'inline') {
     return (
@@ -34,18 +32,15 @@ export function SideloadingHelper({
           </ol>
         </div>
       </details>
-    );
+    )
   }
 
   if (variant === 'compact') {
     return (
-      <button
-        className="sideloading-compact"
-        onClick={() => setIsOpen(true)}
-      >
+      <button className="sideloading-compact" onClick={() => setIsOpen(true)}>
         💡 Butuh bantuan instalasi?
       </button>
-    );
+    )
   }
 
   return (
@@ -109,7 +104,7 @@ export function SideloadingHelper({
           </section>
 
           <section className="sideloading-section">
-            <h4>❓ Masih有问题?</h4>
+            <h4>❓ Still having issues?</h4>
             <p>Hubungi administrator IT Anda jika:</p>
             <ul>
               <li>Pengaturan tidak tersedia di perangkat Anda</li>
@@ -119,24 +114,21 @@ export function SideloadingHelper({
           </section>
 
           {onHelpRequested && (
-            <button
-              className="sideloading-helper__contact"
-              onClick={onHelpRequested}
-            >
+            <button className="sideloading-helper__contact" onClick={onHelpRequested}>
               Hubungi Bantuan
             </button>
           )}
         </div>
       )}
     </div>
-  );
+  )
 }
 
 
 
 interface InstallResultHandlerProps {
-  onSuccess?: () => void;
-  onFailure?: (error: string) => void;
+  onSuccess?: () => void
+  onFailure?: (error: string) => void
 }
 
 
@@ -145,16 +137,15 @@ export function InstallResultHandler({
   onSuccess,
   onFailure
 }: InstallResultHandlerProps) {
-
-  return null;
+  return null
 }
 
 
 
 interface InstallInstructionsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  version: string;
+  isOpen: boolean
+  onClose: () => void
+  version: string
 }
 
 
@@ -164,7 +155,7 @@ export function InstallInstructionsModal({
   onClose,
   version
 }: InstallInstructionsModalProps) {
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -215,7 +206,7 @@ export function InstallInstructionsModal({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 
@@ -335,6 +326,7 @@ export const sideloadingStyles = `
   list-style: none;
   padding: 0;
   margin: 0;
+  counter-reset: step;
 }
 
 .sideloading-steps li {
@@ -349,10 +341,6 @@ export const sideloadingStyles = `
   position: absolute;
   left: 0;
   top: 0;
-}
-
-.sideloading-steps {
-  counter-reset: step;
 }
 
 .sideloading-steps h4 {
@@ -391,7 +379,6 @@ export const sideloadingStyles = `
   background: #0056CC;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -530,8 +517,8 @@ export const sideloadingStyles = `
   opacity: 0.6;
   cursor: not-allowed;
 }
-`;
+`
 
 
 
-export default SideloadingHelper;
+export default SideloadingHelper
