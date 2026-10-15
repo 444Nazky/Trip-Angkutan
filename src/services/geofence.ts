@@ -475,6 +475,7 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
     try {
       const lastSync = Number(localStorage.getItem(GEOFENCE_SYNC_KEY) || 0)
       if (Date.now() - lastSync < GEOFENCE_SYNC_INTERVAL) {
+        console.log('[geofence] Sync: using cached data, last sync', new Date(lastSync).toISOString())
         return { ok: true, count: cached().length, reason: 'cached' }
       }
     } catch { /* storage tidak tersedia */ }
@@ -482,13 +483,16 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
 
   // auto-refresh token before sync
   if (!api.isAuthenticated) {
+    console.log('[geofence] Sync: not authenticated, trying to renew session')
     const refreshed = await renewSessionIfNeeded()
     if (!refreshed) {
+      console.log('[geofence] Sync: session renewal failed')
       return { ok: false, count: cached().length, reason: 'unauthorized' }
     }
   }
 
   const backup = cached()
+  console.log('[geofence] Sync: fetching from', api.baseUrl)
 
   // clear cache geofence - fresh data only
   purgeGeofenceCache()
@@ -496,10 +500,13 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
   try {
     const dermagaId = getStoredDermaga()?.id
     const path = dermagaId ? `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}` : '/geofences'
+    console.log('[geofence] Sync: GET', path)
     const result = await api.get<BackendGeofence[]>(path)
+    console.log('[geofence] Sync: response', JSON.stringify(result))
 
     if (!result.ok || !Array.isArray(result.data)) {
       const sesiMati = result.error?.code === '401' || result.error?.code === '403'
+      console.log('[geofence] Sync: request failed, sesiMati:', sesiMati)
       if (sesiMati) {
         try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
       }
@@ -507,11 +514,13 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
+    console.log('[geofence] Sync: got', result.data.length, 'items from server')
     const points = scopedGeofencePoints(
       result.data
         .map(mapBackendToGeofence)
         .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
     )
+    console.log('[geofence] Sync: after scoped filter,', points.length, 'points remain')
     const berubah = JSON.stringify(backup) !== JSON.stringify(points)
 
     saveGeofencePoints(points)
@@ -523,7 +532,8 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       } catch { /* non-browser */ }
     }
     return { ok: true, count: points.length, reason: points.length > 0 ? 'ok' : 'empty' }
-  } catch {
+  } catch (e) {
+    console.error('[geofence] Sync: exception:', e)
     saveGeofencePoints(backup)
     return { ok: false, count: backup.length, reason: 'network' }
   }
