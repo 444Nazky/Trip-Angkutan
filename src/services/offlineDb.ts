@@ -195,6 +195,17 @@ async function seedDefaultOfficers(): Promise<void> {
       })
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
+
+    const creds = lsCredentials()
+    let changed = false
+    for (const s of SEED_OFFICERS) {
+      const officerId = String(s.id)
+      if (!creds[officerId]) {
+        creds[officerId] = s.pinHash
+        changed = true
+      }
+    }
+    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
   } catch {}
 }
 

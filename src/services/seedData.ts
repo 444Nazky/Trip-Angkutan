@@ -1,12 +1,21 @@
+import bcrypt from 'bcryptjs'
+
+
+
 export const SEED_VERSION = 2
-
-
-
 export const SEED_VERSION_KEY = 'trip.officers.seedVersion'
+const DEFAULT_PIN = '123456'
+
+
 
 const ROSTER_KEY = 'trip.officers.v1'
-
 const ROUTES_KEY = 'trip.auth.routes.v1'
+
+
+
+function generateDefaultPinHash(): string {
+  return bcrypt.hashSync(DEFAULT_PIN, 10)
+}
 
 
 
@@ -23,8 +32,7 @@ export interface SeedOfficer {
   id: string
   username: string
   name: string
-
-  pinHash?: string
+  pinHash: string
   isActive?: 0 | 1
   regionId: string
   regionName: string
@@ -61,14 +69,12 @@ const DERMAGA = {
   KPK_D2: { id: '6d0c826f-491d-43c5-8fd5-30db32959e87', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.KELAPAKAMPIT.id },
 } as const
 
-
-
 export const SEED_OFFICERS: SeedOfficer[] = [
   {
     id: 'f2984978-eca2-46a9-b1bc-07252e36dc95',
     username: 'rizkymaulana',
     name: 'Rizky Maulana',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.ENTIKONG.id,
     regionName: REGIONS.ENTIKONG.name,
     regionCode: REGIONS.ENTIKONG.code,
@@ -78,7 +84,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0cb61d4b-b83f-42b0-8fc1-9dfb16d1675b',
     username: 'budisantoso',
     name: 'Budi Santoso',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -88,7 +94,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'd226ff51-f16f-4997-ac0c-fa4293824d1e',
     username: 'andipratama',
     name: 'Andi Pratama',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -98,7 +104,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '8c9a1525-58ed-42ef-9c9a-91f7d1c53ef4',
     username: 'dewikusuma',
     name: 'Dewi Kusuma',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -108,7 +114,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a0e458ec-5ddf-4958-a8fe-de30fce13158',
     username: 'sitirahayu',
     name: 'Siti Rahayu',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -118,7 +124,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'c3a55842-6160-4c0b-8981-56819fbd7ef7',
     username: 'agungsuntoso',
     name: 'Agung Suntoso',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -128,7 +134,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '7e6016bc-6507-439a-93f1-784ac5b7d85c',
     username: 'rahmathidayat',
     name: 'Rahmat Hidayat',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -138,7 +144,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0d40614e-95d2-47ec-a92a-c9556efe85f8',
     username: 'hendragunawan',
     name: 'Hendra Gunawan',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -148,7 +154,7 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a862bdc6-d2e9-450f-9f4d-02b5817dd5a0',
     username: 'mayasari',
     name: 'Maya Sari',
-
+    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -205,10 +211,15 @@ export function findSeedOfficer(identifier: string): SeedOfficer | null {
 
 
 
-export function verifySeedPin(_identifier: string, _pin: string): boolean {
-
-  void _identifier; void _pin;
-  return false
+export function verifySeedPin(identifier: string, pin: string): boolean {
+  const officer = findSeedOfficer(identifier)
+  if (!officer) return false
+  if (pin !== DEFAULT_PIN) return false
+  try {
+    return bcrypt.compareSync(pin, officer.pinHash)
+  } catch {
+    return pin === DEFAULT_PIN
+  }
 }
 
 
@@ -220,7 +231,7 @@ export interface SeedMobileOfficer {
   initials: string
   region: string
   regions: string[]
-  pin: ''
+  pin: string
   status: string
   device: string
   trips: number
@@ -240,7 +251,7 @@ function seedAsMobileOfficer(s: SeedOfficer): SeedMobileOfficer {
     initials: s.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     region: s.regionCode,
     regions: [s.regionCode],
-    pin: '',
+    pin: DEFAULT_PIN,
     status: active ? 'Aktif' : 'Nonaktif',
     device: '-',
     trips: 0,
@@ -296,5 +307,105 @@ export function seedRouteCacheIfAbsent(): void {
 
 
 export function seedGeofencePointsIfAbsent(): void {
+  try {
+    const key = 'trip.geofence.points'
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const existing = JSON.parse(raw)
+      if (Array.isArray(existing) && existing.length > 0) return
+    }
 
+    const defaultGeofences = [
+      {
+        id: 'seed:badau-d1',
+        name: 'Badau Dermaga 1',
+        dermagaId: DERMAGA.BADAU_D1.id,
+        latitude: -1.3,
+        longitude: 110.5,
+        radiusMeters: 200,
+        allowedRoutes: ['SJRE-SBDZ', 'SBDZ-SJRE'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:badau-d2',
+        name: 'Badau Dermaga 2',
+        dermagaId: DERMAGA.BADAU_D2.id,
+        latitude: -1.35,
+        longitude: 110.55,
+        radiusMeters: 200,
+        allowedRoutes: ['AAAA-BBBB', 'BBBB-AAAA'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:entikong-d1',
+        name: 'Entikong Dermaga 1',
+        dermagaId: DERMAGA.ENTIKONG_D1.id,
+        latitude: 0.8,
+        longitude: 110.1,
+        radiusMeters: 200,
+        allowedRoutes: ['A4A4-B8B8', 'B8B8-A4A4'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:entikong-d2',
+        name: 'Entikong Dermaga 2',
+        dermagaId: DERMAGA.ENTIKONG_D2.id,
+        latitude: 0.85,
+        longitude: 110.15,
+        radiusMeters: 200,
+        allowedRoutes: ['C3C3-D6D6', 'D6D6-C3C3'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:belitung-d1',
+        name: 'Belitung Dermaga 1',
+        dermagaId: DERMAGA.BELITUNG_D1.id,
+        latitude: -2.9,
+        longitude: 107.6,
+        radiusMeters: 200,
+        allowedRoutes: ['CCCC-DDDD', 'DDDD-CCCC'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:belitung-d2',
+        name: 'Belitung Dermaga 2',
+        dermagaId: DERMAGA.BELITUNG_D2.id,
+        latitude: -2.95,
+        longitude: 107.65,
+        radiusMeters: 200,
+        allowedRoutes: ['EEEE-FFFF', 'FFFF-EEEE'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:kpk-d1',
+        name: 'Kelapa Kampit Dermaga 1',
+        dermagaId: DERMAGA.KPK_D1.id,
+        latitude: 0.5,
+        longitude: 107.8,
+        radiusMeters: 200,
+        allowedRoutes: ['GGGG-HHHH', 'HHHH-GGGG'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+      {
+        id: 'seed:kpk-d2',
+        name: 'Kelapa Kampit Dermaga 2',
+        dermagaId: DERMAGA.KPK_D2.id,
+        latitude: 0.55,
+        longitude: 107.85,
+        radiusMeters: 200,
+        allowedRoutes: ['IIII-JJJJ', 'JJJJ-IIII'],
+        enabled: true,
+        strictEnforceOutsideArea: false,
+      },
+    ]
+
+    localStorage.setItem(key, JSON.stringify(defaultGeofences))
+  } catch {}
 }
