@@ -1,10 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import bcrypt from 'bcryptjs'
 import {
-
-
-
-
   SEED_OFFICERS,
   SEED_VERSION,
   SEED_VERSION_KEY,
@@ -16,14 +12,12 @@ import {
 
 
 
-
 export type LocalBackend = 'sqlite' | 'localStorage'
 
 const DB_NAME = 'trip_offline'
 const DB_VERSION = 1
 const LS_OFFICERS = 'trip.officers.v1'
 const LS_CREDENTIALS = 'trip.officers.credentials.v1'
-
 
 
 
@@ -48,7 +42,6 @@ CREATE TABLE IF NOT EXISTS credentials (
 
 
 
-
 export interface OfficerRow {
   id: string
   username?: string
@@ -65,7 +58,6 @@ let backend: LocalBackend = 'localStorage'
 
 
 
-
 interface SqliteConn {
   execute: (statements: string, transaction?: boolean) => Promise<unknown>
   run: (statement: string, values?: unknown[]) => Promise<unknown>
@@ -73,7 +65,6 @@ interface SqliteConn {
 }
 let conn: SqliteConn | null = null
 let initPromise: Promise<LocalBackend> | null = null
-
 
 
 
@@ -102,7 +93,6 @@ async function openSqlite(): Promise<boolean> {
 
 
 
-
 async function migrateFromLocalStorage(): Promise<void> {
   try {
     const rawOfficers = localStorage.getItem(LS_OFFICERS)
@@ -125,9 +115,8 @@ async function migrateFromLocalStorage(): Promise<void> {
         if (!existing.values?.length) await setPinHash(id, hash, true)
       }
     }
-  } catch { /* data rusak — abaikan */ }
+  } catch {}
 }
-
 
 
 
@@ -151,7 +140,6 @@ function seedPayload(s: SeedOfficer): Record<string, unknown> {
     dermagaAccess: s.dermagaAccess,
   }
 }
-
 
 
 
@@ -207,12 +195,15 @@ async function seedDefaultOfficers(): Promise<void> {
     const creds = lsCredentials()
     let changed = false
     for (const s of SEED_OFFICERS) {
-      void s;
+      const officerId = String(s.id)
+      if (!creds[officerId]) {
+        creds[officerId] = s.pinHash
+        changed = true
+      }
     }
     if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
-  } catch { /* quota — dicoba lagi pada init berikutnya */ }
+  } catch {}
 }
-
 
 
 
@@ -232,7 +223,7 @@ export function initOfflineDb(): Promise<LocalBackend> {
         seedRosterIfAbsent()
         seedRouteCacheIfAbsent()
         seedGeofencePointsIfAbsent()
-        try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch { /* quota */ }
+        try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch {}
       } catch (err) {
         console.warn('[offline-db] seed data bawaan gagal:', err)
       }
@@ -244,7 +235,6 @@ export function initOfflineDb(): Promise<LocalBackend> {
 
 
 
-
 function lsOfficers(): OfficerRow[] {
   try {
     const raw = localStorage.getItem(LS_OFFICERS)
@@ -252,7 +242,6 @@ function lsOfficers(): OfficerRow[] {
     return Array.isArray(list) ? list : []
   } catch { return [] }
 }
-
 
 
 
@@ -303,9 +292,8 @@ export async function saveOfficers(rows: OfficerRow[], migrating = false): Promi
   }
   try {
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
-  } catch { /* quota */ }
+  } catch {}
 }
-
 
 
 
@@ -330,7 +318,6 @@ export async function listOfficers<T = OfficerRow>(): Promise<T[]> {
 
 
 
-
 export async function findOfficer<T = OfficerRow>(identifier: string): Promise<T | null> {
   const all = await listOfficers<T>()
   const key = String(identifier).toLowerCase()
@@ -346,7 +333,6 @@ export async function findOfficer<T = OfficerRow>(identifier: string): Promise<T
 
 
 
-
 function lsCredentials(): Record<string, string> {
   try {
     const raw = localStorage.getItem(LS_CREDENTIALS)
@@ -354,7 +340,6 @@ function lsCredentials(): Record<string, string> {
     return map && typeof map === 'object' ? map : {}
   } catch { return {} }
 }
-
 
 
 
@@ -368,10 +353,9 @@ export async function hashPin(officerId: string, pin: string): Promise<string> {
       )
       return `sha256:${[...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')}`
     }
-  } catch { /* fallback di bawah */ }
+  } catch {}
   return `fnv1a:${fnv1a(payload)}`
 }
-
 
 
 
@@ -383,7 +367,6 @@ function fnv1a(str: string): string {
   }
   return (h >>> 0).toString(16)
 }
-
 
 
 
@@ -406,9 +389,8 @@ export async function setPinHash(officerId: string, hash: string, migrating = fa
     const map = lsCredentials()
     map[String(officerId)] = hash
     localStorage.setItem(LS_CREDENTIALS, JSON.stringify(map))
-  } catch { /* quota */ }
+  } catch {}
 }
-
 
 
 
@@ -429,7 +411,6 @@ export async function getPinHash(officerId: string): Promise<string | null> {
   }
   return lsCredentials()[String(officerId)] ?? null
 }
-
 
 
 

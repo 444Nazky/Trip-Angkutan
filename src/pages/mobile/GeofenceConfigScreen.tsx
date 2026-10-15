@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
+import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, RefreshCw } from 'lucide-react'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
   isValidGeofencePoint,
   getActiveGeofenceSnapshot,
+  syncGeofencesFromBackend,
+  GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
 import { useApp } from '../store'
@@ -12,11 +14,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface GeofenceConfigScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -44,13 +44,11 @@ const emptyDraft: DraftPoint = {
 
 
 
-
 function parseRoutes(raw: string): string[] {
   return Array.from(new Set(
     raw.split(/[,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean),
   ))
 }
-
 
 
 
@@ -64,12 +62,38 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  useEffect(() => {
+    const onUpdate = () => setPoints(getStoredGeofencePoints())
+    window.addEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
+    return () => window.removeEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
+  }, [])
 
   useEffect(() => {
     void getActiveGeofenceSnapshot().then(r => {
       if (r.valid && r.activePoint) setActiveId(r.activePoint.id)
     })
   }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    setError(null)
+    try {
+      const result = await syncGeofencesFromBackend({ force: true })
+      if (result.ok) {
+        setPoints(getStoredGeofencePoints())
+      } else if (result.reason === 'unauthorized') {
+        setError('Sesi habis. Login ulang untuk menyinkronkan geofence.')
+      } else if (result.reason === 'network') {
+        setError('Jaringan tidak tersedia. Coba lagi saat koneksi stabil.')
+      }
+    } catch {
+      setError('Gagal menyinkronkan. Coba lagi nanti.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const commit = (next: GeofencePoint[]) => {
     setPoints(next)
@@ -148,10 +172,23 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           <ChevronLeft size={20} className="text-blue-600" />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-slate-900 mr-11">Konfigurasi Geofence</h1>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="w-10 h-10 flex items-center justify-center text-blue-600 disabled:opacity-50"
+          title="Sinkronkan dari server"
+        >
+          <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       <div className="px-4 py-5 space-y-4">
-        {/* ── Form tambah / ubah ── */}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
+            {error}
+          </div>
+        )}
+
         {showForm && isAdmin && (
           <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4 space-y-3">
             <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">
@@ -163,7 +200,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
               placeholder="Nama lokasi (mis. Badau Dermaga 1)"
               className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-[14px] focus:outline-none focus:border-blue-500 bg-white"
             />
-            {/* Dermaga selector */}
             <div className="relative">
               <select
                 value={draft.dermagaId}
@@ -200,12 +236,13 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                 placeholder="Radius (meter)"
                 inputMode="numeric"
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-              />            <input
-              value={draft.allowedRoutes}
-              onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
-              placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-            />
+              />
+              <input
+                value={draft.allowedRoutes}
+                onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
+                placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
+                className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
+              />
             </div>
             <label className="flex items-center justify-between bg-white rounded-xl border border-slate-300 px-3 py-2.5">
               <span className="text-[12px] text-slate-700 font-semibold">
@@ -239,21 +276,12 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           </div>
         )}
 
-        {/* ── Daftar titik ── */}
         {!showForm && isAdmin && (
           <button
             onClick={startAdd}
             className="w-full py-3 rounded-xl border border-dashed border-blue-300 bg-blue-50 text-blue-700 font-bold text-[13px] flex items-center justify-center gap-2 active:bg-blue-100"
           >
             <Plus size={16} /> Tambah Titik Geofence
-          </button>
-        )}
-        {showForm && !isAdmin && (
-          <button
-            onClick={() => go('profile')}
-            className="w-full py-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 font-semibold text-[13px] flex items-center justify-center gap-2"
-          >
-            <X size={16} /> Hanya admin dapat mengubah konfigurasi
           </button>
         )}
 
@@ -326,7 +354,8 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
-              Belum ada titik geofence tersimpan di perangkat ini. Input trip dapat diblokir sampai lokasi berhasil diverifikasi.
+              <p className="font-semibold mb-1">Belum ada titik geofence tersimpan.</p>
+              <p>Tekan tombol sinkronkan di kanan atas untuk menarik data dari server, atau tambah manual.</p>
             </div>
           )}
         </div>

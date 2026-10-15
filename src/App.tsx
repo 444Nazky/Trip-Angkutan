@@ -7,10 +7,8 @@ import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { syncGeofencesFromBackend, GEOFENCE_AUTH_EXPIRED_EVENT } from "./services/geofence"
+import { checkAndRequestLocationOnStartup } from "./services/permission"
 import UpdateNotifier from "./components/UpdateNotifier"
-
-
-
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
@@ -19,6 +17,7 @@ function Shell() {
     initializeSync()
     void initOfflineDb()
     void syncGeofencesFromBackend()
+    void checkAndRequestLocationOnStartup()
   }, [])
 
   useEffect(() => {
@@ -33,7 +32,10 @@ function Shell() {
   useEffect(() => {
     let sub: { remove?: () => void } | undefined
     CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) syncOnResume()
+      if (isActive) {
+        syncOnResume()
+        void syncGeofencesFromBackend({ force: true })
+      }
     }).then(s => { sub = s })
     return () => { sub?.remove?.() }
   }, [])
@@ -55,7 +57,6 @@ function Shell() {
     </div>
   )
 }
-
 
 
 
