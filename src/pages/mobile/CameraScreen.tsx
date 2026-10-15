@@ -75,7 +75,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-    
+
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
   }
@@ -451,7 +451,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-      {/* ── Pratinjau watermark (GPS + waktu berjalan) ── */}
+      {/*GPS ama waktu */}
       <div className="absolute right-4 bottom-32 z-20 flex flex-col items-end gap-1 text-right pointer-events-none">
         <div className="flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1.5 backdrop-blur">
           <Clock size={11} className="text-white/80" />

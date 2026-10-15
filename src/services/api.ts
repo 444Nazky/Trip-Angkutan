@@ -4,6 +4,7 @@ import { environment } from '../environments/environment'
 
 
 const TOKEN_KEY = 'trip.auth.token.v1'
+const API_BASE_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
 
 
 
@@ -71,7 +72,47 @@ export interface LoginResponse {
 
 
 function getBaseUrl(): string {
-  return environment.apiBaseUrl
+  return resolveApiBaseUrl()
+}
+
+
+
+
+// baca url dinamis (override > env)
+export function resolveApiBaseUrl(): string {
+  try {
+    const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
+    if (override && override.trim()) return normalizeBaseUrl(override)
+  } catch {}
+  const runtime = (globalThis as { __TRIP_API_BASE_URL__?: string }).__TRIP_API_BASE_URL__
+  if (typeof runtime === 'string' && runtime.trim()) {
+    return normalizeBaseUrl(runtime)
+  }
+  return normalizeBaseUrl(environment.apiBaseUrl)
+}
+
+
+
+
+// rapikan format url
+function normalizeBaseUrl(raw: string): string {
+  let url = String(raw ?? '').trim().replace(/\/+$/, '')
+  if (!url) return url
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `http://${url}`
+  if (!/\/api$/i.test(url)) url = `${url}/api`
+  return url
+}
+
+
+
+
+// simpan url dinamis
+export function setApiBaseUrlOverride(url: string | null): void {
+  try {
+    if (url && url.trim()) localStorage.setItem(API_BASE_URL_OVERRIDE_KEY, url.trim())
+    else localStorage.removeItem(API_BASE_URL_OVERRIDE_KEY)
+  } catch {}
+  api?.refreshBaseUrl()
 }
 
 

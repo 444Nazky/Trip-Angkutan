@@ -50,6 +50,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       setPendingCount(getPendingCount())
     }
   }
+  
 
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
