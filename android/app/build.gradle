@@ -27,8 +27,8 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
-        versionName "1.0.18"
+        versionCode 21
+        versionName "1.0.19"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
