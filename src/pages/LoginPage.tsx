@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
 import {
   getStoredOfficer,
@@ -11,6 +11,7 @@ import {
 } from '../services/auth'
 import { initializeSync, syncNow } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
+import ServerSettingsModal from '../components/ServerSettingsModal'
 
 
 
@@ -63,6 +64,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showPw, setShowPw] = useState(false)
+  const [showServer, setShowServer] = useState(false)
 
   useEffect(() => {
     const on  = () => setIsOnline(true)
@@ -149,10 +151,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <div className="px-6 pt-16 pb-8">
         <div className="flex items-center gap-4">
           <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-semibold text-slate-800">Trip Angkutan</h1>
             <p className="text-xs text-slate-400">Kalimantan Barat</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowServer(true)}
+            aria-label="Pengaturan Server"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white transition-colors"
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </div>
 
@@ -228,6 +238,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <p className="text-center text-[11px] text-slate-300 pb-8">
         Trip Angkutan Kalimantan Barat
       </p>
+
+      {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
     </div>
   )
 }

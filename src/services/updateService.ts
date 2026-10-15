@@ -61,8 +61,17 @@ const STORAGE_KEYS = {
 
 
 
-function getUpdateApiUrl(): string {
-  return `${api.baseUrl}/api/v1`
+// baseUrl sudah berakhiran /api — jangan ditambah /api lagi
+export function getUpdateApiUrl(): string {
+  return `${api.baseUrl.replace(/\/api\/?$/i, '')}/api/v1`
+}
+
+
+// downloadUrl dari server bisa absolute (Railway) atau relatif
+export function resolveDownloadUrl(downloadUrl: string): string {
+  const url = String(downloadUrl ?? '').trim()
+  if (/^https?:\/\//i.test(url)) return url
+  return `${api.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
 
@@ -181,7 +190,7 @@ async function downloadApk(version: string, downloadUrl: string): Promise<string
 
   try {
     const result = await Filesystem.downloadFile({
-      url: `${api.baseUrl}${downloadUrl}?t=${Date.now()}`,
+      url: `${resolveDownloadUrl(downloadUrl)}?t=${Date.now()}`,
       path: apkPath,
       directory: Directory.Data,
     })

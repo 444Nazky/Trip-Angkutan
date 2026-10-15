@@ -31,7 +31,12 @@ function authenticate(req, res, next) {
 
     next()
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' })
+    // token kedaluwarsa beda dengan token ngawur — petugas perlu login ulang
+    const expired = !!error && error.name === 'TokenExpiredError'
+    res.status(401).json({
+      error: expired ? 'Sesi habis. Login ulang.' : 'Invalid token',
+      code: expired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
+    })
   }
 }
 

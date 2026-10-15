@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Server, Wifi, WifiOff } from 'lucide-react'
 import { hardReloadToNewBundle } from '../../services/otaReload'
 import { applyUpdate, checkForUpdate, getCurrentVersion, semverLabel, type UpdateState } from '../../services/ota'
+import { resolveApiBaseUrl } from '../../services/api'
+import ServerSettingsModal from '../../components/ServerSettingsModal'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -20,6 +22,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
+  const [showServer, setShowServer] = useState(false)
 
   useEffect(() => {
     void refreshOfficers()
@@ -131,6 +134,20 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <button
+          onClick={() => setShowServer(true)}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Server size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-800">Server / Endpoint</p>
+            <p className="mt-0.5 text-[10px] text-slate-400 truncate">{resolveApiBaseUrl()}</p>
+          </div>
+          <ChevronRight size={16} className="text-slate-400" />
+        </button>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 p-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
           <div className="min-w-0 flex-1">
@@ -174,6 +191,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       </button>
 
       <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first · {officer.lastActive}</p>
+
+      {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
     </div>
   )
 }

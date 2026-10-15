@@ -53,6 +53,111 @@ function parseCoordsFromText(text) {
 
 
 
+// peta kode rute (ASAL-TUJUAN) → dermaga & wilayah pemiliknya
+function buildRouteIndex() {
+  const rows = db.prepare(`
+    SELECT r.route_from, r.route_to, r.dermaga_id, d.region_id, d.name AS dermaga_name, d.code AS dermaga_code
+    FROM routes r
+    JOIN dermagas d ON r.dermaga_id = d.id
+  `).all();
+
+  const index = new Map();
+  for (const row of rows) {
+    const from = String(row.route_from ?? '').trim().toUpperCase();
+    const to = String(row.route_to ?? '').trim().toUpperCase();
+    if (!from || !to) continue;
+    const code = `${from}-${to}`;
+
+    const hit = index.get(code);
+    if (hit) {
+      if (!hit.dermagaIds.includes(row.dermaga_id)) hit.dermagaIds.push(row.dermaga_id);
+      continue;
+    }
+    index.set(code, {
+      dermagaIds: [row.dermaga_id],
+      regionId: row.region_id,
+      dermagaName: row.dermaga_name,
+      dermagaCode: row.dermaga_code,
+    });
+  }
+  return index;
+}
+
+
+
+// dermaga yang jadi penugasan petugas
+function ownedDermagaIds(user) {
+  const officerId = user && user.officerId ? String(user.officerId) : '';
+  if (!officerId) return [];
+  try {
+    return db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ?`)
+      .all(officerId)
+      .map(r => String(r.dermaga_id));
+  } catch {
+    return [];
+  }
+}
+
+
+
+// batas kode rute yang boleh dibaca pemanggil — null = tanpa filter (master lengkap)
+function scopeRouteCodes(user, query, index) {
+  const isAdmin = user && user.role === 'admin';
+  const askedDermaga = String(query.dermagaId || query.dermaga_id || '').trim();
+  const askedRegion = String(query.regionId || query.region_id || '').trim();
+  const wantAll = String(query.scope || '').toLowerCase() === 'all';
+
+  // dashboard admin tanpa filter tetap dapat master lengkap
+  if (isAdmin && (wantAll || (!askedDermaga && !askedRegion))) return null;
+
+  const owned = ownedDermagaIds(user);
+
+  let dermagaIds = [];
+  let regionId = '';
+
+  if (askedDermaga) {
+    if (!isAdmin && !owned.includes(askedDermaga)) return { denied: true };
+    dermagaIds = [askedDermaga];
+  } else if (askedRegion) {
+    if (!isAdmin && user && user.regionId && askedRegion !== String(user.regionId)) return { denied: true };
+    regionId = askedRegion;
+  } else if (owned.length) {
+    dermagaIds = owned;
+  } else {
+    regionId = String((user && user.regionId) || '');
+  }
+
+  const codes = new Set();
+  for (const [code, info] of index) {
+    if (dermagaIds.length) {
+      if (!info.dermagaIds.some(id => dermagaIds.includes(id))) continue;
+    } else if (info.regionId !== regionId) {
+      continue;
+    }
+    codes.add(code);
+  }
+  return { codes, dermagaIds, regionId };
+}
+
+
+
+// sisakan hanya geofence yang rutenya masuk penugasan
+function withinScope(rows, scope, index) {
+  if (!scope) return rows || [];
+
+  const codes = scope.codes || new Set();
+  return (rows || []).filter(row => {
+    const own = String(row.allowed_route_codes ?? '')
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(Boolean)
+      .filter(code => codes.has(code));
+    return own.length > 0;
+  });
+}
+
+
+
 router.get('/resolve-link', authenticate, async (req, res) => {
   const raw = String(req.query.url || '').trim();
   if (!/^https?:\/\//i.test(raw)) {
@@ -96,25 +201,44 @@ router.get('/resolve-link', authenticate, async (req, res) => {
 
 
 
-function shape(rows) {
-  return (rows || []).map(r => ({
-    id: r.id,
-    locationName: r.location_name,
-    latitude: Number(r.latitude),
-    longitude: Number(r.longitude),
-    radiusMeters: clampRadius(r.radius_meters),
-    allowedRouteCodes: String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean),
-    allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
-    description: r.description ?? '',
-  }));
+function shape(rows, index) {
+  return (rows || []).map(r => {
+    const allowedRouteCodes = String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const owner = allowedRouteCodes
+      .map(code => index.get(String(code).toUpperCase()))
+      .find(Boolean) || null;
+
+    return {
+      id: r.id,
+      locationName: r.location_name,
+      latitude: Number(r.latitude),
+      longitude: Number(r.longitude),
+      radiusMeters: clampRadius(r.radius_meters),
+      allowedRouteCodes,
+      allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
+      description: r.description ?? '',
+      dermagaId: owner ? owner.dermagaIds[0] : null,
+      dermagaName: owner ? owner.dermagaName : null,
+      dermagaCode: owner ? owner.dermagaCode : null,
+      regionId: owner ? owner.regionId : null,
+    };
+  });
 }
 
 
 
 router.get('/', authenticate, (req, res) => {
   try {
+    const query = req.query || {};
+    const index = buildRouteIndex();
+    const scope = scopeRouteCodes(req.user, query, index);
+
+    if (scope && scope.denied) {
+      return res.status(403).json({ error: 'Dermaga di luar wilayah penugasan Anda' });
+    }
+
     const rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
-    res.json(shape(rows));
+    res.json(shape(withinScope(rows, scope, index), index));
   } catch (error) {
     console.error('Get geofences error:', error);
     res.status(500).json({ error: 'Failed to fetch geofences' });
@@ -140,7 +264,7 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
     db.prepare(`
       INSERT INTO geofences (id, location_name, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `    ).run(
+    `).run(
       id,
       String(locationName).trim(),
       lat,
