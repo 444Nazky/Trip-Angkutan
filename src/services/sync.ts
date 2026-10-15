@@ -541,13 +541,18 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const code = res.error?.code
     if (code === '401' && allowReauth) {
-
-      const ok = await ensureBackendSession()
+      // Token ditolak server: coba perpanjang sesi lewat /auth/refresh (bukan
+      // hanya memvalidasi token yang sama), lalu kirim ulang SEKALI saja.
+      const ok = await renewSessionIfNeeded()
       if (ok) return postTripToServer(item, false)
       return { syncId, success: false, error: res.error?.message ?? 'Sesi autentikasi berakhir', code }
     }
 
-    const permanent = !!code && /^4\d\d$/.test(code) && code !== '408'
+    // 401/403 = masalah sesi, bukan payload cacat → JANGAN tandai permanen
+    // (needsAttention menahan item sampai 10 menit dan membuat antrean macet
+    // setelah petugas masuk ulang). Item tetap dapat dicoba otomatis.
+    const sessionIssue = code === '401' || code === '403'
+    const permanent = !!code && /^4\d\d$/.test(code) && code !== '408' && !sessionIssue
     return {
       syncId,
       success: false,
