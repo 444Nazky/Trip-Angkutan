@@ -67,6 +67,15 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
   const stopStream = () => {
+
+
+
+
+
+
+
+
+    
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
   }
@@ -489,7 +498,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         </button>
 
 
-        
+
         <span className="text-white/70 text-[10px] font-semibold uppercase tracking-[0.2em]">
           {busy ? 'Memproses…' : 'Tap untuk memotret'}
         </span>
