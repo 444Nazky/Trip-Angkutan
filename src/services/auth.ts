@@ -251,7 +251,9 @@ export async function memberLogin(
   saveOfficer(result.data.officer)
   const memberKey = `member:${result.data.officer.id}`
   await setPinHash(memberKey, await hashPin(memberKey, password))
-  try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
+
+  // clear cache geofence - only fresh data for this officer
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
   void refreshStoredRoutes().catch(() => null)
@@ -295,6 +297,9 @@ export async function loginWithPin(
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
   void cachePin(officerId, pin)
+
+  // clear cache geofence - only fresh data for this officer
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 
   void cacheDockOfficers(String(result.data.officer?.id ?? officerId), result.data.dermagas)
 
@@ -471,6 +476,8 @@ export async function selectDermagaLocal(
 export function logout() {
   api.setToken(null)
   clearOfficer()
+  // buang sisa titik petugas lama — login berikut mulai bersih
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 }
 
 

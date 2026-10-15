@@ -2,11 +2,11 @@
   "latest": {
     "version": "1.0.6",
     "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
-    "releaseDate": "2026-10-15T06:33:18.941Z",
-    "releaseNotes": "Rilis 1.0.6: purge-first OTA terverifikasi beruntun, installer otomatis, versi native sinkron.",
+    "releaseDate": "2026-10-15T07:29:29.054Z",
+    "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout, skema backend selaras.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
+    "apkHash": "12a0994bfbd1356afc331b2d46d01f8cd18097c5980950b699e0f2263de08d52"
   },
   "releases": {
     "1.0.3": {
@@ -29,11 +29,11 @@
     "1.0.6": {
       "version": "1.0.6",
       "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
-      "releaseDate": "2026-10-15T06:33:18.941Z",
-      "releaseNotes": "Rilis 1.0.6: purge-first OTA terverifikasi beruntun, installer otomatis, versi native sinkron.",
+      "releaseDate": "2026-10-15T07:29:29.054Z",
+      "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout, skema backend selaras.",
       "isForceUpdate": false,
       "minVersion": "1.0.0",
-      "apkHash": "0d3201c2b1558f4af5fc42b5c22f6b6a84bced191c869ba1d353c4d2dc914810"
+      "apkHash": "12a0994bfbd1356afc331b2d46d01f8cd18097c5980950b699e0f2263de08d52"
     }
   }
 }
