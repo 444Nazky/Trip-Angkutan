@@ -5,17 +5,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { absoluteBase } = require('../absolute-url');
 
-
-
-
-// APK_DIR/METADATA_DIR harus menghormati env: di Railway variabel APK_DIR=/data/apks
-// menunjuk volume persisten. Dulu nilai ini diabaikan (selalu <image>/apks yang
-// kosong), jadi apk-list selalu 0 dan setiap unduhan APK gagal.
+// fix download apk - correct APK directory
 const APK_DIR = process.env.APK_DIR || path.join(__dirname, '..', '..', 'apks');
 const METADATA_DIR = process.env.METADATA_DIR || path.join(__dirname, '..', '..', 'metadata');
-
-
-
 
 const APK_CDN_BASE = process.env.APK_CDN_URL || '';
 const RAILWAY_STATIC_URL = process.env.RAILWAY_STATIC_URL || '';
@@ -34,9 +26,6 @@ function loadVersionMetadata() {
   }
   return null;
 }
-
-
-
 
 router.get('/app-download/:version', (req, res) => {
   try {

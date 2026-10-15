@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, R
 import { hardReloadToNewBundle } from '../../services/otaReload'
 import { applyUpdate, checkForUpdate, getCurrentVersion, semverLabel, type UpdateState } from '../../services/ota'
 import { resolveApiBaseUrl } from '../../services/api'
+import { getNativeVersion } from '../../services/updateService'
 import ServerSettingsModal from '../../components/ServerSettingsModal'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -20,6 +21,7 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, refreshOfficers } = useApp()
   const [currentVersion, setCurrentVersion] = useState('—')
+  const [appVersion, setAppVersion] = useState('—')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -29,6 +31,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   useEffect(() => {
     void refreshOfficers()
     void getCurrentVersion().then(version => { if (version) setCurrentVersion(version) })
+    void getNativeVersion().then(version => { if (version) setAppVersion(version) })
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
@@ -154,7 +157,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-slate-800">Pembaruan aplikasi</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">{note ?? `Versi ${currentVersion !== '—' ? semverLabel(currentVersion) : '—'} · periksa versi terbaru`}</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{note ?? `Versi ${appVersion !== '—' ? appVersion : currentVersion !== '—' ? semverLabel(currentVersion) : '—'} · periksa versi terbaru`}</p>
           </div>
           <button
             onClick={() => void (updateVersion ? applyNow() : checkForAppUpdate())}

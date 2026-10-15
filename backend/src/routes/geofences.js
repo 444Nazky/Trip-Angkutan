@@ -106,13 +106,16 @@ router.get('/resolve-link', authenticate, async (req, res) => {
 function shape(rows) {
   return (rows || []).map(r => ({
     id: r.id,
-    locationName: r.location_name,
+    name: r.name || r.location_name,
+    locationName: r.location_name || r.name,
     latitude: Number(r.latitude),
     longitude: Number(r.longitude),
     radiusMeters: clampRadius(r.radius_meters),
-    allowedRouteCodes: String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean),
+    allowedRouteCodes: String(r.allowed_route_codes || r.allowed_routes || '').split(',').map(s => s.trim()).filter(Boolean),
     allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
     description: r.description ?? '',
+    enabled: r.enabled !== 0 && r.enabled !== false,
+    strictEnforceOutsideArea: r.strict_enforce_outside !== 0 && r.strict_enforce_outside !== false,
   }));
 }
 
@@ -121,8 +124,50 @@ function shape(rows) {
 
 router.get('/', authenticate, (req, res) => {
   try {
-    const rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
-    res.json(shape(rows));
+    const { dermagaId } = req.query;
+    console.log(`[geofence] GET - officerId: ${req.user.officerId}, role: ${req.user.role}, dermagaId: ${dermagaId}`);
+
+    // Debug: log officer's assigned dermagas
+    if (req.user.officerId) {
+      try {
+        const assignedDergamas = db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ?`).all(String(req.user.officerId));
+        console.log(`[geofence] Officer's dermagas:`, assignedDergamas.map(d => d.dermaga_id));
+      } catch (e) { console.log(`[geofence] Error getting officer dermagas:`, e.message); }
+    }
+
+    let rows;
+
+    if (dermagaId) {
+      rows = db.prepare(`
+        SELECT g.* FROM geofences g
+        JOIN dermagas d ON g.dermaga_id = d.id
+        JOIN officer_dermagas od ON d.id = od.dermaga_id
+        WHERE od.officer_id = ? AND g.dermaga_id = ?
+        ORDER BY g.name
+      `).all(String(req.user.officerId), String(dermagaId));
+      console.log(`[geofence] GET with dermagaId=${dermagaId}: found ${rows.length} rows`);
+    } else {
+      if (req.user.role === 'admin') {
+        rows = db.prepare(`SELECT * FROM geofences ORDER BY name`).all();
+        console.log(`[geofence] GET admin (all): found ${rows.length} rows`);
+      } else {
+        // First check all geofences to debug
+        const allGeo = db.prepare(`SELECT g.id, g.name, g.dermaga_id FROM geofences g`).all();
+        console.log(`[geofence] All geofences in DB:`, allGeo.map(g => ({ id: g.id, name: g.name, dermaga_id: g.dermaga_id })));
+
+        rows = db.prepare(`
+          SELECT g.* FROM geofences g
+          JOIN officer_dermagas od ON g.dermaga_id = od.dermaga_id
+          WHERE od.officer_id = ?
+          ORDER BY g.name
+        `).all(String(req.user.officerId));
+        console.log(`[geofence] GET officer filter: found ${rows.length} rows`);
+      }
+    }
+
+    const shaped = shape(rows);
+    console.log(`[geofence] GET returning ${shaped.length} geofences`);
+    res.json(shaped);
   } catch (error) {
     console.error('Get geofences error:', error);
     res.status(500).json({ error: 'Failed to fetch geofences' });
@@ -134,29 +179,33 @@ router.get('/', authenticate, (req, res) => {
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
-    const { locationName, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description } = req.body || {};
+    const { locationName, name, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description, dermagaId } = req.body || {};
     const lat = numericCoordinate(latitude);
     const lng = numericCoordinate(longitude);
-    if (!locationName || String(locationName).trim() === '') {
-      return res.status(400).json({ error: 'locationName wajib diisi' });
+    const locName = String(locationName || name || '').trim();
+    if (!locName) {
+      return res.status(400).json({ error: 'locationName/name wajib diisi' });
     }
     if (!validLatLng(lat, lng)) {
       return res.status(400).json({
-        error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder) — lat ±90, lng ±180',
+        error: 'latitude & longitude wajib angka valid — lat ±90, lng ±180',
       });
     }
     const id = randomUUID();
+    const routesStr = Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? '');
+    const directionsStr = Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? '');
+
     db.prepare(`
       INSERT INTO geofences (id, location_name, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `    ).run(
+    `).run(
       id,
-      String(locationName).trim(),
+      locName,
       lat,
       lng,
       clampRadius(radiusMeters),
-      Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
-      Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
+      routesStr,
+      directionsStr,
       description ? String(description) : '',
     );
     res.status(201).json({ id });
@@ -182,23 +231,26 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
     const lat = b.latitude !== undefined ? numericCoordinate(b.latitude) : undefined;
     const lng = b.longitude !== undefined ? numericCoordinate(b.longitude) : undefined;
     if ((b.latitude !== undefined && lat === null) || (b.longitude !== undefined && lng === null)) {
-      return res.status(400).json({ error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder)' });
+      return res.status(400).json({ error: 'latitude & longitude wajib angka valid' });
     }
     if (lat !== undefined && lng !== undefined && !validLatLng(lat, lng)) {
       return res.status(400).json({ error: 'Koordinat di luar rentang valid — lat ±90, lng ±180' });
     }
 
-    if (b.locationName !== undefined) { sets.push('location_name = ?'); args.push(String(b.locationName).trim()); }
+    if (b.locationName !== undefined || b.name !== undefined) {
+      const n = String(b.locationName || b.name || '').trim();
+      if (n) { sets.push('name = ?'); args.push(n); }
+    }
     if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
     if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
     if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
     if (b.allowedRouteCodes !== undefined) {
-      sets.push('allowed_route_codes = ?');
+      sets.push('allowed_routes = ?');
       args.push(Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes));
     }
-    if (b.allowedDirections !== undefined) {
-      sets.push('allowed_directions = ?');
-      args.push(Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections));
+    if (b.dermagaId !== undefined) {
+      sets.push('dermaga_id = ?');
+      args.push(b.dermagaId ? String(b.dermagaId) : null);
     }
     if (b.description !== undefined) { sets.push('description = ?'); args.push(String(b.description ?? '')); }
 

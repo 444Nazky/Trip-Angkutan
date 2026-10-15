@@ -698,6 +698,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     if (force) {
+      // tarik manual = segarkan semua: petugas + titik (tanpa logout)
+      void forceSyncGeofencesFromBackend()
+
       const ok = await refreshBackendSession(String(officerId))
 
       const me = synced.find(o => String(o.id) === String(officerId))

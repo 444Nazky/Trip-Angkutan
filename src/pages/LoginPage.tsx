@@ -106,6 +106,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       if (result.success) {
         void initializeSync()
         if (navigator.onLine) void syncOfficersToLocal(true).catch(() => undefined)
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
         onLogin('member')
         return
       }

@@ -620,10 +620,41 @@ function initialize() {
 
   seedData();
 
-	  try {
-	    db.run(`ALTER TABLE geofences ADD COLUMN strict_enforce_outside INTEGER DEFAULT 1`);
-	  } catch (e) { /* kolom sudah ada */ }
-	  seedDefaultGeofences();
+  // Migration 1: add columns that might not exist yet
+  try { db.run(`ALTER TABLE geofences ADD COLUMN location_name TEXT`); } catch (e) { /* already exists */ }
+  try { db.run(`ALTER TABLE geofences ADD COLUMN allowed_route_codes TEXT`); } catch (e) { /* already exists */ }
+
+  // Migration 2: fix geofence data that was stored in wrong columns
+  // Copy data from location_name -> name and allowed_route_codes -> allowed_routes
+  try {
+    db.run(`UPDATE geofences SET name = location_name WHERE (name IS NULL OR name = '') AND location_name IS NOT NULL AND location_name != ''`);
+    db.run(`UPDATE geofences SET allowed_routes = allowed_route_codes WHERE (allowed_routes IS NULL OR allowed_routes = '' OR allowed_routes = '[]') AND allowed_route_codes IS NOT NULL AND allowed_route_codes != ''`);
+    console.log('[geofence] Migration: copied data from legacy columns');
+  } catch (e) {
+    console.warn('[geofence] Migration data copy failed:', e.message);
+  }
+
+  // Migration 3: fix geofence dermaga_id to use actual UUIDs
+  try {
+    const badau = q1(`SELECT id FROM regions WHERE code = 'BADAU'`);
+    if (badau) {
+      const d1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [badau.id]);
+      const d2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [badau.id]);
+
+      if (d1 && d2) {
+        db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d1' AND (dermaga_id = 'BADAU-D1' OR dermaga_id IS NULL)`, [d1.id]);
+        db.run(`UPDATE geofences SET dermaga_id = ? WHERE id = 'badau-d2' AND (dermaga_id = 'BADAU-D2' OR dermaga_id IS NULL)`, [d2.id]);
+        console.log('[geofence] Migration: fixed dermaga_id for default geofences');
+      }
+    }
+  } catch (e) {
+    console.warn('[geofence] Migration failed:', e.message);
+  }
+
+  try {
+    db.run(`ALTER TABLE geofences ADD COLUMN strict_enforce_outside INTEGER DEFAULT 1`);
+  } catch (e) { /* kolom sudah ada */ }
+  seedDefaultGeofences();
   saveDb();
 }
 
@@ -631,39 +662,53 @@ function initialize() {
 
 
 function seedDefaultGeofences() {
+  // Get actual dermaga IDs from database
+  const badau = q1(`SELECT id FROM regions WHERE code = 'BADAU'`);
+  if (!badau) return;
+
+  const d1 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D1'`, [badau.id]);
+  const d2 = q1(`SELECT id FROM dermagas WHERE region_id = ? AND code = 'D2'`, [badau.id]);
+
+  if (!d1 || !d2) return;
+
   const defaults = [
     {
       id: 'badau-d1',
       name: 'Badau Dermaga 1',
-      dermaga_id: 'BADAU-D1',
+      dermaga_id: d1.id,
       latitude: -6.1891005,
       longitude: 106.8371641,
       radius_meters: 100,
-      allowed_routes: ['SJRE-SBDZ'], // Skenario A: kunci SJRE → SBDZ
+      allowed_routes: 'SJRE-SBDZ',
     },
     {
       id: 'badau-d2',
       name: 'Badau Dermaga 2',
-      dermaga_id: 'BADAU-D2',
+      dermaga_id: d2.id,
       latitude: -6.2389899548617285,
       longitude: 106.97475839406252,
       radius_meters: 100,
-      allowed_routes: ['SBDZ-SJRE'], // Skenario B: kunci SBDZ → SJRE
+      allowed_routes: 'SBDZ-SJRE',
     },
   ];
-  const check = db.prepare('SELECT id FROM geofences LIMIT 1');
-  const hasAny = check.step();
-  check.free();
-  if (hasAny) return;
+
+  const check = db.prepare('SELECT id FROM geofences WHERE id = ?');
   const ins = db.prepare(`
-    INSERT INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside)
+    INSERT OR IGNORE INTO geofences (id, name, dermaga_id, latitude, longitude, radius_meters, allowed_routes, enabled, strict_enforce_outside)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
   `);
+
   for (const g of defaults) {
-    ins.run([g.id, g.name, g.dermaga_id, g.latitude, g.longitude, g.radius_meters, JSON.stringify(g.allowed_routes)]);
+    check.bind([g.id]);
+    const exists = check.step();
+    check.reset();
+    if (!exists) {
+      ins.run([g.id, g.name, g.dermaga_id, g.latitude, g.longitude, g.radius_meters, g.allowed_routes]);
+    }
   }
+  check.free();
   ins.free();
-  console.log('[geofence] Seed default: Badau Dermaga 1 & 2 (SJRE-SBDZ / SBDZ-SJRE, radius 100m, strict)');
+  console.log('[geofence] Seed default: Badau Dermaga 1 & 2');
 }
 
 

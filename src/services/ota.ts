@@ -1,7 +1,8 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Capacitor, CapacitorHttp, Device } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 import { isDevMode } from './runtimeEnv'
+import { api } from './api'
 
 
 
@@ -16,6 +17,63 @@ const OTA_META_CACHE = 'trip-ota-meta'
 const VERSION_CACHE_PREFIX = 'trip-ota-v'
 const META_ACTIVE_KEY = '__active__.json'
 const MARKER_KEY_PREFIX = 'trip.ota.marker.'
+
+// Device ID cache
+let _cachedDeviceId: string | null = null
+
+async function getDeviceId(): Promise<string> {
+  if (_cachedDeviceId) return _cachedDeviceId
+  try {
+    const info = await Device.getId()
+    _cachedDeviceId = info?.identifier || info?.uuid || `device-${Date.now()}`
+  } catch {
+    _cachedDeviceId = localStorage.getItem('trip.deviceId')
+    if (!_cachedDeviceId) {
+      _cachedDeviceId = `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+      localStorage.setItem('trip.deviceId', _cachedDeviceId)
+    }
+  }
+  return _cachedDeviceId
+}
+
+/**
+ * LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
+ */
+async function reportOtaVersion(version: string): Promise<boolean> {
+  if (isDevMode()) {
+    console.log('[OTA] DEV MODE: Skip report version ke server')
+    return false
+  }
+  try {
+    const deviceId = await getDeviceId()
+    const baseUrl = api.baseUrl.replace(/\/api\/?$/i, '')
+    const url = `${baseUrl}/api/v1/report-version`
+
+    const response = await CapacitorHttp.request({
+      url,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      data: {
+        deviceId,
+        version,
+        platform: Capacitor.getPlatform(),
+      },
+    })
+
+    if (response.status === 200) {
+      console.log(`[OTA] Berhasil laporkan versi ${version} ke server`)
+      return true
+    }
+    console.warn(`[OTA] Gagal laporkan versi: status ${response.status}`)
+    return false
+  } catch (error) {
+    console.warn('[OTA] Gagal laporkan versi ke server:', error)
+    return false
+  }
+}
 
 
 
@@ -728,6 +786,13 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
     }
     if ((await cache.keys()).length < assets.length) return false
     if (meta?.version !== local) await writeActiveMeta(local, assets)
+
+    // LAPORKAN VERSI KE BACKEND saat startup dengan OTA bundle aktif
+    // Ini memastikan server tahu versi yang terinstall
+    if (local !== BUNDLED_VERSION) {
+      await reportOtaVersion(local)
+    }
+
     return true
   } catch { return false }
 }
@@ -1036,6 +1101,10 @@ export async function applyUpdate(): Promise<boolean> {
     }
 
     saveState({ status: 'idle', latestVersion: version, activeVersion: version })
+
+    // LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
+    // Ini penting agar server tahu mobile sudah menarik update OTA
+    await reportOtaVersion(version)
 
     try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
 

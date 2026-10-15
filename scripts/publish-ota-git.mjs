@@ -7,7 +7,7 @@
  *   1. git worktree add sementara ke origin/mobile
  *   2. hapus ALL chunk/main/styles/asset/ota lama dari tree publish
  *   3. salin www/ ke ota/ dan root untuk kompatibilitas aplikasi lama
- *   4. generate version.json (versi = semver+timestamp; hash SHA-256 per file)
+ *   4. generate version.json + samakan versi native di build.gradle/package.json
  *   5. commit + push (manifest di-`git add -f`, lihat catatan di bawah)
  *
  * ⚠️  PENTING — `.gitignore` cabang ini mengabaikan `/version.json`, `/index.html`,
@@ -74,6 +74,10 @@ try {
   parts[2] = (parts[2] ?? 0) + 1
   const semver = `${parts[0]}.${parts[1]}.${parts[2]}`
   const version = `${semver}+${Date.now()}`
+
+  // versi native (& versionCode) ikut naik di commit yang sama — tanpa ini
+  // App Info Android ketinggalan dari versi yang ditampilkan UI
+  run(`node ${path.join(ROOT, 'scripts', 'sync-version.mjs')} ${semver} --root=${TMP}`)
 
   // Hapus semua artifact bundel lama dari tree origin/mobile SEBELUM copy baru.
   // Tanpa ini, chunk/main/styles yang basi menumpuk & bisa serve versi lama /

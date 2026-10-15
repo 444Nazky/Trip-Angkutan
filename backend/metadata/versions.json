@@ -1,12 +1,12 @@
 {
   "latest": {
-    "version": "1.0.6",
-    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.6",
-    "releaseDate": "2026-10-15T07:29:29.054Z",
-    "releaseNotes": "Sinkron geofence akurat per dermaga + purge saat logout, skema backend selaras.",
+    "version": "1.0.9",
+    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
+    "releaseDate": "2026-10-15T08:00:00.000Z",
+    "releaseNotes": "Full audit geofence: fix schema mismatch, migration data, debug logging.",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkHash": "12a0994bfbd1356afc331b2d46d01f8cd18097c5980950b699e0f2263de08d52"
+    "apkHash": "fb6164328dd85726fb3630649e6b0bf1ceea8d614554af222be24d27699e364e"
   },
   "releases": {
     "1.0.3": {
@@ -34,6 +34,33 @@
       "isForceUpdate": false,
       "minVersion": "1.0.0",
       "apkHash": "12a0994bfbd1356afc331b2d46d01f8cd18097c5980950b699e0f2263de08d52"
+    },
+    "1.0.7": {
+      "version": "1.0.7",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.7",
+      "releaseDate": "2026-10-15T07:35:00.000Z",
+      "releaseNotes": "Fix 401 unauthorized, purge cache on login, auto-refresh token geofence sync, APK path fix.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "91ca3340000ef64a738697a491284717364f461ffe78f48a2b2a3b97bc2853e2"
+    },
+    "1.0.8": {
+      "version": "1.0.8",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.8",
+      "releaseDate": "2026-10-15T07:45:00.000Z",
+      "releaseNotes": "Fix schema mismatch geofence: name/allowed_routes sinkron dengan database.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "9d39aa7380d7e60640504197d84a64aed8f83be2abfa6bbdeff69ef93f38b419"
+    },
+    "1.0.9": {
+      "version": "1.0.9",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.9",
+      "releaseDate": "2026-10-15T08:00:00.000Z",
+      "releaseNotes": "Full audit geofence: fix schema mismatch, migration data, debug logging.",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkHash": "fb6164328dd85726fb3630649e6b0bf1ceea8d614554af222be24d27699e364e"
     }
   }
 }

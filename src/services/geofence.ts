@@ -1,6 +1,6 @@
 import { Geolocation } from '@capacitor/geolocation'
 import { api } from './api'
-import { getStoredDermaga, getStoredRoutes } from './auth'
+import { getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
 import { isDevMode } from './runtimeEnv'
 
 
@@ -130,12 +130,12 @@ export function saveGeofencePoints(points: GeofencePoint[]): void {
 
 
 
-// hapus total cache geofence lokal (data lama/fiktif tidak boleh nyangkut)
+// clear cache geofence - remove old data
 export function purgeGeofenceCache(): void {
   try {
     localStorage.removeItem(GEOFENCE_STORAGE_KEY)
     localStorage.removeItem(GEOFENCE_SYNC_KEY)
-  } catch { /* storage mati */ }
+  } catch { /* storage offline */ }
 }
 
 
@@ -468,7 +468,7 @@ export async function syncGeofencesFromBackend(opts: { force?: boolean } = {}): 
 
 
 
-async function pullGeofencesFromBackend(opts: { force?: boolean }): Promise<GeofenceSyncResult> {
+async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise<GeofenceSyncResult> {
   const cached = () => getStoredGeofencePoints()
 
   if (!opts.force) {
@@ -480,14 +480,17 @@ async function pullGeofencesFromBackend(opts: { force?: boolean }): Promise<Geof
     } catch { /* storage tidak tersedia */ }
   }
 
+  // auto-refresh token before sync
   if (!api.isAuthenticated) {
-    return { ok: false, count: cached().length, reason: 'unauthorized' }
+    const refreshed = await renewSessionIfNeeded()
+    if (!refreshed) {
+      return { ok: false, count: cached().length, reason: 'unauthorized' }
+    }
   }
 
-  // simpan dulu isi lama — dipakai balik kalau server gagal
   const backup = cached()
 
-  // bersihin cache geofence sebelum tarik data baru
+  // clear cache geofence - fresh data only
   purgeGeofenceCache()
 
   try {
@@ -498,7 +501,6 @@ async function pullGeofencesFromBackend(opts: { force?: boolean }): Promise<Geof
     if (!result.ok || !Array.isArray(result.data)) {
       const sesiMati = result.error?.code === '401' || result.error?.code === '403'
       if (sesiMati) {
-        // token ditolak → petugas login ulang, jangan pakai data setengah jalan
         try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
       }
       saveGeofencePoints(backup)
@@ -512,7 +514,6 @@ async function pullGeofencesFromBackend(opts: { force?: boolean }): Promise<Geof
     )
     const berubah = JSON.stringify(backup) !== JSON.stringify(points)
 
-    // isi bersih dari admin — tanpa merge
     saveGeofencePoints(points)
     try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* storage mati */ }
 

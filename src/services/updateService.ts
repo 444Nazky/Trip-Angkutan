@@ -1,4 +1,5 @@
 import { CapacitorHttp, Capacitor } from '@capacitor/core';
+import { Device } from '@capacitor/device';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { api } from './api';
 
@@ -15,6 +16,71 @@ export interface UpdateInfo {
   apkHash: string | null;
   minVersion: string | null;
   releaseDate: string | null;
+}
+
+// Device ID cache untuk menghindari pemanggilan berulang
+let _cachedDeviceId: string | null = null;
+
+/**
+ * Ambil device ID unik untuk pelaporan versi.
+ * Cache hasilnya agar tidak perlu fetch berkali-kali.
+ */
+async function getDeviceId(): Promise<string> {
+  if (_cachedDeviceId) return _cachedDeviceId;
+
+  try {
+    const info = await Device.getId();
+    // Gunakan UUID atau identifier yang tersedia
+    _cachedDeviceId = info?.identifier || info?.uuid || `device-${Date.now()}`;
+  } catch {
+    // Fallback: generate ID acak dan simpan di localStorage
+    _cachedDeviceId = localStorage.getItem('trip.deviceId');
+    if (!_cachedDeviceId) {
+      _cachedDeviceId = `device-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      localStorage.setItem('trip.deviceId', _cachedDeviceId);
+    }
+  }
+  return _cachedDeviceId;
+}
+
+/**
+ * LAPORKAN VERSI KE BACKEND
+ *
+ * PENTING: Mobile HARUS memanggil fungsi ini setiap:
+ * 1. Setelah OTA update BERHASIL diinstall
+ * 2. Saat startup aplikasi
+ *
+ * Ini memastikan server selalu tahu versi yang benar-benar terinstall
+ */
+async function reportVersionToServer(version: string): Promise<boolean> {
+  try {
+    const deviceId = await getDeviceId();
+    const url = `${getUpdateApiUrl()}/report-version`;
+
+    const response = await CapacitorHttp.request({
+      url,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      data: {
+        deviceId,
+        version,
+        platform: Capacitor.getPlatform(),
+      },
+    });
+
+    if (response.status === 200) {
+      console.log(`[Version] Berhasil laporkan versi ${version} ke server`);
+      return true;
+    }
+    console.warn(`[Version] Gagal laporkan versi: status ${response.status}`);
+    return false;
+  } catch (error) {
+    console.warn('[Version] Gagal laporkan versi ke server:', error);
+    return false;
+  }
 }
 
 
@@ -61,6 +127,20 @@ const STORAGE_KEYS = {
   LAST_CHECK: 'trip.update.lastCheck',
   UPDATE_INFO: 'trip.update.info',
 } as const;
+
+
+
+
+// versi native (App Info Android) — biar UI tak beda dgn sistem
+export async function getNativeVersion(): Promise<string | null> {
+  try {
+    const { App } = await import('@capacitor/app')
+    const info = await App.getInfo()
+    return info?.version || null
+  } catch {
+    return null
+  }
+}
 
 
 
@@ -325,6 +405,10 @@ class UpdateService {
         this._currentVersion = info.version;
         setStoredVersion(info.version);
         console.log('[Update] Current app version (native):', this._currentVersion);
+
+        // LAPORKAN VERSI KE BACKEND saat startup
+        // Ini memastikan server tahu versi yang terinstall meskipun tidak ada update
+        reportVersionToServer(info.version).catch(() => {});
         return;
       }
     } catch { /* bukan native (web/test) — lanjut fallback */ }
@@ -332,6 +416,11 @@ class UpdateService {
       const storedVersion = getStoredVersion();
       this._currentVersion = storedVersion || '1.0.0';
       console.log('[Update] Current app version (stored):', this._currentVersion);
+
+      // Laporkan versi stored ke backend
+      if (storedVersion) {
+        reportVersionToServer(storedVersion).catch(() => {});
+      }
     } catch {
       console.log('[Update] Could not get app version, using default');
       this._currentVersion = '1.0.0';
@@ -439,7 +528,13 @@ class UpdateService {
 
         this._state = 'ready';
         setStoredVersion(version);
+        this._currentVersion = version;
         this.notify();
+
+        // LAPORKAN VERSI KE BACKEND setelah download APK berhasil
+        // Ini penting agar server tahu mobile sudah menarik update
+        reportVersionToServer(version).catch(() => {});
+
         return true;
 
       } catch (error) {

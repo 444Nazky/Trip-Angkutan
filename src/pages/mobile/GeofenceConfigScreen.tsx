@@ -53,7 +53,7 @@ function parseRoutes(raw: string): string[] {
 
 
 export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) {
-  const { userType, officer } = useApp()
+  const { userType, officer, refreshOfficers } = useApp()
   const isAdmin = userType === 'admin'
 
   const [points, setPoints] = useState<GeofencePoint[]>(() => getStoredGeofencePoints())
@@ -80,14 +80,10 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setError(null)
     try {
-      const result = await syncGeofencesFromBackend({ force: true })
-      if (result.ok) {
-        setPoints(getStoredGeofencePoints())
-      } else if (result.reason === 'unauthorized') {
-        setError('Sesi habis. Login ulang untuk menyinkronkan geofence.')
-      } else if (result.reason === 'network') {
-        setError('Jaringan tidak tersedia. Coba lagi saat koneksi stabil.')
-      }
+      // sekali tarik: titik + roster baru, tanpa logout
+      await refreshOfficers(true)
+      setPoints(getStoredGeofencePoints())
+      if (!api.isAuthenticated) setError('Sesi habis. Login ulang untuk menyinkronkan geofence.')
     } catch {
       setError('Gagal menyinkronkan. Coba lagi nanti.')
     } finally {
