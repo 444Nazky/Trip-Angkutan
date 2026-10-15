@@ -50,8 +50,10 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       setPendingCount(getPendingCount())
     }
   }
-  
 
+
+  
+//woi
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
