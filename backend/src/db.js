@@ -626,6 +626,20 @@ function initialize() {
   try { db.run(`ALTER TABLE geofences ADD COLUMN location_name TEXT`); } catch (e) { /* already exists */ }
   try { db.run(`ALTER TABLE geofences ADD COLUMN allowed_route_codes TEXT`); } catch (e) { /* already exists */ }
 
+  // Migration 1b — KOLOM YANG HANYA ADA DI SKEMA BARU.
+  //
+  // `CREATE TABLE IF NOT EXISTS` TIDAK menambahkan kolom ke tabel yang sudah ada,
+  // dan DB produksi (volume /data) dibuat sebelum kolom-kolom ini diperkenalkan.
+  // Akibatnya `GET /api/geofences?dermagaId=<uuid>` melempar "no such column:
+  // dermaga_id" → 500 → perangkat petugas menerima 0 titik dan menampilkan
+  // "Belum ada titik geofence tersimpan", sehingga input trip utama terkunci
+  // (insiden 2026-10-15). Migrasi inilah yang benar-benar menambahkan kolomnya.
+  try { db.run(`ALTER TABLE geofences ADD COLUMN dermaga_id TEXT`); } catch (e) { /* sudah ada */ }
+  try { db.run(`ALTER TABLE geofences ADD COLUMN allowed_directions TEXT`); } catch (e) { /* sudah ada */ }
+  try { db.run(`ALTER TABLE geofences ADD COLUMN description TEXT DEFAULT ''`); } catch (e) { /* sudah ada */ }
+  try { db.run(`ALTER TABLE geofences ADD COLUMN radius_meters INTEGER DEFAULT 100`); } catch (e) { /* sudah ada */ }
+  try { db.run(`ALTER TABLE geofences ADD COLUMN enabled INTEGER DEFAULT 1`); } catch (e) { /* sudah ada */ }
+
   // Migration 2: fix geofence data that was stored in wrong columns
   // Copy data from location_name -> name and allowed_route_codes -> allowed_routes
   // Only run if both source and target columns exist
