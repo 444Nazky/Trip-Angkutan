@@ -103,7 +103,7 @@ echo "[3/4] Updating backend..."
 # Menulis backend/metadata/versions.json (sumber update API) + HARDCODED_URLS
 # sebagai fallback. Mirror ke backend endpoint bila layout monorepo ada.
 NOTES="$NOTES" APK_VER="$APK_VER" APK_CODE="$APK_CODE" node -e "
-const fs = require('fs'), path = require('path');
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const cmp = (a, b) => {
   const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
   for (let i = 0; i < 3; i++) { if (pa[i] !== pb[i]) return pa[i] > pb[i] ? 1 : -1; }
@@ -112,7 +112,15 @@ const cmp = (a, b) => {
 const targets = ['backend/metadata/versions.json'];
 const sib = '../endpoint-trip Endpoint Branch/backend/metadata/versions.json';
 if (fs.existsSync(sib)) targets.push(sib);
-const entry = { version: '$VERSION', downloadUrl: '$URL', releaseDate: new Date().toISOString(), releaseNotes: process.env.NOTES || '', isForceUpdate: false, minVersion: '1.0.0', apkVersionName: process.env.APK_VER || '$VERSION', apkVersionCode: Number(process.env.APK_CODE) || null };
+// Ukuran + SHA-256 dari berkas lokal yang baru disalin: dipakai klien untuk
+// verifikasi integritas, dan tetap benar walau unduhan memakai jalur CDN.
+let apkSize = null, apkHash = null;
+try {
+  const buf = fs.readFileSync('backend/apks/app-$VERSION.apk');
+  apkSize = buf.length;
+  apkHash = crypto.createHash('sha256').update(buf).digest('hex');
+} catch (e) { console.warn(' (hash lokal dilewati: ' + e.message + ')'); }
+const entry = { version: '$VERSION', downloadUrl: '$URL', releaseDate: new Date().toISOString(), releaseNotes: process.env.NOTES || '', isForceUpdate: false, minVersion: '1.0.0', apkVersionName: process.env.APK_VER || '$VERSION', apkVersionCode: Number(process.env.APK_CODE) || null, apkSize, apkHash };
 for (const t of targets) {
   let m = { latest: null, releases: {} };
   try { m = JSON.parse(fs.readFileSync(t, 'utf8')); } catch {}
