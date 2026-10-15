@@ -20,7 +20,7 @@ type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string 
 
 // Terjemahkan hasil probe jadi pesan yang benar: server hidup tapi diblokir CORS
 // BUKAN "server tidak merespon" — dulu pesan itu yang membuat URL benar ikut dibuang.
-function statusFromProbe(ms: number, reachable: boolean, blockedByCors: boolean, status?: number, timedOut?: boolean): Status {
+function statusFromProbe(ms: number, reachable: boolean, blockedByCors: boolean, _status?: number, timedOut?: boolean): Status {
   if (reachable && blockedByCors) {
     return {
       kind: 'warn',
@@ -28,7 +28,7 @@ function statusFromProbe(ms: number, reachable: boolean, blockedByCors: boolean,
     }
   }
   if (reachable) {
-    return { kind: 'ok', msg: `Tersambung (${ms} ms, HTTP ${status ?? 200}). Silakan login ulang.` }
+    return { kind: 'ok', msg: `Tersambung (${ms} ms). URL diterapkan.` }
   }
   if (timedOut) {
     return { kind: 'fail', msg: `Server tidak merespon (timeout ${ms} ms). Periksa URL/jaringan. URL lama tetap dipakai.` }
@@ -63,7 +63,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
       setApiBaseUrlOverride(normalizeApiBaseInput(v))
       setUrl(resolveApiBaseUrl())
     }
-    setStatus(statusFromProbe(r.ms, r.reachable, r.blockedByCors, r.status, r.timedOut))
+    setStatus(statusFromProbe(r.ms, r.reachable, r.blockedByCors, undefined, r.timedOut))
   }
 
 

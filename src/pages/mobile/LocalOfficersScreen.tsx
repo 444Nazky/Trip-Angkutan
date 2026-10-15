@@ -3,7 +3,6 @@ import { Users, Wifi, WifiOff, RefreshCw, ChevronLeft } from 'lucide-react'
 import { listOfficers } from '../../services/offlineDb'
 import { getLastCredentialsSync, syncOfficerCredentials } from '../../services/credentialSync'
 import { forceSyncGeofencesFromBackend } from '../../services/geofence'
-import { api } from '../../services/api'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -70,7 +69,6 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
       await forceSyncGeofencesFromBackend()
       await loadOfficers()
       if (result.error) setSyncError(result.error)
-      else if (!api.isAuthenticated) setSyncError('Sesi habis — login ulang untuk tarik data baru.')
     } catch {
       setSyncError('Sinkronisasi gagal. Coba lagi.')
     } finally {

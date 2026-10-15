@@ -8,7 +8,6 @@ import {
   GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
-import { api } from '../../services/api'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -83,7 +82,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       // sekali tarik: titik + roster baru, tanpa logout
       await refreshOfficers(true)
       setPoints(getStoredGeofencePoints())
-      if (!api.isAuthenticated) setError('Sesi habis. Login ulang untuk menyinkronkan geofence.')
     } catch {
       setError('Gagal menyinkronkan. Coba lagi nanti.')
     } finally {
