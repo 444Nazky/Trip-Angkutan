@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { environment } from '../environments/environment'
 
 
@@ -94,11 +95,114 @@ export function resolveApiBaseUrl(): string {
 
 
 
-// rapikan format url
+// hasil cek kesehatan server (dipakai modal Pengaturan Server)
+export interface ServerProbeResult {
+  /** server menjawab (walau balasannya tidak bisa dibaca karena CORS) */
+  reachable: boolean
+  /** status HTTP bila benar-benar terbaca */
+  status?: number
+  ms: number
+  /** server hidup tapi browser memblokir bacaannya (tak ada Access-Control-Allow-Origin) */
+  blockedByCors: boolean
+  /** berhenti karena timeout, bukan karena koneksi ditolak */
+  timedOut?: boolean
+}
+
+
+
+
+// rapikan format url (dipakai juga untuk memvalidasi input di Pengaturan Server)
+export function normalizeApiBaseInput(raw: string): string {
+  return normalizeBaseUrl(raw)
+}
+
+
+
+
+// Cek apakah server hidup.
+// fetch biasa akan MENOLAK (throw) bila respons lintas-origin tidak punya header
+// Access-Control-Allow-Origin — padahal servernya menjawab 200. Dulu itu dilaporkan
+// sebagai "server tidak merespon" sehingga petugas mengganti-ganti URL padahal URL-nya
+// benar. Di sini kegagalan dibedakan: benar-benar mati / timeout / diblokir CORS.
+export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise<ServerProbeResult> {
+  const url = normalizeApiBaseInput(raw)
+  const t0 = Date.now()
+
+  // Aplikasi native (APK) tidak punya CORS → pakai HTTP native agar hasilnya pasti.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await CapacitorHttp.get({
+        url: `${url}/health?_t=${Date.now()}`,
+        connectTimeout: timeoutMs,
+        readTimeout: timeoutMs,
+        headers: { 'Cache-Control': 'no-cache' },
+      })
+      return {
+        reachable: res.status >= 200 && res.status < 400,
+        status: res.status,
+        ms: Date.now() - t0,
+        blockedByCors: false,
+      }
+    } catch {
+      return { reachable: false, ms: Date.now() - t0, blockedByCors: false }
+    }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const hit = (mode?: RequestMode) =>
+    fetch(`${url}/health?_t=${Date.now()}`, {
+      cache: 'no-store',
+      signal: controller.signal,
+      ...(mode ? { mode } : {}),
+    })
+
+  try {
+    try {
+      const res = await hit()
+      return { reachable: res.ok, status: res.status, ms: Date.now() - t0, blockedByCors: false }
+    } catch (err) {
+      // Timeout → server tak menjawab sama sekali.
+      if (controller.signal.aborted) {
+        return { reachable: false, timedOut: true, ms: Date.now() - t0, blockedByCors: false }
+      }
+      // Gagal karena CORS: request mode 'no-cors' tidak butuh header CORS,
+      // jadi kalau ini berhasil berarti server hidup dan hanya diblokir browser.
+      try {
+        const res = await hit('no-cors')
+        if (res.type === 'opaque' || res.status === 0) {
+          return { reachable: true, blockedByCors: true, ms: Date.now() - t0 }
+        }
+        return { reachable: true, status: res.status, ms: Date.now() - t0, blockedByCors: false }
+      } catch {
+        void err
+        return { reachable: false, ms: Date.now() - t0, blockedByCors: false }
+      }
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+
+
+
+// host lokal/LAN boleh tanpa TLS; host publik wajib https.
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i
+
+
+
+
 function normalizeBaseUrl(raw: string): string {
   let url = String(raw ?? '').trim().replace(/\/+$/, '')
   if (!url) return url
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `http://${url}`
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+    // Dulu selalu `http://` — akibatnya hostname publik yang diketik tanpa skema
+    // (mis. tunnel xxx.trycloudflare.com) jadi http di halaman https dan selalu
+    // diblokir browser. Sekarang host lokal/LAN tetap http, sisanya https.
+    const host = url.split('/')[0]
+    url = `${LOCAL_HOST.test(host) ? 'http' : 'https'}://${url}`
+  }
   if (!/\/api$/i.test(url)) url = `${url}/api`
   return url
 }

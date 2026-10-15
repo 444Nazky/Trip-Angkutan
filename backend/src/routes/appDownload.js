@@ -1,18 +1,18 @@
 const express = require('express');
-
-
-
-
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { absoluteBase } = require('../absolute-url');
 
 
 
 
-const APK_DIR = path.join(__dirname, '..', '..', 'apks');
-const METADATA_DIR = path.join(__dirname, '..', '..', 'metadata');
+// APK_DIR/METADATA_DIR harus menghormati env: di Railway variabel APK_DIR=/data/apks
+// menunjuk volume persisten. Dulu nilai ini diabaikan (selalu <image>/apks yang
+// kosong), jadi apk-list selalu 0 dan setiap unduhan APK gagal.
+const APK_DIR = process.env.APK_DIR || path.join(__dirname, '..', '..', 'apks');
+const METADATA_DIR = process.env.METADATA_DIR || path.join(__dirname, '..', '..', 'metadata');
 
 
 
@@ -50,21 +50,30 @@ router.get('/app-download/:version', (req, res) => {
       });
     }
 
-    if (APK_CDN_BASE) {
-      const cdnUrl = `${APK_CDN_BASE}/app-${version}.apk`;
-      console.log(`Redirecting to CDN: ${cdnUrl}`);
-      return res.redirect(302, cdnUrl);
-    }
-
-    if (RAILWAY_STATIC_URL) {
-      const staticUrl = `${RAILWAY_STATIC_URL}/releases/app-${version}.apk`;
-      console.log(`Redirecting to static: ${staticUrl}`);
-      return res.redirect(302, staticUrl);
-    }
-
+    // File lokal (APK_DIR, mis. volume /data/apks) dicoba LEBIH DULU. Dulu CDN dan
+    // RAILWAY_STATIC_URL diperiksa duluan, padahal RAILWAY_STATIC_URL selalu terisi
+    // (tanpa skema) sehingga setiap unduhan dialihkan ke URL relatif
+    // "aplikasi-...railway.app/releases/app-x.apk" yang tidak ada filenya →
+    // update aplikasi selalu gagal walau APK-nya tersedia di server.
     const apkPath = path.join(APK_DIR, `app-${version}.apk`);
 
     if (!fs.existsSync(apkPath)) {
+      const cdnBase = absoluteBase(APK_CDN_BASE);
+      if (cdnBase) {
+        const cdnUrl = `${cdnBase}/app-${version}.apk`;
+        console.log(`Redirecting to CDN: ${cdnUrl}`);
+        return res.redirect(302, cdnUrl);
+      }
+
+      // Redirect ke /releases hanya bila direktori statisnya memang ada di image —
+      // kalau tidak, redirect itu pasti 404 dan klien malah menerima halaman HTML.
+      const staticBase = absoluteBase(RAILWAY_STATIC_URL);
+      if (staticBase && fs.existsSync(path.join(__dirname, '..', '..', 'public', 'releases'))) {
+        const staticUrl = `${staticBase}/releases/app-${version}.apk`;
+        console.log(`Redirecting to static: ${staticUrl}`);
+        return res.redirect(302, staticUrl);
+      }
+
       return res.status(404).json({
         error: 'APK_NOT_FOUND',
         message: `File APK versi ${version} tidak ditemukan`

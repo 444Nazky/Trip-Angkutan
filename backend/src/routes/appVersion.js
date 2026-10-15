@@ -1,18 +1,18 @@
 const express = require('express');
-
-
-
-
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { absoluteBase } = require('../absolute-url');
 
 
 
 
-const APK_DIR = path.join(__dirname, '..', '..', 'apks');
-const METADATA_DIR = path.join(__dirname, '..', '..', 'metadata');
+// APK_DIR/METADATA_DIR harus menghormati env: di Railway variabel APK_DIR=/data/apks
+// menunjuk volume persisten. Dulu nilai ini diabaikan (selalu <image>/apks yang
+// kosong), jadi apk-list selalu 0 dan setiap unduhan APK gagal.
+const APK_DIR = process.env.APK_DIR || path.join(__dirname, '..', '..', 'apks');
+const METADATA_DIR = process.env.METADATA_DIR || path.join(__dirname, '..', '..', 'metadata');
 
 
 
@@ -80,9 +80,18 @@ function getDownloadUrl(version) {
   if (metadata?.releases?.[version]?.downloadUrl) return metadata.releases[version].downloadUrl;
   if (metadata?.latest?.version === version && metadata?.latest?.downloadUrl) return metadata.latest.downloadUrl;
 
-  if (APK_CDN_BASE) return `${APK_CDN_BASE}/app-${version}.apk`;
+  // APK yang benar-benar ada di server (APK_DIR, mis. volume /data/apks) adalah
+  // satu-satunya sumber yang pasti bisa diunduh klien → utamakan itu.
+  const apkPath = path.join(APK_DIR, `app-${version}.apk`);
+  if (fs.existsSync(apkPath)) return `/api/v1/app-download/${version}`;
 
-  if (RAILWAY_STATIC_URL) return `${RAILWAY_STATIC_URL}/releases/app-${version}.apk`;
+  // URL unduhan wajib absolut: URL tanpa skema (RAILWAY_STATIC_URL memang
+  // disediakan tanpa skema) dianggap path relatif oleh klien → update gagal.
+  const cdnBase = absoluteBase(APK_CDN_BASE);
+  if (cdnBase) return `${cdnBase}/app-${version}.apk`;
+
+  const staticBase = absoluteBase(RAILWAY_STATIC_URL);
+  if (staticBase) return `${staticBase}/releases/app-${version}.apk`;
 
   const HARDCODED_URLS = {
     '1.0.3': 'https://files.catbox.moe/bmkh1o.apk',
@@ -92,8 +101,7 @@ function getDownloadUrl(version) {
   };
   if (HARDCODED_URLS[version]) return HARDCODED_URLS[version];
 
-  const apkPath = path.join(APK_DIR, `app-${version}.apk`);
-  return fs.existsSync(apkPath) ? `/api/v1/app-download/${version}` : null;
+  return null;
 }
 
 

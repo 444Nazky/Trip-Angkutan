@@ -21,20 +21,49 @@ const appDownloadRoutes = require('./routes/appDownload');
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.set('trust proxy', 1);
+app.set('trust proxy', 1);// Origin dev lokal (web dev-server + shell native Capacitor/Ionic). Tanpa ini,
+// NODE_ENV=production + CORS_ORIGIN (mis. hanya domain dashboard) membuat
+// dev-server di localhost:5173 tidak menerima Access-Control-Allow-Origin →
+// semua request diblokir browser dan muncul "Server tidak merespon".
+const DEV_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+];
 
-
-
-
-const allowedOrigins = (process.env.CORS_ORIGIN || '')
+const envOrigins = (process.env.CORS_ORIGIN || '')
   .split(',').map(s => s.trim()).filter(Boolean);
-const corsOptions = process.env.NODE_ENV === 'production' && allowedOrigins.length
-  ? { origin: allowedOrigins }
-  : {};
 
+// Gabungan: origin dari env (domain dashboard produksi) + origin dev.
+// '*' pada env berarti "izinkan semua".
+const allowedOrigins = [...new Set([...envOrigins, ...DEV_ORIGINS])];
+const allowAnyOrigin = allowedOrigins.includes('*');
 
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const NATIVE_SHELL_ORIGIN = /^(capacitor|ionic):\/\/localhost$/;
 
-
+const corsOptions = {
+  origin(origin, callback) {
+    // Tanpa Origin (curl, health-check Railway, server-to-server): loloskan.
+    if (!origin) return callback(null, true);
+    if (allowAnyOrigin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Port dev-server bisa berubah → izinkan localhost/127.0.0.1 port apa pun.
+    if (LOCALHOST_ORIGIN.test(origin) || NATIVE_SHELL_ORIGIN.test(origin)) {
+      return callback(null, true);
+    }
+    // Origin tak dikenal: jangan kirim header CORS (browser memblokir),
+    // tetapi jangan melempar error agar tidak menimbulkan 500.
+    return callback(null, false);
+  },
+};
 app.use(cors(corsOptions));
 
 

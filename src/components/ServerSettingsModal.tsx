@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Server, X } from 'lucide-react'
-import { api, resolveApiBaseUrl, setApiBaseUrlOverride } from '../services/api'
+import { api, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from '../services/api'
 import { environment } from '../environments/environment'
 
 
@@ -13,29 +13,27 @@ interface Props {
 
 
 
-type Status = { kind: 'idle' | 'checking' | 'ok' | 'fail'; msg: string }
+type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
 
 
 
 
-// cek url baru sebelum disimpan
-async function probeUrl(raw: string): Promise<{ ok: boolean; ms: number }> {
-  let url = raw.trim().replace(/\/+$/, '')
-  if (!/^https?:\/\//i.test(url)) url = `https://${url}`
-  if (!/\/api$/i.test(url)) url = `${url}/api`
-  const t0 = Date.now()
-  try {
-    const c = new AbortController()
-    const t = setTimeout(() => c.abort(), 10000)
-    try {
-      const r = await fetch(`${url}/health?_t=${Date.now()}`, { cache: 'no-store', signal: c.signal })
-      return { ok: r.ok, ms: Date.now() - t0 }
-    } finally {
-      clearTimeout(t)
+// Terjemahkan hasil probe jadi pesan yang benar: server hidup tapi diblokir CORS
+// BUKAN "server tidak merespon" — dulu pesan itu yang membuat URL benar ikut dibuang.
+function statusFromProbe(ms: number, reachable: boolean, blockedByCors: boolean, status?: number, timedOut?: boolean): Status {
+  if (reachable && blockedByCors) {
+    return {
+      kind: 'warn',
+      msg: `Server hidup (${ms} ms) tetapi browser memblokir CORS. URL disimpan. Minta admin menambahkan origin ini ke CORS_ORIGIN server.`,
     }
-  } catch {
-    return { ok: false, ms: Date.now() - t0 }
   }
+  if (reachable) {
+    return { kind: 'ok', msg: `Tersambung (${ms} ms, HTTP ${status ?? 200}). Silakan login ulang.` }
+  }
+  if (timedOut) {
+    return { kind: 'fail', msg: `Server tidak merespon (timeout ${ms} ms). Periksa URL/jaringan. URL lama tetap dipakai.` }
+  }
+  return { kind: 'fail', msg: `Server tidak merespon (${ms} ms). Periksa URL/jaringan. URL lama tetap dipakai.` }
 }
 
 
@@ -59,14 +57,13 @@ export default function ServerSettingsModal({ onClose }: Props) {
       return
     }
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
-    const r = await probeUrl(v)
-    if (!r.ok) {
-      setStatus({ kind: 'fail', msg: `Server tidak merespon (${r.ms} ms). URL lama tetap dipakai.` })
-      return
+    const r = await probeServerHealth(v)
+    // URL yang bisa dijangkau tetap disimpan walau browser memblokir bacaannya.
+    if (r.reachable) {
+      setApiBaseUrlOverride(normalizeApiBaseInput(v))
+      setUrl(resolveApiBaseUrl())
     }
-    setApiBaseUrlOverride(v)
-    setUrl(api.baseUrl)
-    setStatus({ kind: 'ok', msg: `Tersambung (${r.ms} ms). Silakan login ulang.` })
+    setStatus(statusFromProbe(r.ms, r.reachable, r.blockedByCors, r.status, r.timedOut))
   }
 
 
@@ -74,12 +71,12 @@ export default function ServerSettingsModal({ onClose }: Props) {
 
   async function handleReset() {
     setApiBaseUrlOverride(null)
-    setUrl(api.baseUrl)
+    setUrl(resolveApiBaseUrl())
     setStatus({ kind: 'checking', msg: 'Kembali default, mengetes…' })
-    const r = await probeUrl(api.baseUrl)
-    setStatus(r.ok
-      ? { kind: 'ok', msg: `Default aktif (${r.ms} ms).` }
-      : { kind: 'fail', msg: 'Default tidak merespon.' })
+    const r = await probeServerHealth(resolveApiBaseUrl())
+    setStatus(r.reachable
+      ? { kind: r.blockedByCors ? 'warn' : 'ok', msg: `Default aktif (${r.ms} ms)${r.blockedByCors ? ' — browser memblokir CORS' : ''}.` }
+      : { kind: 'fail', msg: `Default tidak merespon (${r.ms} ms). Nyalakan backend lokal di port 3000 atau isi URL server.` })
   }
 
 
@@ -116,8 +113,8 @@ export default function ServerSettingsModal({ onClose }: Props) {
         </div>
 
         {status.msg !== '' && (
-          <div className={`mt-3 px-4 py-3 rounded-xl ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
-            <p className={`text-xs ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
+          <div className={`mt-3 px-4 py-3 rounded-xl ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
+            <p className={`text-xs ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'warn' ? 'text-amber-700' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
               {status.msg}
             </p>
           </div>
