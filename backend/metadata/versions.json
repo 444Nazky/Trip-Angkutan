@@ -1,15 +1,15 @@
 {
   "latest": {
-    "version": "1.0.17",
-    "downloadUrl": "https://files.catbox.moe/9yv0wi.apk",
-    "releaseDate": "2026-10-15T13:18:44.596Z",
-    "releaseNotes": "Fix kritis: server LAN http:// bisa dipakai lagi (endpoint manual), URL unduhan APK absolut (anti 'dokumen error'), sinkron geofence titik tanpa dermaga",
+    "version": "1.0.25",
+    "downloadUrl": "https://files.catbox.moe/rg8gtm.apk",
+    "releaseDate": "2026-10-16T03:38:02.779Z",
+    "releaseNotes": "Update release",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkVersionName": "1.0.17",
-    "apkVersionCode": 19,
-    "apkSize": 16295794,
-    "apkHash": "5fac0d4d42759d38d543df266a6a1e715deb6455c92c56e8d5d2724c78efa611"
+    "apkVersionName": "1.0.25",
+    "apkVersionCode": 27,
+    "apkSize": 16297082,
+    "apkHash": "961ce3cf64c222b115feaef91e75c55a5322fc01c461ff2af239dc57f63ecca9"
   },
   "releases": {
     "1.0.3": {
@@ -66,6 +66,18 @@
       "apkVersionCode": 19,
       "apkSize": 16295794,
       "apkHash": "5fac0d4d42759d38d543df266a6a1e715deb6455c92c56e8d5d2724c78efa611"
+    },
+    "1.0.25": {
+      "version": "1.0.25",
+      "downloadUrl": "https://files.catbox.moe/rg8gtm.apk",
+      "releaseDate": "2026-10-16T03:38:02.779Z",
+      "releaseNotes": "Update release",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkVersionName": "1.0.25",
+      "apkVersionCode": 27,
+      "apkSize": 16297082,
+      "apkHash": "961ce3cf64c222b115feaef91e75c55a5322fc01c461ff2af239dc57f63ecca9"
     }
   }
 }
