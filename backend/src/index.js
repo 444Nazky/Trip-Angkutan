@@ -15,6 +15,7 @@ const geofenceRoutes = require('./routes/geofences');
 const appVersionRoutes = require('./routes/appVersion');
 const appDownloadRoutes = require('./routes/appDownload');
 const otaBundleRoutes = require('./routes/otaBundle');
+const masterRoutes = require('./routes/master');
 
 
 
@@ -153,6 +154,10 @@ app.use('/api/geofences', geofenceRoutes);
 app.use('/api/v1', appVersionRoutes);
 app.use('/api/v1', appDownloadRoutes);
 app.use('/api/v1', otaBundleRoutes);
+
+
+
+app.use('/api/master', masterRoutes);
 
 
 

@@ -293,6 +293,34 @@ async function main() {
   check('H9 paket salah label (apkVersionName ≠ versi) → tidak diiklankan',
     av3.updateAvailable === false && av3.downloadUrl === null, JSON.stringify(av3));
 
+  // [I] Master tarif untuk petugas. Dulu SATU-SATUNYA endpoint tarif
+  // (`/api/tariffs`) memakai requireAdmin, jadi HP petugas tak punya cara
+  // membaca tarif resmi dan diam-diam memakai angka contoh di data.ts —
+  // nominal yang tersimpan di trip tidak pernah sama dengan master admin.
+  console.log('\n[I] master tarif untuk petugas (GET /api/master/tariffs)');
+  const mkTariff = (body) => fetch(`${base}/api/tariffs`, {
+    method: 'POST',
+    headers: { ...headers.admin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ golongan: 'I', vehicleType: 'Motor', loadedTariff: 15000, emptyTariff: 8000, description: 'E2E', ...body }),
+  });
+  check('I1 admin bisa menambah tarif (master tetap bisa ditulis)', (await mkTariff({})).status === 201);
+  check('I2 admin bisa menambah tarif kedua', (await mkTariff({ vehicleType: 'Truck Besar', golongan: 'V', loadedTariff: 275000, emptyTariff: 190000 })).status === 201);
+
+  const noTok = await fetch(`${base}/api/master/tariffs`);
+  check('I3 tanpa token → 401 (wajib login petugas)', noTok.status === 401, 'status=' + noTok.status);
+
+  const offRes = await fetch(`${base}/api/master/tariffs`, { headers: headers.officer });
+  const offRows = await offRes.json().catch(() => null);
+  check('I4 token petugas boleh membaca tarif', offRes.ok, `status=${offRes.status} ${JSON.stringify(offRows).slice(0, 200)}`);
+  check('I5 payload memuat field yang dipakai HP (vehicle_type/loaded_tariff/empty_tariff)',
+    Array.isArray(offRows) && offRows.length > 0 && offRows.every(t => typeof t.vehicle_type === 'string' && typeof t.loaded_tariff === 'number' && typeof t.empty_tariff === 'number'),
+    JSON.stringify(offRows).slice(0, 200));
+  check('I6 tarif yang baru dibuat ikut terkirim ke petugas',
+    Array.isArray(offRows) && offRows.some(t => t.vehicle_type === 'Truck Besar' && t.loaded_tariff === 275000 && t.empty_tariff === 190000),
+    JSON.stringify(Array.isArray(offRows) ? offRows.map(t => `${t.vehicle_type}:${t.loaded_tariff}`) : offRows).slice(0, 200));
+  const adminOnly = await fetch(`${base}/api/tariffs`, { headers: headers.officer });
+  check('I7 /api/tariffs tetap khusus admin → 403 untuk petugas', adminOnly.status === 403, 'status=' + adminOnly.status);
+
   console.log('\n' + (failures === 0 ? 'SMOKETEST LULUS SEMUA' : `${failures} CHECK GAGAL`));
   child.kill();
   try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {}
