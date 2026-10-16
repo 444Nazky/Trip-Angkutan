@@ -275,12 +275,56 @@ function findActiveGeofencePoint(
   return null
 }
 
+// ponytail: ID dermaga warisan berbentuk 'BADAU-D1' (bukan UUID) tidak pernah
+// sama dengan UUID dermaga asli → dulu selalu mismatch walau posisi benar.
+// ID yang bukan UUID diperlakukan sebagai titik umum. TODO-data: bereskan
+// dermaga_id di server (migrasi sudah ada) lalu hapus pengecualian ini.
+function isLegacyDermagaId(id: unknown): boolean {
+  const s = String(id ?? '').trim()
+  return !!s && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+}
+
+function pointBelongsToDermaga(p: GeofencePoint, dockId: string): boolean {
+  if (!p.dermagaId) return true
+  if (String(p.dermagaId).trim() === String(dockId).trim()) return true
+  return isLegacyDermagaId(p.dermagaId)
+}
+
+// ponytail: radius bisa tumpang tindih (atau koordinat kembar dari input admin)
+// → pemenang-tunggal berdasarkan urutan storage dulu menunjuk titik dermaga
+// LAIN ("lokasi tidak sesuai dermaga" padahal posisi benar + tombol mati).
+// Dengan dockId: hanya titik dermaga tsb (atau umum/warisan) yang dinilai,
+// menang yang ID-nya persis lalu yang terdekat.
+function findActiveGeofencePointForDermaga(
+  position: { lat: number; lon: number },
+  points: GeofencePoint[],
+  dockId?: string | null,
+): GeofencePoint | null {
+  if (!dockId) return findActiveGeofencePoint(position, points)
+  let best: GeofencePoint | null = null
+  let bestScore = ''
+  for (const point of points) {
+    if (point.enabled === false) continue
+    if (!pointBelongsToDermaga(point, dockId)) continue
+    const distance = calculateDistance(position.lat, position.lon, point.latitude, point.longitude)
+    if (distance > point.radiusMeters) continue
+    const exact = String(point.dermagaId ?? '').trim() === String(dockId).trim()
+    const score = `${exact ? '0' : '1'}-${String(Math.round(distance)).padStart(10, '0')}`
+    if (!best || score < bestScore) {
+      best = point
+      bestScore = score
+    }
+  }
+  return best
+}
+
 
 
 
 export async function validateRouteForCurrentLocation(
   routeCode: string,
   points?: GeofencePoint[],
+  dockId?: string | null,
 ): Promise<ValidationResult> {
   const geofencePoints = points ?? getStoredGeofencePoints()
   const strict = geofencePoints.some(p => p.enabled !== false && p.strictEnforceOutsideArea !== false)
@@ -318,7 +362,7 @@ export async function validateRouteForCurrentLocation(
       : { valid: false, reason: 'Akurasi GPS terlalu rendah. Buka area terbuka lalu coba lagi.', accuracyMeters: position.accuracy }
   }
 
-  const activePoint = findActiveGeofencePoint(position, geofencePoints)
+  const activePoint = findActiveGeofencePointForDermaga(position, geofencePoints, dockId ?? null)
 
   if (!activePoint) {
     return isActiveStrict
@@ -337,7 +381,18 @@ export async function validateRouteForCurrentLocation(
     activePoint.longitude,
   )
 
-  if (!activePoint.allowedRoutes.includes(routeCode)) {
+  // ponytail: rute sah bila ADA titik yang melingkupi posisi + membolehkannya,
+  // bukan cuma pemenang-tunggal — radius yang tumpang tindih dulu bikin rute
+  // yang benar ditolak saat submit. Scope dibatasi dermaga terpilih bila ada.
+  const scopePool = dockId
+    ? geofencePoints.filter(p => p.enabled !== false && pointBelongsToDermaga(p, dockId))
+    : geofencePoints.filter(p => p.enabled !== false)
+  const routeAllowed = scopePool.some(
+    p => calculateDistance(position.lat, position.lon, p.latitude, p.longitude) <= p.radiusMeters
+      && p.allowedRoutes.includes(routeCode),
+  )
+
+  if (!routeAllowed) {
     const allowedList = activePoint.allowedRoutes.join(', ')
     return {
       valid: false,
@@ -369,11 +424,6 @@ const UNAUTH_THROTTLE_MS = 60_000
 
 
 export const GEOFENCE_UPDATED_EVENT = 'trip:geofence-updated'
-
-
-
-
-export const GEOFENCE_AUTH_EXPIRED_EVENT = 'trip:geofence-auth-expired'
 
 
 
@@ -462,6 +512,22 @@ export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   })
 }
 
+// ponytail: hitungan tiap tahap filter sync terakhir — agar layar "belum ada
+// titik" bisa menjelaskan KENAPA (tak ada titik di server vs kode rute petugas
+// tak cocok), bukan sekadar kosong. Disimpan di memori saja, bukan storage.
+export interface GeofenceScopeDiagnosis {
+  at: number
+  received: number
+  validCoords: number
+  active: number
+  scoped: number
+  assignedCodes: string[]
+}
+let lastDiagnosis: GeofenceScopeDiagnosis | null = null
+export function getLastGeofenceDiagnosis(): GeofenceScopeDiagnosis | null {
+  return lastDiagnosis
+}
+
 
 
 export async function syncGeofencesFromBackend(opts: { force?: boolean } = {}): Promise<GeofenceSyncResult> {
@@ -542,7 +608,10 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
       console.log('[geofence] Sync: request failed, sesiMati:', sesiMati)
       if (sesiMati) {
         lastUnauthorizedAt = Date.now()
-        try { window.dispatchEvent(new Event(GEOFENCE_AUTH_EXPIRED_EVENT)) } catch { /* non-browser */ }
+        // ponytail: 401 TIDAK lagi menendang ke layar login (event dihapus) —
+        // sesi petugas dibuat tidak expired; cache lokal dipertahankan dan sync
+        // berikutnya mencoba lagi. Tendangan dulu yang bikin "belum login"
+        // padahal petugas sudah login.
       }
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
@@ -575,11 +644,18 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
     ) as BackendGeofence[]
 
     console.log('[geofence] Sync: got', rows.length, 'items from server')
-    const points = scopedGeofencePoints(
-      rows
-        .map(mapBackendToGeofence)
-        .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude)),
-    )
+    const mapped = rows
+      .map(mapBackendToGeofence)
+      .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+    const points = scopedGeofencePoints(mapped)
+    lastDiagnosis = {
+      at: Date.now(),
+      received: rows.length,
+      validCoords: mapped.length,
+      active: mapped.filter(p => p.enabled !== false).length,
+      scoped: points.length,
+      assignedCodes: [...assignedRouteCodes()].sort(),
+    }
     console.log('[geofence] Sync: after scoped filter,', points.length, 'points remain')
     if (points.length === 0 && rows.length > 0) {
       console.warn('[geofence] Sync: server mengirim', rows.length, 'titik tetapi semuanya tersaring oleh kode rute perangkat')
@@ -621,6 +697,7 @@ export async function forceSyncGeofencesFromBackend(): Promise<GeofenceSyncResul
 
 export async function getActiveGeofenceSnapshot(
   points?: GeofencePoint[],
+  dockId?: string | null,
 ): Promise<ValidationResult> {
   const geofencePoints = points ?? getStoredGeofencePoints()
   const strict = geofencePoints.some(p => p.enabled && p.strictEnforceOutsideArea !== false)
@@ -653,7 +730,7 @@ export async function getActiveGeofenceSnapshot(
       : { valid: false, reason: 'Akurasi GPS terlalu rendah', accuracyMeters: position.accuracy }
   }
 
-  const activePoint = findActiveGeofencePoint(position, geofencePoints)
+  const activePoint = findActiveGeofencePointForDermaga(position, geofencePoints, dockId ?? null)
   if (!activePoint) {
     return strict
       ? { valid: false, blocked: true, reason: 'Di luar Area Geofence Resmi — seluruh input trip diblokir', accuracyMeters: position.accuracy }

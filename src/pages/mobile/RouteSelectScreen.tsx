@@ -62,7 +62,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     let alive = true
 
     const evaluate = async (): Promise<void> => {
-      const result = await getActiveGeofenceSnapshot()
+      // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik
+      // dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2
+      // yang radiusnya tumpang tindih.
+      const result = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
       if (!alive) return
 
       if (result.valid && result.activePoint) {
@@ -92,7 +95,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
 
     const evaluateWithSelfHeal = async (): Promise<void> => {
-      const first = await getActiveGeofenceSnapshot()
+      const first = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
       if (!alive) return
       if (first.valid || !first.configMissing) { void evaluate(); return }
 
@@ -138,7 +141,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     setSyncingGeo(true)
     setSyncNote(null)
     const sync = await forceSyncGeofencesFromBackend()
-    const snap = await getActiveGeofenceSnapshot()
+    const snap = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
     setSyncingGeo(false)
     if (snap.valid && snap.activePoint) {
       setActiveGeofence(snap.activePoint)

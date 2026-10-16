@@ -2,7 +2,8 @@
  * Tes fallback sinkronisasi petugas — dulu "Sesi petugas tidak valid" DILEMPAR
  * tiap kali token kosong/kedaluwarsa sehingga console penuh error dan siklus
  * offline-online ikut gagal. Sekarang: sesi mati atau jaringan putus = fallback
- * senyap ke data lokal, token usang dibersihkan supaya tidak nembak server terus.
+ * senyap ke data lokal, token DIPERTAHANKAN (sesi dibuat tidak expired) supaya
+ * percobaan berikutnya bisa memakai token yang sama.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,17 +75,17 @@ describe('sesi petugas tidak valid', () => {
     expect(h.calls).toBe(0)
   })
 
-  it('token usang dibersihkan supaya tidak nembak server terus', async () => {
+  it('sesi belum siap → fallback lokal, token dipertahankan untuk percobaan berikut', async () => {
     h.authed = true
     h.ensure = false
 
     expect(await syncOfficersToLocal(true)).toEqual([])
-    expect(h.tokens).toEqual([null])
-    expect(h.authed).toBe(false)
+    expect(h.tokens).toEqual([])
+    expect(h.authed).toBe(true)
     expect(h.calls).toBe(0)
   })
 
-  it('server balas 401 → token dibersihkan + pakai cache lokal', async () => {
+  it('server balas 401 → token dipertahankan + pakai cache lokal', async () => {
     h.authed = true
     h.ensure = true
     h.response = { ok: false, error: { code: '401', message: 'Sesi habis. Login ulang.' } }
@@ -92,7 +93,8 @@ describe('sesi petugas tidak valid', () => {
 
     const roster = await syncOfficersToLocal(true)
 
-    expect(h.tokens).toEqual([null])
+    expect(h.tokens).toEqual([])
+    expect(h.authed).toBe(true)
     expect(roster.map(o => o.id)).toEqual(['off-1'])
     expect(h.saved.length).toBe(1)
   })

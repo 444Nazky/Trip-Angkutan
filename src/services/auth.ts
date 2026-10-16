@@ -256,7 +256,12 @@ export async function memberLogin(
   void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
-  void refreshStoredRoutes().catch(() => null)
+  // ponytail: dermaga aktif + rute WAJIB tersimpan saat login — geofence dan
+  // validasi trip membaca keduanya dari localStorage. Satu dermaga = langsung
+  // jadi aktif (tanpa ini getStoredDermaga() kosong dan filter per-dermaga
+  // tidak jalan). Rute di-await (dibatasi timeout) agar penugasan siap dipakai.
+  if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
+  await refreshStoredRoutes().catch(() => null)
 
   return { success: true, officer: result.data.officer }
 }
@@ -541,7 +546,9 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
     if (r.data.officer) saveOfficer(r.data.officer)
     return true
   }
-  api.setToken(null)
+  // ponytail: refresh gagal (mis. officer dinonaktifkan) = biarkan token apa
+  // adanya dan lanjut pakai cache lokal. Menghapus token di sini dulu membuat
+  // sesi mati permanen tanpa bisa dipulihkan ("session renewal failed").
   return false
 }
 

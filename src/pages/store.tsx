@@ -699,8 +699,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (force) {
       // tarik manual = segarkan semua: petugas + titik (tanpa logout)
-      // ponytail: background, jangan force — throttle unauthorized berlaku
-      void syncGeofencesFromBackend()
+      // ponytail: foreground = force agar edit admin langsung sampai
+      void syncGeofencesFromBackend({ force: true })
 
       const ok = await refreshBackendSession(String(officerId))
 
@@ -731,7 +731,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
-      void syncGeofencesFromBackend()
+      // ponytail: online/kembali-sesi = force, lihat catatan di atas
+      void syncGeofencesFromBackend({ force: true })
     }
     const onOnline = () => pullAuthorizedMasterData()
     const onSessionReady = () => pullAuthorizedMasterData()

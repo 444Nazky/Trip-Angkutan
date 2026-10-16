@@ -31,7 +31,10 @@ export async function syncOnResume(force = false): Promise<void> {
   const dermaga = getStoredDermaga()
   if (dermaga?.id) void syncDermagaOfficersToDb(dermaga.id)
   void refreshStoredRoutes().catch(() => null)
-  void syncGeofencesFromBackend().catch(() => null)
+  // ponytail: resume = force — fetch geofence murah (segelintir baris) dan
+  // inilah yang membuat edit admin (koordinat baru) "langsung" sampai di HP.
+  // Throttle 15 menit dulu yang bikin HP menampilkan titik basi berhari-hari.
+  void syncGeofencesFromBackend({ force: true }).catch(() => null)
 }
 
 const LAST_SYNC_KEY = 'trip.officers.lastSync'

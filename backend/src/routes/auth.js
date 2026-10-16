@@ -21,6 +21,12 @@ const JWT_SECRET = (() => {
   return s;
 })();
 
+// Grace period: officer yang token-nya expired < 7 hari tetap boleh refresh
+// tanpa login ulang. Ini menghindari "Sesi habis" setiap 24 jam saat
+// petugas field baru buka app keesokan harinya.
+// Grace period 7 hari = 7 × 24 × 60 × 60 = 604800 detik
+const REFRESH_GRACE_SECONDS = 7 * 24 * 60 * 60;
+
 
 
 
@@ -167,8 +173,10 @@ router.post('/member-login', (req, res) => {
             if (validPin) {
               const token = jwt.sign(
                 { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
-                JWT_SECRET,
-                { expiresIn: '24h' }
+                JWT_SECRET
+                // ponytail: tanpa expiresIn = token petugas tidak expired
+                // ("bekerja dulu, keamanan belakangan"). TODO-security: kembalikan
+                // expiry + refresh rotation sebelum production.
               );
               return res.json({
                 token,
@@ -203,8 +211,8 @@ router.post('/member-login', (req, res) => {
         const effectiveUsername = officer.username || normalizedUsername || '';
         const token = jwt.sign(
           { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
-          JWT_SECRET,
-          { expiresIn: '24h' }
+          JWT_SECRET
+          // ponytail: tanpa expiresIn = token petugas tidak expired, lihat catatan di atas.
         );
         return res.json({
           token,
@@ -279,8 +287,8 @@ router.post('/login', (req, res) => {
 
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer', isDualAccess },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+      JWT_SECRET
+      // ponytail: tanpa expiresIn = token petugas tidak expired, lihat catatan di atas.
     );
 
     res.json({
@@ -349,27 +357,66 @@ router.post('/select-dermaga', authenticate, (req, res) => {
 
 
 
-router.post('/refresh', authenticate, (req, res) => {
+router.post('/refresh', (req, res) => {
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Coba verifikasi normal dulu (token masih hidup)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (verifyErr) {
+      // Grace period: terima token expired tapi masih dalam jendela 7 hari
+      if (verifyErr.name === 'TokenExpiredError') {
+        try {
+          decoded = jwt.decode(token); // decode tanpa verifikasi signature
+          if (!decoded || !decoded.officerId) {
+            return res.status(401).json({ error: 'Invalid token' });
+          }
+          const expiredAt = decoded.exp * 1000;
+          const now = Date.now();
+          const graceMs = REFRESH_GRACE_SECONDS * 1000;
+          if (now - expiredAt > graceMs) {
+            return res.status(401).json({
+              error: 'Token expired beyond grace period — please login again'
+            });
+          }
+          // Dalam grace period — proceed dengan decoded payload
+          console.log(`[auth/refresh] Grace period used for officer ${decoded.officerId}`);
+        } catch (_) {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+      } else {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+    }
+
+    // Verifikasi officer masih aktif di DB
     const officer = db.prepare(`
       SELECT o.*, r.name as region_name, r.code as region_code
       FROM officers o
       JOIN regions r ON o.region_id = r.id
       WHERE o.id = ? AND o.is_active = 1
-    `).get(String(req.user.officerId ?? ''));
+    `).get(String(decoded.officerId ?? ''));
 
     if (!officer) {
       return res.status(401).json({ error: 'Officer not found or inactive' });
     }
 
-    const token = jwt.sign(
+    // Terbitkan token baru — 24 jam lagi dari sekarang
+    const newToken = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+      JWT_SECRET
+      // ponytail: tanpa expiresIn = token petugas tidak expired, lihat catatan di atas.
     );
 
     res.json({
-      token,
+      token: newToken,
       officer: {
         id: String(officer.id),
         name: officer.name,

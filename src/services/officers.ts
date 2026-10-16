@@ -66,8 +66,9 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | n
 
   const ok = await ensureBackendSession()
   if (!ok || !api.isAuthenticated) {
-    // token usang → buang biar tidak nembak server terus-terusan
-    if (api.isAuthenticated) api.setToken(null)
+    // ponytail: sesi belum siap → pakai cache lokal, JANGAN hapus token.
+    // Token dipertahankan agar percobaan berikutnya (atau token perpetual
+    // server) bisa dipakai; penghapusan dulu bikin roster mati permanen.
     return loadCache()?.officers ?? null
   }
 
@@ -75,8 +76,9 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | n
   if (!result.ok) {
     const code = result.error?.code
     if (code === '401' || code === '403') {
-      // sesi ditolak server → bersihin token, lanjut pakai data lokal
-      api.setToken(null)
+      // ponytail: sesi ditolak server → lanjut pakai data lokal, token tetap
+      // disimpan (server kini menerima token lama; petugas aktif kembali
+      // sembuh sendiri tanpa login ulang).
       return loadCache()?.officers ?? null
     }
     if (code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')

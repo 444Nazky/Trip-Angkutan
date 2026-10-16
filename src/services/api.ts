@@ -383,16 +383,11 @@ export function apiBaseCandidateLabel(url: string): string | null {
 
 
 
-function isAuthPath(path: string): boolean {
-  return /(^|\/)auth\/(login|member-login)\b/i.test(String(path ?? ''))
-}
-
 class ApiService {
   private _baseUrl = getBaseUrl()
   private _token: string | null = null
 
-  // ponytail: satu-satunya pengecualian 401-tanpa-logout; refresh tetap logout bila gagal
-  // karena ia memakai token sesi, bukan kredensial yang diketik.
+  // ponytail: tidak ada request yang boleh menghapus token (lihat 401 di bawah).
 
   constructor() {
     try {
@@ -473,8 +468,12 @@ class ApiService {
       })
 
       if (!res.ok) {
-        // ponytail: 401 dari /auth/* = kredensial salah, jangan hapus token valid
-        if (res.status === 401 && !isAuthPath(path)) this.setToken(null)
+        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
+        // di salah satu dari 4 request paralel) menghapus token di storage,
+        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
+        // ("session renewal failed" padahal petugas sudah login). Token hanya
+        // diganti saat login/refresh eksplisit. TODO-security: hapus sesi hanya
+        // untuk 401 yang terbukti revokasi, bukan expiry.
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
 
@@ -516,8 +515,12 @@ class ApiService {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        // ponytail: 401 dari /auth/* = kredensial salah, jangan hapus token valid
-        if (res.status === 401 && !isAuthPath(path)) this.setToken(null)
+        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
+        // di salah satu dari 4 request paralel) menghapus token di storage,
+        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
+        // ("session renewal failed" padahal petugas sudah login). Token hanya
+        // diganti saat login/refresh eksplisit. TODO-security: hapus sesi hanya
+        // untuk 401 yang terbukti revokasi, bukan expiry.
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
       return { ok: true, data }

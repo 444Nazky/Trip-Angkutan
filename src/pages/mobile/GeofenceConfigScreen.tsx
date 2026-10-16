@@ -7,7 +7,9 @@ import {
   getActiveGeofenceSnapshot,
   GEOFENCE_UPDATED_EVENT,
   forceSyncGeofencesFromBackend,
+  getLastGeofenceDiagnosis,
   type GeofencePoint,
+  type GeofenceScopeDiagnosis,
 } from '../../services/geofence'
 import { renewSessionIfNeeded } from '../../services/auth'
 import { useApp } from '../store'
@@ -64,9 +66,13 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const [error, setError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [diag, setDiag] = useState<GeofenceScopeDiagnosis | null>(() => getLastGeofenceDiagnosis())
 
   useEffect(() => {
-    const onUpdate = () => setPoints(getStoredGeofencePoints())
+    const onUpdate = () => {
+      setPoints(getStoredGeofencePoints())
+      setDiag(getLastGeofenceDiagnosis())
+    }
     window.addEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
     return () => window.removeEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
   }, [])
@@ -99,6 +105,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       }
       // Ambil data terbaru dari storage
       setPoints(getStoredGeofencePoints())
+      setDiag(getLastGeofenceDiagnosis())
     } catch (e) {
       console.error('[GeofenceConfig] Sync error:', e)
       setError('Gagal menyinkronkan. Coba lagi nanti.')
@@ -368,6 +375,15 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
               <p className="font-semibold mb-1">Belum ada titik geofence tersimpan.</p>
               <p>Tekan tombol sinkronkan di kanan atas untuk menarik data dari server, atau tambah manual.</p>
+              {diag && (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  Sync terakhir: server mengirim {diag.received} titik, {diag.active} aktif, {diag.scoped} cocok
+                  dengan rute Anda{diag.assignedCodes.length > 0 ? ` (${diag.assignedCodes.join(', ')})` : ' (rute belum tersinkron)'}.
+                  {diag.received > 0 && diag.scoped === 0
+                    ? ' Minta admin daftarkan titik untuk rute Anda di Master Rute.'
+                    : ''}
+                </p>
+              )}
             </div>
           )}
         </div>

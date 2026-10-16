@@ -756,18 +756,18 @@ function seedDefaultGeofences() {
     {
       id: 'badau-d1',
       name: 'Badau Dermaga 1',
-      latitude: -6.1891005,
-      longitude: 106.8371641,
+      latitude: -0.8506,
+      longitude: 108.8338,
       radius_meters: 100,
-      allowed_routes: 'SJRE-SBDZ',
+      allowed_routes: 'SJRE,SBDZ',
     },
     {
       id: 'badau-d2',
       name: 'Badau Dermaga 2',
-      latitude: -6.2389899548617285,
-      longitude: 106.97475839406252,
+      latitude: -0.8412,
+      longitude: 108.8551,
       radius_meters: 100,
-      allowed_routes: 'SBDZ-SJRE',
+      allowed_routes: 'SBDZ,SJRE',
     },
   ];
 

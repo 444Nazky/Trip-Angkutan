@@ -3,7 +3,14 @@ const jwt = require('jsonwebtoken');
 
 
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trip-angkut-secret-key';
+const JWT_SECRET = (() => {
+  const s = process.env.JWT_SECRET;
+  if (!s) {
+    console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it');
+    process.exit(1);
+  }
+  return s;
+})();
 
 
 
@@ -16,7 +23,27 @@ function authenticate(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (verifyErr) {
+      // ponytail: sesi petugas dibuat TIDAK expired ("bekerja dulu, keamanan
+      // belakangan"). Token lama 24 jam yang sudah kedaluwarsa tetap diterima
+      // agar HP di lapangan sembuh tanpa login ulang. TODO-security: ganti
+      // dengan refresh-token rotation + daftar token dicabut sebelum production.
+      if (verifyErr && verifyErr.name === 'TokenExpiredError') {
+        try {
+          decoded = jwt.decode(token);
+        } catch (_) {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+        if (!decoded || (!decoded.officerId && decoded.role !== 'admin')) {
+          return res.status(401).json({ error: 'Invalid token' });
+        }
+      } else {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+    }
 
     const ctx = {
       officerId: decoded.officerId,

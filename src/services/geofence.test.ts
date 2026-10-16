@@ -5,7 +5,8 @@
  *   1. Kontrak respons backend → titik geofence lokal (nama, koordinat, radius
  *      default 100m, allowedRouteCodes, dermagaId).
  *   2. Jalur sync: force (setelah login / tombol manual) mengabaikan cooldown;
- *      siklus otomatis menghormatinya; 401/403 → `unauthorized` + event sesi.
+ *      siklus otomatis menghormatinya; 401/403 → `unauthorized` (tanpa tendang
+ *      ke login — sesi dibuat tidak expired, token dipertahankan).
  *   3. PURGE-FIRST: cache lokal dibersihkan tiap fetch, sisa data lama/fiktif
  *      tidak menumpuk; daftar kosong dari server ikut mengosongkan perangkat.
  *   4. Cuma titik aktif + rute penugasan petugas yang disimpan.
@@ -27,7 +28,6 @@ import {
   getCurrentPosition,
   resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
-  GEOFENCE_AUTH_EXPIRED_EVENT,
   type GeofencePoint,
 } from './geofence'
 
@@ -314,20 +314,15 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
   })
 
-  it('401 dilaporkan sebagai unauthorized + memicu event sesi habis', async () => {
-    const seen: string[] = []
-    const onAuthExpired = () => seen.push('expired')
-    window.addEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
-
+  it('401 dilaporkan sebagai unauthorized TANPA menendang ke login', async () => {
     saveGeofencePoints([POINT])
     h.response = { ok: false, error: { code: '401', message: 'Unauthorized' } }
 
     const result = await forceSyncGeofencesFromBackend()
-    window.removeEventListener(GEOFENCE_AUTH_EXPIRED_EVENT, onAuthExpired)
 
     expect(result.ok).toBe(false)
     expect(result.reason).toBe('unauthorized')
-    expect(seen).toEqual(["expired"]) // petugas diarahkan login ulang, token dibersihkan
+    // cache dipertahankan, cooldown tidak dikunci
     expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
     expect(localStorage.getItem(SYNC_KEY)).toBeNull() // tidak mengunci cooldown
   })
@@ -457,5 +452,54 @@ describe('validasi lokasi terhadap konfigurasi', () => {
     const res = await getActiveGeofenceSnapshot()
     expect(res.blocked).toBe(true)
     expect(res.reason).toMatch(/GPS/i)
+  })
+})
+
+describe('radius tumpang tindih antar-dermaga (kasus Dewi: pilih D1 di lokasi D1)', () => {
+  const D1_UUID = '11111111-1111-4111-8111-111111111111'
+  const D2_UUID = '22222222-2222-4222-8222-222222222222'
+  const LAT = -0.8506
+  const LON = 108.8338
+  // Titik D2 tersimpan DULUAN + radius raksasa menutupi D1 (input admin) —
+  // dulu pemenang-tunggal selalu D2 → mismatch + tombol mati walau posisi di D1.
+  const D2_FIRST: GeofencePoint[] = [
+    { id: 'geo-d2', name: 'Badau Dermaga 2', dermagaId: D2_UUID, latitude: LAT, longitude: LON, radiusMeters: 5000, allowedRoutes: ['SBDZ-SJRE'], enabled: true },
+    { id: 'geo-d1', name: 'Badau Dermaga 1', dermagaId: D1_UUID, latitude: LAT, longitude: LON, radiusMeters: 100, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+  ]
+
+  it('snapshot scoped D1 memilih titik D1 (bukan urutan storage)', async () => {
+    saveGeofencePoints(D2_FIRST)
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const scoped = await getActiveGeofenceSnapshot(undefined, D1_UUID)
+    expect(scoped.valid).toBe(true)
+    expect(scoped.activePoint?.id).toBe('geo-d1')
+
+    // tanpa scope: perilaku lama dipertahankan (pemenang = urutan storage)
+    resetGpsFixCache()
+    const unscoped = await getActiveGeofenceSnapshot()
+    expect(unscoped.activePoint?.id).toBe('geo-d2')
+  })
+
+  it('dermagaId warisan (BUKAN UUID) dianggap titik umum', async () => {
+    saveGeofencePoints([
+      { id: 'geo-d1', name: 'Badau Dermaga 1', dermagaId: 'BADAU-D1', latitude: LAT, longitude: LON, radiusMeters: 100, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+    ])
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const scoped = await getActiveGeofenceSnapshot(undefined, D1_UUID)
+    expect(scoped.valid).toBe(true)
+    expect(scoped.activePoint?.id).toBe('geo-d1')
+  })
+
+  it('validasi rute scoped D1 meloloskan rute D1 walau titik D2 duluan', async () => {
+    saveGeofencePoints(D2_FIRST)
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const ok = await validateRouteForCurrentLocation('SJRE-SBDZ', undefined, D1_UUID)
+    expect(ok).toMatchObject({ valid: true })
+
+    const wrong = await validateRouteForCurrentLocation('AAAA-BBBB', undefined, D1_UUID)
+    expect(wrong.valid).toBe(false)
   })
 })
