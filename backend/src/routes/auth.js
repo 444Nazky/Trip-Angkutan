@@ -229,7 +229,8 @@ router.post('/member-login', authRateLimiter, (req, res) => {
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      // ponytail: sesi PETUGAS tidak praktis kedaluwarsa ("bekerja dulu").
+      { expiresIn: '3650d' }
     )
 
     res.json({
@@ -299,7 +300,8 @@ router.post('/login', authRateLimiter, (req, res) => {
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer', isDualAccess },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      // ponytail: sesi PETUGAS tidak praktis kedaluwarsa ("bekerja dulu").
+      { expiresIn: '3650d' }
     )
 
     res.json({
@@ -382,7 +384,8 @@ router.post('/refresh', authenticate, (req, res) => {
     const token = jwt.sign(
       { officerId: officer.id, regionId: officer.region_id, role: 'officer' },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      // ponytail: sesi PETUGAS tidak praktis kedaluwarsa ("bekerja dulu").
+      { expiresIn: '3650d' }
     )
 
     res.json({

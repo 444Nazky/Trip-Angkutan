@@ -14,6 +14,7 @@ const reportRoutes = require('./routes/reports');
 const geofenceRoutes = require('./routes/geofences');
 const appVersionRoutes = require('./routes/appVersion');
 const appDownloadRoutes = require('./routes/appDownload');
+const otaBundleRoutes = require('./routes/otaBundle');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -84,7 +85,17 @@ app.options('*', cors(corsOptions));
 
 
 
-app.use(express.json({ limit: '10kb' }));
+// Batas 10kb cukup untuk hampir semua API, kecuali endpoint publikasi: APK dan
+// bundel modul dikirim base64 dan berukuran besar. Tanpa parser longgar khusus,
+// keduanya ditolak 413 sebelum menyentuh route-nya.
+const jsonDefault = express.json({ limit: '10kb' });
+const jsonPublishUpload = express.json({ limit: '64mb' });
+const PUBLISH_PATHS = ['/api/v1/publish-version', '/api/v1/publish-ota'];
+
+app.use((req, res, next) => {
+  const parse = req.method === 'POST' && PUBLISH_PATHS.includes(req.path) ? jsonPublishUpload : jsonDefault;
+  return parse(req, res, next);
+});
 
 const { UPLOADS_DIR } = require('./uploads-dir');
 
@@ -98,6 +109,15 @@ const releasesDir = path.join(__dirname, '..', 'public', 'releases');
 
 
 app.use('/releases', express.static(releasesDir));
+
+
+
+// Bundel modul (OTA) disajikan apa adanya: /ota/<versi>/<berkas>.
+const { OTA_DIR } = require('./ota-dir');
+
+
+
+app.use('/ota', express.static(OTA_DIR, { maxAge: '1h', fallthrough: true }));
 
 
 
@@ -157,6 +177,7 @@ app.use('/api/v1', appVersionRoutes);
 
 
 app.use('/api/v1', appDownloadRoutes);
+app.use('/api/v1', otaBundleRoutes);
 
 
 
