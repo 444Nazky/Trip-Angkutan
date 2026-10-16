@@ -14,6 +14,16 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
+    // Kode admin dashboard yang ikut ter-merge (lihat catatan di tsconfig.json):
+    // test-nya menguji API versi admin, bukan aplikasi mobile, sehingga selalu
+    // gagal bila dijalankan dengan services/api.ts milik mobile.
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      'src/pages/admin/**',
+      'src/services/api.test.ts',
+      'src/services/geo.test.ts',
+    ],
     // Pasang localStorage jsdom (lihat vitest.setup.ts) sebelum modul diuji
     setupFiles: ['./vitest.setup.ts'],
     // File test tidak boleh menggantung: batasi waktu per test.
