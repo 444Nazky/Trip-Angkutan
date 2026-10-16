@@ -59,6 +59,23 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
+  // Buat Map untuk lookup dermaga yang cepat - di-refresh saat officer berubah
+  const [dermagaMap, setDermagaMap] = useState(() => {
+    const map = new Map<string, { id: string; name: string; code?: string }>()
+    for (const d of (officer.dermagaAccess ?? [])) {
+      map.set(d.id, d)
+    }
+    return map
+  })
+
+  useEffect(() => {
+    const map = new Map<string, { id: string; name: string; code?: string }>()
+    for (const d of (officer.dermagaAccess ?? [])) {
+      map.set(d.id, d)
+    }
+    setDermagaMap(map)
+  }, [officer.dermagaAccess])
+
   const [points, setPoints] = useState<GeofencePoint[]>(() => scopedGeofencePoints(getStoredGeofencePoints()))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftPoint>(emptyDraft)
@@ -67,6 +84,17 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [diag, setDiag] = useState<GeofenceScopeDiagnosis | null>(() => getLastGeofenceDiagnosis())
+
+  // Helper untuk mendapatkan nama dermaga yang valid
+  const getDermagaDisplay = (dermagaId: string | undefined): string | null => {
+    if (!dermagaId) return null
+    const found = dermagaMap.get(dermagaId)
+    if (found) return found.name
+    // Fallback: cari di seed data atau data lain yang mungkin tersimpan
+    // Jika tidak ditemukan, tampilkan ID untuk debugging
+    console.warn(`[GeofenceConfig] dermagaId "${dermagaId}" tidak ditemukan di akses petugas. Mungkin data server tidak cocok.`)
+    return null
+  }
 
   useEffect(() => {
     const onUpdate = () => {
@@ -104,6 +132,18 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       // Ambil data terbaru dari storage
       setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
       setDiag(getLastGeofenceDiagnosis())
+
+      // Validasi dermagaId setelah sync
+      const latestPoints = getStoredGeofencePoints()
+      const invalidDermagaPoints = latestPoints.filter(p => {
+        if (!p.dermagaId) return false
+        // Legacy/warisan IDs (non-UUID) tidak dianggap invalid
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.dermagaId)) return false
+        return !dermagaMap.has(p.dermagaId)
+      })
+      if (invalidDermagaPoints.length > 0) {
+        console.warn(`[GeofenceConfig] Ditemukan ${invalidDermagaPoints.length} titik dengan dermagaId tidak valid:`, invalidDermagaPoints.map(p => ({ id: p.id, name: p.name, dermagaId: p.dermagaId })))
+      }
     } catch (e) {
       console.error('[GeofenceConfig] Sync error:', e)
       setError('Gagal menyinkronkan. Coba lagi nanti.')
@@ -320,9 +360,18 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {p.dermagaId && (
-                      <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                        Dermaga: {officer.dermagaAccess?.find(d => d.id === p.dermagaId)?.name ?? p.dermagaId}
-                      </span>
+                      (() => {
+                        const dermagaName = getDermagaDisplay(p.dermagaId)
+                        return dermagaName ? (
+                          <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                            Dermaga: {dermagaName}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full" title={`ID: ${p.dermagaId} (tidak ditemukan di akses petugas)`}>
+                            ⚠️ Dermaga tidak dikenal
+                          </span>
+                        )
+                      })()
                     )}
                     <span className="text-[10px] font-bold bg-slate-800 text-white px-2 py-0.5 rounded-full">
                       R {p.radiusMeters}m

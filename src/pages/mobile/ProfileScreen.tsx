@@ -68,19 +68,39 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const moduleVersion = appUpdate.currentModuleVersion
   const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
 
+  // Status check untuk menentukan state tombol
+  const isChecking = update.status === 'checking'
+  const isDownloading = update.status === 'downloading'
+  const isInstalling = update.status === 'installing'
+  const isUpToDate = update.status === 'up-to-date'
+  const hasError = update.status === 'error'
+  const isIdleOrOffline = update.status === 'idle' || update.status === 'offline'
+
   const updateNote = (() => {
-    if (busy || update.status === 'checking') return 'Memeriksa pembaruan…'
-    if (update.status === 'downloading') return 'Mengunduh pembaruan…'
-    if (update.status === 'installing') return update.kind === 'apk' ? 'Menunggu pemasangan APK…' : 'Menerapkan modul baru…'
-    if (update.status === 'ready') {
+    if (busy || isChecking) return 'Memeriksa pembaruan…'
+    if (isDownloading) return 'Mengunduh pembaruan…'
+    if (isInstalling) return update.kind === 'apk' ? 'Menunggu pemasangan APK…' : 'Menerapkan modul baru…'
+    if (updateReady) {
       return update.kind === 'apk'
-        ? `Versi APK ${update.version} siap dipasang`
-        : `Modul ${semverLabel(update.version ?? '')} siap dipasang`
+        ? `Versi APK ${update.version} siap dipasang — tekan tombol untuk memulai`
+        : `Modul ${semverLabel(update.version ?? '')} siap dipasang — tekan tombol untuk memulai`
     }
+    if (isUpToDate) return 'Aplikasi sudah versi terbaru'
+    if (hasError) return update.error ?? 'Pemeriksaan pembaruan gagal'
     if (update.status === 'offline') return 'Tidak ada koneksi — coba lagi saat online'
-    if (update.status === 'error') return update.error ?? 'Pemeriksaan pembaruan gagal'
-    if (update.status === 'up-to-date') return `Sudah versi terbaru · ${versionLine}`
     return versionLine
+  })()
+
+  // Tentukan state tombol
+  const buttonState = (() => {
+    if (busy || isChecking) return { label: 'Memeriksa…', disabled: true, action: 'check' }
+    if (isDownloading) return { label: 'Mengunduh…', disabled: true, action: 'check' }
+    if (isInstalling) return { label: 'Memasang…', disabled: true, action: 'check' }
+    if (updateReady) return { label: 'Update Sekarang', disabled: false, action: 'update' }
+    if (hasError) return { label: 'Coba Lagi', disabled: false, action: 'check' }
+    if (isUpToDate) return { label: 'Sudah Terbaru', disabled: true, action: 'check' }
+    if (isIdleOrOffline) return { label: 'Cek Update', disabled: false, action: 'check' }
+    return { label: 'Cek & Perbarui', disabled: false, action: 'check' }
   })()
 
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
@@ -169,11 +189,16 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <p className="mt-0.5 text-[10px] text-slate-400">{updateNote}</p>
           </div>
           <button
-            onClick={() => void (updateReady ? applyNow() : checkNow())}
-            disabled={busy || update.status === 'installing'}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+            onClick={() => void (buttonState.action === 'update' ? applyNow() : checkNow())}
+            disabled={buttonState.disabled}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10px] font-semibold transition-colors ${
+              buttonState.action === 'update'
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-slate-300 bg-transparent text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+            } disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:bg-slate-50`}
           >
-            {busy ? <RefreshCw size={12} className="animate-spin" /> : updateReady ? 'Perbarui' : 'Cek & Perbarui'}
+            {busy || isChecking ? <RefreshCw size={12} className="animate-spin" /> : null}
+            {buttonState.label}
           </button>
         </div>
         {updateReady && !busy && (
