@@ -1,85 +1,91 @@
 {
-  "hash": "aef81404",
-  "configHash": "591775df",
-  "lockfileHash": "f2396c0f",
-  "browserHash": "764986f5",
+  "hash": "afc7f1b0",
+  "configHash": "2c07d260",
+  "lockfileHash": "42546980",
+  "browserHash": "ea80cca5",
   "optimized": {
     "@capacitor-community/sqlite": {
       "src": "../../../../../../node_modules/@capacitor-community/sqlite/dist/esm/index.js",
       "file": "@capacitor-community_sqlite.js",
-      "fileHash": "221ea754",
+      "fileHash": "3bb105ab",
       "needsInterop": false
     },
     "@capacitor/app": {
       "src": "../../../../../../node_modules/@capacitor/app/dist/esm/index.js",
       "file": "@capacitor_app.js",
-      "fileHash": "74b418bb",
+      "fileHash": "25d59417",
       "needsInterop": false
     },
     "@capacitor/camera": {
       "src": "../../../../../../node_modules/@capacitor/camera/dist/esm/index.js",
       "file": "@capacitor_camera.js",
-      "fileHash": "9afe7163",
+      "fileHash": "a2920269",
       "needsInterop": false
     },
     "@capacitor/core": {
       "src": "../../../../../../node_modules/@capacitor/core/dist/index.js",
       "file": "@capacitor_core.js",
-      "fileHash": "e907bfff",
+      "fileHash": "dcf469a5",
+      "needsInterop": false
+    },
+    "@capacitor/device": {
+      "src": "../../../../../../node_modules/@capacitor/device/dist/esm/index.js",
+      "file": "@capacitor_device.js",
+      "fileHash": "f4fbaa58",
       "needsInterop": false
     },
     "@capacitor/filesystem": {
       "src": "../../../../../../node_modules/@capacitor/filesystem/dist/esm/index.js",
       "file": "@capacitor_filesystem.js",
-      "fileHash": "b9ae0e8f",
+      "fileHash": "a7690915",
       "needsInterop": false
     },
     "@capacitor/geolocation": {
       "src": "../../../../../../node_modules/@capacitor/geolocation/dist/esm/index.js",
       "file": "@capacitor_geolocation.js",
-      "fileHash": "64a05abb",
-      "needsInterop": false
-    },
-    "@capacitor/network": {
-      "src": "../../../../../../node_modules/@capacitor/network/dist/esm/index.js",
-      "file": "@capacitor_network.js",
-      "fileHash": "8069b5aa",
+      "fileHash": "dae2cc8b",
       "needsInterop": false
     },
     "bcryptjs": {
       "src": "../../../../../../node_modules/bcryptjs/index.js",
       "file": "bcryptjs.js",
-      "fileHash": "e230f610",
+      "fileHash": "43c403c5",
       "needsInterop": false
     },
     "lucide-react": {
       "src": "../../../../../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
       "file": "lucide-react.js",
-      "fileHash": "65b6d7bb",
+      "fileHash": "710041ad",
       "needsInterop": false
     },
     "react-dom/client": {
       "src": "../../../../../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "82690ec6",
+      "fileHash": "ad268d9d",
       "needsInterop": true
     },
     "react": {
       "src": "../../../../../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "766196c2",
+      "fileHash": "74421d8d",
       "needsInterop": true
     },
     "react/jsx-runtime": {
       "src": "../../../../../../node_modules/react/jsx-runtime.js",
       "file": "react_jsx-runtime.js",
-      "fileHash": "daf251da",
+      "fileHash": "92647ce1",
+      "needsInterop": true
+    },
+    "tesseract.js": {
+      "src": "../../../../../../node_modules/tesseract.js/src/index.js",
+      "file": "tesseract__js.js",
+      "fileHash": "c0e1efc0",
       "needsInterop": true
     }
   },
   "chunks": {
-    "rolldown-runtime-DC62tzP2": {
-      "file": "rolldown-runtime-DC62tzP2.js",
+    "rolldown-runtime-B-lAHAz2": {
+      "file": "rolldown-runtime-B-lAHAz2.js",
       "isDynamicEntry": false
     },
     "synapse-DhWU51FR": {
@@ -94,12 +100,12 @@
       "file": "web-8YuiPUEH.js",
       "isDynamicEntry": true
     },
-    "web-AEK0fH6Z": {
-      "file": "web-AEK0fH6Z.js",
-      "isDynamicEntry": true
-    },
     "web-B_JAPfM0": {
       "file": "web-B_JAPfM0.js",
+      "isDynamicEntry": true
+    },
+    "web-C8ChANo-": {
+      "file": "web-C8ChANo-.js",
       "isDynamicEntry": true
     },
     "web-C9MQ4OOn": {

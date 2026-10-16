@@ -1,14 +1,13 @@
 const jwt = require('jsonwebtoken');
 
-
-
-if (!process.env.JWT_SECRET) {
-  console.error('[auth] CRITICAL: JWT_SECRET environment variable is required');
-  console.error('[auth] Server cannot start without JWT_SECRET');
-  process.exit(1);
-}
-
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = (() => {
+  const s = process.env.JWT_SECRET;
+  if (!s) {
+    console.error('[auth] JWT_SECRET environment variable is required — server cannot start without it');
+    process.exit(1);
+  }
+  return s;
+})();
 
 
 

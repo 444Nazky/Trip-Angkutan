@@ -140,6 +140,7 @@ router.post('/check', authenticate, (req, res) => {
     } else if (registered && registered.status) {
       status = registered.status;
       origin = registered.origin_region_id || originRegionId || checkpointRegionId;
+
       if (status === 'lokal' && origin && checkpointRegionId && origin !== checkpointRegionId) {
         status = 'eksternal';
       }

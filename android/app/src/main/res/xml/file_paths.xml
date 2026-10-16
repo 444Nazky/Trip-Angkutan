@@ -2,4 +2,12 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+
+    <!--
+        Berkas APK pembaruan diunduh dengan Capacitor Filesystem ke
+        Directory.Data = getFilesDir() (mis. .../files/updates/app-1.0.27.apk).
+        Tanpa entri files-path ini, FileProvider menolak membuat content:// URI
+        dan installer APK gagal dengan "Failed to find configured root".
+    -->
+    <files-path name="app_files" path="." />
 </paths>

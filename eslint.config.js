@@ -1,32 +1,13 @@
 // @ts-check
 const tseslint = require("typescript-eslint");
-const angular = require("angular-eslint");
 
 module.exports = tseslint.config(
+  { ignores: ["www/**", "backend/**", "node_modules/**"] },
+  ...tseslint.configs.recommended,
   {
-    files: ["**/*.ts"],
-    ignores: ["projects/**/*"],
-    extends: [...angular.configs.tsRecommended],
-    processor: angular.processInlineTemplates,
+    files: ["src/**/*.{ts,tsx}"],
     rules: {
-      "@angular-eslint/prefer-standalone": "off",
-      "@angular-eslint/component-class-suffix": [
-        "error",
-        { suffixes: ["Page", "Component"] },
-      ],
-      "@angular-eslint/component-selector": [
-        "error",
-        { type: "element", prefix: "app", style: "kebab-case" },
-      ],
-      "@angular-eslint/directive-selector": [
-        "error",
-        { type: "attribute", prefix: "app", style: "camelCase" },
-      ],
+      "@typescript-eslint/no-explicit-any": "off",
     },
-  },
-  {
-    files: ["**/*.html"],
-    extends: [...angular.configs.templateRecommended],
-    rules: {},
   }
 );

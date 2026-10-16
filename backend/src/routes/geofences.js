@@ -1,259 +1,130 @@
 const express = require('express');
 const router = express.Router();
+const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { randomUUID } = require('crypto');
 
 
 
-function numericCoordinate(value) {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'boolean') return null;
-  const n = typeof value === 'number' ? value : Number(String(value).trim());
-  if (!Number.isFinite(n)) return null;
-  return n;
+const csv = (v) => (Array.isArray(v) ? v.join(',') : String(v ?? ''));
+const splitCsv = (v) => String(v ?? '').split(',').map(s => s.trim()).filter(Boolean);
+
+
+
+function toRule(row) {
+  return {
+    id: row.id,
+    locationName: row.location_name,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    radiusMeters: row.radius_meters,
+    allowedRouteCodes: splitCsv(row.allowed_route_codes),
+    allowedDirections: splitCsv(row.allowed_directions),
+    description: row.description || '',
+  };
 }
 
 
 
-function validLatLng(lat, lng) {
-  return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+function validCoords(latitude, longitude) {
+  return Number.isFinite(latitude) && Number.isFinite(longitude)
+    && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
 }
 
 
 
-function clampRadius(value) {
-  const n = numericCoordinate(value);
-  if (n === null || n < 1 || n > 10000) return 100;
-  return n;
-}
-
-
-
-function parseCoordsFromText(text) {
-  if (!text) return null;
-  const patterns = [
-    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
-    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
-    /[?&](?:q|query|destination|daddr|ll|center)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
-    /"(-?\d+\.\d{4,})",\s*(-?\d+\.\d{4,})"/,
-  ];
-  for (const re of patterns) {
-    const m = text.match(re);
-    if (m) {
-      const lat = Number(m[1]);
-      const lng = Number(m[2]);
-      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-        return { latitude: lat, longitude: lng };
-      }
-    }
-  }
-  return null;
-}
-
-
-
-router.get('/resolve-link', authenticate, async (req, res) => {
-  const raw = String(req.query.url || '').trim();
-  if (!/^https?:\/\//i.test(raw)) {
-    return res.status(400).json({ error: 'url wajib berupa http(s) URL' });
-  }
-  let host = '';
-  try {
-    host = new URL(raw).hostname.toLowerCase();
-  } catch {
-    return res.status(400).json({ error: 'url tidak valid' });
-  }
-  const ALLOWED_HOST_RE = /(^|\.)(goo\.gl|g\.co|google\.com|maps\.app\.goo\.gl)$/i;
-  if (!ALLOWED_HOST_RE.test(host)) {
-    return res.status(400).json({ error: 'Hanya link Google Maps (goo.gl / maps.app.goo.gl / google.com) yang didukung' });
-  }
-  try {
-    const response = await fetch(raw, {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
-      },
-    });
-    const finalUrl = response.url || raw;
-    const fromUrl = parseCoordsFromText(finalUrl);
-    if (fromUrl) return res.json({ url: finalUrl, ...fromUrl });
-
-    const html = await response.text();
-    const fromHtml = parseCoordsFromText(html.slice(0, 262144));
-    if (fromHtml) return res.json({ url: finalUrl, ...fromHtml });
-
-    return res.json({ url: finalUrl });
-  } catch (error) {
-    console.error('Resolve maps link error:', error && error.message);
-    return res.status(502).json({ error: 'Gagal membuka link — periksa koneksi atau tempel URL penuh Google Maps' });
-  }
+router.get('/', authenticate, requireAdmin, (_req, res) => {
+  const rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name ASC`).all();
+  res.json(rows.map(toRule));
 });
 
 
 
-function shape(rows) {
-  return (rows || []).map(r => ({
-    id: r.id,
-    // name & location_name dibaca bergantian: skema lama hanya punya `name`,
-    // skema baru menulis keduanya.
-    name: r.name || r.location_name,
-    locationName: r.location_name || r.name,
-    dermagaId: r.dermaga_id ?? null,
-    latitude: Number(r.latitude),
-    longitude: Number(r.longitude),
-    radiusMeters: clampRadius(r.radius_meters),
-    allowedRouteCodes: String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean),
-    allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
-    description: r.description ?? '',
-    enabled: r.enabled === undefined || r.enabled === null ? true : Number(r.enabled) !== 0,
-  }));
-}
-
-
-
-router.get('/', authenticate, (req, res) => {
+router.get('/resolve-link', authenticate, async (req, res) => {
+  const url = String(req.query.url || '').trim();
+  if (!/^https?:\/\//i.test(url)) {
+    return res.status(400).json({ error: 'url harus http(s)' });
+  }
   try {
-    const dermagaId = String(req.query.dermagaId ?? '').trim();
-    const scopeAll = String(req.query.scope ?? '').toLowerCase() === 'all';
-    const ORDER = 'ORDER BY COALESCE(location_name, name, id)';
-
-    // Skema diperiksa lebih dulu: DB lama tanpa kolom dermaga_id membuat query
-    // filter melempar "no such column" → 500 → petugas menerima 0 titik dan input
-    // trip terkunci. Rute ini tidak boleh pernah 500.
-    const hasDermaga = db.prepare('PRAGMA table_info(geofences)').all().some(c => c.name === 'dermaga_id');
-
-    // tanpa filter (atau scope=all untuk dashboard) = master lengkap
-    if (!dermagaId || scopeAll) {
-      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
-    }
-
-    if (!hasDermaga) {
-      console.warn('[geofence] skema lama tanpa kolom dermaga_id → kirim master lengkap (anti-500)');
-      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
-    }
-
-    // Permintaan petugas untuk satu dermaga: sertakan juga titik "berlaku umum"
-    // (dermaga_id NULL/kosong). Dulu hanya `dermaga_id = ?`, sehingga titik yang
-    // dibuat dari dashboard admin (tidak mengirim dermagaId → tersimpan NULL)
-    // TIDAK PERNAH sampai ke perangkat: mobile selalu berakhir dengan daftar
-    // kosong ("Belum ada titik geofence tersimpan") dan petugas tak bisa input trip.
-    const rows = db.prepare(`
-      SELECT * FROM geofences
-      WHERE dermaga_id = ? OR dermaga_id IS NULL OR TRIM(COALESCE(dermaga_id, '')) = ''
-      ${ORDER}
-    `).all(dermagaId);
-    res.json(shape(rows));
-  } catch (error) {
-    console.error('Get geofences error:', error);
-    res.status(500).json({ error: 'Failed to fetch geofences' });
+    const result = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    res.json({ url: result.url });
+  } catch (e) {
+    res.status(502).json({ error: `Gagal resolve link: ${e.message}` });
   }
 });
 
 
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
-  try {
-    const { locationName, dermagaId, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description, enabled } = req.body || {};
-    const lat = numericCoordinate(latitude);
-    const lng = numericCoordinate(longitude);
-    if (!locationName || String(locationName).trim() === '') {
-      return res.status(400).json({ error: 'locationName wajib diisi' });
-    }
-    if (!validLatLng(lat, lng)) {
-      return res.status(400).json({
-        error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder) — lat ±90, lng ±180',
-      });
-    }
-    const id = randomUUID();
-    // `name` ikut diisi: kolom itu NOT NULL pada skema lama, jadi INSERT yang
-    // hanya mengirim location_name gagal (500) di DB produksi lama.
-    db.prepare(`
-      INSERT INTO geofences (id, name, location_name, dermaga_id, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description, enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `    ).run(
-      id,
-      String(locationName).trim(),
-      String(locationName).trim(),
-      dermagaId ? String(dermagaId) : null,
-      lat,
-      lng,
-      clampRadius(radiusMeters),
-      Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
-      Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
-      description ? String(description) : '',
-      enabled === undefined || enabled === null ? 1 : (enabled ? 1 : 0),
-    );
-    res.status(201).json({ id });
-  } catch (error) {
-    console.error('Create geofence error:', error);
-    res.status(500).json({ error: 'Failed to create geofence' });
+  const { locationName, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description } = req.body || {};
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  const rad = Number(radiusMeters);
+
+  if (!String(locationName || '').trim()) {
+    return res.status(400).json({ error: 'locationName wajib diisi' });
   }
+  if (!validCoords(lat, lon)) {
+    return res.status(400).json({ error: 'latitude/longitude tidak valid' });
+  }
+  if (!Number.isFinite(rad) || rad <= 0 || rad > 10000) {
+    return res.status(400).json({ error: 'radiusMeters harus 1–10000' });
+  }
+
+  const id = randomUUID();
+  db.prepare(`
+    INSERT INTO geofences (id, location_name, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, String(locationName).trim(), lat, lon, rad,
+    csv(allowedRouteCodes), csv(allowedDirections), String(description || '').trim()
+  );
+  res.json({ id });
 });
 
 
 
 router.put('/:id', authenticate, requireAdmin, (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const row = db.prepare(`SELECT id FROM geofences WHERE id = ?`).get(id);
-    if (!row) return res.status(404).json({ error: 'Geofence not found' });
+  const row = db.prepare(`SELECT * FROM geofences WHERE id = ?`).get(String(req.params.id));
+  if (!row) return res.status(404).json({ error: 'Titik geofence tidak ditemukan' });
 
-    const b = req.body || {};
-    const sets = [];
-    const args = [];
+  const { locationName, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description } = req.body || {};
+  const lat = latitude === undefined ? row.latitude : Number(latitude);
+  const lon = longitude === undefined ? row.longitude : Number(longitude);
+  const rad = radiusMeters === undefined ? row.radius_meters : Number(radiusMeters);
 
-    const lat = b.latitude !== undefined ? numericCoordinate(b.latitude) : undefined;
-    const lng = b.longitude !== undefined ? numericCoordinate(b.longitude) : undefined;
-    if ((b.latitude !== undefined && lat === null) || (b.longitude !== undefined && lng === null)) {
-      return res.status(400).json({ error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder)' });
-    }
-    if (lat !== undefined && lng !== undefined && !validLatLng(lat, lng)) {
-      return res.status(400).json({ error: 'Koordinat di luar rentang valid — lat ±90, lng ±180' });
-    }
-
-    if (b.locationName !== undefined) {
-      // Kedua kolom nama diperbarui supaya baris skema lama & baru tetap konsisten.
-      const n = String(b.locationName).trim();
-      sets.push('location_name = ?'); args.push(n);
-      sets.push('name = ?'); args.push(n);
-    }
-    if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
-    if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
-    if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
-    if (b.allowedRouteCodes !== undefined) {
-      sets.push('allowed_route_codes = ?');
-      args.push(Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes));
-    }
-    if (b.allowedDirections !== undefined) {
-      sets.push('allowed_directions = ?');
-      args.push(Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections));
-    }
-    if (b.description !== undefined) { sets.push('description = ?'); args.push(String(b.description ?? '')); }
-    if (b.dermagaId !== undefined) { sets.push('dermaga_id = ?'); args.push(b.dermagaId ? String(b.dermagaId) : null); }
-    if (b.enabled !== undefined) { sets.push('enabled = ?'); args.push(b.enabled ? 1 : 0); }
-
-    if (sets.length) {
-      args.push(id);
-      db.prepare(`UPDATE geofences SET ${sets.join(', ')} WHERE id = ?`).run(...args);
-    }
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Update geofence error:', error);
-    res.status(500).json({ error: 'Failed to update geofence' });
+  if (locationName !== undefined && !String(locationName).trim()) {
+    return res.status(400).json({ error: 'locationName tidak boleh kosong' });
   }
+  if (!validCoords(lat, lon)) {
+    return res.status(400).json({ error: 'latitude/longitude tidak valid' });
+  }
+  if (!Number.isFinite(rad) || rad <= 0 || rad > 10000) {
+    return res.status(400).json({ error: 'radiusMeters harus 1–10000' });
+  }
+
+  db.prepare(`
+    UPDATE geofences
+       SET location_name = ?, latitude = ?, longitude = ?, radius_meters = ?,
+           allowed_route_codes = ?, allowed_directions = ?, description = ?
+     WHERE id = ?
+  `).run(
+    locationName === undefined ? row.location_name : String(locationName).trim(),
+    lat, lon, rad,
+    allowedRouteCodes === undefined ? row.allowed_route_codes : csv(allowedRouteCodes),
+    allowedDirections === undefined ? row.allowed_directions : csv(allowedDirections),
+    description === undefined ? row.description : String(description || '').trim(),
+    row.id
+  );
+  res.json({ ok: true });
 });
 
 
 
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
-  try {
-    db.prepare(`DELETE FROM geofences WHERE id = ?`).run(String(req.params.id));
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete geofence' });
-  }
+  const info = db.prepare(`DELETE FROM geofences WHERE id = ?`).run(String(req.params.id));
+  if (info.changes === 0) return res.status(404).json({ error: 'Titik geofence tidak ditemukan' });
+  res.json({ ok: true });
 });
 
 

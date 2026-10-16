@@ -753,6 +753,41 @@ export async function forceSyncGeofencesFromBackend(): Promise<GeofenceSyncResul
 
 
 
+/**
+ * Kode rute titik ini yang menurut Master Rute admin dimiliki DERMAGA LAIN.
+ *
+ * Konteks bug lapangan: titik "Badau Dermaga 2" sempat mengizinkan rute
+ * SJRE/SBDZ milik Dermaga 1, sehingga layar Konfigurasi Geofence menampilkan
+ * "RUTE SJRE -> SBDZ" berlabel "Dermaga: Dermaga 2". Dashboard admin sendiri
+ * mengelola titik PER RUTE dan menurunkan dermaga dari rute itu, jadi kombinasi
+ * begini seharusnya mustahil. Fungsi ini membuat data yang tidak sinkron
+ * TERLIHAT di aplikasi, bukan cuma diam-diam salah tampil.
+ *
+ * Dermaga warisan (non-UUID) dan titik "berlaku umum" dilewati.
+ */
+export function foreignRouteCodesForPoint(point: GeofencePoint): string[] {
+  const dermagaId = String(point.dermagaId ?? '').trim()
+  if (!dermagaId || !isUuid(dermagaId)) return []
+
+  const routes = getStoredRoutes()
+  if (routes.length === 0) return []
+
+  const milik = new Set<string>()
+  for (const route of routes) {
+    if (String(route?.dermagaId ?? '').trim() !== dermagaId) continue
+    const code = String(route?.code ?? '').trim().toUpperCase()
+    if (code) milik.add(code)
+  }
+  // Dermaga ini belum punya rute terdaftar → jangan menuduh apa pun.
+  if (milik.size === 0) return []
+
+  return point.allowedRoutes
+    .map(c => String(c ?? '').trim().toUpperCase())
+    .filter(c => c && !milik.has(c))
+}
+
+
+
 
 export async function getActiveGeofenceSnapshot(
   points?: GeofencePoint[],

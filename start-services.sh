@@ -1,17 +1,18 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Trip Angkutan — start SEMUA layanan dengan binding LAN (0.0.0.0)
+# Trip Angkutan — start SEMUA layanan, siap diakses dari jaringan LAN (0.0.0.0)
 #
-# Layout nyata repo ini (empat checkout terpisah, bukan satu folder
+# Layout nyata repo ini (empat checkout terpisah; tidak ada folder
 # "Aplikasi-Trip-Ionic"):
-#   Backend API 3000 : <repo>/backend            (Express, listen 0.0.0.0)
-#   Mobile      5173 : <repo>                    (Angular CLI `ng serve`, --host 0.0.0.0)
-#   Admin       8000 : <repo>/admin-ci           (php -S 0.0.0.0:8000 + index.php)
+#   Backend API 3000 : <repo>/backend     (Express, listen 0.0.0.0)
+#   Mobile      5173 : <repo>             (Angular CLI `ng serve`, --host 0.0.0.0)
+#   Admin       8000 : <repo>/admin-ci    (php -S 0.0.0.0:8000 + shim index.php)
 #
 #   <repo> = direktori script ini berada = "Aplikasi-Trip-Main Branch"
 #
-# Semua service listen di 0.0.0.0 supaya bisa dibuka dari HP/LAN tanpa
-# Cloudflare Tunnel. Path absolut → script bisa dijalankan dari folder mana pun.
+# PENTING: semua service listen di 0.0.0.0 (BUKAN localhost/127.0.0.1) supaya
+# orang lain di jaringan yang sama bisa membukanya lewat http://<IP-LAN>:PORT
+# tanpa Cloudflare Tunnel. Script mencetak URL LAN-nya di akhir.
 #
 # Override opsional: API_PORT, MOBILE_PORT, ADMIN_PORT, JWT_SECRET.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ pkill -f "vite" 2>/dev/null
 
 sleep 2
 
+# IP LAN mesin ini (dipakai untuk mencetak URL yang bisa dibuka dari HP/laptop lain).
 MY_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}')
 if [ -z "${MY_IP:-}" ]; then
   MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -60,7 +62,7 @@ sleep 4
 
 echo "🟢 Starting Admin ($ADMIN_PORT)..."
 cd "$ADMIN_DIR" || exit 1
-# index.php cadangan (shim CodeIgniter-style) disalin bila build belum punya.
+# Shim index.php (gaya CodeIgniter) disalin dari archive/ bila belum ada.
 [ -f "$ADMIN_SHIM" ] && cp "$ADMIN_SHIM" ./index.php 2>/dev/null
 setsid nohup php -S "0.0.0.0:$ADMIN_PORT" > admin.log 2>&1 &
 disown
@@ -80,9 +82,37 @@ for _ in $(seq 1 45); do
 done
 
 echo ""
-echo "Verification..."
-if [ "$API_OK" = 1 ]; then echo "API: OK (Akses LAN: http://$MY_IP:$API_PORT)"; else echo "API: FAIL"; fi
-if [ "$MOBILE_OK" = 1 ]; then echo "Mobile: OK (Akses LAN: http://$MY_IP:$MOBILE_PORT)"; else echo "Mobile: FAIL"; fi
-if [ "$ADMIN_OK" = 1 ]; then echo "Admin: OK (Akses LAN: http://$MY_IP:$ADMIN_PORT)"; else echo "Admin: FAIL"; fi
+echo "Verification (localhost)..."
+if [ "$API_OK" = 1 ]; then echo "API: OK"; else echo "API: FAIL"; fi
+if [ "$MOBILE_OK" = 1 ]; then echo "Mobile: OK"; else echo "Mobile: FAIL"; fi
+if [ "$ADMIN_OK" = 1 ]; then echo "Admin: OK"; else echo "Admin: FAIL"; fi
+
+# Pastikan socket benar-benar terikat ke 0.0.0.0 (bukan 127.0.0.1 saja),
+# itulah yang membuat perangkat lain di LAN bisa konek.
+echo ""
+echo "Verification (binding LAN 0.0.0.0)..."
+if command -v ss >/dev/null 2>&1; then
+  LISTEN=$(ss -ltn 2>/dev/null)
+else
+  LISTEN=$(netstat -ltn 2>/dev/null)
+fi
+for p in "$API_PORT" "$MOBILE_PORT" "$ADMIN_PORT"; do
+  if echo "$LISTEN" | grep -qE "0\.0\.0\.0:$p\b"; then
+    echo "  $p: listening on 0.0.0.0 ✓"
+  else
+    echo "  $p: NOT on 0.0.0.0 ✗ (klien LAN tidak akan bisa konek)"
+  fi
+done
+
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Akses dari jaringan yang sama (HP/laptop lain):"
+echo "    API     : http://${MY_IP:-<IP-LAN>}:$API_PORT"
+echo "    Mobile  : http://${MY_IP:-<IP-LAN>}:$MOBILE_PORT"
+echo "    Admin   : http://${MY_IP:-<IP-LAN>}:$ADMIN_PORT"
+echo ""
+echo "  Untuk mengarahkan aplikasi ke backend lokal ini, isi URL server di"
+echo "  menu Pengaturan Server dengan: http://${MY_IP:-<IP-LAN>}:$API_PORT/api"
+echo "═══════════════════════════════════════════════════════════"
 echo ""
 echo "📝 Logs: tail -f $BACKEND_DIR/backend.log $PROJECT_DIR/mobile.log $ADMIN_DIR/admin.log"

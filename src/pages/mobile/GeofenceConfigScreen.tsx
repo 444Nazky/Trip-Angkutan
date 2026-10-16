@@ -9,6 +9,7 @@ import {
   forceSyncGeofencesFromBackend,
   getLastGeofenceDiagnosis,
   scopedGeofencePoints,
+  foreignRouteCodesForPoint,
   type GeofencePoint,
   type GeofenceScopeDiagnosis,
 } from '../../services/geofence'
@@ -379,6 +380,20 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                     {p.allowedRoutes.map(r => (
                       <span key={r} className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{r}</span>
                     ))}
+                    {(() => {
+                      // Rute milik dermaga lain = data tidak sinkron dengan Master
+                      // Rute admin (mis. titik Dermaga 2 mengizinkan rute SJRE/SBDZ
+                      // milik Dermaga 1). Tampilkan apa adanya supaya kelihatan.
+                      const asing = foreignRouteCodesForPoint(p)
+                      return asing.length > 0 ? (
+                        <span
+                          className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full"
+                          title={`Menurut Master Rute admin, rute ${asing.join(', ')} dimiliki dermaga lain. Minta admin memperbaikinya.`}
+                        >
+                          ⚠️ Rute bukan milik dermaga ini: {asing.join(', ')}
+                        </span>
+                      ) : null
+                    })()}
                     {!p.enabled && (
                       <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Nonaktif</span>
                     )}

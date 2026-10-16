@@ -2,6 +2,7 @@ import { CapacitorHttp, Capacitor } from '@capacitor/core';
 import { Device } from '@capacitor/device';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { api } from './api';
+import { isNativeAndroid, openApkInstaller } from './apkInstaller';
 
 
 
@@ -342,26 +343,6 @@ async function getApkPath(version: string): Promise<string> {
 
 
 
-// lempar apk ke installer android
-function openApkWithSystemInstaller(uri: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const plugin = (window as unknown as { cordova?: { plugins?: { fileOpener2?: {
-      open: (path: string, mime: string, opt: { success: () => void; error: (e: unknown) => void }) => void
-    } } } }).cordova?.plugins?.fileOpener2
-    if (!plugin) {
-      reject(new Error('Installer APK tidak tersedia di perangkat ini — minta admin mengirim APK terbaru untuk dipasang manual'))
-      return
-    }
-    plugin.open(uri, 'application/vnd.android.package-archive', {
-      success: () => resolve(),
-      error: (e) => reject(e instanceof Error ? e : new Error('Gagal membuka installer')),
-    })
-  })
-}
-
-
-
-
 async function downloadApk(version: string, downloadUrl: string): Promise<string> {  const apkPath = await getApkPath(version);
 
   await cleanupOldApkFiles(version);
@@ -651,8 +632,18 @@ class UpdateService {
     try {
       const apkPath = await getApkPath(this._pendingVersion);
 
-      // web tak punya installer, panduan manual yang tampil
-      if (!Capacitor.isNativePlatform()) return true;
+      // WebView/browser tidak punya installer paket. Dulu jalur ini `return true`
+      // tanpa memasang apa pun → tombol tampak "Memasang…" lalu tidak terjadi
+      // apa-apa. Sekarang gagal secara eksplisit dengan langkah yang bisa diikuti.
+      if (!isNativeAndroid()) {
+        this._state = 'error';
+        this._error = {
+          code: 'INSTALL_FAILED',
+          message: 'Pemasangan APK hanya bisa dari aplikasi Android. Buka aplikasi di HP petugas, lalu tekan Update di sana.',
+        };
+        this.notify();
+        return false;
+      }
 
       // Berkas wajib ada dan berukuran wajar. Dulu kegagalan unduhan (mis. respons
       // 404 JSON beberapa ratus byte) tetap "berhasil" dibuka sebagai APK.
@@ -679,7 +670,13 @@ class UpdateService {
       const { uri } = await Filesystem.getUri({ path: apkPath, directory: Directory.Data })
 
       // buka installer sistem (ACTION_VIEW via FileProvider)
-      await openApkWithSystemInstaller(uri)
+      const instal = await openApkInstaller(uri)
+      if (!instal.ok) {
+        this._state = 'error';
+        this._error = { code: 'INSTALL_FAILED', message: instal.message };
+        this.notify();
+        return false;
+      }
 
       // Installer sistem yang berjalan TIDAK berarti sudah terpasang (pengguna bisa
       // membatalkan). Status tetap di keputusan pengguna sampai versi native benar-

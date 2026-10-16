@@ -41,7 +41,7 @@ const h = vi.hoisted(() => ({
   version: '1.0.8',
   bytes: new Uint8Array(0) as Uint8Array,
   statSize: 0,
-  /** Installer Cordova (file-opener2) tersedia di APK; di jsdom harus dipasang manual. */
+  /** Installer APK tersedia (plugin native ApkInstaller terdaftar di APK). */
   installer: true,
   opened: [] as string[],
   httpCalls: [] as { url: string; data?: unknown }[],
@@ -53,6 +53,16 @@ vi.mock('@capacitor/core', () => ({
     isNativePlatform: () => h.native,
     getPlatform: () => 'android',
   },
+  // Jalur pemasangan utama sekarang plugin native milik aplikasi sendiri
+  // (ApkInstallerPlugin.java, didaftarkan di MainActivity), bukan plugin Cordova
+  // file-opener2 yang tidak pernah terpasang. Di jsdom ia disimulasikan di sini.
+  registerPlugin: () => ({
+    async install({ path }: { path: string }) {
+      if (!h.installer) throw new Error('ApkInstaller tidak tersedia di perangkat ini')
+      h.opened.push(path)
+      return { opened: true }
+    },
+  }),
   CapacitorHttp: {
     request: async (opts: { url: string; method?: string; data?: unknown }) => {
       h.httpCalls.push({ url: opts.url, data: opts.data })
@@ -106,20 +116,11 @@ beforeEach(async () => {
   h.deleted.length = 0
   localStorage.clear()
 
-  // Simulasi shell Capacitor: cordova + plugin file-opener2 (seperti di APK).
+  // Shell Capacitor: plugin native ApkInstaller adalah jalur utama; plugin
+  // Cordova file-opener2 hanya jaring pengaman build lama, jadi TIDAK dipasang
+  // lagi di sini (kalau jalur native gagal, tidak boleh ada fallback diam-diam).
   const w = window as unknown as { cordova?: unknown }
-  w.cordova = {
-    plugins: {
-      fileOpener2: h.installer
-        ? {
-            open(path: string, _mime: string, opts: { success: () => void }) {
-              h.opened.push(path)
-              opts.success()
-            },
-          }
-        : undefined,
-    },
-  }
+  w.cordova = { plugins: {} }
 })
 
 afterEach(() => {
@@ -233,8 +234,7 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
 
   it('installer Android tanpa plugin → gagal jelas (bukan klaim berhasil)', async () => {
     h.installer = false
-    // Shell tanpa plugin Cordova file-opener2 (cordova.js tidak ter-inject).
-    ;(window as unknown as { cordova: { plugins: { fileOpener2?: unknown } } }).cordova.plugins.fileOpener2 = undefined
+    // Tidak ada jalur cadangan Cordova pula → wajib gagal, bukan "berhasil".
     const svc = await makeService()
     h.bytes = apkBytes()
     h.statSize = h.bytes.length
