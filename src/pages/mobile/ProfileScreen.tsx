@@ -180,6 +180,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <ChevronRight size={16} className="text-slate-400" />
         </button>
       </section>
+      {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 p-4">
@@ -236,7 +237,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
       <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first · {officer.lastActive}</p>
 
-      {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
     </div>
   )
 }

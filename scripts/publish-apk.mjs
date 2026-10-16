@@ -5,8 +5,10 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import https from 'https';
 import http from 'http';
+import { execFileSync } from 'child_process';
 import { URL } from 'url';
 
 const ARGUMENTS = {
@@ -18,6 +20,8 @@ const ARGUMENTS = {
   '--notes': { description: 'Release notes (optional)' },
   '--force-update': { flag: true, description: 'Mark as mandatory update' },
   '--min-version': { description: 'Minimum supported version' },
+  '--apk-version-name': { description: 'versionName DI DALAM APK (auto-deteksi aapt2 bila kosong)' },
+  '--apk-version-code': { description: 'versionCode DI DALAM APK (auto-deteksi aapt2 bila kosong)' },
 };
 
 // ─── CLI Parser ─────────────────────────────────────────────────────────────
@@ -35,6 +39,15 @@ function parseArgs(args) {
     }
 
     if (arg.startsWith('--')) {
+      // Bentuk `--key=nilai` harus jalan: inilah yang tertulis di help, tetapi
+      // sebelumnya tidak pernah dikenali sehingga setiap pemakaian gagal.
+      const eq = arg.indexOf('=');
+      if (eq > 2) {
+        result[arg.slice(2, eq)] = arg.slice(eq + 1);
+        i++;
+        continue;
+      }
+
       const key = arg.replace(/^--/, '');
 
       // Check if it's a flag
@@ -60,12 +73,17 @@ function parseArgs(args) {
     }
   }
 
-  // Validate required arguments
+  // Validate required arguments + isi default yang belum diberikan.
+  // Tanpa loop default ini, --server / --secret selalu undefined (header
+  // X-Publish-Secret: undefined) sehingga publish selalu gagal di tangan pemakai.
   for (const [key, config] of Object.entries(ARGUMENTS)) {
     const prop = key.replace(/^--/, '');
     if (config.required && !result[prop]) {
       console.error(`Error: --${prop} is required`);
       process.exit(1);
+    }
+    if (result[prop] === undefined && config.default !== undefined) {
+      result[prop] = config.default;
     }
   }
 
@@ -199,6 +217,46 @@ function validateVersion(version) {
   return { valid: true };
 }
 
+
+
+// aapt2 dari Android SDK (pola sama dengan verify-apks.mjs / publish-release.sh).
+function findAapt2() {
+  const candidates = [];
+  if (process.env.AAPT2) candidates.push(process.env.AAPT2);
+  const sdkRoots = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, path.join(os.homedir(), 'Android', 'Sdk')];
+  for (const root of sdkRoots) {
+    if (!root) continue;
+    const buildTools = path.join(root, 'build-tools');
+    if (fs.existsSync(buildTools)) {
+      for (const v of fs.readdirSync(buildTools).sort().reverse()) {
+        candidates.push(path.join(buildTools, v, 'aapt2'));
+      }
+    }
+  }
+  return candidates.find(c => {
+    try { fs.accessSync(c, fs.constants.X_OK); return true } catch { return false }
+  }) ?? null;
+}
+
+
+
+// Versi NYATA di dalam APK — nama berkas tidak boleh dipercaya (lihat verify-apks.mjs).
+function detectApkBadging(apkPath) {
+  const aapt2 = findAapt2();
+  if (!aapt2) return { versionName: null, versionCode: null, aapt2: null };
+  try {
+    const out = execFileSync(aapt2, ['dump', 'badging', apkPath], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+    const line = out.split('\n').find(l => l.startsWith('package:')) ?? '';
+    return {
+      versionName: /versionName='([^']*)'/.exec(line)?.[1] ?? null,
+      versionCode: Number(/versionCode='([0-9]+)'/.exec(line)?.[1]) || null,
+      aapt2,
+    };
+  } catch {
+    return { versionName: null, versionCode: null, aapt2 };
+  }
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -225,6 +283,21 @@ async function main() {
   console.log(`📏 Size: ${formatBytes(fileSize)}`);
   console.log(`🏷️  Version: ${args.version}`);
   console.log(`🌐 Server: ${args.server}`);
+
+  // Penanda versi asli: server memakainya untuk MENOLAK paket salah label.
+  const badging = detectApkBadging(args.apk);
+  const apkVersionName = args.apkVersionName || badging.versionName;
+  const apkVersionCode = Number(args.apkVersionCode) || badging.versionCode;
+  console.log(`🔍 Di dalam APK: versionName=${apkVersionName ?? '?(aapt2 tidak ada)'} versionCode=${apkVersionCode ?? '?'}`);
+
+  if (!badging.aapt2) {
+    console.log('⚠️  aapt2 tidak ditemukan — versi APK tidak bisa diverifikasi dari sini.');
+  }
+  if (apkVersionName && apkVersionName !== args.version) {
+    console.error(`❌ APK berisi '${apkVersionName}', bukan '${args.version}'.`);
+    console.error('   Menerbitkannya membuat versi di HP tidak pernah naik. Pakai --force bila memang sadar.');
+    if (!args.force) process.exit(1);
+  }
 
   if (args.forceUpdate) {
     console.log('🔒 Force Update: Yes (mandatory)');
@@ -270,6 +343,8 @@ async function main() {
       releaseNotes: args.notes || `Update ke versi ${args.version}`,
       isForceUpdate: args.forceUpdate || false,
       minVersion: args.minVersion || null,
+      apkVersionName,
+      apkVersionCode,
     };
 
     const response = await httpRequest(`${args.server}/api/v1/publish-version`, {

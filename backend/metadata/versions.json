@@ -1,15 +1,15 @@
 {
   "latest": {
-    "version": "1.0.25",
-    "downloadUrl": "https://files.catbox.moe/rg8gtm.apk",
-    "releaseDate": "2026-10-16T03:38:02.779Z",
-    "releaseNotes": "Update release",
+    "version": "1.0.26",
+    "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.26",
+    "releaseDate": "2026-10-16T04:01:59.291Z",
+    "releaseNotes": "Satu tombol Cek & Perbarui Aplikasi: update modul (OTA) + paket APK dalam satu alur, manifest & aset modul dari server",
     "isForceUpdate": false,
     "minVersion": "1.0.0",
-    "apkVersionName": "1.0.25",
-    "apkVersionCode": 27,
-    "apkSize": 16297082,
-    "apkHash": "961ce3cf64c222b115feaef91e75c55a5322fc01c461ff2af239dc57f63ecca9"
+    "apkVersionName": "1.0.26",
+    "apkVersionCode": 28,
+    "apkSize": 16297626,
+    "apkHash": "66d95d9592aacaab3fb563a3cceae7cbc835ebd210dce6304d433d417d26c598"
   },
   "releases": {
     "1.0.3": {
@@ -78,6 +78,18 @@
       "apkVersionCode": 27,
       "apkSize": 16297082,
       "apkHash": "961ce3cf64c222b115feaef91e75c55a5322fc01c461ff2af239dc57f63ecca9"
+    },
+    "1.0.26": {
+      "version": "1.0.26",
+      "downloadUrl": "https://aplikasi-trip-api-production.up.railway.app/api/v1/app-download/1.0.26",
+      "releaseDate": "2026-10-16T04:01:59.291Z",
+      "releaseNotes": "Satu tombol Cek & Perbarui Aplikasi: update modul (OTA) + paket APK dalam satu alur, manifest & aset modul dari server",
+      "isForceUpdate": false,
+      "minVersion": "1.0.0",
+      "apkVersionName": "1.0.26",
+      "apkVersionCode": 28,
+      "apkSize": 16297626,
+      "apkHash": "66d95d9592aacaab3fb563a3cceae7cbc835ebd210dce6304d433d417d26c598"
     }
   }
 }

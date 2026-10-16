@@ -130,15 +130,14 @@ export default function ServerSettingsModal({ onClose }: Props) {
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl bg-white p-5" onClick={e => e.stopPropagation()}>
+    <div className="mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-            <Server size={16} />
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+            <Server size={14} />
           </span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-800">Pengaturan Server</p>
-            <p className="text-[11px] text-slate-400">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-slate-800">Pengaturan Server</p>
+            <p className="truncate text-[10px] text-slate-400">
               Aktif: {resolveApiBaseUrl()}
               {apiBaseCandidateLabel(resolveApiBaseUrl()) ? ` (${apiBaseCandidateLabel(resolveApiBaseUrl())})` : ''}
             </p>
@@ -148,7 +147,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <input
             type="url"
             value={url}
@@ -157,31 +156,31 @@ export default function ServerSettingsModal({ onClose }: Props) {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
           />
-          <p className="mt-1.5 text-[11px] text-slate-400">Default: {environment.apiBaseUrl}</p>
+          <p className="mt-1 text-[10px] text-slate-400">Default: {environment.apiBaseUrl}</p>
         </div>
 
         {status.msg !== '' && (
-          <div className={`mt-3 px-4 py-3 rounded-xl ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
-            <p className={`text-xs ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'warn' ? 'text-amber-700' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
+          <div className={`mt-2 rounded-lg px-3 py-2 ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
+            <p className={`text-[11px] ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'warn' ? 'text-amber-700' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
               {status.msg}
             </p>
           </div>
         )}
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-3 flex gap-2">
           <button
             onClick={() => void handleSave()}
             disabled={status.kind === 'checking'}
-            className="flex-1 py-3 rounded-xl font-medium text-sm text-white bg-[#1B3D6D] hover:bg-[#0f2847] disabled:opacity-50 transition-colors"
+            className="flex-1 rounded-lg bg-[#1B3D6D] py-2 font-medium text-xs text-white hover:bg-[#0f2847] disabled:opacity-50 transition-colors"
           >
             Simpan & Terapkan
           </button>
           <button
             onClick={() => void handleReset()}
             disabled={status.kind === 'checking'}
-            className="px-4 py-3 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
             Reset
           </button>
@@ -191,32 +190,26 @@ export default function ServerSettingsModal({ onClose }: Props) {
           <button
             onClick={handleSaveForce}
             disabled={status.kind === 'checking'}
-            className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            className="flex-1 rounded-lg border border-slate-200 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
             Simpan tanpa tes
           </button>
         </div>
 
-        <div className="mt-4">
-          <p className="text-[11px] font-semibold text-slate-500 mb-2">Pilih cepat</p>
-          <div className="flex flex-wrap gap-2">
-            {apiBaseCandidates().map(c => (
-              <button
-                key={c.url}
-                onClick={() => { setStatus({ kind: 'idle', msg: '' }); setUrl(c.url) }}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
-                  normalizeApiBaseInput(url) === c.url
-                    ? 'border-[#1B3D6D] bg-[#1B3D6D] text-white'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-                title={c.url}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
+        <div className="mt-3">
+          <select
+            aria-label="Pilih endpoint server"
+            value={apiBaseCandidates().find(c => c.url === normalizeApiBaseInput(url))?.url ?? ''}
+            onChange={e => {
+              const candidate = apiBaseCandidates().find(c => c.url === e.target.value)
+              if (candidate) { setStatus({ kind: 'idle', msg: '' }); setUrl(candidate.url) }
+            }}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 focus:outline-none focus:border-[#1B3D6D]"
+          >
+            <option value="">Pilih endpoint cepat…</option>
+            {apiBaseCandidates().map(c => <option key={c.url} value={c.url}>{c.label}</option>)}
+          </select>
         </div>
-      </div>
     </div>
   )
 }
