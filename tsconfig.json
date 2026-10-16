@@ -1,27 +1,45 @@
 {
+  "compileOnSave": false,
   "compilerOptions": {
-    "outDir": "./out-tsc",
+    "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "sourceMap": true,
     "declaration": false,
+    "experimentalDecorators": true,
     "moduleResolution": "bundler",
+    "importHelpers": true,
     "target": "es2022",
-    "module": "esnext",
-    "lib": ["es2022", "dom", "dom.iterable"],
+    "module": "es2020",
+    "lib": [
+      "es2022",
+      "dom"
+    ],
     "skipLibCheck": true,
-    "isolatedModules": true,
+    "useDefineForClassFields": false,
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "types": ["vite/client"]
+    "esModuleInterop": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
-  "exclude": ["node_modules", "www"]
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
