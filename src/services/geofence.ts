@@ -584,6 +584,14 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
     if (points.length === 0 && rows.length > 0) {
       console.warn('[geofence] Sync: server mengirim', rows.length, 'titik tetapi semuanya tersaring oleh kode rute perangkat')
     }
+    if (points.length === 0) {
+      // ponytail: hasil kosong TIDAK boleh menimpa cache bagus — sync yang
+      // mengembalikan 0 (filter dermaga/rute tak cocok, tabel server kosong
+      // sesaat) dulu menghapus titik perangkat permanen ("Belum ada titik"
+      // + refresh tak pernah berubah). Pertahankan last-known-good.
+      try { localStorage.setItem(GEOFENCE_SYNC_KEY, String(Date.now())) } catch { /* storage mati */ }
+      return { ok: true, count: backup.length, reason: 'empty' }
+    }
     const berubah = JSON.stringify(backup) !== JSON.stringify(points)
 
     saveGeofencePoints(points)
@@ -594,7 +602,7 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
         window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: points.length } }))
       } catch { /* non-browser */ }
     }
-    return { ok: true, count: points.length, reason: points.length > 0 ? 'ok' : 'empty' }
+    return { ok: true, count: points.length, reason: 'ok' }
   } catch (e) {
     console.error('[geofence] Sync: exception:', e)
     return { ok: false, count: backup.length, reason: 'network' }

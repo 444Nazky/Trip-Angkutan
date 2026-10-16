@@ -175,7 +175,7 @@ describe('kebijakan sinkronisasi', () => {
     expect(h.paths.length).toBe(2)
   })
 
-  it('daftar kosong dari server MENGOSONGKAN perangkat (ikut admin, tanpa sisa data)', async () => {
+  it('daftar kosong dari server MEMPERTAHANKAN cache perangkat (last-known-good)', async () => {
     saveGeofencePoints([{ id: 'lama', name: 'Titik Lama', latitude: -6.1, longitude: 106.8, radiusMeters: 100, allowedRoutes: ['A-B'], enabled: true }])
     h.response = { ok: true, data: [] }
 
@@ -183,8 +183,8 @@ describe('kebijakan sinkronisasi', () => {
 
     expect(result.ok).toBe(true)
     expect(result.reason).toBe('empty')
-    expect(result.count).toBe(0)
-    expect(getStoredGeofencePoints()).toEqual([])
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['lama'])
   })
 })
 

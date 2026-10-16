@@ -1,4 +1,4 @@
-import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes } from './auth'
+import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes, renewSessionIfNeeded } from './auth'
 import { syncGeofencesFromBackend } from './geofence'
 
 
@@ -9,7 +9,7 @@ export const FORCE_ROSTER_SYNC_KEY = 'trip.sync.forceRoster'
 
 
 
-export function syncOnResume(force = false): void {
+export async function syncOnResume(force = false): Promise<void> {
   let forced = false
   try {
     forced = localStorage.getItem(FORCE_ROSTER_SYNC_KEY) === '1'
@@ -18,6 +18,13 @@ export function syncOnResume(force = false): void {
     if (!force && !forced && Date.now() - last < LAST_SYNC_MS) return
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
   } catch { /* quota */ }
+
+  // ponytail: renew DULU sebelum 4 panggilan authed paralel. Dulu semuanya
+  // ditembak serentak dengan token basi → semua 401 → api.request menghapus
+  // token saat 401 pertama → sesi mati sendiri + geofence "renewal failed"
+  // padahal petugas sudah login. Tanpa sesi valid, jangan tembak sama sekali.
+  const sessionOk = await renewSessionIfNeeded().catch(() => false)
+  if (!sessionOk) return
 
   const officer = getStoredOfficer()
   void cacheDockOfficers(officer?.id)
