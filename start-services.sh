@@ -14,7 +14,8 @@
 # orang lain di jaringan yang sama bisa membukanya lewat http://<IP-LAN>:PORT
 # tanpa Cloudflare Tunnel. Script mencetak URL LAN-nya di akhir.
 #
-# Override opsional: API_PORT, MOBILE_PORT, ADMIN_PORT, JWT_SECRET.
+# Override opsional: API_PORT, MOBILE_PORT, ADMIN_PORT, JWT_SECRET,
+# ADMIN_AUTH_DISABLED (default 1 = dashboard admin terbuka tanpa login, khusus LAN).
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
 
@@ -26,7 +27,10 @@ ADMIN_SHIM="$PROJECT_DIR/archive/admin-ci/index.php"
 # Backend fail-fast: tanpa JWT_SECRET proses langsung exit(1). Default dev di
 # bawah sama dengan nilai yang dipakai README/Railway agar token lokal cocok.
 # Di produksi WAJIB di-override lewat environment.
-export JWT_SECRET="${JWT_SECRET:-trip-angkut-secret-key}"
+# Intranet: dashboard admin (port 8000) dibuka tanpa login. Hanya instance lokal
+# ini yang terbuka — Railway produksi tidak menyetel variabel ini, jadi di sana
+# token admin tetap wajib. Matikan dengan ADMIN_AUTH_DISABLED=0 sebelum menjalankan.
+export ADMIN_AUTH_DISABLED="${ADMIN_AUTH_DISABLED:-1}"
 API_PORT="${API_PORT:-3000}"
 MOBILE_PORT="${MOBILE_PORT:-5173}"
 ADMIN_PORT="${ADMIN_PORT:-8000}"

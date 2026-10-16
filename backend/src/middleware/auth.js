@@ -12,11 +12,30 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 
 
+// ponytail: saklar intranet. Dashboard admin dibuka dari LAN tanpa login, jadi
+// permintaan TANPA token diperlakukan sebagai admin. Opt-in lewat env, dan hanya
+// start-services.sh (lokal) yang menyalakannya — deployment Railway tidak
+// menyetel variabel ini, sehingga produksi tetap menuntut token admin asli.
+//
+// Token yang benar-benar dikirim TETAP diverifikasi seperti biasa: alur petugas
+// (officerId/regionId) tidak boleh ikut naik jadi admin hanya karena saklar ini.
+const ADMIN_AUTH_DISABLED = process.env.ADMIN_AUTH_DISABLED === '1';
+
+
+
 function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ error: 'No token provided' });
+      if (!ADMIN_AUTH_DISABLED) {
+        return res.status(401).json({ error: 'No token provided' });
+      }
+      // officerId kosong membuat endpoint khusus petugas tetap menolak (mereka
+      // memeriksa officerId sendiri), sementara endpoint admin terbuka.
+      const ctx = { officerId: null, regionId: null, role: 'admin', username: 'intranet' };
+      req.user = ctx;
+      req.officer = ctx;
+      return next();
     }
 
     const token = authHeader.split(' ')[1];
