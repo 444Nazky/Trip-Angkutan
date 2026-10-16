@@ -5,9 +5,9 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 
 
-router.get('/', (req, res) => {
+router.get('/', authenticate, (req, res) => {
   try {
-    const regions = db.prepare(`SELECT * FROM regions ORDER BY name`).all();
+    const regions = db.prepare(`SELECT id, name, code FROM regions ORDER BY name`).all();
     res.json(regions);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch regions' });
@@ -19,7 +19,7 @@ router.get('/', (req, res) => {
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
     const { name, code } = req.body;
-const { randomUUID } = require('crypto');
+    const { randomUUID } = require('crypto');
     const id = randomUUID();
     db.prepare(`INSERT INTO regions (id, name, code) VALUES (?, ?, ?)`).run(id, name, code);
 

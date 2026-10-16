@@ -52,9 +52,7 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
 router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   try {
     db.prepare(`DELETE FROM routes WHERE dermaga_id = ?`).run(req.params.id);
-
     db.prepare(`DELETE FROM officer_dermagas WHERE dermaga_id = ?`).run(req.params.id);
-
     db.prepare(`DELETE FROM dermagas WHERE id = ?`).run(req.params.id);
     res.json({ success: true });
   } catch (error) {
