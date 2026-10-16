@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Server, Wifi, WifiOff } from 'lucide-react'
-import { hardReloadToNewBundle } from '../../services/otaReload'
-import { applyUpdate, checkForUpdate, getCurrentVersion, semverLabel, type UpdateState } from '../../services/ota'
-import { api, resolveApiBaseUrl } from '../../services/api'
-import { getNativeVersion } from '../../services/updateService'
+import { appUpdate } from '../../services/appUpdate'
+import { semverLabel } from '../../services/ota'
+import { resolveApiBaseUrl } from '../../services/api'
 import ServerSettingsModal from '../../components/ServerSettingsModal'
+import { useAppUpdate } from '../../components/UpdateNotifier'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -20,20 +20,14 @@ interface ProfileScreenProps {
 
 export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, refreshOfficers } = useApp()
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null)
-  const [appVersion, setAppVersion] = useState<string | null>(null)
-  const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [appUpdateVersion, setAppUpdateVersion] = useState<string | null>(null)
-  const [appUpdateNote, setAppUpdateNote] = useState<string | null>(null)
-  const [checkingAppVersion, setCheckingAppVersion] = useState(false)
-  const [appVersionNote, setAppVersionNote] = useState<string | null>(null)
+  const update = useAppUpdate()
+  const [busy, setBusy] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
   const [showServer, setShowServer] = useState(false)
 
   useEffect(() => {
     void refreshOfficers()
-    void getCurrentVersion().then(version => { if (version) setCurrentVersion(version) })
-    void getNativeVersion().then(version => { if (version) setAppVersion(version) })
+    void appUpdate.refreshVersions()
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
@@ -44,81 +38,50 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     }
   }, [refreshOfficers])
 
-  const checkForAppUpdate = async () => {
-    setCheckingUpdate(true)
-    setAppUpdateNote(null)
+
+
+  const checkNow = async () => {
+    setBusy(true)
     try {
-      const local = currentVersion ?? (await getCurrentVersion()) ?? '—'
-      let last: UpdateState = { status: 'idle' }
-      const result = await checkForUpdate(local, state => { last = state }, true)
-      if (result.available) {
-        setAppUpdateVersion(result.version ?? null)
-        setAppUpdateNote(`Update modul ${semverLabel(result.version ?? '')} tersedia`)
-      } else if (last.status === 'error') {
-        setAppUpdateNote(last.error ?? 'Gagal memeriksa pembaruan modul')
-      } else if (last.status === 'offline') {
-        setAppUpdateNote('Tidak ada koneksi')
-      } else {
-        setAppUpdateNote('Modul sudah versi terbaru')
-      }
+      await appUpdate.check()
     } finally {
-      setCheckingUpdate(false)
+      setBusy(false)
+      await appUpdate.refreshVersions()
     }
   }
+
+
 
   const applyNow = async () => {
-    setAppUpdateNote('Menerapkan pembaruan modul…')
-    if (await applyUpdate()) {
-      const modul = (await getCurrentVersion()) ?? ''
-      setAppUpdateNote(`Modul ${semverLabel(modul)} diterapkan. Versi APK tetap ${appVersion ?? '—'} — pembaruan APK lewat notifikasi.`)
-      setAppUpdateVersion(null)
-      await hardReloadToNewBundle(modul || undefined)
-    } else {
-      setAppUpdateVersion(null)
-      setAppUpdateNote('Gagal menerapkan pembaruan modul')
+    setBusy(true)
+    try {
+      await appUpdate.apply()
+    } finally {
+      setBusy(false)
     }
   }
 
-  // ── Cek versi aplikasi (bukan OTA/modul) ─────────────────────────────────────
-  // Menampilkan versi terbaru yang DIDAPATKAN PERANGKAT — versi yang harus di-install
-  // dari store/aptk jika ingin naik level, ditambah link unduhan (jika tersedia).
-  // Beda dari "Pembaruan modul (OTA)": modul naik lewat sidik jari WebView, versi APK
-  // hanya naik kalau paket baru terpasang. Dulu ini tidak pernah dikenali di profil,
-  // sehingga petugas bingung: modemya "update tersedia" padahal versi APK masih lama.
-  const checkAppVersion = async () => {
-    setCheckingAppVersion(true)
-    setAppUpdateNote(null)
-    setAppVersionNote(null)
-    try {
-      const local = appVersion ?? '0.0.0'
-      const res = await api.get<{ latestVersion?: string; updateAvailable?: boolean; downloadUrl?: string; minVersion?: string; releaseNotes?: string[] }>('/v1/app-version?platform=android&currentVersion=' + encodeURIComponent(String(local)))
-      if (!res.ok) {
-        setAppVersionNote('Tidak bisa mengecek versi aplikasi (server tidak merespons)')
-        return
-      }
-      const latest = res.data?.latestVersion
-      if (!latest) {
-        setAppVersionNote('Tidak ada data versi aplikasi di server')
-        return
-      }
-      setAppUpdateVersion(latest)
-      const up = res.data?.updateAvailable ?? false
-      if (!up) {
-        setAppVersionNote(`Aplikasi masih versi terbaru (${latest})`)
-        return
-      }
-      const dl = res.data?.downloadUrl
-      if (dl) {
-        setAppVersionNote(`Versi aplikasi terbaru: ${latest}. Unduh dari: ${dl}`)
-      } else {
-        setAppVersionNote(`Versi aplikasi terbaru: ${latest}. Unduh paket terbaru dari admin / toko aplikasi.`)
-      }
-    } catch {
-      setAppVersionNote('Gagal mengecek versi aplikasi')
-    } finally {
-      setCheckingAppVersion(false)
+
+
+  const updateReady = update.status === 'ready'
+  const appVersion = appUpdate.currentAppVersion
+  const moduleVersion = appUpdate.currentModuleVersion
+  const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
+
+  const updateNote = (() => {
+    if (busy || update.status === 'checking') return 'Memeriksa pembaruan…'
+    if (update.status === 'downloading') return 'Mengunduh pembaruan…'
+    if (update.status === 'installing') return update.kind === 'apk' ? 'Menunggu pemasangan APK…' : 'Menerapkan modul baru…'
+    if (update.status === 'ready') {
+      return update.kind === 'apk'
+        ? `Versi APK ${update.version} siap dipasang`
+        : `Modul ${semverLabel(update.version ?? '')} siap dipasang`
     }
-  }
+    if (update.status === 'offline') return 'Tidak ada koneksi — coba lagi saat online'
+    if (update.status === 'error') return update.error ?? 'Pemeriksaan pembaruan gagal'
+    if (update.status === 'up-to-date') return `Sudah versi terbaru · ${versionLine}`
+    return versionLine
+  })()
 
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
 
@@ -202,50 +165,25 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <div className="flex items-center gap-3 p-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Pembaruan modul (OTA)</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">{appUpdateNote ?? `Versi APK ${appVersion ?? '—'} · modul ${currentVersion ? semverLabel(currentVersion) : '—'}`}</p>
+            <p className="text-xs font-medium text-slate-800">Pembaruan Aplikasi</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{updateNote}</p>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => void (appUpdateVersion ? applyNow() : checkForAppUpdate())}
-              disabled={checkingUpdate}
-              className="rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-            >
-              {checkingUpdate ? <RefreshCw size={12} className="animate-spin" /> : appUpdateVersion ? 'Pasang' : 'Periksa'}
-            </button>
-          </div>
+          <button
+            onClick={() => void (updateReady ? applyNow() : checkNow())}
+            disabled={busy || update.status === 'installing'}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+          >
+            {busy ? <RefreshCw size={12} className="animate-spin" /> : updateReady ? 'Perbarui' : 'Cek & Perbarui'}
+          </button>
         </div>
-        {appUpdateVersion && !checkingUpdate && !appVersionNote && (
+        {updateReady && !busy && (
           <div className="flex items-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-[10px] text-emerald-800">
-            <AlertCircle size={13} /> Modul {semverLabel(appUpdateVersion)} siap dipasang (versi APK tidak berubah).
+            <AlertCircle size={13} /> {update.kind === 'apk' ? 'Paket APK' : 'Modul web'} {update.version} siap dipasang — cukup satu tombol.
           </div>
         )}
-      </section>
-
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-3 p-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><RefreshCw size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Versi Aplikasi</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">Versi APK yang terpasang vs versi terbaru di server</p>
-          </div>
-          {checkingAppVersion ? <RefreshCw size={16} className="animate-spin text-slate-400" /> : <button onClick={checkAppVersion} className="rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400" disabled={checkingAppVersion}>Cek Versi</button>}
-        </div>
-        {appUpdateVersion && appVersionNote && (
-          <div className="px-4 pb-4 pt-1 border-t border-slate-100">
-            <p className="text-[11px] text-slate-700">
-              <span className="font-semibold">Instal versi terbaru:</span> ${appUpdateVersion} — {appVersionNote}
-            </p>
-            <p className="mt-1 text-[10px] text-slate-500">
-              Versi APK saat ini: {appVersion ?? '—'} · modul: {currentVersion ? semverLabel(currentVersion) : '—'}
-            </p>
-          </div>
-        )}
-        {!appUpdateVersion && !checkingAppVersion && appVersion && (
-          <div className="px-4 pb-4 pt-1 border-t border-slate-100">
-            <p className="text-[11px] text-slate-700">
-              Versi APK: <span className="font-semibold">{appVersion}</span> · modul: {currentVersion ? semverLabel(currentVersion) : '—'}
-            </p>
+        {update.status === 'error' && !busy && (
+          <div className="flex items-center gap-2 border-t border-rose-100 bg-rose-50 px-4 py-2.5 text-[10px] text-rose-800">
+            <AlertCircle size={13} /> {update.error}
           </div>
         )}
       </section>

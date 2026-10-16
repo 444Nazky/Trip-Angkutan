@@ -28,6 +28,7 @@ import {
   getCurrentPosition,
   resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
+  pointIsForOtherDermaga,
   type GeofencePoint,
 } from './geofence'
 
@@ -39,8 +40,10 @@ const h = vi.hoisted(() => ({
   gpsCalls: 0,
   /** Dermaga aktif yang dipilih petugas (permintaan ke backend). */
   dermaga: null as null | { id: string },
+  /** Petugas tersimpan — daftar dermaga akses menentukan request mana yang ditarik. */
+  officer: null as null | { id?: string; dermagaAccess?: Array<{ id: string }> },
   /** Rute penugasan petugas dari sesi (untuk scoping lokal). */
-  routes: [] as { code: string }[],
+  routes: [] as { code: string; dermagaId?: string }[],
   /** Respons khusus per-path (mis. backend lama: filter dermaga kosong, master berisi). */
   byPath: {} as Record<string, { ok: boolean; data?: unknown; error?: { code?: string; message?: string } }>,
 }))
@@ -59,6 +62,8 @@ vi.mock('./api', () => ({
 vi.mock('./auth', () => ({
   getStoredDermaga: () => h.dermaga,
   getStoredRoutes: () => h.routes,
+  getStoredOfficer: () => h.officer,
+  renewSessionIfNeeded: async () => true,
 }))
 
 vi.mock('@capacitor/geolocation', () => ({
@@ -107,6 +112,7 @@ beforeEach(() => {
   h.position = null
   h.gpsCalls = 0
   h.dermaga = null
+  h.officer = null
   h.routes = []
   h.response = { ok: true, data: [] }
   h.byPath = {}
@@ -289,6 +295,19 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     expect(getStoredGeofencePoints().filter(p => p.id === 'geo-d2')).toEqual([])
   })
 
+  it('route code SJRE-SBDZ pada D1 tidak menampilkan titik geofence milik D2', () => {
+    const dermaga1 = '11111111-1111-4111-8111-111111111111'
+    const dermaga2 = '22222222-2222-4222-8222-222222222222'
+    h.routes = [{ code: 'SJRE-SBDZ', dermagaId: dermaga1 }]
+    const points: GeofencePoint[] = [
+      { ...POINT, id: 'geo-d1', dermagaId: dermaga1 },
+      { ...POINT, id: 'geo-d2', name: 'Badau Dermaga 2', dermagaId: dermaga2 },
+      { ...POINT, id: 'geo-shared', dermagaId: undefined },
+    ]
+
+    expect(scopedGeofencePoints(points).map(point => point.id)).toEqual(['geo-d1', 'geo-shared'])
+  })
+
   it('filter dermaga kosong & master juga kosong → tetap kosong (admin memang belum menyimpan titik)', async () => {
     h.dermaga = { id: 'dm-badau-1' }
     h.byPath = {
@@ -452,6 +471,83 @@ describe('validasi lokasi terhadap konfigurasi', () => {
     const res = await getActiveGeofenceSnapshot()
     expect(res.blocked).toBe(true)
     expect(res.reason).toMatch(/GPS/i)
+  })
+})
+
+describe('stabilitas daftar titik (regresi keluhan lapangan)', () => {
+  it('penyaringan rute TIDAK boleh mengosongkan perangkat', () => {
+    // Petugas punya penugasan, tapi TIDAK ADA satu pun titik yang kode rutenya
+    // cocok (mis. admin menulis arah terbalik). Dulu → daftar kosong → "Belum ada
+    // titik geofence tersimpan" + input trip terkunci.
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    const points: GeofencePoint[] = [
+      { ...POINT, id: 'geo-1', allowedRoutes: ['SBDZ-SJRE'] },
+      { ...POINT, id: 'geo-2', allowedRoutes: ['LAIN-XYZ'] },
+    ]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1', 'geo-2'])
+  })
+
+  it('titik yang rutenya cocok tetap lebih diprioritaskan daripada titik lain', () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    const points: GeofencePoint[] = [POINT, { ...POINT, id: 'geo-2', allowedRoutes: ['SBDZ-SJRE'] }]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('petugas 2 dermaga menarik titik KEDUA dermaganya sekaligus (bukan cuma yang dipilih)', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }, { id: D2 }] }
+    h.dermaga = { id: D1 }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [backendRow({ id: 'geo-d1', dermagaId: D1 })] },
+      [`/geofences?dermagaId=${D2}`]: { ok: true, data: [backendRow({ id: 'geo-d2', dermagaId: D2 })] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(h.paths.sort()).toEqual([`/geofences?dermagaId=${D1}`, `/geofences?dermagaId=${D2}`].sort())
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id).sort()).toEqual(['geo-d1', 'geo-d2'])
+  })
+
+  it('titik umum yang muncul di dua respons dermaga tidak terduplikasi', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }, { id: D2 }] }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [backendRow({ id: 'geo-umum', dermagaId: null })] },
+      [`/geofences?dermagaId=${D2}`]: { ok: true, data: [backendRow({ id: 'geo-umum', dermagaId: null })] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+    expect(result.count).toBe(1)
+  })
+
+  it('titik dermaga LAIN (UUID asli) disaring walau backend mengirimnya', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D_OTHER = '33333333-3333-4333-8333-333333333333'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }] }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [
+        backendRow({ id: 'geo-d1', dermagaId: D1 }),
+        backendRow({ id: 'geo-asing', dermagaId: D_OTHER }),
+      ] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-d1'])
+  })
+
+  it('pointIsForOtherDermaga hanya menyalakan bila dua-duanya UUID asli & berbeda', () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    expect(pointIsForOtherDermaga({ dermagaId: D2 }, D1)).toBe(true)
+    expect(pointIsForOtherDermaga({ dermagaId: D1 }, D1)).toBe(false)
+    // titik umum & id warisan tidak boleh dianggap "dermaga lain"
+    expect(pointIsForOtherDermaga({ dermagaId: null }, D1)).toBe(false)
+    expect(pointIsForOtherDermaga({ dermagaId: 'BADAU-D2' }, D1)).toBe(false)
+    expect(pointIsForOtherDermaga({ dermagaId: 'BADAU-D2' }, 'BADAU-D1')).toBe(false)
   })
 })
 

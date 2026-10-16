@@ -28,6 +28,20 @@ const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
 
 
 
+// ponytail: kredensial login TERAKHIR yang sukses, dipakai untuk "login diam-diam"
+// saat token hilang/kedaluwarsa (server tidak lagi melempar petugas ke halaman login
+// ketika sync geofence gagal). Permintaan operasional: "bekerja dulu, keamanan belakangan".
+// TODO-security: simpan hanya hash + refresh token, jangan PIN/password polos.
+const LOGIN_CRED_KEY = 'trip.auth.lastCredential.v1'
+
+
+
+type StoredLoginCredential =
+  | { kind: 'pin'; officerId: string; pin: string }
+  | { kind: 'member'; username: string; password: string }
+
+
+
 
 export interface Dermaga {
   id: string
@@ -211,6 +225,44 @@ function saveOfficer(officer: StoredOfficer) {
 
 
 
+// ponytail: sesi officer WAJIB memuat dermagaAccess. Respons beberapa endpoint login
+// hanya mengirim `dermagas` terpisah (bukan di dalam officer), sehingga sesi tersimpan
+// kehilangan akses dermaga → penarikan geofence jatuh ke master (titik semua region)
+// dan filter per-dermaga tidak jalan. Isi dari argumen, lalu dari roster lokal.
+function enrichOfficerWithDermagaAccess(
+  officer: StoredOfficer,
+  dermagas?: Array<{ id: string; name?: string; code?: string; region_id?: string }>,
+): StoredOfficer {
+  const fromArgs = (dermagas ?? [])
+    .map(d => ({ id: String(d.id), name: String(d.name ?? ''), code: String(d.code ?? ''), region_id: d.region_id }))
+    .filter(d => d.id)
+  if (fromArgs.length) return { ...officer, dermagaAccess: fromArgs }
+  if (officer.dermagaAccess?.length) return officer
+  const roster = findStoredOfficerRecord(String(officer.id))
+  const fromRoster = roster?.dermagaAccess ?? []
+  return fromRoster.length ? { ...officer, dermagaAccess: fromRoster } : officer
+}
+
+
+
+// Tambahkan satu dermaga ke akses sesi bila belum ada (dipakai saat petugas memilih
+// dermaga) supaya penarikan geofence ikut mencakup dermaga yang benar-benar dipakai.
+function addDermagaToStoredOfficer(dock: { id: string; name?: string; code?: string; region_id?: string }): void {
+  const officer = getStoredOfficer()
+  if (!officer || !dock?.id) return
+  const id = String(dock.id)
+  if ((officer.dermagaAccess ?? []).some(d => String(d.id) === id)) return
+  saveOfficer({
+    ...officer,
+    dermagaAccess: [
+      ...(officer.dermagaAccess ?? []),
+      { id, name: String(dock.name ?? ''), code: String(dock.code ?? ''), region_id: dock.region_id },
+    ],
+  })
+}
+
+
+
 
 function saveDermaga(dermaga: Dermaga) {
   try {
@@ -225,8 +277,38 @@ function clearOfficer() {
   try {
     localStorage.removeItem(OFFICER_KEY)
     localStorage.removeItem(DERMAGA_KEY)
+    localStorage.removeItem(LOGIN_CRED_KEY)
     evictPinCache()
   } catch { /* quota */ }
+}
+
+
+
+// Titik geofence hanya dibuang saat GANTI petugas — bukan setiap login. Dulu purge
+// di tiap login + sync yang gagal = perangkat berakhir TANPA titik selamanya
+// ("Belum ada titik geofence tersimpan") padahal admin sudah menyimpan titik.
+function purgeGeofenceOnlyIfOfficerChanged(prevOfficerId?: string | null, nextOfficerId?: string | null): void {
+  if (prevOfficerId && nextOfficerId && String(prevOfficerId) === String(nextOfficerId)) return
+  if (!prevOfficerId) return
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
+}
+
+
+
+function cacheLoginCredential(cred: StoredLoginCredential): void {
+  try { localStorage.setItem(LOGIN_CRED_KEY, JSON.stringify(cred)) } catch { /* quota */ }
+}
+
+
+
+function getLoginCredential(): StoredLoginCredential | null {
+  try {
+    const raw = localStorage.getItem(LOGIN_CRED_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as StoredLoginCredential
+    if (!parsed || (parsed.kind !== 'pin' && parsed.kind !== 'member')) return null
+    return parsed
+  } catch { return null }
 }
 
 
@@ -247,15 +329,24 @@ export async function memberLogin(
     return { success: false, error: result.error?.message || 'Backend unreachable' }
   }
 
+  const prevOfficerId = getStoredOfficer()?.id ?? null
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
+  cacheLoginCredential({ kind: 'member', username, password })
   const memberKey = `member:${result.data.officer.id}`
   await setPinHash(memberKey, await hashPin(memberKey, password))
 
-  // clear cache geofence - only fresh data for this officer
-  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
+  // Ganti petugas = mulai bersih; login ulang petugas yang sama TIDAK menghapus
+  // titik geofence (dulu terhapus lalu sync gagal → perangkat kosong permanen).
+  purgeGeofenceOnlyIfOfficerChanged(prevOfficerId, result.data.officer.id)
 
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
+    // roster (berisi dermagas) baru tersedia setelah cache selesai → lengkapi sesi
+    .then(() => {
+      const cur = getStoredOfficer()
+      if (cur) saveOfficer(enrichOfficerWithDermagaAccess(cur))
+    })
+    .catch(() => null)
   // ponytail: dermaga aktif + rute WAJIB tersimpan saat login — geofence dan
   // validasi trip membaca keduanya dari localStorage. Satu dermaga = langsung
   // jadi aktif (tanpa ini getStoredDermaga() kosong dan filter per-dermaga
@@ -299,12 +390,13 @@ export async function loginWithPin(
     return { success: false, error: result.error }
   }
 
+  const prevOfficerId = getStoredOfficer()?.id ?? null
   api.setToken(result.data.token)
-  saveOfficer(result.data.officer)
+  saveOfficer(enrichOfficerWithDermagaAccess(result.data.officer, result.data.dermagas))
+  cacheLoginCredential({ kind: 'pin', officerId, pin })
   void cachePin(officerId, pin)
 
-  // clear cache geofence - only fresh data for this officer
-  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
+  purgeGeofenceOnlyIfOfficerChanged(prevOfficerId, result.data.officer?.id ?? officerId)
 
   void cacheDockOfficers(String(result.data.officer?.id ?? officerId), result.data.dermagas)
 
@@ -405,9 +497,22 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionCode: String(row.regionCode ?? region),
     dermagaAccess: access ?? [],
   }
+  // ponytail: dulu di sini token DIHAPUS dan dermaga aktif DIHAPUS — akibatnya
+  // setelah login offline aplikasi mengira "belum login": sync geofence selalu
+  // `session renewal failed` dan filter per-dermaga ikut hilang. Sekarang sesi
+  // dipertahankan bila petugasnya sama; hanya dibersihkan saat GANTI petugas.
+  const prev = getStoredOfficer()
+  const sameOfficer = !!prev?.id && String(prev.id) === String(officer.id)
   saveOfficer(officer)
-  api.setToken(null)
-  try { localStorage.removeItem(DERMAGA_KEY) } catch {}
+  if (!sameOfficer) {
+    api.setToken(null)
+    try { localStorage.removeItem(DERMAGA_KEY) } catch { /* quota */ }
+  }
+  const accessIds = new Set((access ?? []).map(d => String(d.id)))
+  const storedDock = getStoredDermaga()
+  if (storedDock && !accessIds.has(String(storedDock.id))) {
+    try { localStorage.removeItem(DERMAGA_KEY) } catch { /* quota */ }
+  }
   if (access?.length === 1) {
     const dock = access[0]
     saveDermaga({
@@ -418,7 +523,7 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
       region_code: officer.regionCode,
     })
   }
-  return { token: '', officer }
+  return { token: api.token ?? '', officer }
 }
 
 
@@ -433,6 +538,8 @@ export async function loginOffline(
   if (!ok) return { success: false }
   const session = await buildOfflineSession(identifier)
   if (!session) return { success: false }
+  // id ter-resolve (bukan username yang diketik) supaya login-diam-diam nanti tepat
+  cacheLoginCredential({ kind: 'pin', officerId: String(session.officer.id), pin })
   return { success: true, officer: session.officer, session }
 }
 
@@ -447,6 +554,7 @@ export async function selectDermaga(dermagaId: string): Promise<{ success: boole
   }
 
   saveDermaga(result.data.dermaga)
+  addDermagaToStoredOfficer(result.data.dermaga)
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
     const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
@@ -472,6 +580,7 @@ export async function selectDermagaLocal(
   const regionCode = opts?.regionCode ?? officer?.regionCode ?? ''
   if (!name && !code) return { success: false, error: 'Dermaga tidak ditemukan di akses petugas' }
   saveDermaga({ id: String(dermagaId), name, code, region_name: regionName, region_code: regionCode })
+  addDermagaToStoredOfficer({ id: String(dermagaId), name, code })
   return { success: true, error: undefined }
 }
 
@@ -534,7 +643,39 @@ function jwtExpiryMs(token?: string | null): number | null {
 
 
 
+// ponytail: „login diam-diam" — pakai kredensial login terakhir yang tersimpan di
+// localStorage untuk mengambil token baru TANPA meminta petugas mengetik ulang PIN.
+// Ini jalur pemulihan yang dulu tidak ada: sync geofence hanya mencoba renew saat
+// token kosong, sementara renew sendiri mensyaratkan token valid (mustahil) →
+// perangkat terjebak `session renewal failed` selamanya.
+async function silentReLogin(): Promise<boolean> {
+  const cred = getLoginCredential()
+  if (!cred) return false
+  try {
+    if (cred.kind === 'member') {
+      const r = await api.post<LoginResponse>('/auth/member-login', { username: cred.username, password: cred.password }, AUTH_TIMEOUT_MS)
+      if (!r.ok || !r.data?.token) return false
+      api.setToken(r.data.token)
+      saveOfficer(r.data.officer)
+      return true
+    }
+    const r = await api.post<LoginResponse>('/auth/login', { officerId: cred.officerId, pin: cred.pin }, AUTH_TIMEOUT_MS)
+    if (!r.ok || !r.data?.token) return false
+    api.setToken(r.data.token)
+    saveOfficer(r.data.officer)
+    return true
+  } catch {
+    return false
+  }
+}
+
+
 export async function renewSessionIfNeeded(): Promise<boolean> {
+  // Token kosong bukan jalan buntu lagi: coba login diam-diam dari kredensial lokal.
+  if (!api.isAuthenticated) {
+    if (!(await silentReLogin())) return false
+  }
+
   if (!(await ensureBackendSession())) return false
 
   const exp = jwtExpiryMs(api.token)
@@ -554,10 +695,13 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
 
 
 export async function isSessionReady(): Promise<boolean> {
-  if (!api.isAuthenticated) return false
+  if (!api.isAuthenticated) {
+    if (!(await silentReLogin())) return false
+  }
   if (!(await ensureBackendSession())) return false
   const exp = jwtExpiryMs(api.token)
-  if (exp === null) return false
+  // tanpa `exp` (token petugas lama/polos) dianggap tetap siap — sesi tidak expired
+  if (exp === null) return true
   return Date.now() < exp
 }
 

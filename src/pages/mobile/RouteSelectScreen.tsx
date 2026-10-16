@@ -5,6 +5,7 @@ import {
   getActiveGeofenceSnapshot,
   forceSyncGeofencesFromBackend,
   resetGpsFixCache,
+  pointIsForOtherDermaga,
   GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
@@ -73,16 +74,18 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setConfigMissing(false)
         setSyncNote(null)
 
-        if (dockId && result.activePoint.dermagaId) {
-          if (result.activePoint.dermagaId !== dockId) {
-            setDockMismatch({
-              selectedDock: dockId,
-              actualGeofence: result.activePoint.name,
-              actualGeofenceId: result.activePoint.id,
-            })
-            setGeoStatus('mismatch')
-            return
-          }
+        // ponytail: bandingkan hanya UUID asli vs UUID asli. Dulu perbandingan
+        // mentah menyalakan "Lokasi Tidak Sesuai Dermaga" untuk titik umum/warisan
+        // yang radiusnya tumpang tindih → petugas yang BENAR di dermaga terpilih
+        // tetap terkunci (tombol Lanjut mati).
+        if (dockId && pointIsForOtherDermaga(result.activePoint, dockId)) {
+          setDockMismatch({
+            selectedDock: dockId,
+            actualGeofence: result.activePoint.name,
+            actualGeofenceId: result.activePoint.id,
+          })
+          setGeoStatus('mismatch')
+          return
         }
         setDockMismatch(null)
         setGeoStatus('inside')
@@ -147,17 +150,15 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       setActiveGeofence(snap.activePoint)
       setConfigMissing(false)
 
-      if (dockId && snap.activePoint.dermagaId) {
-        if (snap.activePoint.dermagaId !== dockId) {
-          setDockMismatch({
-            selectedDock: dockId,
-            actualGeofence: snap.activePoint.name,
-            actualGeofenceId: snap.activePoint.id,
-          })
-          setGeoStatus('mismatch')
-          setSyncNote(`Ditemukan di ${snap.activePoint.name} — bukan ${dock?.name ?? dockId}`)
-          return
-        }
+      if (dockId && pointIsForOtherDermaga(snap.activePoint, dockId)) {
+        setDockMismatch({
+          selectedDock: dockId,
+          actualGeofence: snap.activePoint.name,
+          actualGeofenceId: snap.activePoint.id,
+        })
+        setGeoStatus('mismatch')
+        setSyncNote(`Ditemukan di ${snap.activePoint.name} — bukan ${dock?.name ?? dockId}`)
+        return
       }
       setDockMismatch(null)
       setGeoStatus('inside')

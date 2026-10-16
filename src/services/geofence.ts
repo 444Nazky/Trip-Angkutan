@@ -279,9 +279,15 @@ function findActiveGeofencePoint(
 // sama dengan UUID dermaga asli → dulu selalu mismatch walau posisi benar.
 // ID yang bukan UUID diperlakukan sebagai titik umum. TODO-data: bereskan
 // dermaga_id di server (migrasi sudah ada) lalu hapus pengecualian ini.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isUuid(id: unknown): boolean {
+  return UUID_RE.test(String(id ?? '').trim())
+}
+
 function isLegacyDermagaId(id: unknown): boolean {
   const s = String(id ?? '').trim()
-  return !!s && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  return !!s && !isUuid(s)
 }
 
 function pointBelongsToDermaga(p: GeofencePoint, dockId: string): boolean {
@@ -290,11 +296,40 @@ function pointBelongsToDermaga(p: GeofencePoint, dockId: string): boolean {
   return isLegacyDermagaId(p.dermagaId)
 }
 
+
+
+// Apakah titik ini jelas-jelas milik DERMAGA LAIN (bukan titik umum/warisan)?
+// Dipakai UI untuk memunculkan "Lokasi Tidak Sesuai Dermaga". Sengaja hanya
+// menyalakan saat KEDUA sisi memakai UUID asli — dulu perbandingan mentah
+// (`dermagaId !== dockId`) menyalakan banner ini untuk titik umum/warisan,
+// sehingga petugas yang BENAR berada di dermaga terpilih tetap diblokir.
+export function pointIsForOtherDermaga(
+  point: { dermagaId?: string | null } | null | undefined,
+  dockId?: string | null,
+): boolean {
+  const pid = String(point?.dermagaId ?? '').trim()
+  const did = String(dockId ?? '').trim()
+  if (!pid || !did) return false
+  if (pid === did) return false
+  return isUuid(pid) && isUuid(did)
+}
+
 // ponytail: radius bisa tumpang tindih (atau koordinat kembar dari input admin)
 // → pemenang-tunggal berdasarkan urutan storage dulu menunjuk titik dermaga
 // LAIN ("lokasi tidak sesuai dermaga" padahal posisi benar + tombol mati).
 // Dengan dockId: hanya titik dermaga tsb (atau umum/warisan) yang dinilai,
 // menang yang ID-nya persis lalu yang terdekat.
+// peringkat titik saat dermaga terpilih: 0 = titik dermaga itu sendiri,
+// 1 = titik "berlaku umum" (dermagaId kosong), 2 = warisan/non-UUID.
+// Titik yang jelas milik dermaga lain tidak pernah masuk (pointBelongsToDermaga).
+function dermagaRank(point: GeofencePoint, dockId: string): number {
+  const pid = String(point.dermagaId ?? '').trim()
+  if (!pid) return 1
+  if (pid === String(dockId).trim()) return 0
+  if (isUuid(pid)) return 3
+  return 2
+}
+
 function findActiveGeofencePointForDermaga(
   position: { lat: number; lon: number },
   points: GeofencePoint[],
@@ -308,8 +343,7 @@ function findActiveGeofencePointForDermaga(
     if (!pointBelongsToDermaga(point, dockId)) continue
     const distance = calculateDistance(position.lat, position.lon, point.latitude, point.longitude)
     if (distance > point.radiusMeters) continue
-    const exact = String(point.dermagaId ?? '').trim() === String(dockId).trim()
-    const score = `${exact ? '0' : '1'}-${String(Math.round(distance)).padStart(10, '0')}`
+    const score = `${dermagaRank(point, dockId)}-${String(Math.round(distance)).padStart(10, '0')}`
     if (!best || score < bestScore) {
       best = point
       bestScore = score
@@ -504,12 +538,33 @@ function assignedRouteCodes(): Set<string> {
 // admin sudah menyimpan titik di dashboard.
 export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   const aktif = points.filter(p => p.enabled !== false)
-  const penugasan = assignedRouteCodes()
-  if (penugasan.size === 0) return aktif
-  return aktif.filter(p => {
-    if (p.allowedRoutes.length === 0) return true
-    return p.allowedRoutes.some(code => penugasan.has(String(code).trim().toUpperCase()))
+  const penugasan = getStoredRoutes()
+  if (penugasan.length === 0) return aktif
+
+  // Route code alone is not a unique assignment: the same code can exist on
+  // different docks. Keep a point only when its dock matches a route assigned
+  // to that dock; NULL/legacy dock IDs remain shared for backwards compatibility.
+  const belongsToAssignedDock = (point: GeofencePoint) => {
+    const pointDockId = String(point.dermagaId ?? '').trim()
+    if (!pointDockId || isLegacyDermagaId(pointDockId)) return true
+    return penugasan.some(route => {
+      const routeDockId = String(route.dermagaId ?? '').trim()
+      return !routeDockId || routeDockId === pointDockId
+    })
+  }
+
+  const dockScoped = aktif.filter(belongsToAssignedDock)
+  const filtered = dockScoped.filter(point => {
+    if (point.allowedRoutes.length === 0) return true
+    return point.allowedRoutes.some(code => penugasan.some(route =>
+      String(route.code ?? '').trim().toUpperCase() === String(code).trim().toUpperCase()
+        && (!route.dermagaId || pointBelongsToDermaga(point, route.dermagaId)),
+    ))
   })
+
+  // Keep same-dock configuration visible if route codes are stale/mismatched,
+  // but never fall back to points owned by another assigned dock.
+  return filtered.length > 0 ? filtered : dockScoped
 }
 
 // ponytail: hitungan tiap tahap filter sync terakhir — agar layar "belum ada
@@ -583,65 +638,69 @@ async function pullGeofencesFromBackend(opts: { force?: boolean } = {}): Promise
   // ponytail: cache tidak pernah dihapus sebelum sukses — save menimpa atomis
 
   try {
-    // petugas mengambil titik untuk dermaga yang ia pilih (jika ada) PLUS titik
-  // "berlaku umum" (dermagaId kosong). Jika one-dermaga device tapi backend SSB
-  // masih DB lama tanpa kolom dermaga_id, endpoint masih 200 dan kita amankan di
-  // sisi klien: titik yang petugas itu dapat = yang dermagaId-nya cocok ATAU NULL
-  // (berlaku umum). Titik dermaga lain TIDAK ikut, jadi masing-masing petugas
-  // lihat subset yang ia miliki — sinkronisasi jadi benar-benar berbeda per device.
-  const dermagaId = getStoredDermaga()?.id
-  let path: string
-  let dermagaFilter: { id?: string; cacheKey?: string } = { id: dermagaId ?? undefined }
-  if (dermagaId) {
-    path = `/geofences?dermagaId=${encodeURIComponent(String(dermagaId))}`
-    dermagaFilter.cacheKey = `dermaga-${dermagaId}`
-  } else {
-    path = '/geofences'
-    dermagaFilter.cacheKey = 'all'
-  }
-  console.log('[geofence] Sync: GET', path)
-  const result = await api.get<BackendGeofence[]>(path)
-    console.log('[geofence] Sync: response', JSON.stringify(result))
+    // ponytail: tarik titik untuk SEMUA dermaga yang menjadi akses petugas, bukan
+    // cuma dermaga yang sedang dipilih. Dulu satu request ke `?dermagaId=<terpilih>`
+    // lalu cache DITIMPA hasilnya → daftar titik berubah-ubah tiap ganti pilihan
+    // ("kadang D1, kadang hanya D2, kadang keduanya") dan sinkron tampak menghapus
+    // titik dermaga lain. Union = stabil, dan tetap ter-scope per device karena
+    // hanya dermaga milik petugas itu yang diminta.
+    // Sumber dermaga akses, digabung dari SEMUA data lokal yang tersimpan agar
+    // tidak bergantung pada satu field (sesi officer lama sering tanpa
+    // dermagaAccess → perangkat akhirnya menarik MASTER semua region).
+    const accessibleIds: string[] = (() => {
+      const ids = new Set<string>()
+      for (const d of getStoredOfficer()?.dermagaAccess ?? []) {
+        const id = String(d?.id ?? '').trim()
+        if (id) ids.add(id)
+      }
+      for (const r of getStoredRoutes()) {
+        const id = String(r?.dermagaId ?? '').trim()
+        if (id) ids.add(id)
+      }
+      const selected = String(getStoredDermaga()?.id ?? '').trim()
+      if (selected) ids.add(selected)
+      return [...ids]
+    })()
 
-    if (!result.ok || !Array.isArray(result.data)) {
-      const sesiMati = result.error?.code === '401' || result.error?.code === '403'
+    const targets = accessibleIds.length > 0
+      ? accessibleIds.map(id => `/geofences?dermagaId=${encodeURIComponent(id)}`)
+      : ['/geofences']
+
+    let rows: BackendGeofence[] = []
+    let lastError: { code?: string; message?: string } | undefined
+    let gotAny = false
+    for (const path of targets) {
+      console.log('[geofence] Sync: GET', path)
+      const result = await api.get<BackendGeofence[]>(path)
+      if (!result.ok || !Array.isArray(result.data)) { lastError = result.error; continue }
+      gotAny = true
+      rows.push(...result.data)
+    }
+
+    if (!gotAny) {
+      const sesiMati = lastError?.code === '401' || lastError?.code === '403'
       console.log('[geofence] Sync: request failed, sesiMati:', sesiMati)
       if (sesiMati) {
         lastUnauthorizedAt = Date.now()
-        // ponytail: 401 TIDAK lagi menendang ke layar login (event dihapus) —
-        // sesi petugas dibuat tidak expired; cache lokal dipertahankan dan sync
-        // berikutnya mencoba lagi. Tendangan dulu yang bikin "belum login"
-        // padahal petugas sudah login.
+        // ponytail: 401 TIDAK menendang ke layar login — sesi petugas dibuat tidak
+        // expired; cache lokal dipertahankan dan sync berikutnya mencoba lagi.
       }
       return { ok: false, count: backup.length, reason: sesiMati ? 'unauthorized' : 'network' }
     }
 
-    // Jika bukan one-dermaga device (tanpa dermaga_diminta): dapat semua, titik
-    // berlaku umum + semua per-dermaga; frontend filter di scopedGeofencePoints.
-    //
-    // Jika one-dermaga device DAN backend sudah punya kolom dermaga_id (endpoint
-    // mobile branch yang live): hasilnya sudah tepat (titik dermaga tsb + umum).
-    //
-    // Jika one-dermaga device DAN endpoint SSB masih skema lama (tanpa kolom):
-    // tidak ada titik yang dermagaId-nya cocok, tapi titik umum (NULL) ikut sampai.
-    // Di sisi klien kita SIDAKAN titik lain: hasilnya harus = titik yang dermagaId
-    // pas ATAU dermagaId kosong (berlaku umum). Ini bukan fallback ke master —
-    // fallback ke master itu bikin titik D1 masuk device D2, yang bikin sinkron
-    // jadi SALAH per device. Setelah fix di server, guard ini tidak pernah dinyalakan
-    // karena semua device dapat subset yang tepat dari endpoint dermagaId.
-    let rows = result.data ?? []
-    // Sisi klien: satu-dermaga device hanya boleh dapat titik yang dermagaId-nya cocok
-    // ATAU dermagaId kosong (berlaku umum). Ini melindungi D1 device D2 selama backend
-    // masih berjalan di SSB skema lama yang belum punya kolom dermaga_id — selama itu,
-    // titik dermaga lain TIDAK ikut, jadi sinkron benar-benar berbeda per device.
-    //
-    // Sedangkan titik umum (dermagaId kosong) tetap dianggap milik semua device, jadi
-    // TIDAK pernah di-sidebar — itu memang yang sebenarnya harusnya sampai ke setiap
-    // perangkat. Setelah deploy backend terbaru (endpoint punya kolom dermaga_id),
-    // hasilnya tetap sama: hanya titik dermaga tsb + umum.
-    rows = rows.filter(
-      p => !dermagaId || !String(p.dermagaId || '').trim() || String(p.dermagaId).trim() === dermagaId,
-    ) as BackendGeofence[]
+    // Titik "berlaku umum" (dermagaId kosong) muncul di setiap respons dermaga →
+    // buang duplikatnya dulu, lalu sisakan hanya titik milik dermaga akses petugas
+    // (id warisan/non-UUID tetap diterima sebagaiberlaku umum).
+    const seenIds = new Set<string>()
+    rows = rows.filter(p => {
+      const key = String(p.id ?? '')
+      if (key && seenIds.has(key)) return false
+      if (key) seenIds.add(key)
+      const pid = String(p.dermagaId ?? '').trim()
+      if (!pid) return true
+      if (accessibleIds.length === 0) return true
+      return accessibleIds.includes(pid)
+    }) as BackendGeofence[]
 
     console.log('[geofence] Sync: got', rows.length, 'items from server')
     const mapped = rows

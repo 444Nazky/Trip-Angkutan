@@ -14,7 +14,7 @@
     "cache:clean": "ng cache clean",
     "build": "ng build && node scripts/organize-build.mjs",
     "build:raw": "ng build",
-    "ota:publish": "node scripts/publish-ota-git.mjs",
+    "ota:publish": "node scripts/publish-ota-server.mjs",
     "watch": "ng build --watch --configuration development",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",

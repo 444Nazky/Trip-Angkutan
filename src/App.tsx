@@ -10,7 +10,7 @@ import { syncGeofencesFromBackend } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
 import { autoDetectApiBaseUrl } from "./services/api"
 import UpdateNotifier from "./components/UpdateNotifier"
-import { updateService } from "./services/updateService"
+import { appUpdate } from "./services/appUpdate"
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
@@ -41,7 +41,7 @@ function Shell() {
         // Setelah pengguna menyetujui pemasangan APK, aplikasi hidup kembali di sini:
         // versi native dibaca ulang supaya status "sudah ter-update" hanya muncul
         // kalau APK-nya benar-benar terpasang.
-        void updateService.refreshInstalledVersion()
+        void appUpdate.syncInstalledVersion()
       }
     }).then(s => { sub = s })
     return () => { sub?.remove?.() }

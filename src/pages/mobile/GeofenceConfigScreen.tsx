@@ -8,10 +8,10 @@ import {
   GEOFENCE_UPDATED_EVENT,
   forceSyncGeofencesFromBackend,
   getLastGeofenceDiagnosis,
+  scopedGeofencePoints,
   type GeofencePoint,
   type GeofenceScopeDiagnosis,
 } from '../../services/geofence'
-import { renewSessionIfNeeded } from '../../services/auth'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -59,7 +59,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
-  const [points, setPoints] = useState<GeofencePoint[]>(() => getStoredGeofencePoints())
+  const [points, setPoints] = useState<GeofencePoint[]>(() => scopedGeofencePoints(getStoredGeofencePoints()))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftPoint>(emptyDraft)
   const [showForm, setShowForm] = useState(false)
@@ -70,7 +70,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
 
   useEffect(() => {
     const onUpdate = () => {
-      setPoints(getStoredGeofencePoints())
+      setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
       setDiag(getLastGeofenceDiagnosis())
     }
     window.addEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
@@ -87,24 +87,22 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setError(null)
     try {
-      // Coba renew session dulu sebelum sync
-      const renewed = await renewSessionIfNeeded()
-      if (!renewed) {
-        setError('Sesi habis. Silakan logout dan login ulang.')
-        setSyncing(false)
-        return
-      }
+      // ponytail: sinkronisasi TIDAK lagi digantung pada renew session terpisah.
+      // Dulu renew dipanggil duluan dan — karena tanpa token renew mustahil —
+      // tombol selalu berakhir "Sesi habis", padahal petugas sudah login. Sekarang
+      // sync mencoba sendiri (termasuk login-diam-diam) dan selalu memakai cache
+      // lokal sebagai last-known-good.
       const result = await forceSyncGeofencesFromBackend()
       console.log('[GeofenceConfig] Sync result:', result)
       if (result.reason === 'unauthorized') {
-        setError('Sesi habis. Silakan logout dan login ulang.')
+        setError('Sesi server belum siap — data lokal tetap dipakai. Coba lagi saat online.')
       } else if (result.reason === 'network') {
-        setError('Gagal terhubung ke server. Periksa koneksi internet.')
+        setError('Gagal terhubung ke server. Periksa koneksi internet — titik lokal tetap dipakai.')
       } else if (result.count === 0) {
-        setError('Tidak ada data geofence di server.')
+        setError('Belum ada titik geofence di server untuk dermaga/rute Anda. Minta admin mendaftarkannya di Master Rute.')
       }
       // Ambil data terbaru dari storage
-      setPoints(getStoredGeofencePoints())
+      setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
       setDiag(getLastGeofenceDiagnosis())
     } catch (e) {
       console.error('[GeofenceConfig] Sync error:', e)
