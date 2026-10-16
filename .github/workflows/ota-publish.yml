@@ -1,13 +1,20 @@
 name: OTA Publish (mobile)
 
-# Seperti Netlify: setiap push ke branch `mobile` → build + publish OTA otomatis.
-# Commit hasil publish memakai "[skip ci]" agar tidak memicu loop.
+# Setiap push ke branch `mobile` → build + publikasikan bundel modul ke SERVER API.
+# Sejak 2026-10-16 manifest & aset dilayani server sendiri (bukan cabang GitHub),
+# jadi workflow ini tidak lagi membuat commit; ia mengunggah bundel lewat
+# POST /api/v1/publish-ota memakai secret repo.
+#
+# Wajib diisi di repo settings:
+#   Variable : TRIP_API_URL    (mis. https://aplikasi-trip-api-production.up.railway.app)
+#   Secret   : PUBLISH_SECRET  (sama dengan env PUBLISH_SECRET di server)
+#
+# Selama keduanya belum diisi, job ini DILEWATI dengan warning (bukan gagal),
+# supaya push rilis tidak meninggalkan CI merah. Bundel modul tetap bisa
+# terbit lewat jalur commit `backend/public/ota` seperti rilis 1.0.26.
 on:
   push:
     branches: [mobile]
-
-permissions:
-  contents: write
 
 concurrency:
   group: ota-publish-mobile
@@ -15,28 +22,46 @@ concurrency:
 
 jobs:
   publish:
-    # Lewati commit bot OTA (sudah [skip ci], ini jaring kedua).
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && vars.TRIP_API_URL != ''"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
 
-      - run: npm ci
-
-      - run: npx tsc --noEmit -p tsconfig.json
-
-      - run: npm run build
-
-      - name: Publish OTA ke branch mobile
+      - name: Pastikan target publikasi terkonfigurasi
+        id: cfg
+        env:
+          TRIP_API_URL: ${{ vars.TRIP_API_URL }}
+          PUBLISH_SECRET: ${{ secrets.PUBLISH_SECRET }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          npm run ota:publish
+          if [ -z "$TRIP_API_URL" ]; then
+            echo "::warning::Variable TRIP_API_URL belum diisi di repo settings. Publish bundel modul dilewati (tidak menembak localhost)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$PUBLISH_SECRET" ]; then
+            echo "::warning::Secret PUBLISH_SECRET belum diisi di repo settings. Publish bundel modul dilewati."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - if: steps.cfg.outputs.configured == 'true'
+        run: npm ci
+
+      - if: steps.cfg.outputs.configured == 'true'
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - if: steps.cfg.outputs.configured == 'true'
+        run: npm run build
+
+      - name: Publish bundel modul ke server
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          TRIP_API_URL: ${{ vars.TRIP_API_URL }}
+          PUBLISH_SECRET: ${{ secrets.PUBLISH_SECRET }}
+        run: node scripts/publish-ota-server.mjs --notes="Rilis otomatis dari ${{ github.sha }}"

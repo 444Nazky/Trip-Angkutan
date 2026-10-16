@@ -4,10 +4,12 @@ import type { ElementType } from 'react'
 
 
 
+
 export interface FloatingBottomNavProps {
   activeScreen: string
   onNavigate: (screen: string) => void
 }
+
 
 
 
@@ -25,12 +27,14 @@ const navItems: NavItem[] = [
 
 
 
+
 interface NavConfirmDialog {
   isOpen: boolean
   message: string
   pendingAction: (() => void) | null
   countdown: number
 }
+
 
 
 
@@ -107,6 +111,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
         </nav>
       </div>
 
+      {/* Navigation Confirmation Dialog */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">

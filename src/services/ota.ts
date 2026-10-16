@@ -8,8 +8,19 @@ import { api } from './api'
 
 
 
-const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
-const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
+// Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
+// dan /ota/<versi>/...), sehingga penerbitan tidak lagi bergantung repo GitHub.
+function serverOrigin(): string {
+  return api.baseUrl.replace(/\/api\/?$/i, '')
+}
+
+function manifestUrl(): string {
+  return `${serverOrigin()}/api/v1/ota-manifest`
+}
+
+function assetsBase(): string {
+  return `${serverOrigin()}/ota/`
+}
 
 
 
@@ -505,14 +516,14 @@ type ManifestResult =
 
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
   if (isDevMode()) {
-    console.log('[OTA] DEV MODE: Skip fetch manifest dari GitHub (menghindari CORS)')
+    console.log('[OTA] DEV MODE: skip fetch manifest server')
     return { ok: false, reason: 'not-found' }
   }
 
   let res: Response | null = null
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}&n=${attempt}`, {
+      res = await nativeFetch(`${manifestUrl()}?t=${Date.now()}&n=${attempt}`, {
         signal,
         cache: 'no-store',
         headers: { 'Accept': 'application/json' },
@@ -636,7 +647,7 @@ async function downloadAsset(
   for (let n = 0; n < attempts; n++) {
     if (signal.aborted) throw new DOMException('aborted', 'AbortError')
     try {
-      const url = `${ASSETS_BASE}${path}?ota=${encodeURIComponent(version)}&t=${Date.now()}&n=${n}`
+      const url = `${assetsBase()}${encodeURIComponent(version)}/${path}?ota=${encodeURIComponent(version)}&t=${Date.now()}&n=${n}`
       const bytes = await fetchBytes(url, signal)
       if (!bytes.byteLength) throw new Error(`File kosong: ${path}`)
       return bytes
@@ -861,14 +872,14 @@ export async function auditOta(): Promise<{
   let hasRemoteManifest = false
 
   if (isDevMode()) {
-    console.log('[OTA] DEV MODE: Skip audit fetch dari GitHub (menghindari CORS)')
+    console.log('[OTA] DEV MODE: skip audit fetch manifest server')
   } else {
     try {
       const ac = new AbortController()
       const timeout = setTimeout(() => ac.abort(), 4000)
       let res: Response
       try {
-        res = await nativeFetch(`${MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
+        res = await nativeFetch(`${manifestUrl()}?t=${Date.now()}`, { cache: 'no-store', signal: ac.signal })
       } finally {
         clearTimeout(timeout)
       }

@@ -2,22 +2,22 @@ import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
 import {
-  getStoredOfficer,
   loginOffline,
-  loginWithPin,
   memberLogin,
   SESSION_READY_EVENT,
   verifyPinOffline,
 } from '../services/auth'
-import { initializeSync, syncNow } from '../services/sync'
+import { initializeSync } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 import ServerSettingsModal from '../components/ServerSettingsModal'
+
 
 
 
 interface LoginPageProps {
   onLogin: (userType: 'member' | 'admin') => void
 }
+
 
 
 
@@ -31,7 +31,7 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
       return true
     }
   } catch {
-
+    /* database offline belum siap — lanjut ke roster */
   }
 
   try {
@@ -47,13 +47,13 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
         regionCode: match.region,
         offlineMode: true,
       }))
-      // sesi offline siap, store ikut sinkron
       window.dispatchEvent(new Event(SESSION_READY_EVENT))
       return true
     }
-  } catch {}
+  } catch { /* no-op */ }
   return false
 }
+
 
 
 
@@ -85,60 +85,47 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const u = username.trim()
     const p = password
     try {
-
-      if (await tryOfflineLogin(u, p)) {
-        void initializeSync()
-        onLogin('member')
-
-        if (navigator.onLine) {
-          void establishOnlineSession(u, p)
+      // ponytail: online-first — 401 server = kredensial salah, jangan ditutupi login offline.
+      // Offline hanya fallback saat jaringan mati, bukan saat kredensial ditolak.
+      if (navigator.onLine) {
+        const result = await memberLogin(u, p)
+        if (result.success) {
+          void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)
+          window.dispatchEvent(new Event(SESSION_READY_EVENT))
+          onLogin('member')
+          return
+        }
+        const msg = result.error || ''
+        if (/timeout|network|failed|fetch|terjangkau|merespon|unreachable/i.test(msg)) {
+          if (await tryOfflineLogin(u, p)) {
+            void initializeSync()
+            onLogin('member')
+            void syncOfficersToLocal(true).catch(() => undefined)
+            return
+          }
+          setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
+        } else {
+          // ponytail: tampilkan pesan spesifik backend (tidak terdaftar/nonaktif/PIN salah)
+          // supaya admin tahu apa yang harus dicocokkan di dashboard.
+          setError(/tidak terdaftar|nonaktif|PIN salah/i.test(msg) ? msg : 'Username atau password salah.')
         }
         return
       }
 
-      if (!navigator.onLine) {
-        setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
-        return
-      }
-
-      const result = await memberLogin(u, p)
-      if (result.success) {
+      if (await tryOfflineLogin(u, p)) {
         void initializeSync()
-
-        if (navigator.onLine) void syncOfficersToLocal(true).catch(() => undefined)
         onLogin('member')
         return
       }
-      const msg = result.error || ''
-      if (/timeout|network|failed|fetch|terjangkau|merespon/i.test(msg)) {
-        setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
-      } else if (/unauthorized|401|invalid/i.test(msg)) {
-        setError('Username atau password salah.')
-      } else {
-        setError(msg || 'Login gagal.')
-      }
+
+      setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
+      return
     } catch {
       setError('Verifikasi gagal. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
-  }
-
-  async function establishOnlineSession(u: string, p: string): Promise<void> {
-    try {
-      await memberLogin(u, p)
-      if (!api.isAuthenticated) {
-
-        const id = getStoredOfficer()?.id
-        if (id) await loginWithPin(String(id), p)
-      }
-      if (api.isAuthenticated) {
-        void syncNow().catch(() => undefined)
-
-        window.dispatchEvent(new Event(SESSION_READY_EVENT))
-      }
-    } catch {}
   }
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -148,6 +135,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
 
+      {/* ── Minimalist Header ── */}
       <div className="px-6 pt-16 pb-8">
         <div className="flex items-center gap-4">
           <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
@@ -166,18 +154,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
       </div>
 
+      {/* ── Status & Form ── */}
       <div className="flex-1 px-6">
+        {/* Online Status */}
         <div className="flex items-center gap-2 mb-8">
           <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
         </div>
 
+        {/* Welcome Text */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
           <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
         </div>
 
+        {/* Form */}
         <div className="space-y-4">
+          {/* Username */}
           <div>
             <input
               type="text"
@@ -191,6 +184,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             />
           </div>
 
+          {/* Password */}
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
@@ -213,12 +207,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </button>
           </div>
 
+          {/* Error */}
           {error && (
             <div className="px-4 py-3 bg-red-50 rounded-xl">
               <p className="text-xs text-red-500">{error}</p>
             </div>
           )}
 
+          {/* Submit */}
           <button
             onClick={() => void handleLogin()}
             disabled={loading}
@@ -228,6 +224,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </button>
         </div>
 
+        {/* Offline hint */}
         {!isOnline && (
           <p className="text-xs text-center text-slate-400 mt-6">
             Gunakan ID & PIN yang pernah login di perangkat ini
@@ -235,6 +232,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         )}
       </div>
 
+      {/* ── Footer ── */}
       <p className="text-center text-[11px] text-slate-300 pb-8">
         Trip Angkutan Kalimantan Barat
       </p>

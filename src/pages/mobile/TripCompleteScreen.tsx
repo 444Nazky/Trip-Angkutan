@@ -6,9 +6,11 @@ import type { MobileScreen } from '../types'
 
 
 
+
 interface TripCompleteScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 
@@ -18,7 +20,6 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   useEffect(() => {
     if (!detailTripId) go('home')
-
     processSyncQueue()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

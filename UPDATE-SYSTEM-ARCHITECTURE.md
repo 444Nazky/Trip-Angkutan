@@ -2,6 +2,19 @@
 
 > **Status:** PRODUKSI — Mengganti sistem OTA pihak ketiga yang sering mengalami kegagalan patch/update sekunder.
 
+> **Catatan 2026-10-16 — UNIFIKASI & PEMBARUAN DOKUMEN INI:**
+> Bagian di bawah masih menggambarkan kanal OTA yang lama (manifest di GitHub raw,
+> dua tombol terpisah). Sejak 2026-10-16 keduanya sudah berubah:
+>
+> - **Satu tombol** `Cek & Perbarui Aplikasi` (`src/services/appUpdate.ts`) memeriksa
+>   kanal modul web DAN kanal paket APK sekaligus. Tombol terpisah dihapus.
+> - **Manifest & aset modul dilayani server API sendiri**, bukan GitHub raw:
+>   `GET /api/v1/ota-manifest` dan `GET /ota/<versi>/<berkas>`.
+> - **Publikasi** memakai `npm run ota:publish` → `scripts/publish-ota-server.mjs`
+>   (POST `/api/v1/publish-ota`, secret `PUBLISH_SECRET`). Skrip `publish-ota-git.mjs` dihapus.
+>
+> Detail lengkap + langkah verifikasi: `audits/update-unification-audit-2026-10-16.md`.
+
 **Tanggal Overhaul:** 2026-10-14
 
 ---

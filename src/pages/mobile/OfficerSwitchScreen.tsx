@@ -5,9 +5,11 @@ import type { MobileScreen } from '../types'
 
 
 
+
 interface OfficerSwitchScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 
@@ -41,7 +43,6 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
 
   const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
   const filtered = officers.filter(o => {
-
     if (o.id === officer.id) return false
 
     const theirRegions = o.regions && o.regions.length > 0 ? o.regions : [o.region]
@@ -126,6 +127,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         ))}
       </div>
 
+      {/* Logout button */}
       <button
         onClick={() => {
           logout()

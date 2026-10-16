@@ -3,9 +3,14 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { absoluteBase } = require('../absolute-url');
 
-const APK_DIR = path.join(__dirname, '..', '..', 'apks');
-const METADATA_DIR = path.join(__dirname, '..', '..', 'metadata');
+
+
+const APK_DIR = process.env.APK_DIR || path.join(__dirname, '..', '..', 'apks');
+const METADATA_DIR = process.env.METADATA_DIR || path.join(__dirname, '..', '..', 'metadata');
+
+
 
 const APK_CDN_BASE = process.env.APK_CDN_URL || '';
 const RAILWAY_STATIC_URL = process.env.RAILWAY_STATIC_URL || '';
@@ -38,21 +43,22 @@ router.get('/app-download/:version', (req, res) => {
       });
     }
 
-    if (APK_CDN_BASE) {
-      const cdnUrl = `${APK_CDN_BASE}/app-${version}.apk`;
-      console.log(`Redirecting to CDN: ${cdnUrl}`);
-      return res.redirect(302, cdnUrl);
-    }
-
-    if (RAILWAY_STATIC_URL) {
-      const staticUrl = `${RAILWAY_STATIC_URL}/releases/app-${version}.apk`;
-      console.log(`Redirecting to static: ${staticUrl}`);
-      return res.redirect(302, staticUrl);
-    }
-
+    // File lokal di image lebih utama: selalu bisa di-serve walau
+    // env CDN/static rusak atau tak berskema. Redirect hanya fallback.
     const apkPath = path.join(APK_DIR, `app-${version}.apk`);
 
     if (!fs.existsSync(apkPath)) {
+      // Env bisa diisi tanpa skema. res.redirect() memperlakukan URL tanpa skema
+      // sebagai path relatif (Location: "host/releases/app-x.apk") sehingga APK
+      // tidak pernah terunduh — selalu bikin absolut dulu.
+      const cdnBase = absoluteBase(APK_CDN_BASE);
+      if (cdnBase) {
+        return res.redirect(302, `${cdnBase}/app-${version}.apk`);
+      }
+      const staticBase = absoluteBase(RAILWAY_STATIC_URL);
+      if (staticBase) {
+        return res.redirect(302, `${staticBase}/releases/app-${version}.apk`);
+      }
       return res.status(404).json({
         error: 'APK_NOT_FOUND',
         message: `File APK versi ${version} tidak ditemukan`

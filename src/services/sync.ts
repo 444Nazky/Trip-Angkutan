@@ -1,6 +1,6 @@
 import { Geolocation, type Position } from '@capacitor/geolocation'
 import { api, getApiBaseUrl as readApiBaseUrl } from './api'
-import { getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
+import { ensureBackendSession, getStoredDermaga, getStoredRoutes, renewSessionIfNeeded } from './auth'
 import {
   initLocalDb as initLocalDb,
   dbAll,
@@ -14,6 +14,7 @@ import {
 } from './localDb'
 import type { Trip } from '../pages/store'
 import { syncOnResume } from './adminPull'
+
 
 
 
@@ -31,6 +32,7 @@ const ONLINE_RETRY_DELAY_MS = 700
 
 
 
+
 export interface PhotoEntry {
   dataUrl: string
   mimeType: string
@@ -38,21 +40,20 @@ export interface PhotoEntry {
 
 
 
-export interface SyncItem {
 
+export interface SyncItem {
   syncId: string
   trip: Trip
   attempts: number
   lastError?: string
   lastErrorCode?: string
-
   needsAttention?: boolean
   createdAt: number
   lastAttemptAt?: number
-
   photos: PhotoEntry[]
   tripPhoto?: PhotoEntry
 }
+
 
 
 
@@ -66,7 +67,9 @@ interface SyncResult {
 
 
 
+
 type QueueListener = (count: number) => void
+
 
 
 
@@ -76,22 +79,33 @@ let queueListeners: QueueListener[] = []
 let syncedListeners: SyncedListener[] = []
 let _pendingCount = 0
 
+
+
+
 let _pingOk = false
 let _pingAt = 0
 let _pinging: Promise<boolean> | null = null
+
+
+
 
 let _syncing = false
 let _lockDeadline = 0
 let _lockWatchdog: ReturnType<typeof setTimeout> | null = null
 let _retryTimer: ReturnType<typeof setTimeout> | null = null
 
+
+
+
 let _initialized = false
+
 
 
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
+
 
 
 
@@ -112,9 +126,11 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 
 
 
+
 function isNetworkError(err?: string): boolean {
   return !!err && /timeout|network|failed.to.fetch|terjangkau|offline|request.failed|ECONNREFUSED|ENOTFOUND|server tidak merespon|unreachable/i.test(err)
 }
+
 
 
 
@@ -123,14 +139,23 @@ export function backoffMs(attempts: number): number {
   return Math.min(BASE_BACKOFF_MS * Math.pow(2, attempts - 1), MAX_BACKOFF_MS)
 }
 
+
+
+
 async function readQueue(): Promise<SyncItem[]> {
   const rows = await dbAll<SyncItem>('pending')
   return rows.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
 }
 
+
+
+
 async function writeItem(item: SyncItem): Promise<void> {
   await dbPut<SyncItem>('pending', item)
 }
+
+
+
 
 async function removeItem(syncId: string): Promise<void> {
   await dbDelete('pending', syncId)
@@ -138,19 +163,20 @@ async function removeItem(syncId: string): Promise<void> {
 
 
 
+
 export function notifyQueueListeners() {
   void dbCount('pending').then(n => {
     _pendingCount = n
-    for (const l of [...queueListeners]) { try { l(n) } catch {} }
+    for (const l of [...queueListeners]) { try { l(n) } catch { /* ignore */ } }
   })
-
-  void readQueue().then(q => { _queueCache = q }).catch(() => {})
+  void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 }
 
 
 
+
 function notifySyncedListeners(tripId: string) {
-  for (const l of [...syncedListeners]) { try { l(tripId) } catch {} }
+  for (const l of [...syncedListeners]) { try { l(tripId) } catch { /* ignore */ } }
 }
 
 const LEGACY_QUEUE_KEY = 'trip.syncQueue.v1'
@@ -158,8 +184,8 @@ const MIGRATION_KEY = 'sync.queue.migrated.v1'
 
 
 
-function derivePhotos(trip: Trip): PhotoEntry[] {
 
+function derivePhotos(trip: Trip): PhotoEntry[] {
   return (trip.vehicles ?? []).map(v => ({
     dataUrl: v.photoUrl ?? '',
     mimeType: 'image/jpeg',
@@ -168,9 +194,13 @@ function derivePhotos(trip: Trip): PhotoEntry[] {
 
 
 
+
 function deriveTripPhoto(trip: Trip): PhotoEntry | undefined {
   return trip.photoUrl ? { dataUrl: trip.photoUrl, mimeType: 'image/jpeg' } : undefined
 }
+
+
+
 
 async function migrateLegacyQueue(): Promise<void> {
   try {
@@ -196,7 +226,6 @@ async function migrateLegacyQueue(): Promise<void> {
         })
       }
       if (items.length) {
-
         const existing = new Set((await readQueue()).map(i => i.trip.id))
         const fresh = items.filter(i => !existing.has(i.trip.id))
         const ok = await dbPutMany<SyncItem>('pending', fresh)
@@ -211,6 +240,7 @@ async function migrateLegacyQueue(): Promise<void> {
     console.warn('[sync] migrasi antrean lama gagal (dicoba lagi nanti):', err)
   }
 }
+
 
 
 
@@ -236,9 +266,11 @@ export async function addToSyncQueue(
   }
   await writeItem(item)
   notifyQueueListeners()
-
   window.setTimeout(() => void processSyncQueue(), 150)
 }
+
+
+
 
 async function dbGetById(tripId: string): Promise<SyncItem | null> {
   const all = await readQueue()
@@ -247,7 +279,9 @@ async function dbGetById(tripId: string): Promise<SyncItem | null> {
 
 
 
+
 export function getPendingCount(): number { return _pendingCount }
+
 
 
 
@@ -255,7 +289,6 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
   try {
     await initLocalDb()
     const existing = await dbGetById(trip.id)
-
     if (!existing) {
       await addToSyncQueue(trip, derivePhotos(trip), deriveTripPhoto(trip))
       return
@@ -273,7 +306,6 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
     }
     await writeItem(item)
     notifyQueueListeners()
-
     window.setTimeout(() => void processSyncQueue(), 150)
   } catch (err) {
     console.warn('[sync] retrySyncItem gagal:', err)
@@ -282,10 +314,12 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
 
 
 
+
 export function getSyncQueue(): SyncItem[] { return _queueCache }
 
 let _queueCache: SyncItem[] = []
-void readQueue().then(q => { _queueCache = q }).catch(() => {})
+void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
+
 
 
 
@@ -293,10 +327,11 @@ export function onSyncQueueChange(cb: QueueListener): () => void {
   queueListeners.push(cb)
   void dbCount('pending').then(n => {
     _pendingCount = n
-    try { cb(n) } catch {}
+    try { cb(n) } catch { /* ignore */ }
   })
   return () => { queueListeners = queueListeners.filter(x => x !== cb) }
 }
+
 
 
 
@@ -304,6 +339,7 @@ export function onTripSynced(cb: SyncedListener): () => void {
   syncedListeners.push(cb)
   return () => { syncedListeners = syncedListeners.filter(x => x !== cb) }
 }
+
 
 
 
@@ -327,16 +363,17 @@ export async function probeServer(force = false): Promise<boolean> {
 
 
 
+
 function normalizeSource(raw?: string): string | null {
   if (!raw) return null
   const s = raw.trim()
   if (!s) return null
   if (s.startsWith('data:')) return s
   if (/^(https?|blob|content|file):/i.test(s)) return s
-
   if (/^[A-Za-z0-9+/=\s]{64,}$/.test(s)) return `data:image/jpeg;base64,${s.replace(/\s/g, '')}`
   return s
 }
+
 
 
 
@@ -359,6 +396,9 @@ function dataUrlToBlobManual(dataUrl: string): Blob | null {
 
 const OK_MIME = /^image\/(jpeg|png|webp)$/i
 
+
+
+
 async function toImageBlob(raw?: string): Promise<Blob | null> {
   const src = normalizeSource(raw)
   if (!src) return null
@@ -376,10 +416,12 @@ async function toImageBlob(raw?: string): Promise<Blob | null> {
 
 
 
+
 function photoFileName(blob: Blob, index: number): string {
   const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
   return `photo-${index}.${ext}`
 }
+
 
 
 
@@ -426,6 +468,9 @@ export function resolveRoute(trip: Trip): { routeFrom: string | null; routeTo: s
   return { routeFrom: null, routeTo: null, routeCode: null }
 }
 
+
+
+
 async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | null> {
   try {
     const pos: Position | null = await withTimeout<Position | null>(
@@ -439,6 +484,9 @@ async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | 
     return null
   }
 }
+
+
+
 
 async function postTripToServer(item: SyncItem, allowReauth = true): Promise<SyncResult> {
   const { syncId, trip } = item
@@ -473,7 +521,6 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const vehiclesList = trip.vehicles ?? []
     for (let i = 0; i < vehiclesList.length; i++) {
       const v = vehiclesList[i]
-
       const vi = await pushPhoto(item.photos?.[i]?.dataUrl || v.photoUrl)
       let lat: number | null = v.photoLatitude ?? null
       let lon: number | null = v.photoLongitude ?? null
@@ -507,12 +554,10 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const { routeFrom, routeTo, routeCode } = resolveRoute(trip)
 
     const payload = {
-
       clientTripId: trip.id,
       statusMuatan: hasLoad ? 'muatan' : 'kosong',
       routeFrom,
       routeTo,
-
       route: routeCode ?? trip.route ?? null,
       routeCode: routeCode ?? null,
       keterangan: trip.category && trip.category !== '-' ? trip.category : null,
@@ -527,7 +572,6 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const form = new FormData()
     form.append('payload', JSON.stringify(payload))
-
     blobs.forEach((blob, i) => form.append('photos', blob, photoFileName(blob, i)))
 
     const dermagaId = getStoredDermaga()?.id
@@ -541,18 +585,12 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const code = res.error?.code
     if (code === '401' && allowReauth) {
-      // Token ditolak server: coba perpanjang sesi lewat /auth/refresh (bukan
-      // hanya memvalidasi token yang sama), lalu kirim ulang SEKALI saja.
-      const ok = await renewSessionIfNeeded()
+      const ok = await ensureBackendSession()
       if (ok) return postTripToServer(item, false)
       return { syncId, success: false, error: res.error?.message ?? 'Sesi autentikasi berakhir', code }
     }
 
-    // 401/403 = masalah sesi, bukan payload cacat → JANGAN tandai permanen
-    // (needsAttention menahan item sampai 10 menit dan membuat antrean macet
-    // setelah petugas masuk ulang). Item tetap dapat dicoba otomatis.
-    const sessionIssue = code === '401' || code === '403'
-    const permanent = !!code && /^4\d\d$/.test(code) && code !== '408' && !sessionIssue
+    const permanent = !!code && /^4\d\d$/.test(code) && code !== '408'
     return {
       syncId,
       success: false,
@@ -568,6 +606,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
 
 
+
 function isSyncBusy(): boolean {
   if (!_syncing) return false
   if (Date.now() > _lockDeadline) {
@@ -580,6 +619,7 @@ function isSyncBusy(): boolean {
 
 
 
+
 function acquireLock(): void {
   _syncing = true
   _lockDeadline = Date.now() + LOCK_TIMEOUT_MS
@@ -588,11 +628,11 @@ function acquireLock(): void {
     if (!_syncing) return
     console.warn('[sync] Watchdog: proses sinkron menggantung → kunci dilepas')
     releaseLock()
-
     scheduleRetry(FAST_RETRY_NETWORK_MS)
     notifyQueueListeners()
   }, LOCK_TIMEOUT_MS + 1_000)
 }
+
 
 
 
@@ -604,6 +644,7 @@ function releaseLock(): void {
 
 
 
+
 function scheduleRetry(delayMs = POLL_INTERVAL_MS): void {
   if (_retryTimer) clearTimeout(_retryTimer)
   _retryTimer = setTimeout(() => {
@@ -611,6 +652,9 @@ function scheduleRetry(delayMs = POLL_INTERVAL_MS): void {
     void processSyncQueue()
   }, delayMs)
 }
+
+
+
 
 async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   const last = item.lastAttemptAt ?? 0
@@ -628,7 +672,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   )
 
   if (result.success) {
-
     await removeItem(item.syncId)
     notifyQueueListeners()
     notifySyncedListeners(item.trip.id)
@@ -650,6 +693,9 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   notifyQueueListeners()
 }
 
+
+
+
 async function ensureSessionForQueue(): Promise<boolean> {
   try {
     return await renewSessionIfNeeded()
@@ -660,14 +706,12 @@ async function ensureSessionForQueue(): Promise<boolean> {
 
 
 
+
 export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<void> {
-
   if (isSyncBusy()) return
-
   acquireLock()
 
   try {
-
     const reachable = await probeServer()
     if (!reachable) {
       scheduleRetry(POLL_INTERVAL_MS)
@@ -684,13 +728,11 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
 
     const sessionOk = await ensureSessionForQueue()
     if (!sessionOk) {
-
       scheduleRetry(MAX_BACKOFF_MS)
       return
     }
 
     for (const item of items) {
-
       if (!(await probeServer())) break
       await processItem(item, opts?.retryAll ?? false)
     }
@@ -699,14 +741,16 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
   } finally {
     releaseLock()
     notifyQueueListeners()
-    void readQueue().then(q => { _queueCache = q }).catch(() => {})
+    void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
   }
 }
+
+
+
 
 async function handleConnectionRestored(): Promise<void> {
   for (let i = 0; i < ONLINE_RETRY_ATTEMPTS; i++) {
     if (await probeServer(true)) {
-
       void syncOnResume(true)
       await processSyncQueue()
       return
@@ -718,6 +762,7 @@ async function handleConnectionRestored(): Promise<void> {
 
 
 
+
 export function initializeSync(): void {
   if (_initialized) return
   _initialized = true
@@ -725,17 +770,13 @@ export function initializeSync(): void {
   void syncOnResume()
 
   void initLocalDb().then(async () => {
-
     await migrateLegacyQueue()
-
     void requestPersistentStorage()
-
     window.setTimeout(() => void processSyncQueue(), 1_200)
   })
 
   window.addEventListener('online', () => { void handleConnectionRestored() })
   window.addEventListener('offline', () => {
-
     _pingOk = false
     _pingAt = 0
     notifyQueueListeners()
@@ -747,6 +788,7 @@ export function initializeSync(): void {
     if (document.visibilityState === 'visible') void processSyncQueue()
   })
 }
+
 
 
 
@@ -765,6 +807,7 @@ export async function syncNow(): Promise<{ synced: number; failed: number; busy?
   notifyQueueListeners()
   return { synced: Math.max(0, before - after), failed: after, reachable: true }
 }
+
 
 
 

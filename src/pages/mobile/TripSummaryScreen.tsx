@@ -7,6 +7,7 @@ import type { MobileScreen } from '../types'
 
 
 
+
 interface ConfirmDialog {
   isOpen: boolean
   message: string
@@ -16,9 +17,11 @@ interface ConfirmDialog {
 
 
 
+
 interface TripSummaryScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 

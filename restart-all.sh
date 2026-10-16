@@ -2,16 +2,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Trip Angkutan — RESTART semua layanan (layout folder terpisah pasca-split)
 #
-#   Backend API 3000 + Mobile 5173 : /home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
-#                                     (repo utama, branch main — mobile)
-#   Admin dashboard 8000           : /home/nazky/RPL/Intern/admin-dashboard
-#                                     (clone terpisah, branch admin)
+#   Backend API 3000 + Mobile 5173 : <repo>  (direktori script ini)
+#   Admin dashboard 8000           : <repo>/admin-ci
 #
-# Beda dengan start-all.sh: langkah admin juga sinkron build ulang
-# (www → admin-ci) supaya perubahan kode admin ikut ter-serve.
+# Beda dengan start-all.sh: langkah admin menyalin shim index.php dari
+# archive/ supaya build admin ter-serve lewat php -S.
 # ─────────────────────────────────────────────────────────────────────────────
-MOBILE_ROOT=/home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
-ADMIN_ROOT=/home/nazky/RPL/Intern/admin-dashboard
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MOBILE_ROOT="$SCRIPT_DIR"
+ADMIN_ROOT="$SCRIPT_DIR"
 
 echo "🔴 Killing all services..."
 pkill -f "node src/index.js" 2>/dev/null
@@ -32,11 +31,10 @@ cd "$MOBILE_ROOT" || exit 1
 setsid nohup npm start > mobile.log 2>&1 &
 sleep 4
 
-echo "🟢 Sync build admin (www → admin-ci)..."
-cd "$ADMIN_ROOT" || exit 1
-npm run sync:admin || npm run build:admin
+echo "🟢 Starting Admin (8000)..."
 cd "$ADMIN_ROOT/admin-ci" || exit 1
-setsid nohup php -S localhost:8000 > admin.log 2>&1 &
+[ -f "$ADMIN_ROOT/archive/admin-ci/index.php" ] && cp "$ADMIN_ROOT/archive/admin-ci/index.php" ./index.php 2>/dev/null
+setsid nohup php -S 0.0.0.0:8000 > admin.log 2>&1 &
 sleep 2
 
 echo "Verification..."

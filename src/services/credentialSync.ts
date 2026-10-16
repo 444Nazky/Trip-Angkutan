@@ -1,7 +1,8 @@
 import { api } from './api'
 import { getStoredOfficer, refreshStoredRoutes } from './auth'
-import { isSessionCooldownActive, syncOfficersToLocal } from './officers'
+import { syncOfficersToLocal } from './officers'
 import { probeServer } from './sync'
+
 
 
 
@@ -9,8 +10,10 @@ const LAST_SYNC_KEY = 'trip.credentials.last_sync'
 
 
 
+
 type SyncResult = { synced: number; error?: string }
 let syncing: Promise<SyncResult> | null = null
+
 
 
 
@@ -20,28 +23,19 @@ export function getLastCredentialsSync(): number {
 
 
 
+
 export function syncOfficerCredentials(): Promise<SyncResult> {
   if (syncing) return syncing
 
   syncing = (async () => {
-    if (!(await probeServer(true))) {
-      return { synced: 0, error: 'Server tidak terjangkau. Coba lagi saat online.' }
-    }
-
+    if (!(await probeServer(true))) return { synced: 0, error: 'Server tidak terjangkau. Coba lagi saat online.' }
     if (!api.isAuthenticated || !getStoredOfficer()) {
       return { synced: 0, error: 'Masuk secara online terlebih dahulu untuk menyinkronkan petugas.' }
     }
 
     try {
       const officers = await syncOfficersToLocal(true)
-      // Sesi bisa dibersihkan saat fallback ke cache (token usang). Laporkan
-      // sebagai masalah sesi, bukan sukses palsu.
-      if (isSessionCooldownActive() || !api.isAuthenticated) {
-        return { synced: 0, error: 'Sesi petugas tidak valid. Masuk ulang secara online.' }
-      }
-      if (!officers.length) {
-        return { synced: 0, error: 'Sesi petugas tidak valid atau tidak ada data. Masuk ulang secara online.' }
-      }
+      if (!officers.length) return { synced: 0, error: 'Sesi petugas tidak valid atau tidak ada data. Masuk ulang secara online.' }
 
       const routes = await refreshStoredRoutes()
       if (routes === null) {

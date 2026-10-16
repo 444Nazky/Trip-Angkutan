@@ -2,6 +2,7 @@ import { getStoredRoutes, hasDockScopedRoutes, type UiRoute } from '../services/
 
 
 
+
 export const ROUTES = [
   { code: 'SJRE-SBDZ', from: 'SJRE', to: 'SBDZ', label: 'Sijangkung → Sabadi', distance: '42 km', duration: '1j 10m' },
   { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Sabadi → Sijangkung', distance: '42 km', duration: '1j 10m' },
@@ -11,14 +12,14 @@ export const ROUTES = [
 
 
 
+
 export function activeRoutes(): UiRoute[] {
   const stored = getStoredRoutes()
   return stored.length > 0 || hasDockScopedRoutes() ? stored : ROUTES
 }
 
-
-
 export const allTrips = []
+
 
 
 
@@ -32,14 +33,13 @@ export const tariffData = [
 
 
 
+
 export interface DermagaAccess {
   id: string
   code?: string
   name: string
   region_id?: string
 }
-
-
 
 export const officerList = [
   { id: '1', name: 'Budi Santoso', initials: 'BS', region: 'BADAU', pin: '123456', status: 'Aktif', device: '-', trips: 0, lastActive: '-', joined: '-', dermagaAccess: [{ id: 'BADAU-D1', code: 'D1', name: 'Dermaga 1' }] },

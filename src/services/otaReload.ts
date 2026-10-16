@@ -2,7 +2,9 @@ import { sleep } from './ota'
 
 
 
+
 const SW_SKIP_MSG = { type: 'SKIP_WAITING' }
+
 
 
 
@@ -20,6 +22,9 @@ export function appliedCacheBuster(): string {
   }
 }
 
+
+
+
 async function notifyServiceWorker(version?: string): Promise<void> {
   try {
     if (!('serviceWorker' in navigator)) return
@@ -31,20 +36,20 @@ async function notifyServiceWorker(version?: string): Promise<void> {
       navigator.serviceWorker.controller,
     ]
     for (const worker of targets) {
-      try { worker?.postMessage(SW_SKIP_MSG) } catch {}
+      try { worker?.postMessage(SW_SKIP_MSG) } catch { /* worker mati */ }
     }
 
     if (version) {
       const msg = { type: 'SET_ACTIVE', version }
       for (const worker of targets) {
-        try { worker?.postMessage(msg) } catch {}
+        try { worker?.postMessage(msg) } catch { /* worker mati */ }
       }
     }
   } catch (err) {
-
     console.warn('[ota-reload] gagal memberi tahu SW:', err)
   }
 }
+
 
 
 
@@ -52,7 +57,7 @@ export async function hardReloadToNewBundle(version?: string): Promise<void> {
   const target = version ?? appliedCacheBuster()
   await notifyServiceWorker(target || undefined)
   await sleep(150)
-  try { sessionStorage.setItem('trip.ota.hardReload', String(Date.now())) } catch {}
+  try { sessionStorage.setItem('trip.ota.hardReload', String(Date.now())) } catch { /* */ }
 
   let url = '/'
   if (target) {

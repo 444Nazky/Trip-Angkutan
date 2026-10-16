@@ -3,12 +3,16 @@ const DB_VERSION = 2
 
 
 
+
 export type StoreName = 'pending' | 'trips' | 'meta'
 
 const STORE_PENDING: StoreName = 'pending'
 const STORE_TRIPS: StoreName = 'trips'
 const STORE_META: StoreName = 'meta'
 const ALL_STORES: StoreName[] = [STORE_PENDING, STORE_TRIPS, STORE_META]
+
+
+
 
 const KEY_PATH: Record<StoreName, string> = {
   pending: 'syncId',
@@ -18,10 +22,13 @@ const KEY_PATH: Record<StoreName, string> = {
 
 const LS_PREFIX = 'trip.localdb.v1.'
 
+
+
+
 let _db: IDBDatabase | null = null
 let _dbPromise: Promise<IDBDatabase | null> | null = null
-
 let _fallback = false
+
 
 
 
@@ -37,8 +44,7 @@ function openDB(): Promise<IDBDatabase | null> {
         return
       }
       const req = indexedDB.open(DB_NAME, DB_VERSION)
-
-      req.onblocked = () => {}
+      req.onblocked = () => { /* biarkan; retry berikutnya akan berhasil */ }
       req.onupgradeneeded = () => {
         const db = req.result
         for (const name of ALL_STORES) {
@@ -49,7 +55,7 @@ function openDB(): Promise<IDBDatabase | null> {
       }
       req.onsuccess = () => {
         const db = req.result
-        db.onversionchange = () => { try { db.close() } catch {}; _db = null; _dbPromise = null }
+        db.onversionchange = () => { try { db.close() } catch { /* ignore */ }; _db = null; _dbPromise = null }
         _db = db
         resolve(db)
       }
@@ -69,10 +75,12 @@ function openDB(): Promise<IDBDatabase | null> {
 
 
 
+
 export async function initLocalDb(): Promise<'indexeddb' | 'localStorage'> {
   const db = await openDB()
   return db ? 'indexeddb' : 'localStorage'
 }
+
 
 
 
@@ -82,7 +90,9 @@ export function localDbBackend(): 'indexeddb' | 'localStorage' {
 
 
 
+
 function lsKey(store: StoreName): string { return `${LS_PREFIX}${store}` }
+
 
 
 
@@ -96,10 +106,12 @@ function lsRead<T>(store: StoreName): Record<string, T> {
 
 
 
+
 function lsWrite<T>(store: StoreName, map: Record<string, T>): void {
   try { localStorage.setItem(lsKey(store), JSON.stringify(map)) }
   catch (err) { console.warn('[local-db] fallback localStorage penuh/gagal:', err) }
 }
+
 
 
 
@@ -121,6 +133,7 @@ export async function dbAll<T>(store: StoreName): Promise<T[]> {
 
 
 
+
 export async function dbGet<T>(store: StoreName, key: string): Promise<T | null> {
   const db = await openDB()
   if (!db) return lsRead<T>(store)[key] ?? null
@@ -133,6 +146,7 @@ export async function dbGet<T>(store: StoreName, key: string): Promise<T | null>
     } catch { resolve(null) }
   })
 }
+
 
 
 
@@ -159,6 +173,7 @@ export async function dbPut<T extends object>(store: StoreName, value: T): Promi
     }
   })
 }
+
 
 
 
@@ -191,6 +206,7 @@ export async function dbPutMany<T extends object>(store: StoreName, values: T[])
 
 
 
+
 export async function dbDelete(store: StoreName, key: string): Promise<boolean> {
   const db = await openDB()
   if (!db) {
@@ -213,6 +229,7 @@ export async function dbDelete(store: StoreName, key: string): Promise<boolean> 
 
 
 
+
 export async function dbCount(store: StoreName): Promise<number> {
   const db = await openDB()
   if (!db) return Object.keys(lsRead(store)).length
@@ -228,9 +245,10 @@ export async function dbCount(store: StoreName): Promise<number> {
 
 
 
+
 export async function dbClear(store: StoreName): Promise<void> {
   const db = await openDB()
-  if (!db) { try { localStorage.removeItem(lsKey(store)) } catch {} return }
+  if (!db) { try { localStorage.removeItem(lsKey(store)) } catch { /* ignore */ } return }
   await new Promise<void>(resolve => {
     try {
       const tx = db.transaction(store, 'readwrite')
@@ -244,10 +262,12 @@ export async function dbClear(store: StoreName): Promise<void> {
 
 
 
+
 export async function metaGet(key: string): Promise<unknown> {
   const row = await dbGet<{ k: string; v: unknown }>('meta', key)
   return row?.v ?? null
 }
+
 
 
 
@@ -257,12 +277,13 @@ export async function metaSet(key: string, value: unknown): Promise<void> {
 
 
 
+
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
     const stor = navigator.storage
     if (!stor) return false
     if (stor.persisted && (await stor.persisted())) return true
     if (stor.persist) return await stor.persist()
-  } catch {}
+  } catch { /* tidak didukung — abaikan */ }
   return false
 }

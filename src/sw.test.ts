@@ -157,7 +157,9 @@ describe('Service Worker v4 — hanya versi aktif yang disajikan', () => {
 
   it('permintaan non-bundle & lintas origin tidak diintersep', async () => {
     expect(sw.respondWith(new Request(`${ORIGIN}/api/geofences`))).toBeUndefined()
-    expect(sw.respondWith(new Request('https://raw.githubusercontent.com/x/y.json'))).toBeUndefined()
+    // Manifest modul WAJIB selalu segar dari server — jangan pernah dijawab cache SW.
+    expect(sw.respondWith(new Request(`${ORIGIN}/api/v1/ota-manifest`))).toBeUndefined()
+    expect(sw.respondWith(new Request('https://cdn.example.com/berkas.json'))).toBeUndefined()
   })
 })
 

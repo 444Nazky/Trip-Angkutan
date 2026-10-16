@@ -1,17 +1,10 @@
-// Smoke test E2E LOKAL — boot backend endpoint-trip dengan DB/uploads SEKALI PAKAI.
-// Tidak menyentuh data produksi (DB_PATH & UPLOADS_DIR diarahkan ke folder temp).
-// Alur yang diuji:
-//   A. Admin-login password salah → 401 (no fallback literal)
-//   B. Officer login → GET /api/officers/my-region: roster self-region, tanpa bocor region lain
-//   C. POST /api/trips/complete (multipart) ×2 dengan clientTripId sama → upsert (no_trip sama)
-//   D. POST /api/geofences: clamp radius 45000→100, 0→100, 250→250; placeholder koordinat → 400
-//   E. GET /api/geofences/resolve-link: host internal/cloud-metadata → 400 (SSRF allowlist)
-
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
+
+
 
 const BACKEND = path.resolve(__dirname, '..');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'trip-e2e-'));
@@ -19,7 +12,12 @@ const PORT = 45791;
 const JWT_SECRET = 'e2e-secret-' + crypto.randomBytes(8).toString('hex');
 const ADMIN_PASS = 'e2e-admin-' + crypto.randomBytes(6).toString('hex');
 
+
+
 let failures = 0;
+
+
+
 function check(name, cond, extra = '') {
   console.log((cond ? '  ok ' : '  FAIL ') + name + (cond ? '' : `  << ${extra}`));
   if (!cond) failures++;
@@ -28,7 +26,6 @@ function check(name, cond, extra = '') {
 
 
 async function main() {
-  // ── Seed DB dulu (child proses terpisah, DB_PATH di temp) ──────────────────
   const seedScript = path.join(TMP, 'seed.js');
   fs.writeFileSync(seedScript, `
     process.env.DB_PATH = ${JSON.stringify(path.join(TMP, 'trip.db'))};
@@ -36,16 +33,16 @@ async function main() {
     dbModule.loadDb().then(() => {
       const { db } = dbModule;
       const { randomUUID } = require('crypto');
+      const bcrypt = require(${JSON.stringify(path.join(BACKEND, 'node_modules/bcryptjs'))});
       const rid = randomUUID(), rid2 = randomUUID(), did = randomUUID(), oid = randomUUID();
       const st = sql => db.prepare(sql);
       st('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)').run(rid, 'Region E2E', 'E2E', 'pw');
       st('INSERT INTO regions (id, name, code, password) VALUES (?, ?, ?, ?)').run(rid2, 'Region Lain', 'OTH', 'pw');
       st('INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)').run(did, rid, 'Dermaga E2E', 'E2E-D1');
-      st('INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)').run(oid, 'Petugas E2E', '123456', rid);
+      st('INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)').run(oid, 'Petugas E2E', bcrypt.hashSync('123456', 10), rid);
       st('INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)').run(oid, rid);
       st('INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)').run(oid, did);
-      // Petugas region LAIN — tidak boleh muncul di roster my-region
-      st('INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)').run(randomUUID(), 'Petugas Lain', '654321', rid2);
+      st('INSERT INTO officers (id, name, pin, region_id, is_active) VALUES (?, ?, ?, ?, 1)').run(randomUUID(), 'Petugas Lain', bcrypt.hashSync('654321', 10), rid2);
       console.log(out(rid + ' ' + oid));
     });
     function out(x) { return 'SEEDED ' + x; }
@@ -59,7 +56,6 @@ async function main() {
   }
   console.log('Seed OK — officerId:', seededOfficerId, '| regionId:', seededRegionId);
 
-  // ── Boot server (env terisolasi, uploads & DB di temp) ────────────────────
   const child = spawn(process.execPath, [path.join(BACKEND, 'src/index.js')], {
     env: {
       ...process.env,
@@ -68,6 +64,10 @@ async function main() {
       ADMIN_PASSWORD: ADMIN_PASS,
       DB_PATH: path.join(TMP, 'trip.db'),
       UPLOADS_DIR: path.join(TMP, 'uploads'),
+      // Metadata/APK diarahkan ke temp: uji update TIDAK boleh mengubah berkas
+      // metadata/APK repo (dulu bisa "mem-publish" versi palsu ke repo).
+      METADATA_DIR: path.join(TMP, 'metadata'),
+      APK_DIR: path.join(TMP, 'apks'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -81,7 +81,7 @@ async function main() {
     try {
       const r = await fetch(`${base}/api/health`);
       if (r.ok) { up = true; break; }
-    } catch { /* belum hidup */ }
+    } catch {}
     await new Promise(r => setTimeout(r, 500));
   }
   if (!up) {
@@ -101,7 +101,6 @@ async function main() {
   };
   const adminToken = headers.admin.Authorization;
 
-  // ── A: admin-login password salah → 401 ───────────────────────────────────
   const badAdmin = await fetch(`${base}/api/auth/admin-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -110,7 +109,6 @@ async function main() {
   console.log('[A] admin-login password salah →', badAdmin.status);
   check('A1 password salah → 401 (bukan fallback admin123)', badAdmin.status === 401, 'status=' + badAdmin.status);
 
-  // ── B: my-region ──────────────────────────────────────────────────────────
   const mr = await fetch(`${base}/api/officers/my-region`, { headers: headers.officer });
   const mrb = await mr.json().catch(() => ({}));
   console.log('\n[B] GET /api/officers/my-region →', mr.status);
@@ -122,7 +120,6 @@ async function main() {
     check('B3 roster TIDAK berisi Petugas Lain (privacy fix)', !names.includes('Petugas Lain'), JSON.stringify(names));
   }
 
-  // ── C: trips upsert (multipart × 2) ───────────────────────────────────────
   const mkForm = () => {
     const f = new FormData();
     f.append('payload', JSON.stringify({
@@ -148,7 +145,6 @@ async function main() {
   check('C2 retry (upsert) sukses (200)', t2.status === 200, JSON.stringify(t2b).slice(0, 300));
   check('C3 no_trip sama di kedua submit (bukan duplikat)', t1b.noTrip && t1b.noTrip === t2b.noTrip, `${t1b.noTrip} vs ${t2b.noTrip}`);
 
-  // ── D: clamp radius geofence ──────────────────────────────────────────────
   const postGeo = async (body) => fetch(`${base}/api/geofences`, {
     method: 'POST',
     headers: { ...headers.admin, 'Content-Type': 'application/json' },
@@ -167,16 +163,139 @@ async function main() {
   const bad = await postGeo({ locationName: 'E2E placeholder', latitude: 'Otomatis dari Link Maps', longitude: 106.84 });
   check('D8 latitude placeholder string → 400', bad.status === 400, 'status=' + bad.status);
 
-  // ── E: resolve-link SSRF guard ────────────────────────────────────────────
   console.log('\n[E] resolve-link SSRF allowlist');
   const e1 = await fetch(`${base}/api/geofences/resolve-link?url=${encodeURIComponent('http://127.0.0.1:22/')}`, { headers: headers.admin });
   check('E1 host internal 127.0.0.1 → 400', e1.status === 400, 'status=' + e1.status);
   const e2 = await fetch(`${base}/api/geofences/resolve-link?url=${encodeURIComponent('http://169.254.169.254/latest/meta-data/')}`, { headers: headers.admin });
   check('E2 metadata cloud 169.254.169.254 → 400', e2.status === 400, 'status=' + e2.status);
 
+  // [G] Titik geofence yang dibuat admin dashboard TIDAK mengirim dermagaId →
+  // tersimpan dermaga_id NULL. Dulu GET ?dermagaId=<uuid> hanya mencari
+  // `dermaga_id = ?` sehingga titik itu tak pernah sampai ke HP petugas
+  // ("Belum ada titik geofence tersimpan") dan input trip terkunci.
+  console.log('\n[G] sinkron geofence petugas (titik berlaku umum harus ikut terkirim)');
+  const anyDermaga = crypto.randomUUID();
+  const gRes = await fetch(`${base}/api/geofences?dermagaId=${anyDermaga}`, { headers: headers.officer });
+  const gRows = await gRes.json().catch(() => null);
+  check('G1 petugas (bukan admin) boleh membaca master geofence', gRes.ok, 'status=' + gRes.status);
+  check('G2 titik tanpa dermaga (NULL) ikut terkirim ke petugas',
+    Array.isArray(gRows) && gRows.some(g => g.locationName === 'E2E r250'),
+    JSON.stringify(Array.isArray(gRows) ? gRows.map(g => g.locationName) : gRows).slice(0, 200));
+  check('G3 payload memuat allowedRouteCodes (dipakai scoping mobile)',
+    Array.isArray(gRows) && gRows.every(g => Array.isArray(g.allowedRouteCodes)),
+    JSON.stringify(gRows && gRows[0]));
+  const gAll = await (await fetch(`${base}/api/geofences`, { headers: headers.admin })).json();
+  check('G4 tanpa filter → master lengkap (dashboard)', Array.isArray(gAll) && gAll.length >= (Array.isArray(gRows) ? gRows.length : 0),
+    `all=${Array.isArray(gAll) ? gAll.length : 'n/a'} filtered=${Array.isArray(gRows) ? gRows.length : 'n/a'}`);
+
+  // [F] CORS — origin dev/native harus selalu dapat Access-Control-Allow-Origin,
+  // supaya dev-server (localhost:5173) dan shell Capacitor tidak diblokir browser
+  // walau NODE_ENV=production + CORS_ORIGIN whitelist di Railway.
+  console.log('\n[F] CORS origin dev & preflight');
+  const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:49812', 'capacitor://localhost'];
+  for (const origin of devOrigins) {
+    const res = await fetch(`${base}/api/health`, { headers: { Origin: origin } });
+    const acao = res.headers.get('access-control-allow-origin');
+    check(`F ACAO untuk ${origin}`, res.ok && acao === origin, `status=${res.status} acao=${acao}`);
+  }
+
+  const pre = await fetch(`${base}/api/v1/app-version`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://localhost:5173',
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'authorization,content-type',
+    },
+  });
+  const preAcao = pre.headers.get('access-control-allow-origin');
+  const preHeaders = String(pre.headers.get('access-control-allow-headers') || '').toLowerCase();
+  check('F preflight dev origin → 204 + ACAO', pre.status === 204 && preAcao === 'http://localhost:5173', `status=${pre.status} acao=${preAcao}`);
+  check('F preflight mengizinkan header authorization', preHeaders.includes('authorization'), 'allow-headers=' + preHeaders);
+
+  if (String(process.env.CORS_ORIGIN || '').trim() === '*') {
+    console.log('  (lewati kontrol negatif: CORS_ORIGIN=* mengizinkan semua origin)');
+  } else {
+    const evil = await fetch(`${base}/api/health`, { headers: { Origin: 'https://not-allowed.example.net' } });
+    const evilAcao = evil.headers.get('access-control-allow-origin');
+    check('F origin tak dikenal tetap TANPA ACAO', evil.ok && !evilAcao, `status=${evil.status} acao=${evilAcao}`);
+    const whitelist = String(process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const origin of whitelist) {
+      if (origin === '*') continue;
+      const res = await fetch(`${base}/api/health`, { headers: { Origin: origin } });
+      check(`F ACAO untuk whitelist ${origin}`, res.headers.get('access-control-allow-origin') === origin, 'acao=' + res.headers.get('access-control-allow-origin'));
+    }
+  }
+
+  // [H] API update TIDAK BOLEH mengiklankan paket yang tak bisa diunduh, dan
+  // hash/ukuran harus nyata supaya klien bisa verifikasi integritas. Ini akar
+  // kegagalan update produksi: versions.json menunjuk 1.0.12 tanpa berkas →
+  // server bilang "ada update", aplikasi mengunduh → 404 → update selalu gagal.
+  console.log('\n[H] API update (hanya iklankan paket nyata + hash asli)');
+  const metadataDir = path.join(TMP, 'metadata');
+  const apkDir = path.join(TMP, 'apks');
+  fs.mkdirSync(metadataDir, { recursive: true });
+  fs.mkdirSync(apkDir, { recursive: true });
+  const fakeApk = crypto.randomBytes(1_100_000);
+  fs.writeFileSync(path.join(apkDir, 'app-9.9.9.apk'), fakeApk);
+  const fakeHash = crypto.createHash('sha256').update(fakeApk).digest('hex');
+  fs.writeFileSync(path.join(metadataDir, 'versions.json'), JSON.stringify({
+    latest: { version: '9.9.9', downloadUrl: '/api/v1/app-download/9.9.9', releaseNotes: 'E2E: perbaikan bug sinkronisasi', minVersion: '1.0.0', apkHash: fakeHash },
+    releases: {
+      '9.9.9': { version: '9.9.9', downloadUrl: '/api/v1/app-download/9.9.9', releaseNotes: 'E2E: perbaikan bug sinkronisasi', minVersion: '1.0.0' },
+    },
+  }, null, 2));
+
+  const av = await (await fetch(`${base}/api/v1/app-version?current=1.0.0`)).json();
+  check('H1 ada paket → updateAvailable true + downloadUrl', av.updateAvailable === true && Boolean(av.downloadUrl), JSON.stringify(av));
+  // URL unduhan WAJIB absolut: klien versi lama menggabungkan path relatif terhadap
+  // base URL-nya sendiri (`.../api` + `/api/v1/...`) → 404 JSON → "dokumen error"
+  // dan update tak pernah berhasil di perangkat petugas.
+  check('H1b downloadUrl ABSOLUT (bukan path relatif)', /^https?:\/\//i.test(String(av.downloadUrl)), 'url=' + av.downloadUrl);
+  check('H2 apkHash NYATA (sha256 file, bukan null)', av.apkHash === fakeHash, `got=${av.apkHash}`);
+  check('H3 apkSize NYATA', av.apkSize === fakeApk.length, `got=${av.apkSize} want=${fakeApk.length}`);
+  const dl = await fetch(`${base}${String(av.downloadUrl).replace(/^https?:\/\/[^/]+/i, '')}`, { method: 'GET' });
+  const dlBytes = Buffer.from(await dl.arrayBuffer());
+  check('H4 berkas bisa diunduh + byte identik', dl.ok && dlBytes.length === fakeApk.length && crypto.createHash('sha256').update(dlBytes).digest('hex') === fakeHash, `status=${dl.status} size=${dlBytes.length}`);
+  const rn = await fetch(`${base}/api/v1/release-notes/9.9.9`);
+  const rnb = await rn.json().catch(() => ({}));
+  check('H5 release-notes ada (mobile memanggilnya)', rn.ok && Array.isArray(rnb.notes) && rnb.notes.length > 0, `status=${rn.status} ${JSON.stringify(rnb).slice(0, 120)}`);
+  const pubRel = await fetch(`${base}/api/v1/publish-version`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-publish-secret': process.env.PUBLISH_SECRET || 'trip-angkut-secret' },
+    body: JSON.stringify({ version: '9.9.10', downloadUrl: '/api/v1/app-download/9.9.10' }),
+  });
+  check('H6 publish dengan downloadUrl relatif ditolak (400)', pubRel.status === 400, 'status=' + pubRel.status);
+  const pubOk = await fetch(`${base}/api/v1/publish-version`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-publish-secret': process.env.PUBLISH_SECRET || 'trip-angkut-secret' },
+    body: JSON.stringify({ version: '9.9.11', downloadUrl: 'https://cdn.invalid.example/app-9.9.11.apk', releaseNotes: 'E2E' }),
+  });
+  check('H7 publish versi tanpa berkas lokal tetap 200 (metadata lengkap)', pubOk.status === 200, 'status=' + pubOk.status);
+
+  // Metadata menunjuk versi tanpa berkas (persis bug produksi) → TIDAK diiklankan.
+  fs.writeFileSync(path.join(metadataDir, 'versions.json'), JSON.stringify({
+    latest: { version: '9.9.11', downloadUrl: '/api/v1/app-download/9.9.11', releaseNotes: 'E2E tanpa berkas', minVersion: '1.0.0' },
+    releases: { '9.9.11': { version: '9.9.11', downloadUrl: '/api/v1/app-download/9.9.11', releaseNotes: 'E2E tanpa berkas', minVersion: '1.0.0' } },
+  }, null, 2));
+  const av2 = await (await fetch(`${base}/api/v1/app-version?current=1.0.0`)).json();
+  check('H8 versi tanpa paket → updateAvailable false (tidak memicu update gagal)', av2.updateAvailable === false && av2.downloadUrl === null, JSON.stringify(av2));
+
+  // Metadata yang mengaku 9.9.12 padahal berkasnya isi versi lain → JANGAN diiklankan.
+  // Ini bug produksi nyata: app-1.0.8.apk berisi 1.0.6 → update "berhasil" tapi
+  // versi aplikasi tak pernah berubah (popup update muncul terus).
+  const fakeMismatch = crypto.randomBytes(1_100_000);
+  fs.writeFileSync(path.join(apkDir, 'app-9.9.12.apk'), fakeMismatch);
+  fs.writeFileSync(path.join(metadataDir, 'versions.json'), JSON.stringify({
+    latest: { version: '9.9.12', downloadUrl: '/api/v1/app-download/9.9.12', releaseNotes: 'E2E salah label', minVersion: '1.0.0', apkVersionName: '9.9.9' },
+    releases: { '9.9.12': { version: '9.9.12', downloadUrl: '/api/v1/app-download/9.9.12', releaseNotes: 'E2E salah label', minVersion: '1.0.0', apkVersionName: '9.9.9' } },
+  }, null, 2));
+  const av3 = await (await fetch(`${base}/api/v1/app-version?current=1.0.0`)).json();
+  check('H9 paket salah label (apkVersionName ≠ versi) → tidak diiklankan',
+    av3.updateAvailable === false && av3.downloadUrl === null, JSON.stringify(av3));
+
   console.log('\n' + (failures === 0 ? 'SMOKETEST LULUS SEMUA' : `${failures} CHECK GAGAL`));
   child.kill();
-  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* temp */ }
+  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {}
   process.exit(failures === 0 ? 0 : 1);
 }
 

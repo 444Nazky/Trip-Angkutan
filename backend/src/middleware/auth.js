@@ -1,42 +1,39 @@
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+
+
 
 if (!process.env.JWT_SECRET) {
-  console.error('[auth] CRITICAL: JWT_SECRET environment variable is required')
-  console.error('[auth] Server cannot start without JWT_SECRET')
-  process.exit(1)
+  console.error('[auth] CRITICAL: JWT_SECRET environment variable is required');
+  console.error('[auth] Server cannot start without JWT_SECRET');
+  process.exit(1);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET;
 
 
 
 function authenticate(req, res, next) {
   try {
-    const authHeader = req.headers.authorization
+    const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ error: 'No token provided' })
+      return res.status(401).json({ error: 'No token provided' });
     }
 
-    const token = authHeader.split(' ')[1]
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
 
     const ctx = {
       officerId: decoded.officerId,
       regionId: decoded.regionId,
       role: decoded.role || 'officer',
-    }
+    };
 
-    req.user = ctx
-    req.officer = ctx
+    req.user = ctx;
+    req.officer = ctx;
 
-    next()
+    next();
   } catch (error) {
-    // token kedaluwarsa beda dengan token ngawur — petugas perlu login ulang
-    const expired = !!error && error.name === 'TokenExpiredError'
-    res.status(401).json({
-      error: expired ? 'Sesi habis. Login ulang.' : 'Invalid token',
-      code: expired ? 'SESSION_EXPIRED' : 'INVALID_TOKEN',
-    })
+    res.status(401).json({ error: 'Invalid token' });
   }
 }
 
@@ -44,11 +41,11 @@ function authenticate(req, res, next) {
 
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' })
+    return res.status(403).json({ error: 'Admin access required' });
   }
-  next()
+  next();
 }
 
 
 
-module.exports = { authenticate, requireAdmin, JWT_SECRET }
+module.exports = { authenticate, requireAdmin, JWT_SECRET };

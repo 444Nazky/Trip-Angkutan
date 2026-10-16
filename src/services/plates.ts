@@ -2,7 +2,9 @@ import { api } from './api'
 
 
 
+
 export type PlateStatus = 'internal' | 'lokal' | 'eksternal'
+
 
 
 
@@ -11,7 +13,6 @@ export interface PlateCheck {
   plate: string
   owner: string | null
   status: PlateStatus
-
   jenisTarif: 'lokal' | 'eksternal' | null
   originRegionId: string | null
   originRegionCode: string | null
@@ -19,6 +20,7 @@ export interface PlateCheck {
   checkpointRegionCode: string | null
   tariffAmount: number
 }
+
 
 
 

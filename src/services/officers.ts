@@ -5,6 +5,7 @@ import { seedRoster } from './seedData'
 
 
 
+
 export interface BackendOfficer {
   id: string
   name: string
@@ -19,12 +20,6 @@ export interface BackendOfficer {
 const OFFICER_CACHE_KEY = 'trip.officers.cache.v1'
 const OFFICER_CACHE_TTL = 5 * 60 * 1000
 
-// Saat sesi petugas terbukti tidak valid (token usang/kedaluwarsa), jangan
-// mencoba lagi di setiap event online/session-ready — itu yang memicu
-// crash-loop sinkronisasi offline→online. Tahan percobaan berikutnya selama
-// cooldown berikut, lalu coba lagi otomatis.
-const SESSION_COOLDOWN_MS = 60 * 1000
-let _sessionCooldownUntil = 0
 
 
 
@@ -33,37 +28,6 @@ interface CacheEntry {
   timestamp: number
 }
 
-
-
-/**
- * Error khusus sesi petugas: dibedakan dari kegagalan jaringan/server agar
- * pemanggil bisa melakukan fallback secara graceful, bukan mengulang tanpa henti.
- */
-export class SessionInvalidError extends Error {
-  readonly code = 'SESSION_INVALID'
-  constructor(message = 'Sesi petugas tidak valid. Masuk ulang secara online.') {
-    super(message)
-    this.name = 'SessionInvalidError'
-  }
-}
-
-
-
-/** True bila sinkron petugas sedang menahan diri setelah sesi terbukti tidak valid. */
-export function isSessionCooldownActive(): boolean {
-  return Date.now() < _sessionCooldownUntil
-}
-
-
-
-/**
- * Bersihkan token lokal yang usang lalu mulai masa cooldown. Ini memutus
- * siklus "sync gagal → event online → sync gagal lagi" tanpa menggantung UI.
- */
-function clearStaleSession(): void {
-  try { api.setToken(null) } catch {}
-  _sessionCooldownUntil = Date.now() + SESSION_COOLDOWN_MS
-}
 
 
 
@@ -78,50 +42,54 @@ function loadCache(): CacheEntry | null {
 
 
 
+
 function saveCache(officers: BackendOfficer[]) {
   try {
     localStorage.setItem(OFFICER_CACHE_KEY, JSON.stringify({
       officers,
       timestamp: Date.now(),
     }))
-  } catch {}
+  } catch { /* quota */ }
 }
 
-async function fetchBackendOfficers(force = false): Promise<BackendOfficer[]> {
-  const cache = loadCache()
-  if (!force && cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
-    return cache.officers
-  }
 
-  // Masih dalam cooldown sesi → pakai cache terakhir (graceful fallback)
-  // alih-alih menembak server lagi dan gagal berulang kali.
-  if (isSessionCooldownActive()) {
-    return cache?.officers ?? []
+
+
+// null = sesi/jaringan belum siap → pemanggil pakai data lokal, tanpa error
+async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | null> {
+  if (!force) {
+    const cache = loadCache()
+    if (cache && Date.now() - cache.timestamp < OFFICER_CACHE_TTL) {
+      return cache.officers
+    }
   }
 
   const ok = await ensureBackendSession()
   if (!ok || !api.isAuthenticated) {
-    clearStaleSession()
-    if (cache?.officers.length) return cache.officers
-    throw new SessionInvalidError()
+    // ponytail: sesi belum siap → pakai cache lokal, JANGAN hapus token.
+    // Token dipertahankan agar percobaan berikutnya (atau token perpetual
+    // server) bisa dipakai; penghapusan dulu bikin roster mati permanen.
+    return loadCache()?.officers ?? null
   }
 
   const result = await api.get<BackendOfficer[]>('/officers/my-region')
   if (!result.ok) {
-    if (result.error?.code === '401' || result.error?.code === '403') {
-      clearStaleSession()
-      if (cache?.officers.length) return cache.officers
-      throw new SessionInvalidError()
+    const code = result.error?.code
+    if (code === '401' || code === '403') {
+      // ponytail: sesi ditolak server → lanjut pakai data lokal, token tetap
+      // disimpan (server kini menerima token lama; petugas aktif kembali
+      // sembuh sendiri tanpa login ulang).
+      return loadCache()?.officers ?? null
     }
-    if (result.error?.code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
-    throw new Error(result.error?.message || 'Server gagal mengirim daftar petugas.')
+    if (code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
+    // jaringan putus / CORS / timeout → jangan ganggu petugas
+    return loadCache()?.officers ?? null
   }
-  if (!Array.isArray(result.data)) throw new Error('Data petugas dari server tidak valid.')
-  // Sesi sehat → buka kembali jalur sinkron normal.
-  _sessionCooldownUntil = 0
+  if (!Array.isArray(result.data)) return loadCache()?.officers ?? null
   saveCache(result.data)
   return result.data
 }
+
 
 
 
@@ -146,9 +114,11 @@ function toMobileOfficer(bo: BackendOfficer) {
 
 
 
+
 export async function syncOfficersToLocal(force = false): Promise<ReturnType<typeof toMobileOfficer>[]> {
   const backendOfficers = await fetchBackendOfficers(force)
-  if (!backendOfficers.length) return []
+  // sesi mati / offline → roster lokal dipakai apa adanya
+  if (!backendOfficers?.length) return []
   const mobileOfficers = backendOfficers.map(toMobileOfficer)
 
   const missingPinHash = backendOfficers.filter(o => o.is_active && !o.pin_hash)
@@ -186,7 +156,6 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   const merged = new Map<string, ReturnType<typeof toMobileOfficer>>()
   for (const o of mobileOfficers) {
     const prev = local.get(String(o.id))
-
     const dermagaAccess = o.dermagaAccess?.length ? o.dermagaAccess : (prev?.dermagaAccess ?? [])
     merged.set(String(o.id), { ...o, dermagaAccess })
   }
@@ -196,6 +165,7 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
 
   return roster
 }
+
 
 
 

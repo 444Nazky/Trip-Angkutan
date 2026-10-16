@@ -7,11 +7,15 @@ const { randomUUID } = require('crypto');
 const { db } = require('../db');
 const { authenticate } = require('../middleware/auth');
 
+
+
 const photoExtension = (mimetype) => ({
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
 }[mimetype]);
+
+
 
 const { UPLOADS_DIR } = require('../uploads-dir');
 const uploadDocumentation = multer({
@@ -25,6 +29,8 @@ const uploadDocumentation = multer({
   },
 });
 
+
+
 const validPhotoIndex = (value, files) =>
   value === null || value === undefined
     ? null
@@ -37,7 +43,6 @@ const numericCoordinate = (value) => Number.isFinite(value) ? value : null;
 function generateTripNo() {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-
   const random = require('crypto').randomBytes(4).toString('hex').toUpperCase();
   return `TRP${dateStr}${random}`;
 }
@@ -59,7 +64,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
     }
 
     const clientTripId = typeof payload.clientTripId === 'string' ? payload.clientTripId.trim() : '';
-
     const existingTrip = clientTripId
       ? db.prepare(`SELECT id, no_trip FROM trips WHERE client_trip_id = ? AND officer_id = ? LIMIT 1`)
           .get(clientTripId, String(req.user?.officerId ?? ''))
@@ -93,7 +97,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
       const masterTariff = db.prepare(`
         SELECT * FROM tariffs WHERE vehicle_type = ? AND is_active = 1 LIMIT 1
       `).get(vehicle.vehicleType);
-
       const amount = (typeof vehicle.tariffAmount === 'number' && vehicle.tariffAmount > 0)
         ? vehicle.tariffAmount
         : (masterTariff
@@ -116,7 +119,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
     };
 
     if (existingTrip) {
-
       db.prepare(`
         UPDATE trips SET
           status_muatan = ?, route_from = ?, route_to = ?, keterangan = ?,
@@ -129,7 +131,6 @@ router.post('/complete', authenticate, uploadDocumentation.array('photos', 50), 
         numericCoordinate(payload.tripPhotoLatitude), numericCoordinate(payload.tripPhotoLongitude),
         payload.startedAt || null, payload.completedAt || null, tripId
       );
-
       const oldVehicles = db.prepare(`SELECT vehicle_id FROM trip_vehicles WHERE trip_id = ?`).all(tripId);
       for (const row of oldVehicles) {
         db.prepare(`DELETE FROM trip_vehicles WHERE trip_id = ? AND vehicle_id = ?`).run(tripId, row.vehicle_id);

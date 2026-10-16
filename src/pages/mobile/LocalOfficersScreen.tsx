@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react'
 import { Users, Wifi, WifiOff, RefreshCw, ChevronLeft } from 'lucide-react'
 import { listOfficers } from '../../services/offlineDb'
 import { getLastCredentialsSync, syncOfficerCredentials } from '../../services/credentialSync'
+import { forceSyncGeofencesFromBackend } from '../../services/geofence'
+import { useApp } from '../store'
 import type { MobileScreen } from '../types'
+
 
 
 
@@ -22,9 +25,11 @@ interface LocalOfficer {
 
 
 
+
 interface LocalOfficersScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 
@@ -48,16 +53,27 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
     }
   }
 
+
+
+  
+
+
+
   useEffect(() => {
     void loadOfficers()
   }, [])
+
+  const { refreshOfficers } = useApp()
 
   const handleSync = async () => {
     setSyncing(true)
     setSyncError(null)
     try {
       const result = await syncOfficerCredentials()
-      if (result.synced > 0) await loadOfficers()
+      // tarik roster + titik baru dari server, tanpa logout
+      await refreshOfficers(true)
+      await forceSyncGeofencesFromBackend()
+      await loadOfficers()
       if (result.error) setSyncError(result.error)
     } catch {
       setSyncError('Sinkronisasi gagal. Coba lagi.')
@@ -65,6 +81,9 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
       setSyncing(false)
     }
   }
+
+
+
 
   const formatSyncTime = (ts: number | null) => {
     if (!ts) return 'Belum pernah'
@@ -139,6 +158,7 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
         </div>
       )}
 
+      {/* Status konektivitas */}
       <div className="flex items-center gap-2">
         <Wifi size={14} className="text-slate-400" />
         <span className="text-[11px] text-slate-500">
@@ -146,6 +166,7 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
         </span>
       </div>
 
+      {/* Daftar petugas */}
       <div className="space-y-3 pb-4">
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -166,10 +187,12 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
               className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
             >
               <div className="flex items-start gap-3">
+                {/* Avatar */}
                 <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
                   <Users size={20} className="text-slate-500" />
                 </div>
 
+                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-bold text-slate-900 text-[14px] truncate">{officer.name}</p>
@@ -190,6 +213,7 @@ export default function LocalOfficersScreen({ go }: LocalOfficersScreenProps) {
                   )}
                 </div>
 
+                {/* ID badge */}
                 <div className="text-right shrink-0">
                   <span className="text-[11px] text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded-lg">
                     #{String(officer.id).padStart(3, '0')}

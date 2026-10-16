@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
+import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, RefreshCw } from 'lucide-react'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
   isValidGeofencePoint,
   getActiveGeofenceSnapshot,
+  GEOFENCE_UPDATED_EVENT,
+  forceSyncGeofencesFromBackend,
+  getLastGeofenceDiagnosis,
+  scopedGeofencePoints,
   type GeofencePoint,
+  type GeofenceScopeDiagnosis,
 } from '../../services/geofence'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -54,18 +59,98 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
-  const [points, setPoints] = useState<GeofencePoint[]>(() => getStoredGeofencePoints())
+  // Buat Map untuk lookup dermaga yang cepat - di-refresh saat officer berubah
+  const [dermagaMap, setDermagaMap] = useState(() => {
+    const map = new Map<string, { id: string; name: string; code?: string }>()
+    for (const d of (officer.dermagaAccess ?? [])) {
+      map.set(d.id, d)
+    }
+    return map
+  })
+
+  useEffect(() => {
+    const map = new Map<string, { id: string; name: string; code?: string }>()
+    for (const d of (officer.dermagaAccess ?? [])) {
+      map.set(d.id, d)
+    }
+    setDermagaMap(map)
+  }, [officer.dermagaAccess])
+
+  const [points, setPoints] = useState<GeofencePoint[]>(() => scopedGeofencePoints(getStoredGeofencePoints()))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftPoint>(emptyDraft)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [diag, setDiag] = useState<GeofenceScopeDiagnosis | null>(() => getLastGeofenceDiagnosis())
+
+  // Helper untuk mendapatkan nama dermaga yang valid
+  const getDermagaDisplay = (dermagaId: string | undefined): string | null => {
+    if (!dermagaId) return null
+    const found = dermagaMap.get(dermagaId)
+    if (found) return found.name
+    // Fallback: cari di seed data atau data lain yang mungkin tersimpan
+    // Jika tidak ditemukan, tampilkan ID untuk debugging
+    console.warn(`[GeofenceConfig] dermagaId "${dermagaId}" tidak ditemukan di akses petugas. Mungkin data server tidak cocok.`)
+    return null
+  }
+
+  useEffect(() => {
+    const onUpdate = () => {
+      setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
+      setDiag(getLastGeofenceDiagnosis())
+    }
+    window.addEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
+    return () => window.removeEventListener(GEOFENCE_UPDATED_EVENT, onUpdate)
+  }, [])
 
   useEffect(() => {
     void getActiveGeofenceSnapshot().then(r => {
       if (r.valid && r.activePoint) setActiveId(r.activePoint.id)
     })
   }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    setError(null)
+    try {
+      // ponytail: sinkronisasi TIDAK lagi digantung pada renew session terpisah.
+      // Dulu renew dipanggil duluan dan — karena tanpa token renew mustahil —
+      // tombol selalu berakhir "Sesi habis", padahal petugas sudah login. Sekarang
+      // sync mencoba sendiri (termasuk login-diam-diam) dan selalu memakai cache
+      // lokal sebagai last-known-good.
+      const result = await forceSyncGeofencesFromBackend()
+      console.log('[GeofenceConfig] Sync result:', result)
+      if (result.reason === 'unauthorized') {
+        setError('Sesi server belum siap — data lokal tetap dipakai. Coba lagi saat online.')
+      } else if (result.reason === 'network') {
+        setError('Gagal terhubung ke server. Periksa koneksi internet — titik lokal tetap dipakai.')
+      } else if (result.count === 0) {
+        setError('Belum ada titik geofence di server untuk dermaga/rute Anda. Minta admin mendaftarkannya di Master Rute.')
+      }
+      // Ambil data terbaru dari storage
+      setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
+      setDiag(getLastGeofenceDiagnosis())
+
+      // Validasi dermagaId setelah sync
+      const latestPoints = getStoredGeofencePoints()
+      const invalidDermagaPoints = latestPoints.filter(p => {
+        if (!p.dermagaId) return false
+        // Legacy/warisan IDs (non-UUID) tidak dianggap invalid
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.dermagaId)) return false
+        return !dermagaMap.has(p.dermagaId)
+      })
+      if (invalidDermagaPoints.length > 0) {
+        console.warn(`[GeofenceConfig] Ditemukan ${invalidDermagaPoints.length} titik dengan dermagaId tidak valid:`, invalidDermagaPoints.map(p => ({ id: p.id, name: p.name, dermagaId: p.dermagaId })))
+      }
+    } catch (e) {
+      console.error('[GeofenceConfig] Sync error:', e)
+      setError('Gagal menyinkronkan. Coba lagi nanti.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const commit = (next: GeofencePoint[]) => {
     setPoints(next)
@@ -144,9 +229,23 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           <ChevronLeft size={20} className="text-blue-600" />
         </button>
         <h1 className="flex-1 text-center text-[17px] font-semibold text-slate-900 mr-11">Konfigurasi Geofence</h1>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="w-10 h-10 flex items-center justify-center text-blue-600 disabled:opacity-50"
+          title="Sinkronkan dari server"
+        >
+          <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       <div className="px-4 py-5 space-y-4">
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">
+            {error}
+          </div>
+        )}
+
         {showForm && isAdmin && (
           <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4 space-y-3">
             <p className="text-[12px] font-bold text-slate-700 uppercase tracking-wide">
@@ -194,12 +293,13 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                 placeholder="Radius (meter)"
                 inputMode="numeric"
                 className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-              />            <input
-              value={draft.allowedRoutes}
-              onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
-              placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
-            />
+              />
+              <input
+                value={draft.allowedRoutes}
+                onChange={e => setDraft({ ...draft, allowedRoutes: e.target.value })}
+                placeholder="Rute: SJRE-SBDZ, SBDZ-SJRE"
+                className="rounded-xl border border-slate-300 px-3 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 bg-white"
+              />
             </div>
             <label className="flex items-center justify-between bg-white rounded-xl border border-slate-300 px-3 py-2.5">
               <span className="text-[12px] text-slate-700 font-semibold">
@@ -241,14 +341,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
             <Plus size={16} /> Tambah Titik Geofence
           </button>
         )}
-        {showForm && !isAdmin && (
-          <button
-            onClick={() => go('profile')}
-            className="w-full py-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 font-semibold text-[13px] flex items-center justify-center gap-2"
-          >
-            <X size={16} /> Hanya admin dapat mengubah konfigurasi
-          </button>
-        )}
 
         <div className="space-y-3">
           {points.map(p => (
@@ -268,9 +360,18 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {p.dermagaId && (
-                      <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                        Dermaga: {officer.dermagaAccess?.find(d => d.id === p.dermagaId)?.name ?? p.dermagaId}
-                      </span>
+                      (() => {
+                        const dermagaName = getDermagaDisplay(p.dermagaId)
+                        return dermagaName ? (
+                          <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                            Dermaga: {dermagaName}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full" title={`ID: ${p.dermagaId} (tidak ditemukan di akses petugas)`}>
+                            ⚠️ Dermaga tidak dikenal
+                          </span>
+                        )
+                      })()
                     )}
                     <span className="text-[10px] font-bold bg-slate-800 text-white px-2 py-0.5 rounded-full">
                       R {p.radiusMeters}m
@@ -319,7 +420,17 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
-              Belum ada titik geofence tersimpan di perangkat ini. Input trip dapat diblokir sampai lokasi berhasil diverifikasi.
+              <p className="font-semibold mb-1">Belum ada titik geofence tersimpan.</p>
+              <p>Tekan tombol sinkronkan di kanan atas untuk menarik data dari server, atau tambah manual.</p>
+              {diag && (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  Sync terakhir: server mengirim {diag.received} titik, {diag.active} aktif, {diag.scoped} cocok
+                  dengan rute Anda{diag.assignedCodes.length > 0 ? ` (${diag.assignedCodes.join(', ')})` : ' (rute belum tersinkron)'}.
+                  {diag.received > 0 && diag.scoped === 0
+                    ? ' Minta admin daftarkan titik untuk rute Anda di Master Rute.'
+                    : ''}
+                </p>
+              )}
             </div>
           )}
         </div>

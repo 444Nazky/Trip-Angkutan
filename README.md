@@ -454,15 +454,18 @@ CREATE TABLE trips (
 ## 10. Open Issues & Backlog
 
 ### High Priority
+- [x] Fix geofence sync: one-dermaga device hanya dapat titik dermaga + titik umum (bukan semua titik semua dermaga)
+- [x] Tambahkan tombol "Cek Versi Aplikasi" di ProfileScreen (mengambil versi terbaru & link unduhan dari /api/v1/app-version)
 - [ ] Push `endpoint` to GitHub for Railway auto-deploy
 - [ ] Set `ADMIN_PASSWORD` env var in Railway
 - [ ] Publish OTA update from `mobile-trip` branch
 - [ ] Deploy backend latest to production
 
 ### Medium Priority
-- [ ] E2E test suite implementation
-- [ ] Push notification for sync completion
-- [ ] Trip edit capability (admin)
+- [x] E2E test suite implementation
+- [x] Push notification for sync completion
+- [x] Trip edit capability (admin)
+- [ ] UI detail versi aplikasi di profil: bedakan versi modul (OTA) vs versi APK, tampilkan tautan unduhan & catatan rilis
 
 ### Low Priority
 - [ ] iOS build setup

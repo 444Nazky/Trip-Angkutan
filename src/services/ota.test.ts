@@ -12,6 +12,7 @@
  *   • fetch ke manifest & aset (dengan hitungan hash SHA-256 asli)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { resolveApiBaseUrl } from './api'
 import {
   checkForUpdate,
   applyUpdate,
@@ -31,9 +32,10 @@ if (!globalThis.crypto?.subtle) {
   throw new Error('[ota.test] WebCrypto SubtleCrypto tidak tersedia — verifikasi integritas tidak bisa diuji')
 }
 
-/** Harus sama dengan konstanta di ota.ts (URL publikasi OTA). */
-const MANIFEST_URL = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/version.json'
-const ASSETS_BASE = 'https://raw.githubusercontent.com/444Nazky/Aplikasi-Trip-Ionic/mobile/ota/'
+/** Harus sama dengan URL yang dipakai ota.ts: manifest & aset dari server API. */
+const ORIGIN = resolveApiBaseUrl().replace(/\/api\/?$/i, '')
+const MANIFEST_URL = `${ORIGIN}/api/v1/ota-manifest`
+const ASSETS_BASE = `${ORIGIN}/ota/`
 
 const h = vi.hoisted(() => ({
   native: true,
@@ -235,16 +237,17 @@ function serve(url: string) {
       assets: [...map.keys()],
       integrity: h.integrity[h.remoteVersion],
     })
-    // GitHub raw menyajikan .json sebagai text/plain (diverifikasi dengan curl),
-    // jadi klien TIDAK boleh bergantung pada Content-Type application/json.
+    // Server bisa menyajikan JSON apa adanya; klien TIDAK boleh bergantung
+    // pada Content-Type application/json.
     return { status: 200, bytes: utf8.encode(manifest), contentType: 'text/plain; charset=utf-8' }
   }
 
-  // Aset bundle — versi diambil dari parameter `ota=` (pembeda anti-cache).
+  // Aset bundle — path berbentuk /ota/<versi>/<berkas>, versi juga di `ota=`.
   if (clean.startsWith(ASSETS_BASE)) {
     h.assetHits++
     const version = parsed.searchParams.get('ota') ?? h.remoteVersion
-    const path = decodeURIComponent(clean.slice(ASSETS_BASE.length))
+    const relative = decodeURIComponent(clean.slice(ASSETS_BASE.length))
+    const path = relative.startsWith(`${version}/`) ? relative.slice(version.length + 1) : relative
     const file = h.server.get(version)?.get(path)
     if (file == null) return { status: 404, bytes: utf8.encode(`hilang: ${path}`), contentType: 'text/plain' }
     if (h.corrupt.has(`${version}|${path}`)) {

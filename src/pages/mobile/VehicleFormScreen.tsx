@@ -4,11 +4,16 @@ import { tariffFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 import {
+
+
+
+
   formatPlateNumber,
   validatePlate,
   sanitizePlateInput,
   PLATE_REGEX_STRICT,
 } from '../../utils/plateFormatter'
+
 
 
 
@@ -21,13 +26,12 @@ const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
 
 
+
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
   const { plate, type: vehicleType, category } = draft.vehicleForm
-
   const editingIndex = draft.editVehicleIndex ?? null
   const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
-
   const photoTaken = draft.vPhoto
 
   const [check, setCheck] = useState<PlateCheck | null>(null)
@@ -69,7 +73,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setPlateError('')
 
     if (newLength < oldLength) {
-
       const sanitized = sanitizePlateInput(rawValue)
       const formatted = formatPlateNumber(sanitized)
       lastValueRef.current = formatted
@@ -95,7 +98,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
   useEffect(() => {
     if (draft.ocrResult) {
-
       const sanitized = sanitizePlateInput(draft.ocrResult)
       const formattedPlate = formatPlateNumber(sanitized)
       if (formattedPlate.length >= 3) {
@@ -113,7 +115,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   }
 
   const pushVehicle = () => {
-
     if (!validatePlateInput()) {
       return false
     }
@@ -182,7 +183,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </span>
       </div>
 
+      {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk */}
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+        {/* Foto Dokumentasi */}
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[13px] font-medium text-slate-600">
@@ -219,6 +222,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </button>
         </div>
 
+        {/* Nomor Plat */}
         <div className="px-4 py-3.5">
           <label className="text-[13px] font-medium text-slate-600 block mb-2">
             Nomor Plat <span className="text-red-500">*</span>
@@ -259,6 +263,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           )}
         </div>
 
+        {/* Jenis Kendaraan — wajib */}
         <div className="px-4 py-3.5">
           <label htmlFor="v-type" className="text-[13px] font-medium text-slate-600 block mb-2">
             Jenis Kendaraan <span className="text-red-500">*</span>
@@ -281,6 +286,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </div>
         </div>
 
+        {/* Kategori — wajib */}
         <div className="px-4 py-3.5">
           <label htmlFor="v-category" className="text-[13px] font-medium text-slate-600 block mb-2">
             Kategori <span className="text-red-500">*</span>
@@ -304,6 +310,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       </div>
 
+      {/* Tombol Simpan — terkunci sampai 4/4 */}
       <button
         onClick={() => isFormComplete && setShowModal(true)}
         disabled={!isFormComplete}
@@ -332,6 +339,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
+      {/* Kendaraan Tersimpan */}
       {draft.vehicles.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-semibold text-slate-500 mb-2">
@@ -346,6 +354,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
                 <span className="text-xs text-slate-500 ml-auto">{v.category}</span>
+                {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
                 <button
                   onClick={() => editDraftVehicle(i)}
                   className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
@@ -366,6 +375,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       )}
 
+      {/* Mode ubah: jalan keluar harus kembali ke Ringkasan (bukan ke pilih rute) */}
       {isEditing && (
         <button
           onClick={() => go('trip-summary')}
@@ -375,6 +385,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
+      {/* Modal Konfirmasi */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="w-full bg-white rounded-t-2xl p-6">

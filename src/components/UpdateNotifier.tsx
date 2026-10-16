@@ -1,536 +1,179 @@
-import { useState, useEffect, useCallback } from 'react'
-import { updateService, type UpdateState, type UpdateInfo, type UpdateError } from '../services/updateService'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertTriangle, CheckCircle2, Download, RefreshCw, Sparkles, X } from 'lucide-react'
+import { appUpdate, type AppUpdateState } from '../services/appUpdate'
+
+
+
+// Satu sumber status pembaruan untuk seluruh UI.
+export function useAppUpdate(): AppUpdateState {
+  const [state, setState] = useState<AppUpdateState>(appUpdate.state)
+  useEffect(() => appUpdate.subscribe(setState), [])
+  return state
+}
 
 
 
 interface UpdateNotifierProps {
-  onUpdateReady?: (version: string) => void
-  onUpdateApplied?: () => void
-  onError?: (error: UpdateError) => void
   autoCheck?: boolean
-  showForceUpdate?: boolean
 }
 
 
 
-interface UpdateNotifierUI {
-  state: UpdateState
-  info: UpdateInfo | null
-  error: UpdateError | null
-  pendingVersion: string | null
-  currentVersion: string
-}
+export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps) {
+  const state = useAppUpdate()
+  const [dismissed, setDismissed] = useState(false)
+  const [busy, setBusy] = useState(false)
 
 
-
-export function useUpdateNotifier(): UpdateNotifierUI {
-  const [state, setState] = useState<UpdateState>('idle')
-  const [info, setInfo] = useState<UpdateInfo | null>(null)
-  const [error, setError] = useState<UpdateError | null>(null)
 
   useEffect(() => {
-    const unsubscribe = updateService.subscribe((newState, newInfo, newError) => {
-      setState(newState)
-      setInfo(newInfo || null)
-      setError(newError || null)
-    })
-    return unsubscribe
-  }, [])
-
-  return {
-    state,
-    info,
-    error,
-    pendingVersion: updateService.pendingVersion,
-    currentVersion: updateService.currentVersion,
-  }
-}
-
-
-
-export function UpdateNotifier({
-  onUpdateReady,
-  onUpdateApplied,
-  onError,
-  autoCheck = true,
-  showForceUpdate = true,
-}: UpdateNotifierProps) {
-  const { state, info, error, pendingVersion, currentVersion } = useUpdateNotifier()
-
-  useEffect(() => {
-    if (autoCheck && (state === 'idle' || state === 'up-to-date')) {
-      checkForUpdates()
-    }
+    if (autoCheck) void appUpdate.check()
   }, [autoCheck])
 
+
+
   useEffect(() => {
-    if (state === 'ready' && pendingVersion) {
-      onUpdateReady?.(pendingVersion)
-    }
-    if (state === 'installing') {
-      onUpdateApplied?.()
-    }
-    if (state === 'error' && error) {
-      onError?.(error)
-    }
-  }, [state, pendingVersion, error, onUpdateReady, onUpdateApplied, onError])
+    if (state.status === 'ready') setDismissed(false)
+  }, [state.status, state.version])
 
-  const checkForUpdates = useCallback(async () => {
-    await updateService.checkForUpdate()
+
+
+  const apply = useCallback(async () => {
+    setBusy(true)
+    try {
+      await appUpdate.apply()
+    } finally {
+      setBusy(false)
+    }
   }, [])
 
-  const installUpdate = useCallback(async () => {
-    await updateService.installUpdate()
-  }, [])
 
-  const retryUpdate = useCallback(async () => {
-    if (info?.downloadUrl) {
-      await updateService.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash)
+
+  const retry = useCallback(async () => {
+    setBusy(true)
+    try {
+      await appUpdate.check()
+    } finally {
+      setBusy(false)
     }
-  }, [info])
-
-  const resetUpdate = useCallback(async () => {
-    await updateService.reset()
   }, [])
 
-  if (state === 'up-to-date' || state === 'idle') return null
 
-  if (showForceUpdate && info?.isForceUpdate && state !== 'installing') {
+
+  if (state.status === 'installing' && state.kind === 'apk') {
     return (
-      <div className="update-notifier update-notifier--force">
-        <div className="update-notifier__icon">🔒</div>
-        <div className="update-notifier__content">
-          <h4>Update Wajib</h4>
-          <p>
-            Aplikasi harus diperbarui ke versi <strong>{info?.latestVersion}</strong> untuk melanjutkan.
-          </p>
-          {info?.releaseNotes && (
-            <p className="update-notifier__notes">{info.releaseNotes}</p>
-          )}
-        </div>
-        <div className="update-notifier__actions">
-          {state === 'downloading' ? (
-            <button className="btn btn--loading" disabled>
-              <span className="spinner"></span>
-              Mengunduh...
-            </button>
-          ) : state === 'ready' ? (
-            <button className="btn btn--primary" onClick={installUpdate}>
-              Pasang Update
-            </button>
-          ) : state === 'error' ? (
-            <button className="btn btn--primary" onClick={retryUpdate}>
-              Coba Lagi
-            </button>
-          ) : (
-            <button className="btn btn--primary" onClick={checkForUpdates} disabled={state === 'checking'}>
-              {state === 'checking' ? 'Mengecek...' : 'Update Sekarang'}
-            </button>
-          )}
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[9990] flex justify-center px-4">
+        <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-slate-200/80 bg-white/95 p-3.5 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <Download size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs font-bold text-slate-800">Menyelesaikan pemasangan…</h4>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                Setujui dialog pemasangan Android. Versi baru terhitung setelah aplikasi hidup kembali.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className={`update-notifier update-notifier--${state}`}>
-      <div className="update-notifier__header">
-        <span className="update-notifier__icon">
-          {state === 'checking' && '🔄'}
-          {state === 'downloading' && '⬇️'}
-          {state === 'ready' && '✅'}
-          {state === 'installing' && '🔄'}
-          {state === 'error' && '❌'}
-        </span>
-        <div className="update-notifier__title">
-          {state === 'checking' && 'Mengecek Pembaruan...'}
-          {state === 'downloading' && `Mengunduh Update ${pendingVersion || ''}`}
-          {state === 'ready' && 'Update Siap Diinstal'}
-          {state === 'installing' && 'Memasang Update...'}
-          {state === 'error' && 'Update Gagal'}
-        </div>
-        {!info?.isForceUpdate && state !== 'installing' && (
-          <button className="update-notifier__close" onClick={resetUpdate} aria-label="Tutup">
-            ✕
-          </button>
-        )}
-      </div>
+  const showToast = state.status === 'ready' || state.status === 'error'
+  if (!showToast) return null
+  if (dismissed && !state.isForce) return null
 
-      <div className="update-notifier__content">
-        {state === 'downloading' && (
-          <div className="update-notifier__progress">
-            <div className="progress-bar">
-              <div className="progress-bar__fill progress-bar__fill--animated"></div>
-            </div>
-            <span className="progress-text">Mengunduh file...</span>
+
+
+  const label = state.error ? 'Pembaruan Gagal' : state.kind === 'apk' ? 'Update APK Tersedia' : 'Update Modul Tersedia'
+  const detail = state.status === 'error'
+    ? state.error
+    : state.kind === 'apk'
+      ? `Versi ${state.version ?? '—'} siap diinstal. Tekan tombol untuk memulai.`
+      : `Modul versi ${state.version ?? '—'} siap dipasang.`
+
+
+
+  if (state.isForce && state.status === 'ready') {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl border border-slate-100">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+            <Sparkles size={32} />
           </div>
-        )}
-
-        {(state === 'downloading' || state === 'ready' || state === 'error') && (
-          <p className="update-notifier__version">
-            {currentVersion} → <strong>{info?.latestVersion || pendingVersion}</strong>
+          <h3 className="text-lg font-bold text-slate-800">Update Wajib</h3>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            Versi <span className="font-semibold text-indigo-600">{state.version}</span> tersedia. Aplikasi harus diperbarui agar tetap dapat digunakan.
           </p>
-        )}
-
-        {info?.releaseNotes && (state === 'ready' || state === 'downloading') && (
-          <details className="update-notifier__details">
-            <summary>Catatan Rilis</summary>
-            <p>{info.releaseNotes}</p>
-          </details>
-        )}
-
-        {state === 'error' && error && (
-          <p className="update-notifier__error">{error.message}</p>
-        )}
+          {state.notes && (
+            <div className="mt-4 max-h-32 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-3 text-left text-[11px] text-slate-600">
+              <p className="mb-1 font-semibold text-slate-700">Catatan Rilis:</p>
+              <p className="whitespace-pre-line leading-normal">{state.notes}</p>
+            </div>
+          )}
+          <button
+            onClick={() => void apply()}
+            disabled={busy}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-xs font-semibold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {busy ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />} Update Sekarang
+          </button>
+        </div>
       </div>
+    )
+  }
 
-      <div className="update-notifier__actions">
-        {state === 'checking' && (
-          <button className="btn btn--secondary" disabled>
-            <span className="spinner spinner--small"></span>
-            Mengecek...
-          </button>
-        )}
 
-        {state === 'downloading' && (
-          <button className="btn btn--secondary" disabled>
-            <span className="spinner spinner--small"></span>
-            Mengunduh...
-          </button>
-        )}
 
-        {state === 'ready' && (
-          <button className="btn btn--primary" onClick={installUpdate}>
-            Pasang Update
-          </button>
-        )}
-
-        {state === 'installing' && (
-          <button className="btn btn--primary" disabled>
-            <span className="spinner spinner--small"></span>
-            Memasang...
-          </button>
-        )}
-
-        {state === 'error' && (
-          <>
-            <button className="btn btn--primary" onClick={retryUpdate}>
-              Coba Lagi
-            </button>
-            <button className="btn btn--ghost" onClick={resetUpdate}>
-              Tutup
-            </button>
-          </>
-        )}
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[9990] flex justify-center px-4">
+      <div className="pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-3.5 shadow-xl shadow-slate-900/10 backdrop-blur-md">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${state.status === 'ready' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+            {state.status === 'ready' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-xs font-bold text-slate-800">{label}</h4>
+              <button
+                onClick={() => setDismissed(true)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Tutup"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{detail}</p>
+            <div className="mt-3 flex items-center gap-2">
+              {state.status === 'ready' && (
+                <button
+                  onClick={() => void apply()}
+                  disabled={busy}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {busy ? 'Memasang…' : 'Update Sekarang'}
+                </button>
+              )}
+              {state.status === 'error' && (
+                <button
+                  onClick={() => void retry()}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-rose-700 disabled:opacity-60"
+                >
+                  <RefreshCw size={12} className={busy ? 'animate-spin' : ''} /> {busy ? 'Memeriksa…' : 'Coba Lagi'}
+                </button>
+              )}
+              <button
+                onClick={() => setDismissed(true)}
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100"
+              >
+                Nanti
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
-
-
-
-interface UpdateStatusBadgeProps {
-  className?: string
-}
-
-
-
-export function UpdateStatusBadge({ className = '' }: UpdateStatusBadgeProps) {
-  const { state, info, currentVersion } = useUpdateNotifier()
-
-  if (state === 'up-to-date' || state === 'idle') {
-    return (
-      <span className={`update-badge update-badge--current ${className}`}>
-        ✅ v{currentVersion}
-      </span>
-    )
-  }
-
-  if (state === 'checking' || state === 'downloading' || state === 'ready') {
-    return (
-      <span className={`update-badge update-badge--available ${className}`}>
-        🔄 v{info?.latestVersion || '?'}
-      </span>
-    )
-  }
-
-  if (state === 'error') {
-    return (
-      <span className={`update-badge update-badge--error ${className}`}>
-        ❌ Update Gagal
-      </span>
-    )
-  }
-
-  return null
-}
-
-
-
-export const updateStyles = `
-.update-notifier {
-  position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  right: 1rem;
-  max-width: 400px;
-  margin: 0 auto;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  padding: 1rem;
-  z-index: 1000;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-.update-notifier--force {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-width: none;
-  border-radius: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.update-notifier--force .update-notifier__icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.update-notifier--force h4 {
-  font-size: 1.5rem;
-  margin: 0 0 0.5rem;
-}
-
-.update-notifier--force p {
-  opacity: 0.9;
-  max-width: 300px;
-}
-
-.update-notifier__header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.update-notifier__icon {
-  font-size: 1.5rem;
-}
-
-.update-notifier__title {
-  flex: 1;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.update-notifier__close {
-  background: none;
-  border: none;
-  padding: 0.25rem;
-  cursor: pointer;
-  opacity: 0.5;
-  font-size: 1rem;
-}
-
-.update-notifier__close:hover {
-  opacity: 1;
-}
-
-.update-notifier__content {
-  margin: 0.5rem 0;
-}
-
-.update-notifier__version {
-  font-size: 0.85rem;
-  color: #666;
-  margin: 0.25rem 0;
-}
-
-.update-notifier__notes {
-  font-size: 0.8rem;
-  color: #888;
-  margin: 0.5rem 0 0;
-}
-
-.update-notifier__details {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-}
-
-.update-notifier__details summary {
-  cursor: pointer;
-  color: #007AFF;
-  font-weight: 500;
-}
-
-.update-notifier__details p {
-  margin: 0.5rem 0 0;
-  color: #666;
-  padding-left: 1rem;
-}
-
-.update-notifier__error {
-  color: #FF3B30;
-  font-size: 0.85rem;
-  margin: 0.25rem 0;
-}
-
-.update-notifier__progress {
-  margin: 0.5rem 0;
-}
-
-.progress-bar {
-  height: 4px;
-  background: #E5E5EA;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-bar__fill {
-  height: 100%;
-  background: #007AFF;
-  transition: width 0.3s ease;
-}
-
-.progress-bar__fill--animated {
-  width: 100%;
-  animation: progress-indeterminate 1.5s infinite linear;
-  background: linear-gradient(90deg, #007AFF 0%, #5AC8FA 50%, #007AFF 100%);
-  background-size: 200% 100%;
-}
-
-@keyframes progress-indeterminate {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-.progress-text {
-  font-size: 0.75rem;
-  color: #888;
-  display: block;
-  margin-top: 0.25rem;
-}
-
-.update-notifier__actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn--primary {
-  background: #007AFF;
-  color: white;
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: #0056CC;
-}
-
-.btn--secondary {
-  background: #E5E5EA;
-  color: #333;
-}
-
-.btn--ghost {
-  background: transparent;
-  color: #666;
-}
-
-.btn--ghost:hover {
-  background: #F0F0F0;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn--loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.spinner--small {
-  width: 12px;
-  height: 12px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.update-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.update-badge--current {
-  background: #E8F5E9;
-  color: #2E7D32;
-}
-
-.update-badge--available {
-  background: #E3F2FD;
-  color: #1565C0;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.update-badge--error {
-  background: #FFEBEE;
-  color: #C62828;
-}
-
-.update-notifier--force .btn--primary {
-  background: white;
-  color: #667eea;
-  font-size: 1rem;
-  padding: 0.75rem 2rem;
-  margin-top: 1rem;
-}
-
-.update-notifier--force .btn--loading {
-  background: rgba(255, 255, 255, 0.3);
-}
-`
-
-
-
-export default UpdateNotifier

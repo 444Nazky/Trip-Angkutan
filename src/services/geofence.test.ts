@@ -1,20 +1,26 @@
 /**
  * Tes sinkronisasi & validasi geofence (sisi mobile).
  *
- * Fokus: rantai yang membuat petugas melihat "Geofence belum dikonfigurasi
- * admin" padahal admin SUDAH mengisi Master Rute:
+ * Fokus: data di perangkat harus SAMA dengan yang di-set admin:
  *   1. Kontrak respons backend → titik geofence lokal (nama, koordinat, radius
- *      default 100m, allowedRouteCodes).
+ *      default 100m, allowedRouteCodes, dermagaId).
  *   2. Jalur sync: force (setelah login / tombol manual) mengabaikan cooldown;
- *      siklus otomatis menghormatinya; 401 dilaporkan sebagai `unauthorized`.
- *   3. Daftar kosong dari server TIDAK menghapus konfigurasi lokal (offline-first).
- *   4. Blokir karena konfigurasi kosong ditandai `configMissing` supaya UI
+ *      siklus otomatis menghormatinya; 401/403 → `unauthorized` (tanpa tendang
+ *      ke login — sesi dibuat tidak expired, token dipertahankan).
+ *   3. PURGE-FIRST: cache lokal dibersihkan tiap fetch, sisa data lama/fiktif
+ *      tidak menumpuk; daftar kosong dari server ikut mengosongkan perangkat.
+ *   4. Cuma titik aktif + rute penugasan petugas yang disimpan.
+ *   5. Server gagal/jaringan mati → data lama tetap dipakai (petugas tidak
+ *      "mati lampu" saat offline).
+ *   6. Blokir karena konfigurasi kosong ditandai `configMissing` supaya UI
  *      menawarkan tombol Sinkronkan, bukan menyuruh petugas pindah lokasi.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
+  purgeGeofenceCache,
+  scopedGeofencePoints,
   syncGeofencesFromBackend,
   forceSyncGeofencesFromBackend,
   getActiveGeofenceSnapshot,
@@ -22,6 +28,7 @@ import {
   getCurrentPosition,
   resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
+  pointIsForOtherDermaga,
   type GeofencePoint,
 } from './geofence'
 
@@ -31,6 +38,14 @@ const h = vi.hoisted(() => ({
   paths: [] as string[],
   /** Jumlah pemanggilan NATIVE ke GPS — ukuran performa (dedup + cache). */
   gpsCalls: 0,
+  /** Dermaga aktif yang dipilih petugas (permintaan ke backend). */
+  dermaga: null as null | { id: string },
+  /** Petugas tersimpan — daftar dermaga akses menentukan request mana yang ditarik. */
+  officer: null as null | { id?: string; dermagaAccess?: Array<{ id: string }> },
+  /** Rute penugasan petugas dari sesi (untuk scoping lokal). */
+  routes: [] as { code: string; dermagaId?: string }[],
+  /** Respons khusus per-path (mis. backend lama: filter dermaga kosong, master berisi). */
+  byPath: {} as Record<string, { ok: boolean; data?: unknown; error?: { code?: string; message?: string } }>,
 }))
 
 vi.mock('./api', () => ({
@@ -39,9 +54,16 @@ vi.mock('./api', () => ({
     isAuthenticated: true,
     async get(path: string) {
       h.paths.push(path)
-      return h.response
+      return h.byPath[path] ?? h.response
     },
   },
+}))
+
+vi.mock('./auth', () => ({
+  getStoredDermaga: () => h.dermaga,
+  getStoredRoutes: () => h.routes,
+  getStoredOfficer: () => h.officer,
+  renewSessionIfNeeded: async () => true,
 }))
 
 vi.mock('@capacitor/geolocation', () => ({
@@ -89,7 +111,11 @@ beforeEach(() => {
   h.paths.length = 0
   h.position = null
   h.gpsCalls = 0
+  h.dermaga = null
+  h.officer = null
+  h.routes = []
   h.response = { ok: true, data: [] }
+  h.byPath = {}
   resetGpsFixCache()
 })
 
@@ -155,7 +181,7 @@ describe('kebijakan sinkronisasi', () => {
     expect(h.paths.length).toBe(2)
   })
 
-  it('daftar kosong dari server TIDAK menghapus konfigurasi lokal', async () => {
+  it('daftar kosong dari server MEMPERTAHANKAN cache perangkat (last-known-good)', async () => {
     saveGeofencePoints([{ id: 'lama', name: 'Titik Lama', latitude: -6.1, longitude: 106.8, radiusMeters: 100, allowedRoutes: ['A-B'], enabled: true }])
     h.response = { ok: true, data: [] }
 
@@ -163,14 +189,160 @@ describe('kebijakan sinkronisasi', () => {
 
     expect(result.ok).toBe(true)
     expect(result.reason).toBe('empty')
+    expect(result.count).toBe(1)
     expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['lama'])
   })
+})
 
-  it('401 dilaporkan sebagai unauthorized (bukan diam-diam gagal)', async () => {
-    h.response = { ok: false, error: { code: '401', message: 'Unauthorized' } }
+describe('purge-first, scoping penugasan & jalur sesi habis', () => {
+  it('purgeGeofenceCache menghapus titik + penanda sync', () => {
+    saveGeofencePoints([POINT])
+    localStorage.setItem(SYNC_KEY, String(Date.now()))
+
+    purgeGeofenceCache()
+
+    expect(getStoredGeofencePoints()).toEqual([])
+    expect(localStorage.getItem(SYNC_KEY)).toBeNull()
+  })
+
+  it('titik hasil testing (id lain) tidak lagi nyangkut setelah tarik data baru', async () => {
+    saveGeofencePoints([
+      { id: 'seed:badau-d1', name: 'Badau Dermaga 1', latitude: -1.3, longitude: 110.5, radiusMeters: 200, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+      { id: 'seed:entikong-d1', name: 'Entikong Dermaga 1', latitude: 0.8, longitude: 110.1, radiusMeters: 200, allowedRoutes: ['A4A4-B8B8'], enabled: true },
+    ])
+    h.response = { ok: true, data: [backendRow()] }
+
+    await forceSyncGeofencesFromBackend()
+
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('hanya titik aktif + sesuai rute penugasan yang disimpan', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    h.response = {
+      ok: true,
+      data: [
+        backendRow(),
+        backendRow({ id: 'geo-wilayah-lain', locationName: 'Entikong Dermaga 1', allowedRouteCodes: ['ENT-SRN'] }),
+        backendRow({ id: 'geo-nonaktif', locationName: 'Titik Nonaktif', enabled: false }),
+      ],
+    }
+
     const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('titik TANPA kode rute (berlaku umum) tetap tersimpan walau petugas punya penugasan', async () => {
+    // Dashboard admin tidak selalu mengisi kode rute; dulu titik begini ikut
+    // ter-filter → perangkat berakhir kosong ("Belum ada titik geofence tersimpan")
+    // dan petugas tidak bisa input trip sama sekali.
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    h.response = {
+      ok: true,
+      data: [
+        backendRow({ id: 'geo-umum', locationName: 'Pos Umum', allowedRouteCodes: [] }),
+        backendRow({ id: 'geo-wilayah-lain', locationName: 'Entikong Dermaga 1', allowedRouteCodes: ['ENT-SRN'] }),
+      ],
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-umum'])
+  })
+
+  it('scopedGeofencePoints tetap longgar sebelum rute penugasan tersimpan', () => {
+    const points: GeofencePoint[] = [POINT, { ...POINT, id: 'geo-2', enabled: false }]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('dermaga aktif dipakai sebagai filter permintaan ke backend', async () => {
+    h.dermaga = { id: 'dm-badau-1' }
+    h.response = { ok: true, data: [backendRow()] }
+
+    await forceSyncGeofencesFromBackend()
+
+    expect(h.paths[0]).toBe('/geofences?dermagaId=dm-badau-1')
+  })
+
+  it('titik geofence di-sidebar: satu-dermaga device hanya dapat titik dermaga + umum (bukan semua device)', async () => {
+    // Hanya titik yang dermagaId-nya cocok atau NULL yang masuk device ini. Titik
+    // milik dermaga lain TIDAK boleh masuk — itu krusial supaya sinkronisasi benar-
+    // benar berbeda per device (bukan semua device dapat semua titik).
+    h.dermaga = { id: 'dm-badau-1' }
+    h.byPath = {
+      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [
+        backendRow({ id: 'geo-d1', allowedRouteCodes: ['SJRE-SBDZ'] }),
+        backendRow({ id: 'geo-umum', dermagaId: '', allowedRouteCodes: ['SJRE-SBDZ'] }),
+        backendRow({ id: 'geo-d2', dermagaId: 'dm-badau-2', allowedRouteCodes: ['ENT-SRN'] }),
+      ] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    // Hanya satu permintaan: tidak ada fallback master (frontend tidak memaksa
+    // /geofences kedua kalinya; filter terjadi di sisi klien).
+    expect(h.paths).toEqual(['/geofences?dermagaId=dm-badau-1'])
+    expect(result.ok).toBe(true)
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual([
+      'geo-d1',
+      'geo-umum',
+      // geo-d2 TIDAK ikut — milik dermaga lain.
+    ])
+    expect(getStoredGeofencePoints().filter(p => p.id === 'geo-d2')).toEqual([])
+  })
+
+  it('route code SJRE-SBDZ pada D1 tidak menampilkan titik geofence milik D2', () => {
+    const dermaga1 = '11111111-1111-4111-8111-111111111111'
+    const dermaga2 = '22222222-2222-4222-8222-222222222222'
+    h.routes = [{ code: 'SJRE-SBDZ', dermagaId: dermaga1 }]
+    const points: GeofencePoint[] = [
+      { ...POINT, id: 'geo-d1', dermagaId: dermaga1 },
+      { ...POINT, id: 'geo-d2', name: 'Badau Dermaga 2', dermagaId: dermaga2 },
+      { ...POINT, id: 'geo-shared', dermagaId: undefined },
+    ]
+
+    expect(scopedGeofencePoints(points).map(point => point.id)).toEqual(['geo-d1', 'geo-shared'])
+  })
+
+  it('filter dermaga kosong & master juga kosong → tetap kosong (admin memang belum menyimpan titik)', async () => {
+    h.dermaga = { id: 'dm-badau-1' }
+    h.byPath = {
+      '/geofences?dermagaId=dm-badau-1': { ok: true, data: [] },
+      '/geofences': { ok: true, data: [] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.reason).toBe('empty')
+    expect(getStoredGeofencePoints()).toEqual([])
+  })
+
+  it('server/jaringan gagal → konfigurasi lama TIDAK dibuang', async () => {
+    saveGeofencePoints([POINT])
+    h.response = { ok: false, error: { code: 'NETWORK', message: 'Server tidak merespon' } }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('network')
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('401 dilaporkan sebagai unauthorized TANPA menendang ke login', async () => {
+    saveGeofencePoints([POINT])
+    h.response = { ok: false, error: { code: '401', message: 'Unauthorized' } }
+
+    const result = await forceSyncGeofencesFromBackend()
+
     expect(result.ok).toBe(false)
     expect(result.reason).toBe('unauthorized')
+    // cache dipertahankan, cooldown tidak dikunci
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
     expect(localStorage.getItem(SYNC_KEY)).toBeNull() // tidak mengunci cooldown
   })
 
@@ -299,5 +471,131 @@ describe('validasi lokasi terhadap konfigurasi', () => {
     const res = await getActiveGeofenceSnapshot()
     expect(res.blocked).toBe(true)
     expect(res.reason).toMatch(/GPS/i)
+  })
+})
+
+describe('stabilitas daftar titik (regresi keluhan lapangan)', () => {
+  it('penyaringan rute TIDAK boleh mengosongkan perangkat', () => {
+    // Petugas punya penugasan, tapi TIDAK ADA satu pun titik yang kode rutenya
+    // cocok (mis. admin menulis arah terbalik). Dulu → daftar kosong → "Belum ada
+    // titik geofence tersimpan" + input trip terkunci.
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    const points: GeofencePoint[] = [
+      { ...POINT, id: 'geo-1', allowedRoutes: ['SBDZ-SJRE'] },
+      { ...POINT, id: 'geo-2', allowedRoutes: ['LAIN-XYZ'] },
+    ]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1', 'geo-2'])
+  })
+
+  it('titik yang rutenya cocok tetap lebih diprioritaskan daripada titik lain', () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    const points: GeofencePoint[] = [POINT, { ...POINT, id: 'geo-2', allowedRoutes: ['SBDZ-SJRE'] }]
+    expect(scopedGeofencePoints(points).map(p => p.id)).toEqual(['geo-1'])
+  })
+
+  it('petugas 2 dermaga menarik titik KEDUA dermaganya sekaligus (bukan cuma yang dipilih)', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }, { id: D2 }] }
+    h.dermaga = { id: D1 }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [backendRow({ id: 'geo-d1', dermagaId: D1 })] },
+      [`/geofences?dermagaId=${D2}`]: { ok: true, data: [backendRow({ id: 'geo-d2', dermagaId: D2 })] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+
+    expect(h.paths.sort()).toEqual([`/geofences?dermagaId=${D1}`, `/geofences?dermagaId=${D2}`].sort())
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id).sort()).toEqual(['geo-d1', 'geo-d2'])
+  })
+
+  it('titik umum yang muncul di dua respons dermaga tidak terduplikasi', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }, { id: D2 }] }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [backendRow({ id: 'geo-umum', dermagaId: null })] },
+      [`/geofences?dermagaId=${D2}`]: { ok: true, data: [backendRow({ id: 'geo-umum', dermagaId: null })] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+    expect(result.count).toBe(1)
+  })
+
+  it('titik dermaga LAIN (UUID asli) disaring walau backend mengirimnya', async () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D_OTHER = '33333333-3333-4333-8333-333333333333'
+    h.officer = { id: 'o-1', dermagaAccess: [{ id: D1 }] }
+    h.byPath = {
+      [`/geofences?dermagaId=${D1}`]: { ok: true, data: [
+        backendRow({ id: 'geo-d1', dermagaId: D1 }),
+        backendRow({ id: 'geo-asing', dermagaId: D_OTHER }),
+      ] },
+    }
+
+    const result = await forceSyncGeofencesFromBackend()
+    expect(result.count).toBe(1)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-d1'])
+  })
+
+  it('pointIsForOtherDermaga hanya menyalakan bila dua-duanya UUID asli & berbeda', () => {
+    const D1 = '11111111-1111-4111-8111-111111111111'
+    const D2 = '22222222-2222-4222-8222-222222222222'
+    expect(pointIsForOtherDermaga({ dermagaId: D2 }, D1)).toBe(true)
+    expect(pointIsForOtherDermaga({ dermagaId: D1 }, D1)).toBe(false)
+    // titik umum & id warisan tidak boleh dianggap "dermaga lain"
+    expect(pointIsForOtherDermaga({ dermagaId: null }, D1)).toBe(false)
+    expect(pointIsForOtherDermaga({ dermagaId: 'BADAU-D2' }, D1)).toBe(false)
+    expect(pointIsForOtherDermaga({ dermagaId: 'BADAU-D2' }, 'BADAU-D1')).toBe(false)
+  })
+})
+
+describe('radius tumpang tindih antar-dermaga (kasus Dewi: pilih D1 di lokasi D1)', () => {
+  const D1_UUID = '11111111-1111-4111-8111-111111111111'
+  const D2_UUID = '22222222-2222-4222-8222-222222222222'
+  const LAT = -0.8506
+  const LON = 108.8338
+  // Titik D2 tersimpan DULUAN + radius raksasa menutupi D1 (input admin) —
+  // dulu pemenang-tunggal selalu D2 → mismatch + tombol mati walau posisi di D1.
+  const D2_FIRST: GeofencePoint[] = [
+    { id: 'geo-d2', name: 'Badau Dermaga 2', dermagaId: D2_UUID, latitude: LAT, longitude: LON, radiusMeters: 5000, allowedRoutes: ['SBDZ-SJRE'], enabled: true },
+    { id: 'geo-d1', name: 'Badau Dermaga 1', dermagaId: D1_UUID, latitude: LAT, longitude: LON, radiusMeters: 100, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+  ]
+
+  it('snapshot scoped D1 memilih titik D1 (bukan urutan storage)', async () => {
+    saveGeofencePoints(D2_FIRST)
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const scoped = await getActiveGeofenceSnapshot(undefined, D1_UUID)
+    expect(scoped.valid).toBe(true)
+    expect(scoped.activePoint?.id).toBe('geo-d1')
+
+    // tanpa scope: perilaku lama dipertahankan (pemenang = urutan storage)
+    resetGpsFixCache()
+    const unscoped = await getActiveGeofenceSnapshot()
+    expect(unscoped.activePoint?.id).toBe('geo-d2')
+  })
+
+  it('dermagaId warisan (BUKAN UUID) dianggap titik umum', async () => {
+    saveGeofencePoints([
+      { id: 'geo-d1', name: 'Badau Dermaga 1', dermagaId: 'BADAU-D1', latitude: LAT, longitude: LON, radiusMeters: 100, allowedRoutes: ['SJRE-SBDZ'], enabled: true },
+    ])
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const scoped = await getActiveGeofenceSnapshot(undefined, D1_UUID)
+    expect(scoped.valid).toBe(true)
+    expect(scoped.activePoint?.id).toBe('geo-d1')
+  })
+
+  it('validasi rute scoped D1 meloloskan rute D1 walau titik D2 duluan', async () => {
+    saveGeofencePoints(D2_FIRST)
+    h.position = { lat: LAT, lon: LON, accuracy: 8 }
+
+    const ok = await validateRouteForCurrentLocation('SJRE-SBDZ', undefined, D1_UUID)
+    expect(ok).toMatchObject({ valid: true })
+
+    const wrong = await validateRouteForCurrentLocation('AAAA-BBBB', undefined, D1_UUID)
+    expect(wrong.valid).toBe(false)
   })
 })

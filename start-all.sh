@@ -2,15 +2,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Trip Angkutan — start SEMUA layanan (layout folder terpisah pasca-split)
 #
-#   Backend API 3000 + Mobile 5173 : /home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
-#                                     (repo utama, branch main — mobile)
-#   Admin dashboard 8000           : /home/nazky/RPL/Intern/admin-dashboard
-#                                     (clone terpisah, branch admin)
+#   Backend API 3000 + Mobile 5173 : <repo>  (direktori script ini)
+#   Admin dashboard 8000           : <repo>/admin-ci
 #
-# Script ini memakai path absolut, jadi bisa dijalankan dari folder mana pun.
+# Script ini memakai path absolut (diturunkan dari lokasi script), jadi bisa
+# dijalankan dari folder mana pun.
 # ─────────────────────────────────────────────────────────────────────────────
-MOBILE_ROOT=/home/nazky/RPL/Intern/Aplikasi-Trip-Ionic
-ADMIN_ROOT=/home/nazky/RPL/Intern/admin-dashboard
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MOBILE_ROOT="$SCRIPT_DIR"
+ADMIN_ROOT="$SCRIPT_DIR"
 
 echo "🔴 Killing all services..."
 pkill -f "node src/index.js" 2>/dev/null
@@ -37,7 +37,7 @@ echo "🟢 Starting Admin (8000)..."
 cd "$ADMIN_ROOT/admin-ci" || exit 1
 # index.php cadangan ikut disalin (handle fallback bila build belum ada)
 cp "$ADMIN_ROOT/archive/admin-ci/index.php" ./index.php 2>/dev/null
-setsid nohup php -S localhost:8000 > admin.log 2>&1 &
+setsid nohup php -S 0.0.0.0:8000 > admin.log 2>&1 &
 disown
 
 echo ""

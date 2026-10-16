@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs'
-
-
-
+// CATATAN KEAMANAN (F001): berkas ini TIDAK boleh lagi memuat hash PIN apa pun.
+// Dulu setiap petugas seed membawa bcrypt("123456") di dalam bundle → siapa pun
+// yang memasang APK bisa login offline sebagai petugas mana pun dengan PIN default
+// tanpa server. Sekarang credential hanya datang dari sinkron server (sekali online).
 export const SEED_VERSION = 2
 export const SEED_VERSION_KEY = 'trip.officers.seedVersion'
 const DEFAULT_PIN = '123456'
@@ -10,12 +10,6 @@ const DEFAULT_PIN = '123456'
 
 const ROSTER_KEY = 'trip.officers.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'
-
-
-
-function generateDefaultPinHash(): string {
-  return bcrypt.hashSync(DEFAULT_PIN, 10)
-}
 
 
 
@@ -32,7 +26,6 @@ export interface SeedOfficer {
   id: string
   username: string
   name: string
-  pinHash: string
   isActive?: 0 | 1
   regionId: string
   regionName: string
@@ -74,7 +67,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'f2984978-eca2-46a9-b1bc-07252e36dc95',
     username: 'rizkymaulana',
     name: 'Rizky Maulana',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.ENTIKONG.id,
     regionName: REGIONS.ENTIKONG.name,
     regionCode: REGIONS.ENTIKONG.code,
@@ -84,7 +76,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0cb61d4b-b83f-42b0-8fc1-9dfb16d1675b',
     username: 'budisantoso',
     name: 'Budi Santoso',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -94,7 +85,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'd226ff51-f16f-4997-ac0c-fa4293824d1e',
     username: 'andipratama',
     name: 'Andi Pratama',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -104,7 +94,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '8c9a1525-58ed-42ef-9c9a-91f7d1c53ef4',
     username: 'dewikusuma',
     name: 'Dewi Kusuma',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -114,7 +103,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a0e458ec-5ddf-4958-a8fe-de30fce13158',
     username: 'sitirahayu',
     name: 'Siti Rahayu',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BADAU.id,
     regionName: REGIONS.BADAU.name,
     regionCode: REGIONS.BADAU.code,
@@ -124,7 +112,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'c3a55842-6160-4c0b-8981-56819fbd7ef7',
     username: 'agungsuntoso',
     name: 'Agung Suntoso',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -134,7 +121,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '7e6016bc-6507-439a-93f1-784ac5b7d85c',
     username: 'rahmathidayat',
     name: 'Rahmat Hidayat',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.BELITUNG.id,
     regionName: REGIONS.BELITUNG.name,
     regionCode: REGIONS.BELITUNG.code,
@@ -144,7 +130,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: '0d40614e-95d2-47ec-a92a-c9556efe85f8',
     username: 'hendragunawan',
     name: 'Hendra Gunawan',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -154,7 +139,6 @@ export const SEED_OFFICERS: SeedOfficer[] = [
     id: 'a862bdc6-d2e9-450f-9f4d-02b5817dd5a0',
     username: 'mayasari',
     name: 'Maya Sari',
-    pinHash: generateDefaultPinHash(),
     regionId: REGIONS.KELAPAKAMPIT.id,
     regionName: REGIONS.KELAPAKAMPIT.name,
     regionCode: REGIONS.KELAPAKAMPIT.code,
@@ -212,14 +196,13 @@ export function findSeedOfficer(identifier: string): SeedOfficer | null {
 
 
 export function verifySeedPin(identifier: string, pin: string): boolean {
-  const officer = findSeedOfficer(identifier)
-  if (!officer) return false
-  if (pin !== DEFAULT_PIN) return false
-  try {
-    return bcrypt.compareSync(pin, officer.pinHash)
-  } catch {
-    return pin === DEFAULT_PIN
-  }
+  void identifier
+  void pin
+  // SENGAJA selalu false: tidak ada PIN yang sah di source klien. Kalau PIN default
+  // ikut ter-bundle, perangkat baru bisa login offline sebagai petugas mana pun
+  // dengan "123456" — temuan F001 pada audit keamanan. PIN diverifikasi dari
+  // credential hasil sinkron server (offlineDb) atau server saat online.
+  return false
 }
 
 

@@ -21,12 +21,13 @@ import { useApp } from '../store'
 
 
 
+
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail', 'local-officers']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
-
 const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
+
 
 
 
@@ -34,9 +35,7 @@ export default function MobileApp() {
   const { officer, setActiveDermaga } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
-
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
-
   const [selectedDockId, setSelectedDockId] = useState<string | null>(null)
   const stack = useRef<MobileScreen[]>(['home'])
 
@@ -67,7 +66,6 @@ export default function MobileApp() {
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} />,
     'officer-switch': <OfficerSwitchScreen go={go} />,
-
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     'geofence-config': <GeofenceConfigScreen go={go} />,
@@ -97,7 +95,6 @@ export default function MobileApp() {
       return
     }
     if (accesses.length === 0) {
-
       return
     }
     setPendingDermagas(null)
@@ -144,7 +141,6 @@ export default function MobileApp() {
   }
 
   if (fullscreenScreens.includes(screen)) {
-
     const animated = screen === 'local-officers'
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">

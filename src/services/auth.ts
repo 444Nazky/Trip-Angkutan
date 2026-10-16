@@ -6,17 +6,40 @@ import {
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
-import { findSeedOfficer, verifySeedPin } from './seedData'
+import { findSeedOfficer } from './seedData'
+
 
 
 
 export const SESSION_READY_EVENT = 'trip:session-ready'
 
+
+
+
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'
 const AUTH_TIMEOUT_MS = 4000
+
+
+
+
 const MEMBER_CRED_KEY = 'trip.memberCredential.v1'
+
+
+
+// ponytail: kredensial login TERAKHIR yang sukses, dipakai untuk "login diam-diam"
+// saat token hilang/kedaluwarsa (server tidak lagi melempar petugas ke halaman login
+// ketika sync geofence gagal). Permintaan operasional: "bekerja dulu, keamanan belakangan".
+// TODO-security: simpan hanya hash + refresh token, jangan PIN/password polos.
+const LOGIN_CRED_KEY = 'trip.auth.lastCredential.v1'
+
+
+
+type StoredLoginCredential =
+  | { kind: 'pin'; officerId: string; pin: string }
+  | { kind: 'member'; username: string; password: string }
+
 
 
 
@@ -27,6 +50,7 @@ export interface Dermaga {
   region_name: string
   region_code: string
 }
+
 
 
 
@@ -41,6 +65,7 @@ export interface Route {
 
 
 
+
 export interface StoredOfficer {
   id: string
   name: string
@@ -52,6 +77,7 @@ export interface StoredOfficer {
 
 
 
+
 export interface LoginResponse {
   token: string
   officer: StoredOfficer
@@ -59,6 +85,7 @@ export interface LoginResponse {
   routes?: Record<string, Route[]>
   isDualAccess?: boolean
 }
+
 
 
 
@@ -74,9 +101,11 @@ export interface UiRoute {
 
 
 
+
 function isValidRoute(r: unknown): r is Route {
   return typeof r === 'object' && r !== null && !!(r as Route).id && !!(r as Route).name
 }
+
 
 
 
@@ -89,8 +118,10 @@ function saveRoutesMap(map: Record<string, Route[]>): void {
       if (filtered.length) clean[k] = filtered
     }
   }
-  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(clean)) } catch {}
+  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(clean)) }
+  catch { /* quota */ }
 }
+
 
 
 
@@ -117,8 +148,11 @@ export function getStoredRoutes(): UiRoute[] {
       }
     }
     return out
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
+
 
 
 
@@ -144,14 +178,18 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
 
 
 
+
 export function hasDockScopedRoutes(): boolean {
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
     if (!raw) return !!getStoredDermaga()
     const map = JSON.parse(raw) as Record<string, Route[]>
     return !!getStoredDermaga() || Object.keys(map).length > 0
-  } catch { return !!getStoredDermaga() }
+  } catch {
+    return !!getStoredDermaga()
+  }
 }
+
 
 
 
@@ -159,8 +197,11 @@ export function getStoredOfficer(): StoredOfficer | null {
   try {
     const raw = localStorage.getItem(OFFICER_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
+
 
 
 
@@ -168,20 +209,67 @@ export function getStoredDermaga(): Dermaga | null {
   try {
     const raw = localStorage.getItem(DERMAGA_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
+
 
 
 
 function saveOfficer(officer: StoredOfficer) {
-  try { localStorage.setItem(OFFICER_KEY, JSON.stringify(officer)) } catch {}
+  try {
+    localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
+  } catch { /* quota */ }
 }
+
+
+
+// ponytail: sesi officer WAJIB memuat dermagaAccess. Respons beberapa endpoint login
+// hanya mengirim `dermagas` terpisah (bukan di dalam officer), sehingga sesi tersimpan
+// kehilangan akses dermaga → penarikan geofence jatuh ke master (titik semua region)
+// dan filter per-dermaga tidak jalan. Isi dari argumen, lalu dari roster lokal.
+function enrichOfficerWithDermagaAccess(
+  officer: StoredOfficer,
+  dermagas?: Array<{ id: string; name?: string; code?: string; region_id?: string }>,
+): StoredOfficer {
+  const fromArgs = (dermagas ?? [])
+    .map(d => ({ id: String(d.id), name: String(d.name ?? ''), code: String(d.code ?? ''), region_id: d.region_id }))
+    .filter(d => d.id)
+  if (fromArgs.length) return { ...officer, dermagaAccess: fromArgs }
+  if (officer.dermagaAccess?.length) return officer
+  const roster = findStoredOfficerRecord(String(officer.id))
+  const fromRoster = roster?.dermagaAccess ?? []
+  return fromRoster.length ? { ...officer, dermagaAccess: fromRoster } : officer
+}
+
+
+
+// Tambahkan satu dermaga ke akses sesi bila belum ada (dipakai saat petugas memilih
+// dermaga) supaya penarikan geofence ikut mencakup dermaga yang benar-benar dipakai.
+function addDermagaToStoredOfficer(dock: { id: string; name?: string; code?: string; region_id?: string }): void {
+  const officer = getStoredOfficer()
+  if (!officer || !dock?.id) return
+  const id = String(dock.id)
+  if ((officer.dermagaAccess ?? []).some(d => String(d.id) === id)) return
+  saveOfficer({
+    ...officer,
+    dermagaAccess: [
+      ...(officer.dermagaAccess ?? []),
+      { id, name: String(dock.name ?? ''), code: String(dock.code ?? ''), region_id: dock.region_id },
+    ],
+  })
+}
+
 
 
 
 function saveDermaga(dermaga: Dermaga) {
-  try { localStorage.setItem(DERMAGA_KEY, JSON.stringify(dermaga)) } catch {}
+  try {
+    localStorage.setItem(DERMAGA_KEY, JSON.stringify(dermaga))
+  } catch { /* quota */ }
 }
+
 
 
 
@@ -189,9 +277,40 @@ function clearOfficer() {
   try {
     localStorage.removeItem(OFFICER_KEY)
     localStorage.removeItem(DERMAGA_KEY)
+    localStorage.removeItem(LOGIN_CRED_KEY)
     evictPinCache()
-  } catch {}
+  } catch { /* quota */ }
 }
+
+
+
+// Titik geofence hanya dibuang saat GANTI petugas — bukan setiap login. Dulu purge
+// di tiap login + sync yang gagal = perangkat berakhir TANPA titik selamanya
+// ("Belum ada titik geofence tersimpan") padahal admin sudah menyimpan titik.
+function purgeGeofenceOnlyIfOfficerChanged(prevOfficerId?: string | null, nextOfficerId?: string | null): void {
+  if (prevOfficerId && nextOfficerId && String(prevOfficerId) === String(nextOfficerId)) return
+  if (!prevOfficerId) return
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
+}
+
+
+
+function cacheLoginCredential(cred: StoredLoginCredential): void {
+  try { localStorage.setItem(LOGIN_CRED_KEY, JSON.stringify(cred)) } catch { /* quota */ }
+}
+
+
+
+function getLoginCredential(): StoredLoginCredential | null {
+  try {
+    const raw = localStorage.getItem(LOGIN_CRED_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as StoredLoginCredential
+    if (!parsed || (parsed.kind !== 'pin' && parsed.kind !== 'member')) return null
+    return parsed
+  } catch { return null }
+}
+
 
 
 
@@ -210,15 +329,34 @@ export async function memberLogin(
     return { success: false, error: result.error?.message || 'Backend unreachable' }
   }
 
+  const prevOfficerId = getStoredOfficer()?.id ?? null
   api.setToken(result.data.token)
   saveOfficer(result.data.officer)
+  cacheLoginCredential({ kind: 'member', username, password })
   const memberKey = `member:${result.data.officer.id}`
   await setPinHash(memberKey, await hashPin(memberKey, password))
-  try { localStorage.removeItem(MEMBER_CRED_KEY) } catch {}
+
+  // Ganti petugas = mulai bersih; login ulang petugas yang sama TIDAK menghapus
+  // titik geofence (dulu terhapus lalu sync gagal → perangkat kosong permanen).
+  purgeGeofenceOnlyIfOfficerChanged(prevOfficerId, result.data.officer.id)
+
   void cacheDockOfficers(result.data.officer.id, result.data.dermagas)
-  void refreshStoredRoutes().catch(() => null)
+    // roster (berisi dermagas) baru tersedia setelah cache selesai → lengkapi sesi
+    .then(() => {
+      const cur = getStoredOfficer()
+      if (cur) saveOfficer(enrichOfficerWithDermagaAccess(cur))
+    })
+    .catch(() => null)
+  // ponytail: dermaga aktif + rute WAJIB tersimpan saat login — geofence dan
+  // validasi trip membaca keduanya dari localStorage. Satu dermaga = langsung
+  // jadi aktif (tanpa ini getStoredDermaga() kosong dan filter per-dermaga
+  // tidak jalan). Rute di-await (dibatasi timeout) agar penugasan siap dipakai.
+  if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
+  await refreshStoredRoutes().catch(() => null)
+
   return { success: true, officer: result.data.officer }
 }
+
 
 
 
@@ -228,6 +366,7 @@ function isNetworkError(err?: ApiError): boolean {
   if (err.code) return false
   return /timeout|network|failed to fetch|terjangkau|offline|merespon|unreachable/i.test(err.message)
 }
+
 
 
 
@@ -243,19 +382,31 @@ export async function loginWithPin(
       if (offline.success && offline.session) {
         return { success: true, offline: true, data: offline.session }
       }
-      return { success: false, error: { message: 'Server tidak terjangkau — PIN tidak dapat diverifikasi.' } }
+      return {
+        success: false,
+        error: { message: 'Server tidak terjangkau — PIN tidak dapat diverifikasi.' },
+      }
     }
     return { success: false, error: result.error }
   }
 
+  const prevOfficerId = getStoredOfficer()?.id ?? null
   api.setToken(result.data.token)
-  saveOfficer(result.data.officer)
+  saveOfficer(enrichOfficerWithDermagaAccess(result.data.officer, result.data.dermagas))
+  cacheLoginCredential({ kind: 'pin', officerId, pin })
   void cachePin(officerId, pin)
+
+  purgeGeofenceOnlyIfOfficerChanged(prevOfficerId, result.data.officer?.id ?? officerId)
+
   void cacheDockOfficers(String(result.data.officer?.id ?? officerId), result.data.dermagas)
+
   if (result.data.routes) saveRoutesMap(result.data.routes)
+
   if (result.data.dermagas?.length === 1) saveDermaga(result.data.dermagas[0])
+
   return { success: true, data: result.data }
 }
+
 
 
 
@@ -275,6 +426,7 @@ export interface OfflineOfficerRecord {
 
 
 
+
 function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | null {
   const key = String(identifier).toLowerCase()
   const pools: OfflineOfficerRecord[][] = []
@@ -286,13 +438,12 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
     } catch { return [] }
   }
   pools.push(read('trip.officers.v1'))
-
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
       if (k && k.startsWith('trip.dermaga.officers.')) pools.push(read(k))
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   for (const pool of pools) {
     const hit = pool.find(o =>
@@ -304,6 +455,7 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
   }
   return null
 }
+
 
 
 
@@ -322,6 +474,7 @@ function seedToRecord(identifier: string): OfflineOfficerRecord | null {
     dermagaAccess: s.dermagaAccess,
   }
 }
+
 
 
 
@@ -344,9 +497,22 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
     regionCode: String(row.regionCode ?? region),
     dermagaAccess: access ?? [],
   }
+  // ponytail: dulu di sini token DIHAPUS dan dermaga aktif DIHAPUS — akibatnya
+  // setelah login offline aplikasi mengira "belum login": sync geofence selalu
+  // `session renewal failed` dan filter per-dermaga ikut hilang. Sekarang sesi
+  // dipertahankan bila petugasnya sama; hanya dibersihkan saat GANTI petugas.
+  const prev = getStoredOfficer()
+  const sameOfficer = !!prev?.id && String(prev.id) === String(officer.id)
   saveOfficer(officer)
-  api.setToken(null)
-  try { localStorage.removeItem(DERMAGA_KEY) } catch {}
+  if (!sameOfficer) {
+    api.setToken(null)
+    try { localStorage.removeItem(DERMAGA_KEY) } catch { /* quota */ }
+  }
+  const accessIds = new Set((access ?? []).map(d => String(d.id)))
+  const storedDock = getStoredDermaga()
+  if (storedDock && !accessIds.has(String(storedDock.id))) {
+    try { localStorage.removeItem(DERMAGA_KEY) } catch { /* quota */ }
+  }
   if (access?.length === 1) {
     const dock = access[0]
     saveDermaga({
@@ -357,8 +523,9 @@ async function buildOfflineSession(identifier: string): Promise<LoginResponse | 
       region_code: officer.regionCode,
     })
   }
-  return { token: '', officer }
+  return { token: api.token ?? '', officer }
 }
+
 
 
 
@@ -371,24 +538,32 @@ export async function loginOffline(
   if (!ok) return { success: false }
   const session = await buildOfflineSession(identifier)
   if (!session) return { success: false }
+  // id ter-resolve (bukan username yang diketik) supaya login-diam-diam nanti tepat
+  cacheLoginCredential({ kind: 'pin', officerId: String(session.officer.id), pin })
   return { success: true, officer: session.officer, session }
 }
 
 
 
+
 export async function selectDermaga(dermagaId: string): Promise<{ success: boolean; error?: string }> {
   const result = await api.post<{ dermaga: Dermaga; routes: Route[] }>('/auth/select-dermaga', { dermagaId })
-  if (!result.ok || !result.data) return { success: false, error: result.error?.message }
+
+  if (!result.ok || !result.data) {
+    return { success: false, error: result.error?.message }
+  }
 
   saveDermaga(result.data.dermaga)
+  addDermagaToStoredOfficer(result.data.dermaga)
   try {
     const raw = localStorage.getItem(ROUTES_KEY)
     const map: Record<string, Route[]> = raw ? JSON.parse(raw) : {}
     map[result.data.dermaga.id] = result.data.routes || []
     saveRoutesMap(map)
-  } catch {}
+  } catch { /* quota */ }
   return { success: true, error: undefined }
 }
+
 
 
 
@@ -398,7 +573,6 @@ export async function selectDermagaLocal(
 ): Promise<{ success: boolean; error?: string }> {
   if (!dermagaId) return { success: false, error: 'ID dermaga kosong' }
   const officer = getStoredOfficer()
-
   const fromAccess = officer?.dermagaAccess?.find(d => String(d.id) === String(dermagaId))
   const name = opts?.name ?? fromAccess?.name ?? ''
   const code = opts?.code ?? fromAccess?.code ?? ''
@@ -406,15 +580,20 @@ export async function selectDermagaLocal(
   const regionCode = opts?.regionCode ?? officer?.regionCode ?? ''
   if (!name && !code) return { success: false, error: 'Dermaga tidak ditemukan di akses petugas' }
   saveDermaga({ id: String(dermagaId), name, code, region_name: regionName, region_code: regionCode })
+  addDermagaToStoredOfficer({ id: String(dermagaId), name, code })
   return { success: true, error: undefined }
 }
+
 
 
 
 export function logout() {
   api.setToken(null)
   clearOfficer()
+  // buang sisa titik petugas lama — login berikut mulai bersih
+  void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 }
+
 
 
 
@@ -428,8 +607,10 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
     saveOfficer(result.data.officer)
     return true
   }
+
   return false
 }
+
 
 
 
@@ -439,8 +620,11 @@ function jwtPayload(): { role?: string; officerId?: string | number } | null {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     return JSON.parse(atob(base64))
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
+
 
 
 
@@ -451,12 +635,47 @@ function jwtExpiryMs(token?: string | null): number | null {
     const base64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     const payload = JSON.parse(atob(base64)) as { exp?: number }
     return typeof payload.exp === 'number' ? payload.exp * 1000 : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 
 
+
+// ponytail: „login diam-diam" — pakai kredensial login terakhir yang tersimpan di
+// localStorage untuk mengambil token baru TANPA meminta petugas mengetik ulang PIN.
+// Ini jalur pemulihan yang dulu tidak ada: sync geofence hanya mencoba renew saat
+// token kosong, sementara renew sendiri mensyaratkan token valid (mustahil) →
+// perangkat terjebak `session renewal failed` selamanya.
+async function silentReLogin(): Promise<boolean> {
+  const cred = getLoginCredential()
+  if (!cred) return false
+  try {
+    if (cred.kind === 'member') {
+      const r = await api.post<LoginResponse>('/auth/member-login', { username: cred.username, password: cred.password }, AUTH_TIMEOUT_MS)
+      if (!r.ok || !r.data?.token) return false
+      api.setToken(r.data.token)
+      saveOfficer(r.data.officer)
+      return true
+    }
+    const r = await api.post<LoginResponse>('/auth/login', { officerId: cred.officerId, pin: cred.pin }, AUTH_TIMEOUT_MS)
+    if (!r.ok || !r.data?.token) return false
+    api.setToken(r.data.token)
+    saveOfficer(r.data.officer)
+    return true
+  } catch {
+    return false
+  }
+}
+
+
 export async function renewSessionIfNeeded(): Promise<boolean> {
+  // Token kosong bukan jalan buntu lagi: coba login diam-diam dari kredensial lokal.
+  if (!api.isAuthenticated) {
+    if (!(await silentReLogin())) return false
+  }
+
   if (!(await ensureBackendSession())) return false
 
   const exp = jwtExpiryMs(api.token)
@@ -468,9 +687,24 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
     if (r.data.officer) saveOfficer(r.data.officer)
     return true
   }
-  api.setToken(null)
+  // ponytail: refresh gagal (mis. officer dinonaktifkan) = biarkan token apa
+  // adanya dan lanjut pakai cache lokal. Menghapus token di sini dulu membuat
+  // sesi mati permanen tanpa bisa dipulihkan ("session renewal failed").
   return false
 }
+
+
+export async function isSessionReady(): Promise<boolean> {
+  if (!api.isAuthenticated) {
+    if (!(await silentReLogin())) return false
+  }
+  if (!(await ensureBackendSession())) return false
+  const exp = jwtExpiryMs(api.token)
+  // tanpa `exp` (token petugas lama/polos) dianggap tetap siap — sesi tidak expired
+  if (exp === null) return true
+  return Date.now() < exp
+}
+
 
 
 
@@ -486,15 +720,16 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   return api.isAuthenticated
 }
 
-
-
 const LEGACY_PIN_KEY = 'trip.auth.pin.v1'
 
 
 
+
 function loadLegacyPinMap(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') } catch { return {} }
+  try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') }
+  catch { return {} }
 }
+
 
 
 
@@ -502,7 +737,6 @@ async function cachePin(officerId: string, pin: string): Promise<void> {
   if (!officerId || !pin) return
   try {
     await setPinHash(officerId, await hashPin(officerId, pin))
-
     const legacy = loadLegacyPinMap()
     if (officerId in legacy) {
       delete legacy[officerId]
@@ -510,8 +744,9 @@ async function cachePin(officerId: string, pin: string): Promise<void> {
       if (keys.length) localStorage.setItem(LEGACY_PIN_KEY, JSON.stringify(legacy))
       else localStorage.removeItem(LEGACY_PIN_KEY)
     }
-  } catch {}
+  } catch { /* quota */ }
 }
+
 
 
 
@@ -521,12 +756,13 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
   let officerId = String(identifier)
   let resolved = false
   let inactive = false
-
   try {
-    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number }>(identifier)
+    const row = await findOfflineOfficer<OfflineOfficerRecord & { isActive?: boolean; is_active?: number; payload?: { status?: string } }>(identifier)
     if (row?.id) { officerId = String(row.id); resolved = true }
+    const status = row?.status ?? row?.payload?.status
+    if (status && /^(nonaktif|non-aktif|inactive)$/i.test(String(status))) inactive = true
     if (row?.isActive === false || row?.is_active === 0) inactive = true
-  } catch {}
+  } catch { /* database offline belum siap */ }
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
@@ -537,7 +773,7 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
 
   try {
     if (await verifyStoredPin(officerId, pin) || await verifyStoredPin(`member:${officerId}`, pin)) return true
-  } catch {}
+  } catch { /* lanjut ke fallback legacy */ }
 
   const legacy = loadLegacyPinMap()
   const stored = legacy[officerId] ?? legacy[identifier]
@@ -546,15 +782,19 @@ export async function verifyPinOffline(identifier: string, pin: string): Promise
     return true
   }
 
-  if (verifySeedPin(officerId, pin) || verifySeedPin(identifier, pin)) return true
+  // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah
+  // temuan F001 (login offline "123456" tanpa server). Verifikasi hanya lewat
+  // credential hasil sinkron server (verifyStoredPin di atas) atau server online.
   return false
 }
 
 
 
+
 function evictPinCache() {
-  try { localStorage.removeItem(LEGACY_PIN_KEY) } catch {}
+  try { localStorage.removeItem(LEGACY_PIN_KEY) } catch { /* quota */ }
 }
+
 
 
 
@@ -573,6 +813,7 @@ interface RosterOfficer {
 
 
 
+
 function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string; status?: string } {
   const primary = o.regions?.[0]
   return {
@@ -585,6 +826,7 @@ function toStoredOfficer(o: RosterOfficer): StoredOfficer & { username?: string;
     status: o.is_active === 0 || o.is_active === false ? 'Nonaktif' : 'Aktif',
   } as StoredOfficer & { username?: string; status?: string }
 }
+
 
 
 
@@ -603,11 +845,10 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
       isActive: o.is_active === undefined ? true : Boolean(o.is_active),
       payload: shaped[i],
     })))
-
     for (const o of officers) {
       if (o.pin_hash) void setPinHash(String(o.id), o.pin_hash)
     }
-  } catch {}
+  } catch { /* db belum siap — cache di bawah tetap jalan */ }
 
   for (const did of dermagaIds) {
     const subset = officers.filter(o => (o.dermagas ?? []).some(d => String(d.id) === String(did)))
@@ -624,9 +865,10 @@ async function persistRoster(officers: RosterOfficer[], dermagaIds: string[]): P
         else merged.push(s)
       }
       localStorage.setItem(key, JSON.stringify(merged))
-    } catch {}
+    } catch { /* quota — data lama tetap aman */ }
   }
 }
+
 
 
 
@@ -635,6 +877,7 @@ async function fetchMyRegionRoster(): Promise<RosterOfficer[] | null> {
   if (!r.ok || !Array.isArray(r.data)) return null
   return r.data
 }
+
 
 
 
@@ -653,7 +896,8 @@ export async function cacheDockOfficers(
 
       const mates = all.filter(o => (o.dermagas ?? []).some(d => dockIds.has(String(d.id))))
       const list = me && !mates.some(m => String(m.id) === String(me.id))
-        ? [me, ...mates] : mates
+        ? [me, ...mates]
+        : mates
 
       if (list.length) {
         await persistRoster(list, [...dockIds])
@@ -664,8 +908,9 @@ export async function cacheDockOfficers(
     }
 
     for (const did of dockIds) await syncDermagaOfficersToDb(did)
-  } catch {}
+  } catch { /* offline — cache sebelumnya tetap aman */ }
 }
+
 
 
 
@@ -677,12 +922,11 @@ export async function syncDermagaOfficersToDb(dermagaId?: string): Promise<void>
       await persistRoster(r.data.officers, [String(dermagaId)])
       return
     }
-
     if (r.error?.code === '404') {
       const all = await fetchMyRegionRoster()
       const subset = (all ?? []).filter(o =>
         (o.dermagas ?? []).some(d => String(d.id) === String(dermagaId)))
       if (subset.length) await persistRoster(subset, [String(dermagaId)])
     }
-  } catch {}
+  } catch { /* offline — data sebelumnya tetap aman */ }
 }

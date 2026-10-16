@@ -53,117 +53,11 @@ function parseCoordsFromText(text) {
 
 
 
-// peta kode rute (ASAL-TUJUAN) → dermaga & wilayah pemiliknya
-function buildRouteIndex() {
-  const rows = db.prepare(`
-    SELECT r.route_from, r.route_to, r.dermaga_id, d.region_id, d.name AS dermaga_name, d.code AS dermaga_code
-    FROM routes r
-    JOIN dermagas d ON r.dermaga_id = d.id
-  `).all();
-
-  const index = new Map();
-  for (const row of rows) {
-    const from = String(row.route_from ?? '').trim().toUpperCase();
-    const to = String(row.route_to ?? '').trim().toUpperCase();
-    if (!from || !to) continue;
-    const code = `${from}-${to}`;
-
-    const hit = index.get(code);
-    if (hit) {
-      if (!hit.dermagaIds.includes(row.dermaga_id)) hit.dermagaIds.push(row.dermaga_id);
-      continue;
-    }
-    index.set(code, {
-      dermagaIds: [row.dermaga_id],
-      regionId: row.region_id,
-      dermagaName: row.dermaga_name,
-      dermagaCode: row.dermaga_code,
-    });
-  }
-  return index;
-}
-
-
-
-// dermaga yang jadi penugasan petugas
-function ownedDermagaIds(user) {
-  const officerId = user && user.officerId ? String(user.officerId) : '';
-  if (!officerId) return [];
-  try {
-    return db.prepare(`SELECT dermaga_id FROM officer_dermagas WHERE officer_id = ?`)
-      .all(officerId)
-      .map(r => String(r.dermaga_id));
-  } catch {
-    return [];
-  }
-}
-
-
-
-// batas kode rute yang boleh dibaca pemanggil — null = tanpa filter (master lengkap)
-function scopeRouteCodes(user, query, index) {
-  const isAdmin = user && user.role === 'admin';
-  const askedDermaga = String(query.dermagaId || query.dermaga_id || '').trim();
-  const askedRegion = String(query.regionId || query.region_id || '').trim();
-  const wantAll = String(query.scope || '').toLowerCase() === 'all';
-
-  // dashboard admin tanpa filter tetap dapat master lengkap
-  if (isAdmin && (wantAll || (!askedDermaga && !askedRegion))) return null;
-
-  const owned = ownedDermagaIds(user);
-
-  let dermagaIds = [];
-  let regionId = '';
-
-  if (askedDermaga) {
-    if (!isAdmin && !owned.includes(askedDermaga)) return { denied: true };
-    dermagaIds = [askedDermaga];
-  } else if (askedRegion) {
-    if (!isAdmin && user && user.regionId && askedRegion !== String(user.regionId)) return { denied: true };
-    regionId = askedRegion;
-  } else if (owned.length) {
-    dermagaIds = owned;
-  } else {
-    regionId = String((user && user.regionId) || '');
-  }
-
-  const codes = new Set();
-  for (const [code, info] of index) {
-    if (dermagaIds.length) {
-      if (!info.dermagaIds.some(id => dermagaIds.includes(id))) continue;
-    } else if (info.regionId !== regionId) {
-      continue;
-    }
-    codes.add(code);
-  }
-  return { codes, dermagaIds, regionId };
-}
-
-
-
-// sisakan hanya geofence yang rutenya masuk penugasan
-function withinScope(rows, scope, index) {
-  if (!scope) return rows || [];
-
-  const codes = scope.codes || new Set();
-  return (rows || []).filter(row => {
-    const own = String(row.allowed_route_codes ?? '')
-      .split(',')
-      .map(s => s.trim().toUpperCase())
-      .filter(Boolean)
-      .filter(code => codes.has(code));
-    return own.length > 0;
-  });
-}
-
-
-
 router.get('/resolve-link', authenticate, async (req, res) => {
   const raw = String(req.query.url || '').trim();
   if (!/^https?:\/\//i.test(raw)) {
     return res.status(400).json({ error: 'url wajib berupa http(s) URL' });
   }
-
   let host = '';
   try {
     host = new URL(raw).hostname.toLowerCase();
@@ -178,13 +72,11 @@ router.get('/resolve-link', authenticate, async (req, res) => {
     const response = await fetch(raw, {
       redirect: 'follow',
       headers: {
-
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
         'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
       },
     });
     const finalUrl = response.url || raw;
-
     const fromUrl = parseCoordsFromText(finalUrl);
     if (fromUrl) return res.json({ url: finalUrl, ...fromUrl });
 
@@ -201,44 +93,58 @@ router.get('/resolve-link', authenticate, async (req, res) => {
 
 
 
-function shape(rows, index) {
-  return (rows || []).map(r => {
-    const allowedRouteCodes = String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean);
-    const owner = allowedRouteCodes
-      .map(code => index.get(String(code).toUpperCase()))
-      .find(Boolean) || null;
-
-    return {
-      id: r.id,
-      locationName: r.location_name,
-      latitude: Number(r.latitude),
-      longitude: Number(r.longitude),
-      radiusMeters: clampRadius(r.radius_meters),
-      allowedRouteCodes,
-      allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
-      description: r.description ?? '',
-      dermagaId: owner ? owner.dermagaIds[0] : null,
-      dermagaName: owner ? owner.dermagaName : null,
-      dermagaCode: owner ? owner.dermagaCode : null,
-      regionId: owner ? owner.regionId : null,
-    };
-  });
+function shape(rows) {
+  return (rows || []).map(r => ({
+    id: r.id,
+    // name & location_name dibaca bergantian: skema lama hanya punya `name`,
+    // skema baru menulis keduanya.
+    name: r.name || r.location_name,
+    locationName: r.location_name || r.name,
+    dermagaId: r.dermaga_id ?? null,
+    latitude: Number(r.latitude),
+    longitude: Number(r.longitude),
+    radiusMeters: clampRadius(r.radius_meters),
+    allowedRouteCodes: String(r.allowed_route_codes ?? '').split(',').map(s => s.trim()).filter(Boolean),
+    allowedDirections: String(r.allowed_directions ?? '').split(',').map(s => s.trim()).filter(Boolean),
+    description: r.description ?? '',
+    enabled: r.enabled === undefined || r.enabled === null ? true : Number(r.enabled) !== 0,
+  }));
 }
 
 
 
 router.get('/', authenticate, (req, res) => {
   try {
-    const query = req.query || {};
-    const index = buildRouteIndex();
-    const scope = scopeRouteCodes(req.user, query, index);
+    const dermagaId = String(req.query.dermagaId ?? '').trim();
+    const scopeAll = String(req.query.scope ?? '').toLowerCase() === 'all';
+    const ORDER = 'ORDER BY COALESCE(location_name, name, id)';
 
-    if (scope && scope.denied) {
-      return res.status(403).json({ error: 'Dermaga di luar wilayah penugasan Anda' });
+    // Skema diperiksa lebih dulu: DB lama tanpa kolom dermaga_id membuat query
+    // filter melempar "no such column" → 500 → petugas menerima 0 titik dan input
+    // trip terkunci. Rute ini tidak boleh pernah 500.
+    const hasDermaga = db.prepare('PRAGMA table_info(geofences)').all().some(c => c.name === 'dermaga_id');
+
+    // tanpa filter (atau scope=all untuk dashboard) = master lengkap
+    if (!dermagaId || scopeAll) {
+      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
     }
 
-    const rows = db.prepare(`SELECT * FROM geofences ORDER BY location_name`).all();
-    res.json(shape(withinScope(rows, scope, index), index));
+    if (!hasDermaga) {
+      console.warn('[geofence] skema lama tanpa kolom dermaga_id → kirim master lengkap (anti-500)');
+      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
+    }
+
+    // Permintaan petugas untuk satu dermaga: sertakan juga titik "berlaku umum"
+    // (dermaga_id NULL/kosong). Dulu hanya `dermaga_id = ?`, sehingga titik yang
+    // dibuat dari dashboard admin (tidak mengirim dermagaId → tersimpan NULL)
+    // TIDAK PERNAH sampai ke perangkat: mobile selalu berakhir dengan daftar
+    // kosong ("Belum ada titik geofence tersimpan") dan petugas tak bisa input trip.
+    const rows = db.prepare(`
+      SELECT * FROM geofences
+      WHERE dermaga_id = ? OR dermaga_id IS NULL OR TRIM(COALESCE(dermaga_id, '')) = ''
+      ${ORDER}
+    `).all(dermagaId);
+    res.json(shape(rows));
   } catch (error) {
     console.error('Get geofences error:', error);
     res.status(500).json({ error: 'Failed to fetch geofences' });
@@ -249,7 +155,7 @@ router.get('/', authenticate, (req, res) => {
 
 router.post('/', authenticate, requireAdmin, (req, res) => {
   try {
-    const { locationName, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description } = req.body || {};
+    const { locationName, dermagaId, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description, enabled } = req.body || {};
     const lat = numericCoordinate(latitude);
     const lng = numericCoordinate(longitude);
     if (!locationName || String(locationName).trim() === '') {
@@ -261,18 +167,23 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
       });
     }
     const id = randomUUID();
+    // `name` ikut diisi: kolom itu NOT NULL pada skema lama, jadi INSERT yang
+    // hanya mengirim location_name gagal (500) di DB produksi lama.
     db.prepare(`
-      INSERT INTO geofences (id, location_name, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+      INSERT INTO geofences (id, name, location_name, dermaga_id, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description, enabled)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `    ).run(
       id,
       String(locationName).trim(),
+      String(locationName).trim(),
+      dermagaId ? String(dermagaId) : null,
       lat,
       lng,
       clampRadius(radiusMeters),
       Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
       Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
       description ? String(description) : '',
+      enabled === undefined || enabled === null ? 1 : (enabled ? 1 : 0),
     );
     res.status(201).json({ id });
   } catch (error) {
@@ -302,7 +213,12 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'Koordinat di luar rentang valid — lat ±90, lng ±180' });
     }
 
-    if (b.locationName !== undefined) { sets.push('location_name = ?'); args.push(String(b.locationName).trim()); }
+    if (b.locationName !== undefined) {
+      // Kedua kolom nama diperbarui supaya baris skema lama & baru tetap konsisten.
+      const n = String(b.locationName).trim();
+      sets.push('location_name = ?'); args.push(n);
+      sets.push('name = ?'); args.push(n);
+    }
     if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
     if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
     if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
@@ -315,6 +231,8 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
       args.push(Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections));
     }
     if (b.description !== undefined) { sets.push('description = ?'); args.push(String(b.description ?? '')); }
+    if (b.dermagaId !== undefined) { sets.push('dermaga_id = ?'); args.push(b.dermagaId ? String(b.dermagaId) : null); }
+    if (b.enabled !== undefined) { sets.push('enabled = ?'); args.push(b.enabled ? 1 : 0); }
 
     if (sets.length) {
       args.push(id);

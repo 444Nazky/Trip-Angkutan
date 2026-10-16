@@ -8,9 +8,11 @@ import type { MobileScreen } from '../types'
 
 
 
+
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 
@@ -53,7 +55,6 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-
       const local = await loginOffline(targetId, pressedPin)
       if (local.success) {
         if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
@@ -97,7 +98,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         void syncNow().catch(() => undefined)
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
-    } catch {}
+    } catch { /* tetap mode offline — sinkron menyusul */ }
   }
 
   return (
@@ -109,6 +110,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         <ChevronLeft size={16} /> Kembali
       </button>
 
+      {/* Icon + judul */}
       <div className="w-16 h-16 rounded-3xl bg-[#0F172A] flex items-center justify-center mb-4 shadow-lg">
         <Lock size={28} className="text-amber-400" />
       </div>
@@ -124,6 +126,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         </p>
       )}
 
+      {/* Dot indicators */}
       <div className="flex gap-3 mb-7">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
@@ -147,6 +150,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         </p>
       )}
 
+      {/* Numpad */}
       <div className="grid grid-cols-3 gap-3 w-full max-w-[260px]">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => (
           k === '' ? <div key="empty" />
@@ -163,6 +167,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         ))}
       </div>
 
+      {/* Konfirmasi */}
       <button
         onClick={() => void confirm()}
         disabled={pressedPin.length < 6 || loading}

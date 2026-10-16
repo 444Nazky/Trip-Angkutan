@@ -5,10 +5,11 @@ import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, re
 import { api } from '../services/api'
 import { dbAll, dbClear, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal } from '../services/officers'
-import { forceSyncGeofencesFromBackend } from '../services/geofence'
+import { syncGeofencesFromBackend } from '../services/geofence'
 import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
+
 
 
 
@@ -31,12 +32,11 @@ export interface VehicleEntry {
 
 
 
+
 export interface Trip {
   id: string
   route: string
-
   routeCode?: string
-
   routeFrom?: string
   routeTo?: string
   status: string
@@ -59,14 +59,12 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
-
   officerId?: string
-
   selfieUrl?: string
   selfieCapturedAt?: string
-
   updatedAt?: number
 }
+
 
 
 
@@ -75,29 +73,22 @@ export interface Draft {
   condition: 'kosong' | 'muatan' | null
   vehicles: VehicleEntry[]
   vehicleForm: { plate: string; type: string; category: string }
-
   editVehicleIndex?: number | null
-
   photo: boolean
   photoUrl?: string
   photoCapturedAt?: string
   photoLatitude?: number | null
   photoLongitude?: number | null
-
   vPhoto: boolean
   vPhotoUrl?: string
   vPhotoCapturedAt?: string
   vPhotoLatitude?: number | null
   vPhotoLongitude?: number | null
-
   retakeTarget?: { tripId: string; kind: 'trip' | 'vehicle'; index?: number }
-
   vehiclePhotoTarget?: number
-
   selfieMode?: boolean
   selfieUrl?: string
   selfieCapturedAt?: string
-
   cameraReturn?: MobileScreen
 
   cameraFrom: MobileScreen
@@ -112,11 +103,14 @@ export interface Draft {
 
 
 
+
 export type TariffRow = (typeof tariffData)[number] & { id?: string }
 
 
 
+
 export type VerifyIntent = 'switch' | 'security'
+
 
 
 
@@ -136,20 +130,13 @@ interface StoreValue {
   resetDraft: () => void
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
-
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
-
   removeDraftVehicle: (index: number) => void
-
   editDraftVehicle: (index: number) => void
   startTrip: () => void
-
   finishEmptyTrip: () => void
-
   finishMuatanTrip: () => void
-
   patchTripPhoto: (tripId: string, fields: Partial<Trip>) => void
-
   patchVehiclePhoto: (tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => void
   detailTripId: string | null
   setDetailTripId: (id: string | null) => void
@@ -159,7 +146,6 @@ interface StoreValue {
   clearVerify: () => void
 
   setActiveDermaga: (id: string | null) => void
-
   clearAllTrips: () => void
 }
 
@@ -192,6 +178,9 @@ const emptyDraft: Draft = {
 
 const StoreCtx = createContext<StoreValue | null>(null)
 
+
+
+
 const LS = {
   trips: 'trip.trips.v1',
   officer: 'trip.officerId.v1',
@@ -199,6 +188,7 @@ const LS = {
   tariffs: 'trip.tariffs.v1',
   officers: 'trip.officers.v1',
 }
+
 
 
 
@@ -213,10 +203,12 @@ function load<T>(key: string, fallback: T): T {
 
 
 
+
 export function parseRp(s: string): number {
   const digits = s.replace(/[^\d]/g, '')
   return digits ? parseInt(digits, 10) : 0
 }
+
 
 
 
@@ -227,9 +219,11 @@ const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep'
 
 
 
+
 export function fmtDate(d: Date): string {
   return `${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`
 }
+
 
 
 
@@ -239,9 +233,11 @@ export function fmtTime(d: Date): string {
 
 
 
+
 export function fmtClock(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
 
 
 
@@ -253,6 +249,7 @@ export function fmtElapsed(totalSec: number): string {
   if (m > 0) return `${m}m`
   return `${s}dtk`
 }
+
 
 
 
@@ -273,6 +270,7 @@ export function tariffFor(vehicleType: string) {
 
 
 
+
 export function nextTripId(trips: Trip[]): string {
   let max = 0
   for (const t of trips) {
@@ -282,11 +280,15 @@ export function nextTripId(trips: Trip[]): string {
   return `TRP-${new Date().getFullYear()}-${String(max + 1).padStart(4, '0')}`
 }
 
+
+
+
 const seedTrips: Trip[] = (allTrips as Trip[]).map(t => ({
   ...t,
   load: t.load as Trip['load'],
   revenueNum: parseRp(t.revenue),
 }))
+
 
 
 
@@ -296,6 +298,7 @@ export function normalizeCategory(c?: string): string | undefined {
   if (!/^ekst/i.test(c)) return c
   return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
 }
+
 
 
 
@@ -314,6 +317,7 @@ export function unitLabel(list: VehicleEntry[] | undefined, index: number): stri
 
 
 
+
 function normalizeTrips(list: Trip[]): Trip[] {
   return list.map(t => ({
     ...t,
@@ -324,17 +328,16 @@ function normalizeTrips(list: Trip[]): Trip[] {
 
 
 
+
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
     const key = String(t.id)
     const prev = byId.get(key)
     if (!prev) { byId.set(key, t); continue }
-
     const prevUpd = prev.updatedAt ?? 0
     const nextUpd = t.updatedAt ?? 0
     if (prevUpd !== nextUpd) { byId.set(key, prevUpd > nextUpd ? prev : t); continue }
-
     const prevTs = Date.parse(prev.completedAt ?? '') || 0
     const nextTs = Date.parse(t.completedAt ?? '') || 0
     const winner =
@@ -345,6 +348,7 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   }
   return [...byId.values()]
 }
+
 
 
 
@@ -359,6 +363,7 @@ export function healDermagaAccess(list: Officer[]): Officer[] {
 
 
 
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
@@ -367,11 +372,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => {
     const saved = load<Officer[]>(LS.officers, [])
-
     return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
-
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
@@ -407,7 +410,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = () => {
       setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips))))
-      // tab lain login/logout → tab ini ikut
       setLoggedIn(load(LS.session, false))
       const so = getStoredOfficer()
       if (so?.id) {
@@ -419,25 +421,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
   useEffect(() => {
-    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch {}
+    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
   }, [tariffs])
   useEffect(() => {
-    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch {}
+    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
   }, [officers])
   useEffect(() => {
-    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch {}
+    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch { /* quota */ }
   }, [officerId])
   useEffect(() => {
-    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch {}
+    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch { /* quota */ }
   }, [loggedIn])
   useEffect(() => {
-    try { localStorage.setItem('trip.userType', userType) } catch {}
+    try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
   }, [userType])
 
   const officer = useMemo(() => {
     const inRoster = officers.find(o => String(o.id) === String(officerId))
     if (inRoster) return inRoster
-
     try {
       const so = getStoredOfficer()
       if (so?.id && String(so.id) === String(officerId)) {
@@ -457,7 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dermagaAccess: (so as { dermagaAccess?: Officer['dermagaAccess'] }).dermagaAccess ?? [],
         } as Officer
       }
-    } catch {}
+    } catch { /* fallthrough */ }
     return officers[0] ?? officerList[0]
   }, [officers, officerId])
 
@@ -470,7 +471,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (authenticatedOfficerId) setOfficerIdState(id)
 
       void ensureBackendSession(id)
-
       void refreshOfficersRef.current?.(true)
     }
   }, [officerId])
@@ -505,19 +505,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })),
     [],
   )
-
   const removeDraftVehicle = useCallback((index: number) => setDraft(d => {
     const vehicles = d.vehicles.filter((_, i) => i !== index)
     return {
       ...d,
       vehicles,
-
       editVehicleIndex: d.editVehicleIndex != null && d.editVehicleIndex >= vehicles.length
         ? null
         : d.editVehicleIndex,
     }
   }), [])
-
   const editDraftVehicle = useCallback((index: number) => setDraft(d => {
     const v = d.vehicles[index]
     if (!v) return d
@@ -536,7 +533,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }), [])
   const startTrip = useCallback(() => setDraft(d => ({ ...d, startedAt: d.startedAt ?? Date.now() })), [])
-
   const commitTrip = useCallback((
     t: Trip,
     photos?: { dataUrl: string; mimeType: string }[],
@@ -546,7 +542,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)
-
     const photoList = photos?.length
       ? photos
       : (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
@@ -597,7 +592,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     commitTrip(trip)
   }, [draft, officer.name, commitTrip])
-
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
     if (!draft.photoUrl) {
@@ -612,7 +606,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const routeTo = sepIdx > 0 ? routeCode.slice(sepIdx + 1).trim() : ''
     const routeLabel = sepIdx > 0 ? `${routeFrom} → ${routeTo}` : routeCode || 'Tidak Diketahui'
     const startedAt = draft.startedAt ? new Date(draft.startedAt) : now
-
     const elapsed = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000))
     const vehicles = draft.vehicles
     const total = vehicles.reduce((sum, v) => sum + (v.tariff ?? 0), 0)
@@ -656,7 +649,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!current) return
     const updated: Trip = { ...current, ...fields, synced: false, updatedAt: Date.now() }
     setTrips(prev => prev.map(t => (t.id === tripId ? updated : t)))
-
     void retrySyncItem(updated)
   }, [])
   const patchVehiclePhoto = useCallback((tripId: string, vehicleIndex: number, fields: Partial<VehicleEntry>) => {
@@ -677,13 +669,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearAllTrips = useCallback(() => {
     setTrips([])
     setDetailTripId(null)
-
-    try { localStorage.removeItem(LS.trips) } catch {}
-
+    try { localStorage.removeItem(LS.trips) } catch { /* ignore */ }
     void dbClear('trips')
-
     void dbClear('pending')
-
     notifyQueueListeners()
   }, [])
 
@@ -710,6 +698,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     if (force) {
+      // tarik manual = segarkan semua: petugas + titik (tanpa logout)
+      // ponytail: foreground = force agar edit admin langsung sampai
+      void syncGeofencesFromBackend({ force: true })
+
       const ok = await refreshBackendSession(String(officerId))
 
       const me = synced.find(o => String(o.id) === String(officerId))
@@ -737,13 +729,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [markTripSynced])
 
   useEffect(() => {
-
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
-      void forceSyncGeofencesFromBackend()
+      // ponytail: online/kembali-sesi = force, lihat catatan di atas
+      void syncGeofencesFromBackend({ force: true })
     }
     const onOnline = () => pullAuthorizedMasterData()
-
     const onSessionReady = () => pullAuthorizedMasterData()
     window.addEventListener('online', onOnline)
     window.addEventListener(SESSION_READY_EVENT, onSessionReady)
@@ -774,6 +765,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }
+
 
 
 

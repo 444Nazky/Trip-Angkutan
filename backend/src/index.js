@@ -16,10 +16,16 @@ const appVersionRoutes = require('./routes/appVersion');
 const appDownloadRoutes = require('./routes/appDownload');
 const otaBundleRoutes = require('./routes/otaBundle');
 
+
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+
+
 app.set('trust proxy', 1);
+
+
 
 // Origin dev lokal (web dev-server + shell native Capacitor/Ionic) yang harus
 // selalu diizinkan agar aplikasi bisa diuji dari mesin pengembang tanpa
@@ -62,26 +68,8 @@ const corsOptions = {
     // tetapi jangan melempar error agar tidak menimbulkan 500.
     return callback(null, false);
   },
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Accept',
-    'Origin',
-    'X-Requested-With',
-    'X-Admin-Token',
-  ],
-  exposedHeaders: ['Content-Length'],
-  // Autentikasi memakai header Authorization (Bearer), bukan cookie.
-  credentials: false,
-  optionsSuccessStatus: 204,
-  maxAge: 86400,
 };
-
 app.use(cors(corsOptions));
-
-// Tangani preflight OPTIONS untuk semua route (Express 4).
-app.options('*', cors(corsOptions));
 
 
 
@@ -97,11 +85,15 @@ app.use((req, res, next) => {
   return parse(req, res, next);
 });
 
+
+
 const { UPLOADS_DIR } = require('./uploads-dir');
 
 
 
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+
 
 const path = require('path');
 const releasesDir = path.join(__dirname, '..', 'public', 'releases');
@@ -129,53 +121,17 @@ app.use((req, _res, next) => {
 
 
 app.use('/api/auth', authRoutes);
-
-
-
 app.use('/api/trips', tripRoutes);
-
-
-
 app.use('/api/tariffs', tariffRoutes);
-
-
-
 app.use('/api/region-tariffs', regionTariffRoutes);
-
-
-
 app.use('/api/plates', plateRoutes);
-
-
-
 app.use('/api/officers', officerRoutes);
-
-
-
 app.use('/api/regions', regionRoutes);
-
-
-
 app.use('/api/dermagas', dermagaRoutes);
-
-
-
 app.use('/api/routes', routeRoutes);
-
-
-
 app.use('/api/reports', reportRoutes);
-
-
-
 app.use('/api/geofences', geofenceRoutes);
-
-
-
 app.use('/api/v1', appVersionRoutes);
-
-
-
 app.use('/api/v1', appDownloadRoutes);
 app.use('/api/v1', otaBundleRoutes);
 
@@ -192,6 +148,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
+
+
 async function start() {
   try {
     await dbModule.loadDb();
@@ -206,6 +164,8 @@ async function start() {
     process.exit(1);
   }
 }
+
+
 
 start();
 

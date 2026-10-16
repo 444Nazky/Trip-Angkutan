@@ -1,15 +1,16 @@
-// Self-check idempotensi trip: kolom trips.client_trip_id ada, dan logika
-// UPSERT (perbarui trip lama, bukan insert duplikat) bekerja seperti di
-// POST /trips/complete. Jalankan: npm run check (DB sementara, tidak menyentuh data/)
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
+
+
 const tmp = path.join(os.tmpdir(), `trip-check-${Date.now()}.db`);
 process.env.DB_PATH = tmp;
 
 const { loadDb, db } = require('../src/db');
+
+
 
 (async () => {
   await loadDb();
@@ -29,7 +30,6 @@ const { loadDb, db } = require('../src/db');
   if (!found?.id) throw new Error('pencarian client_trip_id gagal');
   console.log('OK  lookup client_trip_id mengembalikan baris yang sudah ada');
 
-  // Simulasi edit pasca-kirim: UPDATE, bukan INSERT kedua.
   db.prepare(`UPDATE trips SET route_from = ? WHERE id = ?`).run('BBBB', found.id);
   const count = db.prepare(`SELECT COUNT(*) AS c FROM trips WHERE client_trip_id = ?`).get(clientTripId);
   const edited = db.prepare(`SELECT id, route_from FROM trips WHERE client_trip_id = ? LIMIT 1`).get(clientTripId);

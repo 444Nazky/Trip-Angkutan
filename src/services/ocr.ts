@@ -2,20 +2,18 @@ import { createWorker } from 'tesseract.js'
 
 
 
+
 function normalizePlate(text: string): string {
-
   let result = text.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ')
-
   result = result.trim()
-
   result = result.replace(/\s+/g, ' ')
   return result
 }
 
 
 
-function toStandardFormat(text: string): string {
 
+function toStandardFormat(text: string): string {
   const stripped = text.replace(/\s/g, '')
 
   const match = stripped.match(/^([A-Z]{1,2})([0-9]{1,4})([A-Z]{0,3})$/)
@@ -29,6 +27,7 @@ function toStandardFormat(text: string): string {
 
   return text
 }
+
 
 
 
@@ -74,6 +73,7 @@ function preprocessImage(src: HTMLCanvasElement | HTMLImageElement | HTMLVideoEl
 
 
 
+
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -82,6 +82,9 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob)
   })
 }
+
+
+
 
 async function preprocessSrc(src: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -98,6 +101,7 @@ async function preprocessSrc(src: string): Promise<string> {
     img.src = src
   })
 }
+
 
 
 
@@ -133,7 +137,6 @@ export async function readPlateFromImage(image: Blob | string): Promise<string> 
     for (const line of lines) {
       const cleaned = normalizePlate(line)
       if (cleaned.length >= 4) {
-
         const lineMatch = cleaned.match(/([A-Z]{1,2})\s*([0-9]{1,4})\s*([A-Z]{0,3})/)
         if (lineMatch) {
           const plate = (lineMatch[1] + lineMatch[2] + lineMatch[3]).replace(/\s/g, '')
@@ -151,12 +154,10 @@ export async function readPlateFromImage(image: Blob | string): Promise<string> 
     }
 
     if (candidates.length > 0) {
-
       candidates.sort((a, b) => b.length - a.length)
 
       for (const candidate of candidates) {
         const normalized = toStandardFormat(candidate)
-
         const stripped = normalized.replace(/\s/g, '')
         if (/^[A-Z]{1,2}[0-9]{1,4}[A-Z]{0,3}$/.test(stripped) && stripped.length >= 4) {
           return normalized

@@ -1,3 +1,7 @@
+
+
+
+
 export type MobileScreen =
   | 'home'
   | 'route-select'
@@ -16,11 +20,13 @@ export type MobileScreen =
 
 
 
+
 export interface Region {
   id: string
   name: string
   code: string
 }
+
 
 
 
@@ -32,6 +38,7 @@ export interface Dermaga {
   region_name?: string
   region_code?: string
 }
+
 
 
 
@@ -47,12 +54,14 @@ export interface Route {
 
 
 
+
 export interface DermagaAccess {
   id: string
   code?: string
   name: string
   region_id?: string
 }
+
 
 
 
