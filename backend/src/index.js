@@ -68,8 +68,27 @@ const corsOptions = {
     // tetapi jangan melempar error agar tidak menimbulkan 500.
     return callback(null, false);
   },
+  // Dipertahankan dari branch `main` prapenggabungan: allowlist metode/header
+  // eksplisit + handler preflight OPTIONS (belum ada di branch endpoint/mobile).
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'X-Admin-Token',
+  ],
+  exposedHeaders: ['Content-Length'],
+  // Autentikasi memakai header Authorization (Bearer), bukan cookie.
+  credentials: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
 };
 app.use(cors(corsOptions));
+
+// Tangani preflight OPTIONS untuk semua route (Express 4).
+app.options('*', cors(corsOptions));
 
 
 

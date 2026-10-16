@@ -67,3 +67,13 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Build artifacts & binaries (CDN/distribution is source of truth)
+*.apk
+backend/apks/
+public/releases/
+backend/public/
+
+# Runtime databases (local/dev only, never commit)
+data/*.db
+*.db
