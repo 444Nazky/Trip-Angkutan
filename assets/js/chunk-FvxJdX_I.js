@@ -1,0 +1,1 @@
+import{m as o}from"./main-R2BCTBM2.js";export{o as App};
