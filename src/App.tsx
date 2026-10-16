@@ -4,7 +4,7 @@ import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
-import { syncOnResume } from "./services/adminPull"
+import { startConnectivitySync, syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { syncGeofencesFromBackend } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
@@ -18,6 +18,9 @@ function Shell() {
   useEffect(() => {
     initializeSync()
     void initOfflineDb()
+    // Perangkat kembali online (WiFi ↔ seluler, atau sinyal hilang lalu balik)
+    // = tarik ulang master data secara senyap, tanpa notifikasi.
+    startConnectivitySync()
     void checkAndRequestLocationOnStartup()
     // Endpoint bawaan (build rilis = Railway) belum tentu yang terjangkau dari
     // jaringan petugas. Cari kandidat yang benar-benar menjawab, baru tarik data —
