@@ -312,7 +312,8 @@ const AUTODETECT_TTL_MS = 10 * 60 * 1000
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   const urls: ApiBaseCandidate[] = [
-    // ponytail: default = Railway; kandidat lokal hanya fallback bila Railway mati.
+    // Default = backend LAN Wi-Fi kantor; server live hanya fallback.
+    { label: 'LAN Wi-Fi (192.168.1.124)', url: 'http://192.168.1.124:3000/api' },
     { label: 'Produksi (Railway)', url: 'https://aplikasi-trip-api-production.up.railway.app/api' },
     { label: 'Default build', url: normalizeBaseUrl(environment.apiBaseUrl) },
     { label: 'Backend lokal laptop', url: 'http://localhost:3000/api' },

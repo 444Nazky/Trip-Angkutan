@@ -21,7 +21,9 @@ if (file_exists($static_path)) {
     // menggantikan tag ikon bawaan build Ionic sekaligus mencegah 404 /favicon.ico
     $html = preg_replace(
         '/<link\s+rel="(?:icon|apple-touch-icon|apple-touch-icon-precomposed|mask-icon)"[^>]*>\s*/i',
-        '<link rel="icon" type="image/svg+xml" href="assets/karyamasv.svg">',
+        // Huruf besar "Assets" penting: build menaruh berkasnya di sana, dan
+        // filesystem Linux peka huruf besar/kecil (dulu → favicon 404).
+        '<link rel="icon" type="image/svg+xml" href="Assets/karyamasv.svg">',
         $html
     );
 
@@ -31,6 +33,23 @@ if (file_exists($static_path)) {
         '<head><style>html[data-admin],html[data-admin] body{position:static!important;overflow:visible!important;height:auto!important;max-height:none!important;}</style>',
         $html
     );
+
+    // Endpoint API mengikuti HOST yang dipakai membuka dashboard ini.
+    // Build admin (vite PROD) hanya mengenal Railway, sehingga dashboard yang
+    // dibuka lewat LAN (mis. 10.x.x.x:8000) akan menembak server produksi —
+    // padahal di intranet yang benar adalah backend LAN yang sama, tempat HP
+    // petugas juga menulis. Override ditulis SEKALI per-origin (localStorage
+    // di-scope per host:port), jadi bila IP LAN berubah origin-nya baru lagi
+    // dan nilainya ikut benar sendiri. Pilihan manual admin di menu Pengaturan
+    // Server tetap menang karena nilai yang sudah ada tidak ditimpa.
+    $api_host = preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($api_host !== '') {
+        $api_base = 'http://' . $api_host . ':3000/api';
+        $boot = '<script>(function(){try{var k="trip.admin.apiBaseUrl";'
+            . 'if(!localStorage.getItem(k)){localStorage.setItem(k,' . json_encode($api_base) . ');}'
+            . '}catch(e){}})();</script>';
+        $html = str_replace('<head>', '<head>' . $boot, $html);
+    }
 
     echo $html;
     exit;
