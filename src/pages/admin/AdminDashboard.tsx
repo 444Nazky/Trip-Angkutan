@@ -119,14 +119,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     return () => clearInterval(id)
   }, [tab, authDenied])
 
+  // Reorganized navigation: Laporan first, removed redundant Dashboard
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
+    { key: 'reports', label: 'Laporan', Icon: BarChart2 },
     { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'officers', label: 'Petugas', Icon: Users },
-    { key: 'reports', label: 'Laporan', Icon: BarChart2 },
-
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
 
@@ -154,7 +154,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] admin-nav-item transition-all duration-150 ${
                 tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}>
               <Icon size={16} />{label}
@@ -169,7 +169,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
-        <div className="p-8 max-w-[1400px]">
+        <div className="p-8 max-w-[1400px] admin-tab-content">
           {tab === 'overview' && (
             <OverviewTab
               serverTrips={serverTrips}

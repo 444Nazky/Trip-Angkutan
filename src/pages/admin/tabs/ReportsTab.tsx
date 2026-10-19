@@ -364,30 +364,66 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
               <tr><td colSpan={9} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
               <tr><td colSpan={9} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
-            ) : reportTrips.map((t, idx) => {
-              const open = openTripId === t.id
-              const d = formatReportDateTime(t.created_at)
-              return (
-                <Fragment key={t.id}>
-                  <tr onClick={() => setOpenTripId(open ? null : t.id)}
-                    className={`cursor-pointer hover:bg-slate-50 ${open ? 'bg-blue-50/60' : idx % 2 === 1 ? 'bg-slate-50/40' : ''}`}>
-                    <td className="px-4 py-2.5 text-slate-400 tabular-nums align-middle">{idx + 1}</td>
-                    <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{t.no_trip}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{d.date} {d.time}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{t.region_name || '-'}</td>
-                    <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from} → {t.route_to_name || t.route_to}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
-                        {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
-                      </span>
+            ) : (() => {
+              // Group trips by date for cleaner hierarchy
+              const groupedByDate = reportTrips.reduce((acc, t) => {
+                const date = dayKeyWib(t.created_at)
+                if (!acc[date]) acc[date] = []
+                acc[date].push(t)
+                return acc
+              }, {} as Record<string, typeof reportTrips>)
+
+              const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
+              let globalIdx = 0
+
+              return sortedDates.flatMap(date => {
+                const dayTrips = groupedByDate[date]
+                const dayTotal = dayTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
+                const dayRevenue = dayTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
+                const dateObj = new Date(date + 'T00:00:00')
+                const formattedDate = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
+                return [
+                  // Date group header row
+                  <tr key={`date-${date}`} className="bg-slate-800 text-white">
+                    <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
+                      📅 {formattedDate}
+                      <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip · {dayTotal} unit)</span>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{t.vehicle_count}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={t.trip_revenue || 0} />
+                    <td colSpan={3} className="px-3 py-2.5 text-right">
+                      <span className="text-slate-300 text-xs">Total:</span>
                     </td>
-                    <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
-                  </tr>
-                  {open && (
+                    <td colSpan={2} className="px-4 py-2.5 text-right font-black text-sm">
+                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={dayRevenue} className="text-emerald-300" />
+                    </td>
+                    <td />
+                  </tr>,
+                  // Trip rows for this date
+                  ...dayTrips.map((t) => {
+                    const open = openTripId === t.id
+                    const d = formatReportDateTime(t.created_at)
+                    const currentIdx = globalIdx++
+                    return (
+                      <Fragment key={t.id}>
+                        <tr onClick={() => setOpenTripId(open ? null : t.id)}
+                          className={`cursor-pointer hover:bg-slate-50 transition-colors duration-150 ${open ? 'bg-blue-50/60' : currentIdx % 2 === 1 ? 'bg-slate-50/40' : ''}`}>
+                          <td className="px-4 py-2.5 text-slate-400 tabular-nums align-middle">{currentIdx + 1}</td>
+                          <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{t.no_trip}</td>
+                          <td className="px-3 py-2.5 text-slate-500 text-xs">{d.time}</td>
+                          <td className="px-3 py-2.5 text-slate-700">{t.region_name || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from} → {t.route_to_name || t.route_to}</td>
+                          <td className="px-3 py-2.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
+                              {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{t.vehicle_count}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={t.trip_revenue || 0} />
+                          </td>
+                          <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
+                        </tr>
+                        {open && (
                     <tr className="bg-slate-50/80">
                       <td colSpan={9} className="px-4 py-3">
                         <div className="text-[12px] text-slate-600 mb-3">
@@ -454,20 +490,19 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         )}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              )
-            })}
+                  </Fragment>
+                )
+              })
+            })()}
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 font-bold text-slate-700">
-              <td colSpan={7} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
+              <td colSpan={9} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
                 Total {totalTrip} trip · {totalUnit} unit
+                <span className="ml-4">
+                  <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-emerald-700 font-black" />
+                </span>
               </td>
-              <td className="px-4 py-3 border-t-2 border-slate-300 text-right">
-                <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-emerald-700 font-black" />
-              </td>
-              <td />
             </tr>
           </tfoot>
         </table>

@@ -409,10 +409,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
             <tr>
-              <th className="text-left p-4">Wilayah</th><th className="text-left p-4">Dermaga</th>
-              <th className="text-left p-4">Nama Rute</th><th className="text-left p-4">Asal</th>
-              <th className="text-left p-4">Tujuan</th><th className="text-left p-4">Jarak</th>
-              <th className="text-left p-4">Durasi</th><th className="text-right p-4">Aksi</th>
+              <th className="text-left p-4"></th>
+              <th className="text-left p-4">DERMAGA</th>
+              <th className="text-left p-4">NAMA RUTE</th>
+              <th className="text-left p-4">ASAL</th>
+              <th className="text-left p-4">TUJUAN</th>
+              <th className="text-left p-4">JARAK</th>
+              <th className="text-left p-4">DURASI</th>
+              <th className="text-right p-4">AKSI</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -441,14 +445,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       </td>
                     </tr>
                     {routes.map(r => (
-                      <tr key={r.id} className={editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}>
+                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
                         <td className="p-4"></td>
-                        <td className="p-4 text-slate-500 text-xs">{r.dermaga_code || ''}</td>
-                        <td className="p-4 font-semibold text-slate-800">{r.name}</td>
-                        <td className="p-4 font-mono text-slate-600">{r.route_from}</td>
-                        <td className="p-4 font-mono text-slate-600">{r.route_to}</td>
-                        <td className="p-4 text-slate-500">{r.distance || '—'}</td>
-                        <td className="p-4 text-slate-500">{r.duration || '—'}</td>
+                        <td className="p-4 text-slate-500 text-xs font-semibold">{r.dermaga_code || ''}</td>
+                        <td className="p-4 font-semibold text-slate-800 text-sm">{r.name}</td>
+                        <td className="p-4 font-mono text-slate-600 font-bold">{r.route_from}</td>
+                        <td className="p-4 font-mono text-slate-600 font-bold">{r.route_to}</td>
+                        <td className="p-4 text-slate-500 text-xs">{r.distance || '—'}</td>
+                        <td className="p-4 text-slate-500 text-xs">{r.duration || '—'}</td>
                         <td className="p-4 text-right whitespace-nowrap">
                           <button onClick={() => startEdit(r)} className="text-blue-600 font-bold text-sm mr-3 hover:underline">Edit</button>
                           <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-bold text-sm mr-3 hover:underline flex items-center gap-1">
@@ -478,9 +482,9 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                 <div>
                   <h3 className="font-black text-slate-900 text-lg">Titik Geofence</h3>
                   <p className="text-slate-500 text-xs">
-                    Rute: <span className="font-mono font-semibold">{currentRouteForGeofence?.name || getRouteCode()}</span>
+                    Rute: <span className="font-mono font-bold text-blue-700">{currentRouteForGeofence?.name || getRouteCode()}</span>
                     {currentRouteForGeofence && (
-                      <span className="ml-2">({currentRouteForGeofence.route_from} → {currentRouteForGeofence.route_to})</span>
+                      <span className="ml-2 text-emerald-700 font-semibold">({currentRouteForGeofence.route_from} → {currentRouteForGeofence.route_to})</span>
                     )}
                   </p>
                 </div>
