@@ -263,7 +263,7 @@ describe('autoDetectApiBaseUrl', () => {
 
     const found = await autoDetectApiBaseUrl(60)
 
-    expect(found).toBe('http://192.168.1.124:3000/api')
+    expect(found).toBe('http://192.168.100.10:3000/api')
     expect(resolveApiBaseUrl()).toBe(found)
 
     setApiBaseUrlOverride('https://manual.example.com')
@@ -271,24 +271,10 @@ describe('autoDetectApiBaseUrl', () => {
     expect(resolveApiBaseUrl()).toBe('https://manual.example.com/api')
   })
 
-  it('LAN mati → jatuh ke server produksi (Railway) sebagai cadangan', async () => {
-    globalThis.fetch = vi.fn(async (url: string) => {
-      const target = String(url)
-      if (target.includes('192.168.1.124') || target.includes('localhost:3000')) {
-        throw new TypeError('Failed to fetch')
-      }
-      return { ok: true, status: 200, type: 'cors' } as unknown as Response
-    }) as unknown as typeof fetch
-
-    expect(await autoDetectApiBaseUrl(60))
-      .toBe('https://aplikasi-trip-api-production.up.railway.app/api')
-  })
-
-  it('tidak ada kandidat yang menjawab → null, URL default tidak diubah', async () => {
+  it('semua LAN/laptop mati → null, fallback default build', async () => {
     globalThis.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
 
-    expect(await autoDetectApiBaseUrl(40)).toBeNull()
-    expect(resolveApiBaseUrl()).toBe(environment.apiBaseUrl.replace(/\/+$/, ''))
+    expect(await autoDetectApiBaseUrl(60)).toBeNull()
   })
 })
 

@@ -1,84 +1,110 @@
+/**
+ * Tariffs Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
-const { randomUUID } = require('crypto');
-const { db } = require('../db');
+const { supabase, supabaseAdmin, helpers } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-
-
-router.get('/', authenticate, requireAdmin, (req, res) => {
+// GET ALL TARIFFS
+router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const tariffs = db.prepare(`
-      SELECT * FROM tariffs WHERE is_active = 1 ORDER BY golongan, vehicle_type
-    `).all();
-    res.json(tariffs);
+    const { data, error } = await (supabaseAdmin || supabase)
+      .from('tariffs')
+      .select('*')
+      .eq('is_active', 1)
+      .order('golongan', { ascending: true })
+      .order('vehicle_type', { ascending: true });
+
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tariffs' });
   }
 });
 
-
-
-router.post('/', authenticate, requireAdmin, (req, res) => {
+// CREATE TARIFF
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { golongan, vehicleType, loadedTariff, emptyTariff, description } = req.body;
+    const client = supabaseAdmin || supabase;
 
-    const id = randomUUID();
-    db.prepare(`
-      INSERT INTO tariffs (id, golongan, vehicle_type, loaded_tariff, empty_tariff, description)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, golongan, vehicleType, loadedTariff, emptyTariff, description || '');
+    const { data, error } = await client
+      .from('tariffs')
+      .insert({
+        golongan,
+        vehicle_type: vehicleType,
+        loaded_tariff: loadedTariff,
+        empty_tariff: emptyTariff,
+        description: description || '',
+      })
+      .select()
+      .single();
 
-    res.status(201).json({ id, golongan, vehicleType, loadedTariff, emptyTariff, description: description || '' });
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create tariff' });
   }
 });
 
-
-
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+// UPDATE TARIFF
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    const existing = db.prepare(`SELECT * FROM tariffs WHERE id = ?`).get(req.params.id);
-    if (!existing) {
+    const { id } = req.params;
+    const client = supabaseAdmin || supabase;
+
+    // Check if exists
+    const { data: existing } = await client
+      .from('tariffs')
+      .select('*')
+      .eq('id', id)
+      .limit(1);
+
+    if (!existing?.length) {
       return res.status(404).json({ error: 'Tariff not found' });
     }
 
-    const golongan = req.body.golongan ?? existing.golongan;
-    const vehicleType = req.body.vehicleType ?? existing.vehicle_type;
-    const loadedTariff = req.body.loadedTariff ?? existing.loaded_tariff;
-    const emptyTariff = req.body.emptyTariff ?? existing.empty_tariff;
-    const description = req.body.description ?? existing.description;
-    const isActive = req.body.isActive === undefined ? existing.is_active : (req.body.isActive ? 1 : 0);
+    const existingTariff = existing[0];
+    const { golongan, vehicleType, loadedTariff, emptyTariff, description, isActive } = req.body;
 
-    db.prepare(`
-      UPDATE tariffs
-      SET golongan = ?, vehicle_type = ?, loaded_tariff = ?, empty_tariff = ?, description = ?, is_active = ?
-      WHERE id = ?
-    `).run(golongan, vehicleType, loadedTariff, emptyTariff, description, isActive, req.params.id);
+    const updateData = {};
+    if (golongan !== undefined) updateData.golongan = golongan;
+    if (vehicleType !== undefined) updateData.vehicle_type = vehicleType;
+    if (loadedTariff !== undefined) updateData.loaded_tariff = loadedTariff;
+    if (emptyTariff !== undefined) updateData.empty_tariff = emptyTariff;
+    if (description !== undefined) updateData.description = description;
+    if (isActive !== undefined) updateData.is_active = isActive ? 1 : 0;
 
+    const { error } = await client
+      .from('tariffs')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update tariff' });
   }
 });
 
-
-
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+// DELETE TARIFF
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    const existing = db.prepare(`SELECT * FROM tariffs WHERE id = ?`).get(req.params.id);
-    if (!existing) {
-      return res.status(404).json({ error: 'Tariff not found' });
-    }
+    const { id } = req.params;
+    const client = supabaseAdmin || supabase;
 
-    db.prepare(`DELETE FROM tariffs WHERE id = ?`).run(req.params.id);
+    const { error } = await client
+      .from('tariffs')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete tariff' });
   }
 });
-
-
 
 module.exports = router;

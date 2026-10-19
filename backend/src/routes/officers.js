@@ -1,169 +1,195 @@
+/**
+ * Officers Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { db } = require('../db');
+const { supabase, supabaseAdmin, helpers } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-
-
-router.get('/', authenticate, requireAdmin, (req, res) => {
+// GET ALL OFFICERS
+router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      ORDER BY o.name
-    `).all();
+    const client = supabaseAdmin || supabase;
 
-    const dermagaStmt = db.prepare(`
-      SELECT d.id, d.name, d.code, d.region_id
-      FROM officer_dermagas od
-      JOIN dermagas d ON od.dermaga_id = d.id
-      WHERE od.officer_id = ?
-      ORDER BY d.code
-    `);
+    // Get all officers with region info
+    const { data: officers, error } = await client
+      .from('officers')
+      .select(`
+        id, name, username, region_id, is_active,
+        regions(name, code)
+      `)
+      .order('name', { ascending: true });
 
-    const officerRegionsStmt = db.prepare(`
-      SELECT DISTINCT reg.id, reg.name, reg.code
-      FROM officer_regions orr
-      JOIN regions reg ON orr.region_id = reg.id
-      WHERE orr.officer_id = ?
-      ORDER BY reg.name
-    `);
-    const dermagaRegionsStmt = db.prepare(`
-      SELECT DISTINCT reg.id, reg.name, reg.code
-      FROM officer_dermagas od
-      JOIN dermagas d ON od.dermaga_id = d.id
-      JOIN regions reg ON d.region_id = reg.id
-      WHERE od.officer_id = ?
-    `);
+    if (error) throw error;
 
-    for (const o of officers) {
-      let regions = officerRegionsStmt.all(String(o.id));
-      if (regions.length === 0) regions = dermagaRegionsStmt.all(String(o.id));
-      if (regions.length === 0) regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
-      o.regions = regions;
-      o.dermagas = dermagaStmt.all(String(o.id));
+    // Get dermagas and regions for each officer
+    const result = [];
+    for (const o of (officers || [])) {
+      // Get officer regions
+      const { data: officerRegions } = await client
+        .from('officer_regions')
+        .select('regions(id, name, code)')
+        .eq('officer_id', o.id);
+
+      // Get officer dermagas
+      const { data: officerDermagas } = await client
+        .from('officer_dermagas')
+        .select('dermagas(id, name, code, region_id)')
+        .eq('officer_id', o.id);
+
+      result.push({
+        ...o,
+        region_name: o.regions?.name,
+        region_code: o.regions?.code,
+        regions: officerRegions?.map(or => or.regions).filter(Boolean) || [],
+        dermagas: officerDermagas?.map(od => od.dermagas).filter(Boolean) || [],
+      });
     }
 
-    res.json(officers);
+    res.json(result);
   } catch (error) {
+    console.error('Fetch officers error:', error);
     res.status(500).json({ error: 'Failed to fetch officers' });
   }
 });
 
-
-
-router.get('/my-region', authenticate, (req, res) => {
+// GET OFFICERS IN MY REGION
+router.get('/my-region', authenticate, async (req, res) => {
   try {
     const meId = String(req.user.officerId ?? '');
     if (!meId) return res.status(401).json({ error: 'Not authenticated' });
 
-    let myRegions = db.prepare(`SELECT region_id FROM officer_regions WHERE officer_id = ?`).all(meId);
-    if (myRegions.length === 0) {
-      const me = db.prepare(`SELECT region_id FROM officers WHERE id = ?`).get(meId);
-      if (me) myRegions = [{ region_id: me.region_id }];
-    }
-    const myRegionIds = new Set(myRegions.map(r => String(r.region_id)));
+    const client = supabaseAdmin || supabase;
 
-    const officers = db.prepare(`
-      SELECT o.id, o.name, o.username, o.region_id, o.is_active, o.pin AS pin_hash, r.name as region_name, r.code as region_code
-      FROM officers o
-      JOIN regions r ON o.region_id = r.id
-      ORDER BY o.name
-    `).all();
+    // Get my regions
+    const { data: myOfficerRegions } = await client
+      .from('officer_regions')
+      .select('region_id')
+      .eq('officer_id', meId);
 
-    const regionsStmt = db.prepare(`
-      SELECT r.id, r.name, r.code
-      FROM regions r
-      JOIN officer_regions orr ON r.id = orr.region_id
-      WHERE orr.officer_id = ?
-      ORDER BY r.name
-    `);
-    const dermagaStmt = db.prepare(`
-      SELECT d.id, d.name, d.code, d.region_id
-      FROM officer_dermagas od
-      JOIN dermagas d ON od.dermaga_id = d.id
-      WHERE od.officer_id = ?
-      ORDER BY d.code
-    `);
+    const myRegionIds = new Set((myOfficerRegions || []).map(r => r.region_id));
 
-    const out = [];
-    const requestedOfficerIds = new Set();
-    for (const o of officers) {
-      let regions = regionsStmt.all(String(o.id));
-      if (regions.length === 0) {
-        regions = [{ id: o.region_id, name: o.region_name, code: o.region_code }];
-      }
-      o.regions = regions;
-      o.dermagas = dermagaStmt.all(String(o.id));
+    // Get all officers
+    const { data: officers } = await client
+      .from('officers')
+      .select(`
+        *,
+        regions(name, code)
+      `)
+      .order('name', { ascending: true });
 
-      const sharesRegion = regions.some(r => myRegionIds.has(String(r.id)));
-      if (sharesRegion) {
-        out.push(o);
-        requestedOfficerIds.add(String(o.id));
-      }
-    }
+    const result = [];
 
-    if (meId && !requestedOfficerIds.has(meId)) {
-      const me = officers.find(o => String(o.id) === meId);
-      if (me) {
-        let regions = regionsStmt.all(meId);
-        if (regions.length === 0) {
-          regions = [{ id: me.region_id, name: me.region_name, code: me.region_code }];
-        }
-        me.regions = regions;
-        me.dermagas = dermagaStmt.all(meId);
-        out.push(me);
+    for (const o of (officers || [])) {
+      // Get this officer's regions
+      const { data: officerRegions } = await client
+        .from('officer_regions')
+        .select('regions(id, name, code)')
+        .eq('officer_id', o.id);
+
+      // Get this officer's dermagas
+      const { data: officerDermagas } = await client
+        .from('officer_dermagas')
+        .select('dermagas(id, name, code, region_id)')
+        .eq('officer_id', o.id);
+
+      const regions = officerRegions?.map(or => or.regions).filter(Boolean) || [];
+      const dermagas = officerDermagas?.map(od => od.dermagas).filter(Boolean) || [];
+
+      // Check if shares region with me
+      const sharesRegion = regions.some(r => myRegionIds.has(r.id)) ||
+        myRegionIds.has(o.region_id);
+
+      if (sharesRegion || String(o.id) === meId) {
+        result.push({
+          ...o,
+          region_name: o.regions?.name,
+          region_code: o.regions?.code,
+          regions,
+          dermagas,
+        });
       }
     }
 
-    res.json(out);
+    res.json(result);
   } catch (error) {
+    console.error('Fetch my-region officers error:', error);
     res.status(500).json({ error: 'Failed to fetch officers' });
   }
 });
 
-
-
-router.post('/', authenticate, requireAdmin, (req, res) => {
+// CREATE OFFICER
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { name, username, pin, regionId, regionIds, dermagaIds } = req.body || {};
-const { randomUUID } = require('crypto');
     const cleanName = String(name ?? '').trim();
+
     if (!cleanName) return res.status(400).json({ error: 'Nama wajib diisi' });
     if (!pin || String(pin).length < 4) {
       return res.status(400).json({ error: 'PIN minimal 4 digit' });
     }
-    // ponytail: username disimpan saat create — rumus SAMA dengan tampilan dashboard
-    // (nama lowercase tanpa spasi). Dulu kolom dibiarkan NULL sehingga dashboard
-    // menampilkan @budisantoso sementara DB tidak punya → member-login selalu 401.
+
+    const client = supabaseAdmin || supabase;
+
+    // Generate username
     const base = String(username ?? '').trim().toLowerCase().replace(/\s+/g, '')
       || cleanName.toLowerCase().replace(/\s+/g, '');
+
+    // Check if username exists
     let candidate = base;
     let n = 2;
-    const taken = (u) => db.prepare(`SELECT id FROM officers WHERE LOWER(username) = LOWER(?)`).get(u);
-    while (taken(candidate)) candidate = `${base}-${n++}`;
+    while (true) {
+      const { data: existing } = await client
+        .from('officers')
+        .select('id')
+        .ilike('username', candidate)
+        .limit(1);
+
+      if (!existing?.length) break;
+      candidate = `${base}-${n++}`;
+    }
+
     const hashedPin = bcrypt.hashSync(String(pin), 10);
-    const id = randomUUID();
+    const id = helpers.uuid();
+    const primaryRegionId = Array.isArray(regionIds) && regionIds.length > 0
+      ? regionIds[0]
+      : regionId;
 
+    // Insert officer
+    const { error: insertError } = await client
+      .from('officers')
+      .insert({
+        id,
+        name: cleanName,
+        username: candidate,
+        pin: hashedPin,
+        region_id: primaryRegionId,
+      });
+
+    if (insertError) throw insertError;
+
+    // Link regions
     const ids = Array.isArray(regionIds) && regionIds.length > 0
-      ? regionIds.map(String)
-      : [String(regionId)];
+      ? regionIds
+      : [primaryRegionId];
 
-    db.prepare(`
-      INSERT INTO officers (id, name, username, pin, region_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, cleanName, candidate, hashedPin, ids[0]);
+    if (ids.length) {
+      const regionLinks = ids.map(rid => ({
+        officer_id: id,
+        region_id: rid,
+      }));
+      await client.from('officer_regions').upsert(regionLinks, { ignoreDuplicates: true });
+    }
 
-    const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
-    for (const rid of ids) link.run(id, rid);
-
+    // Link dermagas
     if (Array.isArray(dermagaIds) && dermagaIds.length > 0) {
-      const linkDm = db.prepare(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`);
-      for (const dm of dermagaIds) {
-        if (dm) linkDm.run(id, String(dm));
-      }
+      const dermagaLinks = dermagaIds.filter(Boolean).map(dmId => ({
+        officer_id: id,
+        dermaga_id: dmId,
+      }));
+      await client.from('officer_dermagas').upsert(dermagaLinks, { ignoreDuplicates: true });
     }
 
     res.status(201).json({ id, name: cleanName, username: candidate, regionIds: ids });
@@ -173,9 +199,8 @@ const { randomUUID } = require('crypto');
   }
 });
 
-
-
-router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
+// UPDATE OFFICER DERMAGAS
+router.put('/:id/dermagas', authenticate, requireAdmin, async (req, res) => {
   try {
     const { dermagaIds } = req.body || {};
     if (!Array.isArray(dermagaIds)) {
@@ -183,13 +208,22 @@ router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
     }
 
     const officerId = String(req.params.id);
-    const officer = db.prepare(`SELECT id FROM officers WHERE id = ?`).get(officerId);
-    if (!officer) return res.status(404).json({ error: 'Officer not found' });
+    const client = supabaseAdmin || supabase;
 
-    db.prepare(`DELETE FROM officer_dermagas WHERE officer_id = ?`).run(officerId);
-    const link = db.prepare(`INSERT OR IGNORE INTO officer_dermagas (officer_id, dermaga_id) VALUES (?, ?)`);
-    for (const dm of dermagaIds) {
-      if (dm) link.run(officerId, String(dm));
+    // Delete existing
+    await client
+      .from('officer_dermagas')
+      .delete()
+      .eq('officer_id', officerId);
+
+    // Insert new
+    const links = dermagaIds.filter(Boolean).map(dmId => ({
+      officer_id: officerId,
+      dermaga_id: String(dmId),
+    }));
+
+    if (links.length) {
+      await client.from('officer_dermagas').upsert(links, { ignoreDuplicates: true });
     }
 
     res.json({ success: true, dermagaIds: dermagaIds.filter(Boolean).map(String) });
@@ -199,69 +233,96 @@ router.put('/:id/dermagas', authenticate, requireAdmin, (req, res) => {
   }
 });
 
-
-
-router.put('/:id/regions', authenticate, requireAdmin, (req, res) => {
+// UPDATE OFFICER REGIONS
+router.put('/:id/regions', authenticate, requireAdmin, async (req, res) => {
   try {
     const { regionIds } = req.body || {};
     if (!Array.isArray(regionIds) || regionIds.length === 0) {
       return res.status(400).json({ error: 'regionIds harus berupa array dan tidak kosong' });
     }
 
-    const officer = db.prepare(`SELECT id FROM officers WHERE id = ?`).get(String(req.params.id));
-    if (!officer) return res.status(404).json({ error: 'Officer not found' });
+    const officerId = String(req.params.id);
+    const client = supabaseAdmin || supabase;
 
-    db.prepare(`DELETE FROM officer_regions WHERE officer_id = ?`).run(String(req.params.id));
-    const link = db.prepare(`INSERT OR IGNORE INTO officer_regions (officer_id, region_id) VALUES (?, ?)`);
-    for (const rid of regionIds) link.run(String(req.params.id), String(rid));
+    // Delete existing
+    await client
+      .from('officer_regions')
+      .delete()
+      .eq('officer_id', officerId);
 
-    db.prepare(`UPDATE officers SET region_id = ? WHERE id = ?`).run(String(regionIds[0]), String(req.params.id));
+    // Insert new
+    const links = regionIds.map(rid => ({
+      officer_id: officerId,
+      region_id: String(rid),
+    }));
+
+    await client.from('officer_regions').upsert(links, { ignoreDuplicates: true });
+
+    // Update primary region
+    await client
+      .from('officers')
+      .update({ region_id: String(regionIds[0]) })
+      .eq('id', officerId);
 
     res.json({ success: true, regionIds: regionIds.map(String) });
   } catch (error) {
+    console.error('Update officer regions error:', error);
     res.status(500).json({ error: 'Failed to update officer regions' });
   }
 });
 
-
-
-router.put('/:id/pin', authenticate, requireAdmin, (req, res) => {
+// UPDATE OFFICER PIN
+router.put('/:id/pin', authenticate, requireAdmin, async (req, res) => {
   try {
     const { pin } = req.body;
-    const hashedPin = bcrypt.hashSync(pin, 10);
+    const hashedPin = bcrypt.hashSync(String(pin), 10);
 
-    db.prepare(`UPDATE officers SET pin = ? WHERE id = ?`).run(hashedPin, req.params.id);
+    const client = supabaseAdmin || supabase;
+    const { error } = await client
+      .from('officers')
+      .update({ pin: hashedPin })
+      .eq('id', req.params.id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update PIN' });
   }
 });
 
-
-
-router.put('/:id/status', authenticate, requireAdmin, (req, res) => {
+// UPDATE OFFICER STATUS
+router.put('/:id/status', authenticate, requireAdmin, async (req, res) => {
   try {
     const { isActive } = req.body;
-    db.prepare(`UPDATE officers SET is_active = ? WHERE id = ?`).run(isActive ? 1 : 0, req.params.id);
+    const client = supabaseAdmin || supabase;
+
+    const { error } = await client
+      .from('officers')
+      .update({ is_active: isActive ? 1 : 0 })
+      .eq('id', req.params.id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update status' });
   }
 });
 
-
-
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+// DELETE OFFICER
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    db.prepare(`DELETE FROM officer_regions WHERE officer_id = ?`).run(req.params.id);
-    db.prepare(`DELETE FROM officer_dermagas WHERE officer_id = ?`).run(req.params.id);
-    db.prepare(`DELETE FROM officers WHERE id = ?`).run(req.params.id);
+    const officerId = String(req.params.id);
+    const client = supabaseAdmin || supabase;
+
+    await client.from('officer_regions').delete().eq('officer_id', officerId);
+    await client.from('officer_dermagas').delete().eq('officer_id', officerId);
+    const { error } = await client.from('officers').delete().eq('id', officerId);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete officer' });
   }
 });
-
-
 
 module.exports = router;

@@ -1,10 +1,11 @@
+/**
+ * Geofences Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { supabase, supabaseAdmin, helpers } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { randomUUID } = require('crypto');
-
-
 
 function numericCoordinate(value) {
   if (value === null || value === undefined) return null;
@@ -14,21 +15,15 @@ function numericCoordinate(value) {
   return n;
 }
 
-
-
 function validLatLng(lat, lng) {
   return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 }
-
-
 
 function clampRadius(value) {
   const n = numericCoordinate(value);
   if (n === null || n < 1 || n > 10000) return 100;
   return n;
 }
-
-
 
 function parseCoordsFromText(text) {
   if (!text) return null;
@@ -51,7 +46,9 @@ function parseCoordsFromText(text) {
   return null;
 }
 
-
+// ============================================
+// RESOLVE GOOGLE MAPS LINK
+// ============================================
 
 router.get('/resolve-link', authenticate, async (req, res) => {
   const raw = String(req.query.url || '').trim();
@@ -72,7 +69,7 @@ router.get('/resolve-link', authenticate, async (req, res) => {
     const response = await fetch(raw, {
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
       },
     });
@@ -86,18 +83,51 @@ router.get('/resolve-link', authenticate, async (req, res) => {
 
     return res.json({ url: finalUrl });
   } catch (error) {
-    console.error('Resolve maps link error:', error && error.message);
-    return res.status(502).json({ error: 'Gagal membuka link — periksa koneksi atau tempel URL penuh Google Maps' });
+    console.error('Resolve maps link error:', error?.message);
+    return res.status(502).json({ error: 'Gagal membuka link' });
   }
 });
 
+// ============================================
+// GET GEOFENCES
+// ============================================
 
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const dermagaId = String(req.query.dermagaId ?? '').trim();
+    const scopeAll = String(req.query.scope ?? '').toLowerCase() === 'all';
+    const client = supabaseAdmin || supabase;
+
+    let query = client
+      .from('geofences')
+      .select('*')
+      .order('location_name', { ascending: true, nullsFirst: true });
+
+    // Without filter (or scope=all) = full master list
+    if (!dermagaId || scopeAll) {
+      const { data, error } = await query;
+      if (error) throw error;
+      return res.json(shape(data));
+    }
+
+    // Get geofences for specific dermaga OR general ones (dermaga_id NULL)
+    const { data, error } = await client
+      .from('geofences')
+      .select('*')
+      .or(`dermaga_id.eq.${dermagaId},dermaga_id.is.null`)
+      .order('location_name', { ascending: true, nullsFirst: true });
+
+    if (error) throw error;
+    res.json(shape(data));
+  } catch (error) {
+    console.error('Get geofences error:', error);
+    res.status(500).json({ error: 'Failed to fetch geofences' });
+  }
+});
 
 function shape(rows) {
   return (rows || []).map(r => ({
     id: r.id,
-    // name & location_name dibaca bergantian: skema lama hanya punya `name`,
-    // skema baru menulis keduanya.
     name: r.name || r.location_name,
     locationName: r.location_name || r.name,
     dermagaId: r.dermaga_id ?? null,
@@ -111,53 +141,16 @@ function shape(rows) {
   }));
 }
 
+// ============================================
+// CREATE GEOFENCE
+// ============================================
 
-
-router.get('/', authenticate, (req, res) => {
-  try {
-    const dermagaId = String(req.query.dermagaId ?? '').trim();
-    const scopeAll = String(req.query.scope ?? '').toLowerCase() === 'all';
-    const ORDER = 'ORDER BY COALESCE(location_name, name, id)';
-
-    // Skema diperiksa lebih dulu: DB lama tanpa kolom dermaga_id membuat query
-    // filter melempar "no such column" → 500 → petugas menerima 0 titik dan input
-    // trip terkunci. Rute ini tidak boleh pernah 500.
-    const hasDermaga = db.prepare('PRAGMA table_info(geofences)').all().some(c => c.name === 'dermaga_id');
-
-    // tanpa filter (atau scope=all untuk dashboard) = master lengkap
-    if (!dermagaId || scopeAll) {
-      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
-    }
-
-    if (!hasDermaga) {
-      console.warn('[geofence] skema lama tanpa kolom dermaga_id → kirim master lengkap (anti-500)');
-      return res.json(shape(db.prepare(`SELECT * FROM geofences ${ORDER}`).all()));
-    }
-
-    // Permintaan petugas untuk satu dermaga: sertakan juga titik "berlaku umum"
-    // (dermaga_id NULL/kosong). Dulu hanya `dermaga_id = ?`, sehingga titik yang
-    // dibuat dari dashboard admin (tidak mengirim dermagaId → tersimpan NULL)
-    // TIDAK PERNAH sampai ke perangkat: mobile selalu berakhir dengan daftar
-    // kosong ("Belum ada titik geofence tersimpan") dan petugas tak bisa input trip.
-    const rows = db.prepare(`
-      SELECT * FROM geofences
-      WHERE dermaga_id = ? OR dermaga_id IS NULL OR TRIM(COALESCE(dermaga_id, '')) = ''
-      ${ORDER}
-    `).all(dermagaId);
-    res.json(shape(rows));
-  } catch (error) {
-    console.error('Get geofences error:', error);
-    res.status(500).json({ error: 'Failed to fetch geofences' });
-  }
-});
-
-
-
-router.post('/', authenticate, requireAdmin, (req, res) => {
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { locationName, dermagaId, latitude, longitude, radiusMeters, allowedRouteCodes, allowedDirections, description, enabled } = req.body || {};
     const lat = numericCoordinate(latitude);
     const lng = numericCoordinate(longitude);
+
     if (!locationName || String(locationName).trim() === '') {
       return res.status(400).json({ error: 'locationName wajib diisi' });
     }
@@ -166,78 +159,96 @@ router.post('/', authenticate, requireAdmin, (req, res) => {
         error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder) — lat ±90, lng ±180',
       });
     }
-    const id = randomUUID();
-    // `name` ikut diisi: kolom itu NOT NULL pada skema lama, jadi INSERT yang
-    // hanya mengirim location_name gagal (500) di DB produksi lama.
-    db.prepare(`
-      INSERT INTO geofences (id, name, location_name, dermaga_id, latitude, longitude, radius_meters, allowed_route_codes, allowed_directions, description, enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `    ).run(
-      id,
-      String(locationName).trim(),
-      String(locationName).trim(),
-      dermagaId ? String(dermagaId) : null,
-      lat,
-      lng,
-      clampRadius(radiusMeters),
-      Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
-      Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
-      description ? String(description) : '',
-      enabled === undefined || enabled === null ? 1 : (enabled ? 1 : 0),
-    );
-    res.status(201).json({ id });
+
+    const id = helpers.uuid();
+    const client = supabaseAdmin || supabase;
+
+    const { data, error } = await client
+      .from('geofences')
+      .insert({
+        id,
+        name: String(locationName).trim(),
+        location_name: String(locationName).trim(),
+        dermaga_id: dermagaId ? String(dermagaId) : null,
+        latitude: lat,
+        longitude: lng,
+        radius_meters: clampRadius(radiusMeters),
+        allowed_route_codes: Array.isArray(allowedRouteCodes) ? allowedRouteCodes.join(',') : String(allowedRouteCodes ?? ''),
+        allowed_directions: Array.isArray(allowedDirections) ? allowedDirections.join(',') : String(allowedDirections ?? ''),
+        description: description ? String(description) : '',
+        enabled: enabled === undefined || enabled === null ? 1 : (enabled ? 1 : 0),
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ id: data.id });
   } catch (error) {
     console.error('Create geofence error:', error);
     res.status(500).json({ error: 'Failed to create geofence' });
   }
 });
 
+// ============================================
+// UPDATE GEOFENCE
+// ============================================
 
-
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const id = String(req.params.id);
-    const row = db.prepare(`SELECT id FROM geofences WHERE id = ?`).get(id);
-    if (!row) return res.status(404).json({ error: 'Geofence not found' });
-
     const b = req.body || {};
-    const sets = [];
-    const args = [];
+    const client = supabaseAdmin || supabase;
+
+    // Check if exists
+    const { data: existing } = await client
+      .from('geofences')
+      .select('id')
+      .eq('id', id)
+      .limit(1);
+
+    if (!existing?.length) {
+      return res.status(404).json({ error: 'Geofence not found' });
+    }
+
+    const updateData = {};
 
     const lat = b.latitude !== undefined ? numericCoordinate(b.latitude) : undefined;
     const lng = b.longitude !== undefined ? numericCoordinate(b.longitude) : undefined;
+
     if ((b.latitude !== undefined && lat === null) || (b.longitude !== undefined && lng === null)) {
-      return res.status(400).json({ error: 'latitude & longitude wajib angka valid (bukan kosong/placeholder)' });
+      return res.status(400).json({ error: 'latitude & longitude wajib angka valid' });
     }
     if (lat !== undefined && lng !== undefined && !validLatLng(lat, lng)) {
       return res.status(400).json({ error: 'Koordinat di luar rentang valid — lat ±90, lng ±180' });
     }
 
     if (b.locationName !== undefined) {
-      // Kedua kolom nama diperbarui supaya baris skema lama & baru tetap konsisten.
       const n = String(b.locationName).trim();
-      sets.push('location_name = ?'); args.push(n);
-      sets.push('name = ?'); args.push(n);
+      updateData.location_name = n;
+      updateData.name = n;
     }
-    if (lat !== undefined) { sets.push('latitude = ?'); args.push(lat); }
-    if (lng !== undefined) { sets.push('longitude = ?'); args.push(lng); }
-    if (b.radiusMeters !== undefined) { sets.push('radius_meters = ?'); args.push(clampRadius(b.radiusMeters)); }
+    if (lat !== undefined) updateData.latitude = lat;
+    if (lng !== undefined) updateData.longitude = lng;
+    if (b.radiusMeters !== undefined) updateData.radius_meters = clampRadius(b.radiusMeters);
     if (b.allowedRouteCodes !== undefined) {
-      sets.push('allowed_route_codes = ?');
-      args.push(Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes));
+      updateData.allowed_route_codes = Array.isArray(b.allowedRouteCodes) ? b.allowedRouteCodes.join(',') : String(b.allowedRouteCodes);
     }
     if (b.allowedDirections !== undefined) {
-      sets.push('allowed_directions = ?');
-      args.push(Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections));
+      updateData.allowed_directions = Array.isArray(b.allowedDirections) ? b.allowedDirections.join(',') : String(b.allowedDirections);
     }
-    if (b.description !== undefined) { sets.push('description = ?'); args.push(String(b.description ?? '')); }
-    if (b.dermagaId !== undefined) { sets.push('dermaga_id = ?'); args.push(b.dermagaId ? String(b.dermagaId) : null); }
-    if (b.enabled !== undefined) { sets.push('enabled = ?'); args.push(b.enabled ? 1 : 0); }
+    if (b.description !== undefined) updateData.description = String(b.description ?? '');
+    if (b.dermagaId !== undefined) updateData.dermaga_id = b.dermagaId ? String(b.dermagaId) : null;
+    if (b.enabled !== undefined) updateData.enabled = b.enabled ? 1 : 0;
 
-    if (sets.length) {
-      args.push(id);
-      db.prepare(`UPDATE geofences SET ${sets.join(', ')} WHERE id = ?`).run(...args);
+    if (Object.keys(updateData).length) {
+      const { error } = await client
+        .from('geofences')
+        .update(updateData)
+        .eq('id', id);
+
+      if (error) throw error;
     }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Update geofence error:', error);
@@ -245,17 +256,23 @@ router.put('/:id', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// ============================================
+// DELETE GEOFENCE
+// ============================================
 
-
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    db.prepare(`DELETE FROM geofences WHERE id = ?`).run(String(req.params.id));
+    const client = supabaseAdmin || supabase;
+    const { error } = await client
+      .from('geofences')
+      .delete()
+      .eq('id', String(req.params.id));
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete geofence' });
   }
 });
-
-
 
 module.exports = router;

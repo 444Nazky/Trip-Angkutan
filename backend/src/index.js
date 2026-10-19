@@ -1,6 +1,16 @@
+/**
+ * Backend Entry Point - Supabase Version
+ *
+ * Migrated from sql.js to @supabase/supabase-js
+ * Railway configurations removed
+ */
+
 const express = require('express');
 const cors = require('cors');
-const dbModule = require('./db');
+const path = require('path');
+const supabase = require('./lib/supabase');
+
+// Import routes
 const authRoutes = require('./routes/auth');
 const tripRoutes = require('./routes/trips');
 const tariffRoutes = require('./routes/tariffs');
@@ -17,20 +27,17 @@ const appDownloadRoutes = require('./routes/appDownload');
 const otaBundleRoutes = require('./routes/otaBundle');
 const masterRoutes = require('./routes/master');
 
-
-
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-
-
+// Trust proxy for proper IP detection behind load balancers
 app.set('trust proxy', 1);
 
+// ============================================
+// CORS CONFIGURATION
+// ============================================
 
-
-// Origin dev lokal (web dev-server + shell native Capacitor/Ionic) yang harus
-// selalu diizinkan agar aplikasi bisa diuji dari mesin pengembang tanpa
-// menyentuh konfigurasi Railway.
+// Default allowed origins
 const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -42,44 +49,25 @@ const DEV_ORIGINS = [
   'https://localhost',
   'capacitor://localhost',
   'ionic://localhost',
-  // Wi-Fi lokal kantor: mobile (vite 5173), dashboard admin (8000), API (3000).
-  'http://192.168.1.124:5173',
-  'http://192.168.1.124:8000',
-  'http://192.168.1.124:3000',
 ];
 
 const envOrigins = (process.env.CORS_ORIGIN || '')
   .split(',').map(s => s.trim()).filter(Boolean);
 
-// Gabungan: origin dari env (mis. domain dashboard di produksi) + origin dev.
-// '*' pada env berarti "izinkan semua" (dipakai hanya bila memang diinginkan).
 const allowedOrigins = [...new Set([...envOrigins, ...DEV_ORIGINS])];
 const allowAnyOrigin = allowedOrigins.includes('*');
 
-const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
-const NATIVE_SHELL_ORIGIN = /^(capacitor|ionic):\/\/localhost$/;
-// Host privat (RFC1918) di port berapa pun. Daftar origin eksplisit tidak cukup
-// di jaringan kantor: dashboard/mobile sering dibuka lewat IP LAN langsung
-// (mis. http://192.168.1.2:8000) sementara allowlist berisi IP alias lain, dan
-// IP mesin bisa berganti kapan saja. Tanpa ini browser memblokir tiap panggilan
-// API (toast "Server tidak merespon") padahal server hidup.
-const PRIVATE_LAN_ORIGIN = new RegExp(
-  '^https?://(' +
-    '10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}' +
-    '|192\\.168\\.\\d{1,3}\\.\\d{1,3}' +
-    '|172\\.(?:1[6-9]|2\\d|3[01])\\.\\d{1,3}\\.\\d{1,3}' +
-  ')(:\\d+)?$',
-);
-
 const corsOptions = {
   origin(origin, callback) {
-    // Request tanpa Origin (curl, health-check Railway, server-to-server): loloskan.
-    if (!origin) return callback(null, true);
+    if (!origin) return callback(null, true); // curl, server-to-server
     if (allowAnyOrigin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    // Port dev-server dapat berubah → izinkan localhost/127.0.0.1 di port apa pun.
-    // Host privat (LAN kantor) diperlakukan sama supaya klien yang membuka lewat
-    // IP LAN mana pun tetap bisa memanggil API.
+
+    // Allow localhost and private LAN IPs
+    const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+    const NATIVE_SHELL_ORIGIN = /^(capacitor|ionic):\/\/localhost$/;
+    const PRIVATE_LAN_ORIGIN = /^https?:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
     if (
       LOCALHOST_ORIGIN.test(origin) ||
       PRIVATE_LAN_ORIGIN.test(origin) ||
@@ -87,80 +75,65 @@ const corsOptions = {
     ) {
       return callback(null, true);
     }
-    // Origin tak dikenal: jangan kirim header CORS (browser memblokir),
-    // tetapi jangan melempar error agar tidak menimbulkan 500.
+
     return callback(null, false);
   },
-  // Dipertahankan dari branch `main` prapenggabungan: allowlist metode/header
-  // eksplisit + handler preflight OPTIONS (belum ada di branch endpoint/mobile).
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Accept',
-    'Origin',
-    'X-Requested-With',
-    'X-Admin-Token',
+    'Content-Type', 'Authorization', 'Accept', 'Origin',
+    'X-Requested-With', 'X-Admin-Token',
   ],
   exposedHeaders: ['Content-Length'],
-  // Autentikasi memakai header Authorization (Bearer), bukan cookie.
   credentials: false,
   optionsSuccessStatus: 204,
   maxAge: 86400,
 };
-app.use(cors(corsOptions));
 
-// Tangani preflight OPTIONS untuk semua route (Express 4).
+app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// ============================================
+// BODY PARSERS
+// ============================================
 
-
-// Batas 10kb cukup untuk hampir semua API, kecuali endpoint publikasi: APK dan
-// bundel modul dikirim base64 dan berukuran besar. Tanpa parser longgar khusus,
-// keduanya ditolak 413 sebelum menyentuh route-nya.
 const jsonDefault = express.json({ limit: '10kb' });
 const jsonPublishUpload = express.json({ limit: '64mb' });
 const PUBLISH_PATHS = ['/api/v1/publish-version', '/api/v1/publish-ota'];
 
 app.use((req, res, next) => {
-  const parse = req.method === 'POST' && PUBLISH_PATHS.includes(req.path) ? jsonPublishUpload : jsonDefault;
+  const parse = req.method === 'POST' && PUBLISH_PATHS.includes(req.path)
+    ? jsonPublishUpload
+    : jsonDefault;
   return parse(req, res, next);
 });
 
-
+// ============================================
+// STATIC FILES
+// ============================================
 
 const { UPLOADS_DIR } = require('./uploads-dir');
-
-
-
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-
-
-const path = require('path');
 const releasesDir = path.join(__dirname, '..', 'public', 'releases');
-
-
-
 app.use('/releases', express.static(releasesDir));
 
-
-
-// Bundel modul (OTA) disajikan apa adanya: /ota/<versi>/<berkas>.
 const { OTA_DIR } = require('./ota-dir');
-
-
-
 app.use('/ota', express.static(OTA_DIR, { maxAge: '1h', fallthrough: true }));
 
-
+// ============================================
+// ATTACH SUPABASE CLIENT TO REQUEST
+// ============================================
 
 app.use((req, _res, next) => {
-  req.db = dbModule.db;
+  req.db = supabase.db;
+  req.supabase = supabase.supabase;
+  req.helpers = supabase.helpers;
   next();
 });
 
-
+// ============================================
+// API ROUTES
+// ============================================
 
 app.use('/api/auth', authRoutes);
 app.use('/api/trips', tripRoutes);
@@ -176,34 +149,62 @@ app.use('/api/geofences', geofenceRoutes);
 app.use('/api/v1', appVersionRoutes);
 app.use('/api/v1', appDownloadRoutes);
 app.use('/api/v1', otaBundleRoutes);
-
-
-
 app.use('/api/master', masterRoutes);
 
+// ============================================
+// HEALTH CHECK
+// ============================================
 
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test Supabase connection
+    const { error } = await supabase.supabase.from('regions').select('id').limit(1);
+    const dbStatus = error ? 'error' : 'ok';
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      database: dbStatus,
+      timestamp: new Date().toISOString(),
+      version: '2.0.0-supabase',
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      database: 'unavailable',
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
-
+// ============================================
+// ERROR HANDLER
+// ============================================
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-
+// ============================================
+// START SERVER
+// ============================================
 
 async function start() {
   try {
-    await dbModule.loadDb();
-    console.log('Database loaded');
+    // Test Supabase connection
+    console.log('[supabase] Connecting to:', process.env.SUPABASE_URL);
+    const { error } = await supabase.supabase.from('regions').select('id').limit(1);
+
+    if (error) {
+      console.warn('[supabase] Connection warning:', error.message);
+      console.warn('[supabase] Server will start, but database operations may fail');
+    } else {
+      console.log('[supabase] Connected successfully');
+    }
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server listening on 0.0.0.0:${PORT}`);
-      console.log(`Health check: /api/health`);
+      console.log(`Health check: http://localhost:${PORT}/api/health`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -211,10 +212,6 @@ async function start() {
   }
 }
 
-
-
 start();
-
-
 
 module.exports = app;

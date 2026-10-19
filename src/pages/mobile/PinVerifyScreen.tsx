@@ -55,7 +55,8 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      const local = await loginOffline(targetId, pressedPin)
+      // Check if we can do offline login (already has stored credentials)
+      const local = await loginOffline()
       if (local.success) {
         if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
         finishAuth()
@@ -69,11 +70,11 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
           return
         }
 
-        const msg = result.error?.message ?? 'PIN tidak valid'
-        if (result.error?.code === '401' || msg.toLowerCase().includes('invalid pin')) {
+        const msg = result.error || 'PIN tidak valid'
+        if (String(msg).toLowerCase().includes('invalid') || String(msg).toLowerCase().includes('401')) {
           rejectPin('PIN salah')
         } else {
-          rejectPin(msg)
+          rejectPin(String(msg))
         }
         return
       }

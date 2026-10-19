@@ -1,65 +1,95 @@
+/**
+ * Dermagas Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { supabase, supabaseAdmin, helpers } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-
-
-router.get('/', authenticate, requireAdmin, (req, res) => {
+// GET ALL DERMAGAS
+router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const dermagas = db.prepare(`
-      SELECT d.*, r.name as region_name, r.code as region_code
-      FROM dermagas d
-      JOIN regions r ON d.region_id = r.id
-      ORDER BY r.name, d.name
-    `).all();
-    res.json(dermagas);
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client
+      .from('dermagas')
+      .select(`
+        *,
+        regions(name, code)
+      `)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    const result = (data || []).map(d => ({
+      ...d,
+      region_name: d.regions?.name,
+      region_code: d.regions?.code,
+    }));
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch dermagas' });
   }
 });
 
-
-
-router.post('/', authenticate, requireAdmin, (req, res) => {
+// CREATE DERMAGA
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { region_id, name, code } = req.body;
-const { randomUUID } = require('crypto');
-    const id = randomUUID();
-    db.prepare(`INSERT INTO dermagas (id, region_id, name, code) VALUES (?, ?, ?, ?)`).run(id, region_id, name, code);
+    const client = supabaseAdmin || supabase;
 
-    const dermaga = db.prepare(`SELECT * FROM dermagas WHERE id = ?`).get(id);
-    res.status(201).json(dermaga);
+    const { data, error } = await client
+      .from('dermagas')
+      .insert({
+        region_id,
+        name,
+        code,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create dermaga' });
   }
 });
 
-
-
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+// UPDATE DERMAGA
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
+    const { id } = req.params;
     const { name, code } = req.body;
-    db.prepare(`UPDATE dermagas SET name = ?, code = ? WHERE id = ?`).run(name, code, req.params.id);
+    const client = supabaseAdmin || supabase;
+
+    const { error } = await client
+      .from('dermagas')
+      .update({ name, code })
+      .eq('id', id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update dermaga' });
   }
 });
 
-
-
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+// DELETE DERMAGA
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    db.prepare(`DELETE FROM routes WHERE dermaga_id = ?`).run(req.params.id);
-    db.prepare(`DELETE FROM officer_dermagas WHERE dermaga_id = ?`).run(req.params.id);
-    db.prepare(`DELETE FROM dermagas WHERE id = ?`).run(req.params.id);
+    const { id } = req.params;
+    const client = supabaseAdmin || supabase;
+
+    // Delete related records first
+    await client.from('routes').delete().eq('dermaga_id', id);
+    await client.from('officer_dermagas').delete().eq('dermaga_id', id);
+    await client.from('dermagas').delete().eq('id', id);
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete dermaga' });
   }
 });
-
-
 
 module.exports = router;

@@ -1,93 +1,158 @@
+/**
+ * Routes (Rute) Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { supabase, supabaseAdmin, helpers } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
-
-
-router.get('/mine', authenticate, (req, res) => {
+// GET OFFICER'S ROUTES
+router.get('/mine', authenticate, async (req, res) => {
   try {
-    const officerId = req.user && req.user.officerId;
+    const officerId = req.user?.officerId;
     if (!officerId) {
       return res.status(403).json({ error: 'Officer access required' });
     }
-    const rows = db.prepare(`
-      SELECT r.id, r.name, r.route_from, r.route_to, r.distance, r.duration,
-             d.id AS dermaga_id, d.name AS dermaga_name, d.code AS dermaga_code
-      FROM officer_dermagas od
-      JOIN dermagas d ON od.dermaga_id = d.id
-      JOIN routes r ON r.dermaga_id = d.id
-      WHERE od.officer_id = ?
-      ORDER BY d.code, r.name
-    `).all(String(officerId));
-    res.json(rows);
+
+    const client = supabaseAdmin || supabase;
+
+    const { data, error } = await client
+      .from('officer_dermagas')
+      .select(`
+        dermagas(
+          id,
+          name,
+          code,
+          routes(
+            id, name, route_from, route_to, distance, duration
+          )
+        )
+      `)
+      .eq('officer_id', officerId);
+
+    if (error) throw error;
+
+    const result = [];
+    for (const od of (data || [])) {
+      const dm = od.dermagas;
+      if (dm?.routes) {
+        for (const r of dm.routes) {
+          result.push({
+            id: r.id,
+            name: r.name,
+            route_from: r.route_from,
+            route_to: r.route_to,
+            distance: r.distance,
+            duration: r.duration,
+            dermaga_id: dm.id,
+            dermaga_name: dm.name,
+            dermaga_code: dm.code,
+          });
+        }
+      }
+    }
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch officer routes' });
   }
 });
 
-
-
-router.get('/', authenticate, requireAdmin, (req, res) => {
+// GET ALL ROUTES
+router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const routes = db.prepare(`
-      SELECT r.*, d.name as dermaga_name, d.code as dermaga_code, reg.name as region_name
-      FROM routes r
-      JOIN dermagas d ON r.dermaga_id = d.id
-      JOIN regions reg ON d.region_id = reg.id
-      ORDER BY reg.name, d.name, r.name
-    `).all();
-    res.json(routes);
+    const client = supabaseAdmin || supabase;
+
+    const { data, error } = await client
+      .from('routes')
+      .select(`
+        *,
+        dermagas(name, code),
+        regions:dermaga.region_id(name)
+      `)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    const result = (data || []).map(r => ({
+      ...r,
+      dermaga_name: r.dermagas?.name,
+      dermaga_code: r.dermagas?.code,
+      region_name: r.regions?.name,
+    }));
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch routes' });
   }
 });
 
-
-
-router.post('/', authenticate, requireAdmin, (req, res) => {
+// CREATE ROUTE
+router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { dermaga_id, name, route_from, route_to, distance, duration } = req.body;
-const { randomUUID } = require('crypto');
-    const id = randomUUID();
-    db.prepare(`
-      INSERT INTO routes (id, dermaga_id, name, route_from, route_to, distance, duration)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, dermaga_id, name, route_from, route_to, distance || null, duration || null);
+    const client = supabaseAdmin || supabase;
 
-    const route = db.prepare(`SELECT * FROM routes WHERE id = ?`).get(id);
-    res.status(201).json(route);
+    const { data, error } = await client
+      .from('routes')
+      .insert({
+        dermaga_id,
+        name,
+        route_from,
+        route_to,
+        distance: distance || null,
+        duration: duration || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create route' });
   }
 });
 
-
-
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+// UPDATE ROUTE
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
+    const { id } = req.params;
     const { name, route_from, route_to, distance, duration } = req.body;
-    db.prepare(`
-      UPDATE routes SET name = ?, route_from = ?, route_to = ?, distance = ?, duration = ?
-      WHERE id = ?
-    `).run(name, route_from, route_to, distance || null, duration || null, req.params.id);
+    const client = supabaseAdmin || supabase;
+
+    const { error } = await client
+      .from('routes')
+      .update({
+        name,
+        route_from,
+        route_to,
+        distance: distance || null,
+        duration: duration || null,
+      })
+      .eq('id', id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update route' });
   }
 });
 
-
-
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+// DELETE ROUTE
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
-    db.prepare(`DELETE FROM routes WHERE id = ?`).run(req.params.id);
+    const client = supabaseAdmin || supabase;
+    const { error } = await client
+      .from('routes')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete route' });
   }
 });
-
-
 
 module.exports = router;

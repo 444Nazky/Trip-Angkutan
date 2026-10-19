@@ -1,106 +1,90 @@
 {
-  "hash": "5989f0a6",
-  "configHash": "94c200e1",
+  "hash": "5a33b4b2",
+  "configHash": "cd93ca14",
   "lockfileHash": "42546980",
-  "browserHash": "f358590f",
+  "browserHash": "bfb6d575",
   "optimized": {
-    "@capacitor-community/sqlite": {
-      "src": "../../../../../../node_modules/@capacitor-community/sqlite/dist/esm/index.js",
-      "file": "@capacitor-community_sqlite.js",
-      "fileHash": "ca89c1cc",
-      "needsInterop": false
-    },
     "@capacitor/app": {
       "src": "../../../../../../node_modules/@capacitor/app/dist/esm/index.js",
       "file": "@capacitor_app.js",
-      "fileHash": "0cc4fc2b",
+      "fileHash": "8e9d7f5a",
       "needsInterop": false
     },
     "@capacitor/camera": {
       "src": "../../../../../../node_modules/@capacitor/camera/dist/esm/index.js",
       "file": "@capacitor_camera.js",
-      "fileHash": "e66f8001",
+      "fileHash": "cbaf6318",
       "needsInterop": false
     },
     "@capacitor/core": {
       "src": "../../../../../../node_modules/@capacitor/core/dist/index.js",
       "file": "@capacitor_core.js",
-      "fileHash": "5956c905",
+      "fileHash": "5c411ef3",
       "needsInterop": false
     },
     "@capacitor/device": {
       "src": "../../../../../../node_modules/@capacitor/device/dist/esm/index.js",
       "file": "@capacitor_device.js",
-      "fileHash": "f60aa3cc",
+      "fileHash": "b8ee5113",
       "needsInterop": false
     },
     "@capacitor/filesystem": {
       "src": "../../../../../../node_modules/@capacitor/filesystem/dist/esm/index.js",
       "file": "@capacitor_filesystem.js",
-      "fileHash": "619838e4",
+      "fileHash": "64fc1be6",
       "needsInterop": false
     },
     "@capacitor/geolocation": {
       "src": "../../../../../../node_modules/@capacitor/geolocation/dist/esm/index.js",
       "file": "@capacitor_geolocation.js",
-      "fileHash": "dc1db0d8",
+      "fileHash": "c7f7f394",
       "needsInterop": false
     },
     "@capacitor/network": {
       "src": "../../../../../../node_modules/@capacitor/network/dist/esm/index.js",
       "file": "@capacitor_network.js",
-      "fileHash": "9c5877b3",
-      "needsInterop": false
-    },
-    "bcryptjs": {
-      "src": "../../../../../../node_modules/bcryptjs/index.js",
-      "file": "bcryptjs.js",
-      "fileHash": "9e4bab44",
+      "fileHash": "c71260f1",
       "needsInterop": false
     },
     "lucide-react": {
       "src": "../../../../../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
       "file": "lucide-react.js",
-      "fileHash": "78b4df02",
+      "fileHash": "a7684055",
       "needsInterop": false
     },
     "react-dom/client": {
       "src": "../../../../../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "5eeaceed",
+      "fileHash": "7cd4eaff",
       "needsInterop": true
     },
     "react": {
       "src": "../../../../../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "cd142db5",
+      "fileHash": "e390987c",
       "needsInterop": true
     },
     "react/jsx-runtime": {
       "src": "../../../../../../node_modules/react/jsx-runtime.js",
       "file": "react_jsx-runtime.js",
-      "fileHash": "ad563376",
+      "fileHash": "109f6e9f",
       "needsInterop": true
     },
     "tesseract.js": {
       "src": "../../../../../../node_modules/tesseract.js/src/index.js",
       "file": "tesseract__js.js",
-      "fileHash": "f6b7df67",
+      "fileHash": "60b86eb3",
       "needsInterop": true
     }
   },
   "chunks": {
-    "rolldown-runtime-B-lAHAz2": {
-      "file": "rolldown-runtime-B-lAHAz2.js",
+    "rolldown-runtime-xMd7gp_u": {
+      "file": "rolldown-runtime-xMd7gp_u.js",
       "isDynamicEntry": false
     },
     "synapse-DhWU51FR": {
       "file": "synapse-DhWU51FR.js",
       "isDynamicEntry": false
-    },
-    "web-5HRmOAZ0": {
-      "file": "web-5HRmOAZ0.js",
-      "isDynamicEntry": true
     },
     "web-8YuiPUEH": {
       "file": "web-8YuiPUEH.js",

@@ -1,22 +1,20 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core'
+/**
+ * API service utama untuk mobile app.
+ * Auto-simpan token, tidak ada sesi expired.
+ * Cache geofence & auth locally.
+ */
+
 import { environment } from '../environments/environment'
 
+const TOKEN_KEY = 'trip.auth.token.v2'
+const API_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
 
-
-
-const TOKEN_KEY = 'trip.auth.token.v1'
-const API_BASE_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
-
-
-
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ApiError {
   message: string
   code?: string
 }
-
-
-
 
 export interface ApiResponse<T> {
   data?: T
@@ -24,530 +22,340 @@ export interface ApiResponse<T> {
   ok: boolean
 }
 
-
-
-
-export interface OfficerInfo {
+export interface Officer {
   id: string
   name: string
-  regionId: string
-  regionName: string
-  regionCode: string
+  username?: string
+  regionId?: string
+  regionCode?: string
+  dermagaAccess?: { id: string; name?: string; code?: string }[]
 }
-
-
-
 
 export interface Dermaga {
   id: string
   name: string
   code: string
-  region_name: string
-  region_code: string
+  region_name?: string
+  region_code?: string
 }
-
-
-
 
 export interface Route {
   id: string
-  name: string
+  name?: string
   route_from: string
   route_to: string
   distance?: string
   duration?: string
+  dermagaId?: string
 }
 
-
-
-
-export interface LoginResponse {
-  token: string
-  officer: OfficerInfo
-  dermagas?: Dermaga[]
-  routes?: Record<string, Route[]>
-  isDualAccess?: boolean
+export interface GeofencePoint {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  radiusMeters?: number
+  allowedRoutes?: string[]
+  enabled?: boolean
 }
 
-
-
+// ─── URL resolution ───────────────────────────────────────────────────────────────
 
 function getBaseUrl(): string {
-  return resolveApiBaseUrl()
-}
-
-
-
-
-// baca url dinamis (override > env)
-export function resolveApiBaseUrl(): string {
   try {
-    const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
-    if (override && override.trim()) return normalizeBaseUrl(override)
-    const auto = readAutoDetectedBaseUrl()
-    if (auto) return auto
+    const override = localStorage.getItem(API_URL_OVERRIDE_KEY)
+    if (override?.trim()) return normalizeUrl(override)
   } catch {}
-  const runtime = (globalThis as { __TRIP_API_BASE_URL__?: string }).__TRIP_API_BASE_URL__
-  if (typeof runtime === 'string' && runtime.trim()) {
-    return normalizeBaseUrl(runtime)
-  }
-  return normalizeBaseUrl(environment.apiBaseUrl)
+  return normalizeUrl(environment.apiBaseUrl)
 }
 
-
-
-
-// hasil cek kesehatan server (dipakai modal Pengaturan Server)
-export interface ServerProbeResult {
-  /** server menjawab (walau balasannya tidak bisa dibaca karena CORS) */
-  reachable: boolean
-  /** status HTTP bila benar-benar terbaca */
-  status?: number
-  ms: number
-  /** server hidup tapi browser memblokir bacaannya (tak ada Access-Control-Allow-Origin) */
-  blockedByCors: boolean
-  /** berhenti karena timeout, bukan karena koneksi ditolak */
-  timedOut?: boolean
-  /** URL http:// non-localhost di APK (diblokir Android, bukan masalah jaringan) */
-  cleartextBlocked?: boolean
-  /** ringkasan penyebab gagal — supaya petugas tahu apa yang harus diperbaiki */
-  detail?: string
-}
-
-
-
-
-// rapikan format url (dipakai juga untuk memvalidasi input di Pengaturan Server)
-export function normalizeApiBaseInput(raw: string): string {
-  return normalizeBaseUrl(raw)
-}
-
-
-
-
-// Cek apakah server hidup.
-// fetch biasa akan MENOLAK (throw) bila respons lintas-origin tidak punya header
-// Access-Control-Allow-Origin — padahal servernya menjawab 200. Dulu itu dilaporkan
-// sebagai "server tidak merespon" sehingga petugas mengganti-ganti URL padahal URL-nya
-// benar. Di sini kegagalan dibedakan: benar-benar mati / timeout / diblokir CORS.
-//
-// Jalur native memakai HTTP native (tanpa CORS), tetapi plugin native bisa tak
-// tersedia di build tertentu (mis. APK lama tanpa CapacitorHttp aktif) dan gagal
-// dalam hitungan milidetik — itu dulu langsung dilaporkan "server tidak merespon".
-// Sekarang kegagalan native di-fallback ke fetch WebView sebelum disimpulkan mati.
-export async function probeServerHealth(raw: string, timeoutMs = 10000): Promise<ServerProbeResult> {
-  const url = normalizeApiBaseInput(raw)
-  const t0 = Date.now()
-
-  // APK hanya mengizinkan http:// untuk host LAN/privat (lihat
-  // android/app/src/main/res/xml/network_security_config.xml). Host PUBLIK tetap
-  // wajib https. Bedakan sejak awal supaya pesannya jelas, bukan "tidak merespon".
-  if (Capacitor.isNativePlatform() && /^http:\/\//i.test(url) && !isPrivateHostUrl(url)) {
-    const host = url.replace(/^http:\/\//i, '').split('/')[0]
-    return {
-      reachable: false,
-      ms: Date.now() - t0,
-      blockedByCors: false,
-      cleartextBlocked: true,
-      detail: `Host publik wajib https:// (http://${host} diblokir Android). Alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost) tetap boleh http://.`,
-    }
-  }
-
-  // Aplikasi native (APK) tidak punya CORS → pakai HTTP native agar hasilnya pasti.
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const res = await CapacitorHttp.get({
-        url: `${url}/health?_t=${Date.now()}`,
-        connectTimeout: timeoutMs,
-        readTimeout: timeoutMs,
-        headers: { 'Cache-Control': 'no-cache' },
-      })
-      return {
-        // Ada respons HTTP apa pun (200/401/404) = server HIDUP. Dulu hanya 2xx-3xx
-        // yang dianggap hidup, sehingga server yang menjawab 401/404 (mis. versi
-        // rute health berbeda) dilaporkan "Server tidak merespon" dan URL yang
-        // benar ikut dibuang.
-        reachable: Number.isFinite(res.status) && res.status > 0,
-        status: res.status,
-        ms: Date.now() - t0,
-        blockedByCors: false,
-        detail: res.status >= 200 && res.status < 400 ? undefined : `HTTP ${res.status}`,
-      }
-    } catch (err) {
-      // Plugin native tak tersedia / gagal → lanjut ke fetch WebView di bawah,
-      // jangan langsung menyimpulkan server mati.
-      console.warn('[probe] HTTP native gagal, fallback ke fetch WebView:', err)
-    }
-  }
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  const hit = (mode?: RequestMode) =>
-    fetch(`${url}/health?_t=${Date.now()}`, {
-      cache: 'no-store',
-      signal: controller.signal,
-      ...(mode ? { mode } : {}),
-    })
-
-  try {
-    try {
-      // Sama seperti jalur native: respons apa pun = server hidup. Yang menandakan
-      // server mati hanya kegagalan jaringan (koneksi ditolak/timeout/CORS).
-      const res = await hit()
-      return {
-        reachable: true,
-        status: res.status,
-        ms: Date.now() - t0,
-        blockedByCors: false,
-        detail: res.ok ? undefined : `HTTP ${res.status}`,
-      }
-    } catch (err) {
-      // Timeout → server tak menjawab sama sekali.
-      if (controller.signal.aborted) {
-        return { reachable: false, timedOut: true, ms: Date.now() - t0, blockedByCors: false }
-      }
-      // Gagal karena CORS: request mode 'no-cors' tidak butuh header CORS,
-      // jadi kalau ini berhasil berarti server hidup dan hanya diblokir browser.
-      try {
-        const res = await hit('no-cors')
-        if (res.type === 'opaque' || res.status === 0) {
-          return { reachable: true, blockedByCors: true, ms: Date.now() - t0 }
-        }
-        return { reachable: true, status: res.status, ms: Date.now() - t0, blockedByCors: false }
-      } catch {
-        return {
-          reachable: false,
-          ms: Date.now() - t0,
-          blockedByCors: false,
-          detail: err instanceof Error ? err.message : undefined,
-        }
-      }
-    }
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-
-
-
-// host lokal/LAN boleh tanpa TLS; host publik wajib https.
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i
-
-
-
-/**
- * Apakah host URL ini loopback/LAN privat (boleh http:// di APK)?
- *
- * Dipakai bersama oleh probe kesehatan server dan penyimpanan URL manual, supaya
- * tidak ada lagi ketidakcocokan: dulu normalizeBaseUrl menganggap 192.168.x LOKAL
- * (tetap http) sementara probe menyebutnya "diblokir APK" — petugas melihat
- * "Server tidak merespon (8 ms)" untuk server LAN yang sebenarnya sehat.
- */
-export function isPrivateHostUrl(raw: string): boolean {
-  const value = String(raw ?? '').trim()
-  if (!value) return false
-  const authority = value.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split('/')[0].split('@').pop() ?? ''
-  const host = authority.startsWith('[')
-    ? authority.slice(1, authority.includes(']') ? authority.indexOf(']') : undefined)
-    : authority.replace(/:\d+$/, '')
-  return LOCAL_HOST.test(host) || host === '::1'
-}
-
-
-
-
-function normalizeBaseUrl(raw: string): string {
-  let url = String(raw ?? '').trim().replace(/\/+$/, '')
-  if (!url) return url
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
-    // Dulu selalu `http://` — akibatnya hostname publik yang diketik tanpa skema
-    // (mis. tunnel xxx.trycloudflare.com) jadi http di halaman https dan selalu
-    // diblokir browser. Sekarang host lokal/LAN tetap http, sisanya https.
-    const host = url.split('/')[0]
-    url = `${LOCAL_HOST.test(host) ? 'http' : 'https'}://${url}`
+function normalizeUrl(raw: string): string {
+  let url = String(raw || '').trim().replace(/\/+$/, '')
+  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/api'
+  if (!/^https?:\/\//i.test(url)) {
+    url = `${url.startsWith('localhost') ? 'http' : 'https'}://${url}`
   }
   if (!/\/api$/i.test(url)) url = `${url}/api`
   return url
 }
 
-
-
-
-// simpan url dinamis
-export function setApiBaseUrlOverride(url: string | null): void {
+export function setApiBaseUrl(url: string | null) {
   try {
-    if (url && url.trim()) localStorage.setItem(API_BASE_URL_OVERRIDE_KEY, url.trim())
-    else localStorage.removeItem(API_BASE_URL_OVERRIDE_KEY)
+    if (url?.trim()) localStorage.setItem(API_URL_OVERRIDE_KEY, url.trim())
+    else localStorage.removeItem(API_URL_OVERRIDE_KEY)
   } catch {}
-  api?.refreshBaseUrl()
+  window.location.reload()
 }
 
-
-
-
-export function getApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
   return getBaseUrl()
 }
 
+// ─── Token storage ───────────────────────────────────────────────────────────────
 
-
-
-// ── Kandidat endpoint bawaan (auto-deteksi) ──────────────────────────────────
-// Dulu endpoint hanya bisa dari env (build rilis = Railway), sehingga saat
-// petugas/admin memakai server uji (laptop/tunnel/LAN) mereka harus mengetik URL
-// panjang dan gagal tes karena salah satu pihak tidak bisa dijangkau. Sekarang ada
-// daftar kandidat: yang bisa dijangkau dipakai otomatis, dan URL manual tetap menang.
-export interface ApiBaseCandidate {
-  label: string
-  url: string
+function loadToken(): string | null {
+  try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+}
+function saveToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {}
 }
 
-// ponytail: kunci berversi — cache auto-detect lama (era default localhost) diabaikan sekali.
-const API_BASE_AUTODETECT_KEY = 'trip.api.autoBaseUrl.v2'
-const AUTODETECT_TTL_MS = 10 * 60 * 1000
+// ─── Request ──────────────────────────────────────────────────────────────────
 
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  timeoutMs = 12000,
+): Promise<ApiResponse<T>> {
+  const token = loadToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
+  const url = `${baseUrl}${path}`
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
 
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body != null ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    })
+    clearTimeout(timer)
+
+    let data: T
+    try { data = await res.json() } catch { data = undefined as T }
+    if (!res.ok) {
+      const msg = data && typeof data === 'object' && 'error' in data
+        ? String((data as { error?: { message?: string } }).error?.message || `HTTP ${res.status}`)
+        : `HTTP ${res.status}`
+      return { ok: false, error: { message: msg, code: String(res.status) } }
+    }
+    return { ok: true, data }
+  } catch (e) {
+    clearTimeout(timer)
+    const msg = e instanceof Error ? e.message : 'Network error'
+    return { ok: false, error: { message: msg, code: 'NETWORK' } }
+  }
+}
+
+const baseUrl = getBaseUrl()
+
+export const api = {
+  get: async <T>(path: string, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('GET', path, undefined, timeoutMs),
+  post: async <T>(path: string, body?: unknown, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('POST', path, body, timeoutMs),
+  put: async <T>(path: string, body?: unknown, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('PUT', path, body, timeoutMs),
+  delete: async <T>(path: string, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('DELETE', path, undefined, timeoutMs),
+  setToken: (token: string | null) => saveToken(token),
+  get token() { return loadToken() },
+  get baseUrl() { return baseUrl },
+  get url() { return baseUrl },
+  get isAuthenticated() { return !!loadToken() },
+  getOk: async <T>(path: string, timeoutMs = 12000): Promise<T | null> => {
+    const r = await request<T>('GET', path, undefined, timeoutMs)
+    return r.ok ? (r.data ?? null) : null
+  },
+}
+
+// ─── Geofence caching ─────────────────────────────────────────────────────────
+
+const GEOFENCE_KEY = 'trip.geofence.cache'
+const GEOFENCE_TTL = 15 * 60 * 1000
+
+export function getCachedGeofences(): GeofencePoint[] {
+  try {
+    const raw = localStorage.getItem(GEOFENCE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed as GeofencePoint[]
+  } catch { return [] }
+}
+
+export function cacheGeofences(points: GeofencePoint[]) {
+  try {
+    if (points?.length) localStorage.setItem(GEOFENCE_KEY, JSON.stringify(points))
+    else localStorage.removeItem(GEOFENCE_KEY)
+  } catch {}
+}
+
+export function cachedGeofenceAge(): number {
+  try {
+    const raw = localStorage.getItem(GEOFENCE_KEY)
+    if (!raw) return Infinity
+    const parsed = JSON.parse(raw)
+    return Date.now() - (parsed?.cachedAt || 0)
+  } catch { return Infinity }
+}
+
+export function isGeofenceCacheStale(): boolean {
+  return cachedGeofenceAge() > GEOFENCE_TTL
+}
+
+// ─── Officer storage ───────────────────────────────────────────────────────────
+
+const OFFICER_KEY = 'trip.officer.v2'
+const DERMAGA_KEY = 'trip.dermaga.v2'
+const ROUTES_KEY = 'trip.routes.v2'
+const CREDENTIALS_KEY = 'trip.credentials'
+
+export function getStoredOfficer(): Officer | null {
+  try {
+    const raw = localStorage.getItem(OFFICER_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+export function saveOfficer(officer: Officer) {
+  try {
+    if (officer) localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
+    else localStorage.removeItem(OFFICER_KEY)
+  } catch {}
+}
+
+export function getStoredDermaga(): Dermaga | null {
+  try {
+    const raw = localStorage.getItem(DERMAGA_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+export function storeDermaga(d: Dermaga | null) {
+  try {
+    if (d) localStorage.setItem(DERMAGA_KEY, JSON.stringify(d))
+    else localStorage.removeItem(DERMAGA_KEY)
+  } catch {}
+}
+
+export function getStoredRoutes(): Record<string, Route[]> {
+  try {
+    const raw = localStorage.getItem(ROUTES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+export function saveRoutes(routes: Record<string, Route[]>) {
+  try {
+    if (routes && Object.keys(routes).length) localStorage.setItem(ROUTES_KEY, JSON.stringify(routes))
+    else localStorage.removeItem(ROUTES_KEY)
+  } catch {}
+}
+
+export function getCredentials(): { username?: string; pin?: string; officerId?: string } {
+  try {
+    const raw = localStorage.getItem(CREDENTIALS_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+export function storeCredentials(cred: { username?: string; pin?: string; officerId?: string }) {
+  try {
+    if (cred) localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(cred))
+    else localStorage.removeItem(CREDENTIALS_KEY)
+  } catch {}
+}
+
+export function clearCredentials() {
+  storeCredentials({})
+}
+
+// ─── Server Settings helpers ─────────────────────────────────────────────────
+
+export function apiBaseCandidateLabel(candidate: string): string {
+  if (/^https?:\/\/localhost/i.test(candidate)) return 'Localhost'
+  if (/^https?:\/\/127\./i.test(candidate)) return 'Local IP'
+  if (/\.supabase\.co$/i.test(candidate)) return 'Supabase'
+  if (/\.railway\.app$/i.test(candidate)) return 'Railway'
+  if (/\.vercel\.app$/i.test(candidate)) return 'Vercel'
+  return new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`).hostname
+}
+
+export interface ApiBaseCandidate {
+  url: string
+  label: string
+}
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
-  const urls: ApiBaseCandidate[] = [
-    // Default = backend LAN Wi-Fi kantor; server live hanya fallback.
-    { label: 'LAN Wi-Fi (192.168.1.124)', url: 'http://192.168.1.124:3000/api' },
-    { label: 'Produksi (Railway)', url: 'https://aplikasi-trip-api-production.up.railway.app/api' },
-    { label: 'Default build', url: normalizeBaseUrl(environment.apiBaseUrl) },
-    { label: 'Backend lokal laptop', url: 'http://localhost:3000/api' },
-    { label: 'Emulator Android', url: 'http://10.0.2.2:3000/api' },
+  return [
+    { url: 'https://bmiruktfruunegtbydyw.supabase.co/api', label: 'Supabase (Produksi)' },
+    { url: 'http://localhost:3000/api', label: 'Localhost :3000' },
   ]
-  const seen = new Set<string>()
-  return urls.filter(c => {
-    if (!c.url || seen.has(c.url)) return false
-    seen.add(c.url)
-    return true
-  })
 }
 
-
-
-
-function readAutoDetectedBaseUrl(): string | null {
+export function isPrivateHostUrl(url: string): boolean {
   try {
-    const raw = localStorage.getItem(API_BASE_AUTODETECT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { url?: string; at?: number }
-    if (!parsed?.url) return null
-    if (Date.now() - Number(parsed.at ?? 0) > AUTODETECT_TTL_MS) return null
-    return normalizeBaseUrl(parsed.url)
-  } catch {
-    return null
-  }
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`)
+    return /^127\.|^10\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^192\.168\.|^localhost$/i.test(u.hostname)
+  } catch { return false }
 }
 
+export function normalizeApiBaseInput(raw: string): string {
+  let url = raw.trim().replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(url)) {
+    url = `http://${url}`
+  }
+  if (!/\/api$/i.test(url)) {
+    url = `${url}/api`
+  }
+  return url
+}
 
+export interface ServerProbeResult {
+  reachable: boolean
+  ms?: number
+  blockedByCors?: boolean
+  status?: number
+  timedOut?: boolean
+  cleartextBlocked?: boolean
+  detail?: string
+}
 
-
-/**
- * Cari endpoint yang benar-benar menjawab dari daftar kandidat, lalu simpan
- * sementara (TTL 10 menit). URL manual (override) selalu diprioritaskan dan
- * tidak pernah ditimpa fungsi ini.
- */
-export async function autoDetectApiBaseUrl(timeoutMs = 3500): Promise<string | null> {
-  let hasOverride = false
+export async function probeServerHealth(url: string, timeoutMs = 5000): Promise<ServerProbeResult> {
+  const start = Date.now()
   try {
-    const override = localStorage.getItem(API_BASE_URL_OVERRIDE_KEY)
-    hasOverride = !!override && !!override.trim()
-  } catch { /* storage mati */ }
-  if (hasOverride) return resolveApiBaseUrl()
-
-  for (const candidate of apiBaseCandidates()) {
-    const probe = await probeServerHealth(candidate.url, timeoutMs)
-    if (!probe.reachable) continue
-    try {
-      localStorage.setItem(API_BASE_AUTODETECT_KEY, JSON.stringify({ url: candidate.url, at: Date.now() }))
-    } catch { /* storage penuh */ }
-    api?.refreshBaseUrl()
-    console.log(`[api] Endpoint auto-detect: ${candidate.label} → ${candidate.url}`)
-    return candidate.url
-  }
-  return null
-}
-
-
-
-
-/** Label kandidat yang cocok dengan URL aktif (untuk ditampilkan di UI). */
-export function apiBaseCandidateLabel(url: string): string | null {
-  const target = normalizeBaseUrl(url)
-  return apiBaseCandidates().find(c => c.url === target)?.label ?? null
-}
-
-
-
-
-class ApiService {
-  private _baseUrl = getBaseUrl()
-  private _token: string | null = null
-
-  // ponytail: tidak ada request yang boleh menghapus token (lihat 401 di bawah).
-
-  constructor() {
-    try {
-      this._token = localStorage.getItem(TOKEN_KEY)
-    } catch { /* ignore */ }
-  }
-
-  get baseUrl() { return this._baseUrl }
-  get token() { return this._token }
-  get isAuthenticated() { return !!this._token }
-
-  setToken(token: string | null) {
-    this._token = token
-    try {
-      if (token) {
-        localStorage.setItem(TOKEN_KEY, token)
-      } else {
-        localStorage.removeItem(TOKEN_KEY)
-      }
-    } catch { /* quota */ }
-  }
-
-  refreshBaseUrl() {
-    this._baseUrl = getBaseUrl()
-  }
-
-  async ping(timeoutMs = 5000): Promise<boolean> {
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
-      try {
-        const res = await fetch(`${this.baseUrl}/health?_t=${Date.now()}`, {
-          method: 'GET',
-          cache: 'no-store',
-          headers: { Accept: 'application/json' },
-          signal: controller.signal,
-        })
-        return res.ok
-      } finally {
-        clearTimeout(timer)
-      }
-    } catch {
-      return false
-    }
-  }
-
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    timeoutMs = 12000,
-  ): Promise<ApiResponse<T>> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (this._token) {
-      headers['Authorization'] = `Bearer ${this._token}`
-    }
-
     const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        controller.abort()
-        reject(new Error('timeout'))
-      }, timeoutMs)
-    })
-    try {
-      const res = await Promise.race([fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      }), timeout])
-      const data = await Promise.race([res.json(), timeout]).catch(err => {
-        if (controller.signal.aborted) throw err
-        return {}
-      })
-
-      if (!res.ok) {
-        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
-        // di salah satu dari 4 request paralel) menghapus token di storage,
-        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
-        // ("session renewal failed" padahal petugas sudah login). Token hanya
-        // diganti saat login/refresh eksplisit. TODO-security: hapus sesi hanya
-        // untuk 401 yang terbukti revokasi, bukan expiry.
-        return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
-      }
-
-      return { ok: true, data }
-    } catch (err) {
-      const aborted = controller.signal.aborted
-      const message = aborted
-        ? `Server tidak merespon (${timeoutMs / 1000} detik timeout) — periksa API ${this.baseUrl}`
-        : err instanceof Error ? err.message : 'Network error'
-      return { ok: false, error: { message, code: aborted ? 'TIMEOUT' : 'NETWORK' } }
-    } finally {
-      clearTimeout(timer)
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const res = await fetch(`${url}/health`, { method: 'GET', signal: controller.signal })
+    clearTimeout(timer)
+    const ms = Date.now() - start
+    return { reachable: true, ms, status: res.status }
+  } catch (e) {
+    const ms = Date.now() - start
+    const err = e as Error
+    if (err.name === 'AbortError') {
+      return { reachable: false, ms: ms || 0, timedOut: true, detail: 'Request timed out' }
     }
-  }
-
-  get<T>(path: string) { return this.request<T>('GET', path) }
-  post<T>(path: string, body?: unknown, timeoutMs?: number) { return this.request<T>('POST', path, body, timeoutMs) }
-  put<T>(path: string, body?: unknown) { return this.request<T>('PUT', path, body) }
-  delete<T>(path: string) { return this.request<T>('DELETE', path) }
-
-  async postMultipart<T>(path: string, body: FormData): Promise<ApiResponse<T>> {
-    const headers: Record<string, string> = {}
-    if (this._token) headers['Authorization'] = `Bearer ${this._token}`
-
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 60000)
-      let res: Response
-      try {
-        res = await fetch(`${this.baseUrl}${path}`, {
-          method: 'POST',
-          headers,
-          body,
-          signal: controller.signal,
-        })
-      } finally {
-        clearTimeout(timer)
-      }
-
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
-        // di salah satu dari 4 request paralel) menghapus token di storage,
-        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
-        // ("session renewal failed" padahal petugas sudah login). Token hanya
-        // diganti saat login/refresh eksplisit. TODO-security: hapus sesi hanya
-        // untuk 401 yang terbukti revokasi, bukan expiry.
-        return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
-      }
-      return { ok: true, data }
-    } catch (err) {
-      const aborted = err instanceof DOMException && err.name === 'AbortError'
-      return {
-        ok: false,
-        error: { message: aborted ? 'Unggah dokumentasi melewati batas waktu' : err instanceof Error ? err.message : 'Network error' },
-      }
+    if (err.message.includes('fetch') || err.message.includes('CORS')) {
+      return { reachable: false, ms: ms || 0, blockedByCors: true, detail: err.message }
     }
-  }
-
-  async uploadPhoto(file: File): Promise<{ url: string } | null> {
-    const form = new FormData()
-    form.append('foto', file)
-    try {
-      const res = await fetch(`${this.baseUrl}/upload`, {
-        method: 'POST',
-        headers: { Authorization: this._token ? `Bearer ${this._token}` : '' },
-        body: form,
-      })
-      if (!res.ok) return null
-      const data = await res.json()
-      return data.url ? { url: data.url } : null
-    } catch { return null }
+    return { reachable: false, ms: ms || 0, detail: err.message }
   }
 }
 
-export const api = new ApiService()
+export function setApiBaseUrlOverride(url: string | null): void {
+  setApiBaseUrl(url)
+}
+
+// Default URL (synchronous)
+export function autoDetectApiBaseUrl(_timeoutMs?: number): string {
+  return 'https://bmiruktfruunegtbydyw.supabase.co/api'
+}
+
+// Async version for chained calls
+export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
+  // Try to detect best server
+  const candidates = [
+    'https://bmiruktfruunegtbydyw.supabase.co/api',
+    'http://localhost:3000/api',
+  ]
+  for (const url of candidates) {
+    const result = await probeServerHealth(url)
+    if (result.reachable) return url
+  }
+  return candidates[0]
+}

@@ -1,171 +1,181 @@
+/**
+ * Reports Routes - Supabase Version
+ */
+
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { supabase, supabaseAdmin } = require('../lib/supabase');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
+// ============================================
+// SUMMARY
+// ============================================
 
-
-const ROUTE_CODE_ALIAS = { BDAU: 'BADAU' };
-
-
-
-function placeNameSubquery(col) {
-  return `(SELECT rg.name FROM regions rg
-           WHERE rg.code = CASE ${col} WHEN 'BDAU' THEN 'BADAU' ELSE ${col} END
-           LIMIT 1)`;
-}
-
-
-
-router.get('/summary', authenticate, requireAdmin, (req, res) => {
+router.get('/summary', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { startDate, endDate, regionId } = req.query;
+    const { startDate, endDate } = req.query;
+    const client = supabaseAdmin || supabase;
 
-    let dateFilter = '';
-    const params = [];
+    let tripQuery = client.from('trips').select('id', { count: 'exact', head: true });
+    let vehicleQuery = client
+      .from('vehicles')
+      .select('id, tariff_amount', { count: 'exact', head: true })
+      .not('trip_id', 'is', null);
 
     if (startDate && endDate) {
-      dateFilter = 'AND DATE(t.created_at) BETWEEN ? AND ?';
-      params.push(startDate, endDate);
+      const start = `${startDate}T00:00:00`;
+      const end = `${endDate}T23:59:59`;
+      tripQuery = tripQuery.gte('created_at', start).lte('created_at', end);
+      vehicleQuery = vehicleQuery
+        .gte('created_at', start)
+        .lte('created_at', end);
     }
 
-    const tripCount = db.prepare(`
-      SELECT COUNT(*) as count FROM trips t
-      WHERE 1=1 ${dateFilter}
-    `).get(...params);
+    const [tripResult, vehicleResult] = await Promise.all([
+      tripQuery,
+      vehicleQuery,
+    ]);
 
-    const vehicleCount = db.prepare(`
-      SELECT COUNT(*) as count FROM vehicles v
-      JOIN trips t ON v.trip_id = t.id
-      WHERE 1=1 ${dateFilter}
-    `).get(...params);
+    // Get revenue from vehicles
+    let revenueQuery = client
+      .from('vehicles')
+      .select('tariff_amount')
+      .not('trip_id', 'is', null);
 
-    const revenue = db.prepare(`
-      SELECT COALESCE(SUM(v.tariff_amount), 0) as total FROM vehicles v
-      JOIN trips t ON v.trip_id = t.id
-      WHERE 1=1 ${dateFilter}
-    `).get(...params);
+    if (startDate && endDate) {
+      const start = `${startDate}T00:00:00`;
+      const end = `${endDate}T23:59:59`;
+      revenueQuery = revenueQuery.gte('created_at', start).lte('created_at', end);
+    }
+
+    const { data: vehicles } = await revenueQuery;
+    const totalRevenue = (vehicles || []).reduce((sum, v) => sum + (v.tariff_amount || 0), 0);
 
     res.json({
-      totalTrips: tripCount.count,
-      totalVehicles: vehicleCount.count,
-      totalRevenue: revenue.total
+      totalTrips: tripResult.count || 0,
+      totalVehicles: vehicleResult.count || 0,
+      totalRevenue,
     });
   } catch (error) {
+    console.error('Summary error:', error);
     res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 
+// ============================================
+// TRIPS REPORT
+// ============================================
 
-
-function buildFilters(query) {
-  const { startDate, endDate, route, golongan, vehicleType, status, regionId } = query;
-  let sql = '';
-  const params = [];
-
-  if (startDate && endDate) {
-    sql += ' AND DATE(t.created_at) BETWEEN ? AND ?';
-    params.push(startDate, endDate);
-  }
-
-  if (route) {
-    const alias = ROUTE_CODE_ALIAS[route] || route;
-    const alt = Object.keys(ROUTE_CODE_ALIAS).find(k => ROUTE_CODE_ALIAS[k] === route) || route;
-    const variants = Array.from(new Set([route, alias, alt]));
-    sql += ` AND (${variants.map(() => '(t.route_from = ? OR t.route_to = ?)').join(' OR ')})`;
-    for (const v of variants) params.push(v, v);
-  }
-
-  if (golongan) {
-    sql += ` AND EXISTS (
-      SELECT 1 FROM vehicles v
-      LEFT JOIN tariffs tf ON tf.vehicle_type = v.vehicle_type
-      WHERE v.trip_id = t.id AND (tf.golongan = ? OR v.golongan = ?)
-    )`;
-    params.push(golongan, golongan);
-  }
-
-  if (vehicleType) {
-    sql += ' AND EXISTS (SELECT 1 FROM vehicles v WHERE v.trip_id = t.id AND v.vehicle_type = ?)';
-    params.push(vehicleType);
-  }
-
-  if (status) {
-    sql += ' AND t.status_muatan = ?';
-    params.push(status);
-  }
-
-  if (regionId) {
-    sql += ' AND t.region_id = ?';
-    params.push(regionId);
-  }
-
-  return { sql, params };
-}
-
-
-
-router.get('/trips', authenticate, requireAdmin, (req, res) => {
+router.get('/trips', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { sql: filterSql, params } = buildFilters(req.query);
+    const { startDate, endDate, route, golongan, vehicleType, status, regionId } = req.query;
+    const client = supabaseAdmin || supabase;
 
-    let query = `
-      SELECT t.*, r.name as region_name, r.code as region_code,
-        o.name as officer_name,
-        ${placeNameSubquery('t.route_from')} as route_from_name,
-        ${placeNameSubquery('t.route_to')} as route_to_name,
-        t.route_from as route_from_code, t.route_to as route_to_code,
-        (SELECT COUNT(*) FROM trip_vehicles tv WHERE tv.trip_id = t.id) as vehicle_count,
-        (SELECT SUM(v.tariff_amount) FROM vehicles v WHERE v.trip_id = t.id) as trip_revenue
-      FROM trips t
-      JOIN regions r ON t.region_id = r.id
-      LEFT JOIN officers o ON t.officer_id = o.id
-      WHERE 1=1
-    ` + filterSql + ' ORDER BY t.created_at DESC LIMIT 200';
+    let query = client
+      .from('trips')
+      .select(`
+        *,
+        officers(name),
+        regions(name, code)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(200);
 
-    const trips = db.prepare(query).all(...params);
-
-    const vehStmt = db.prepare(`
-      SELECT v.id, v.no_polisi, v.vehicle_type, v.golongan, v.has_load, v.tariff_amount,
-        v.foto_path, v.foto_captured_at, v.latitude, v.longitude,
-        (SELECT tf.golongan FROM tariffs tf WHERE tf.vehicle_type = v.vehicle_type LIMIT 1) as master_golongan
-      FROM vehicles v
-      WHERE v.trip_id = ?
-    `);
-    for (const t of trips) {
-      t.vehicles = vehStmt.all(t.id);
-      if (t.trip_revenue == null) {
-        t.trip_revenue = t.vehicles.reduce((s, v) => s + (v.tariff_amount || 0), 0);
-      }
+    if (startDate && endDate) {
+      query = query.gte('created_at', `${startDate}T00:00:00`).lte('created_at', `${endDate}T23:59:59`);
+    }
+    if (regionId) {
+      query = query.eq('region_id', regionId);
+    }
+    if (status) {
+      query = query.eq('status_muatan', status);
     }
 
-    res.json(trips);
+    const { data: trips, error } = await query;
+    if (error) throw error;
+
+    // Get vehicles for each trip
+    const tripIds = (trips || []).map(t => t.id);
+    let vehicles = [];
+
+    if (tripIds.length) {
+      const { data: tvData } = await client
+        .from('trip_vehicles')
+        .select('trip_id, vehicles(*)')
+        .in('trip_id', tripIds);
+
+      vehicles = (tvData || []).map(tv => ({
+        ...tv.vehicles,
+        trip_id: tv.trip_id,
+      }));
+    }
+
+    // Filter by vehicle type/golongan if specified
+    let filteredVehicles = vehicles;
+    if (golongan) {
+      filteredVehicles = filteredVehicles.filter(v => v.golongan === golongan);
+    }
+    if (vehicleType) {
+      filteredVehicles = filteredVehicles.filter(v => v.vehicle_type === vehicleType);
+    }
+
+    // Group vehicles by trip
+    const vehiclesByTrip = {};
+    for (const v of filteredVehicles) {
+      if (!vehiclesByTrip[v.trip_id]) {
+        vehiclesByTrip[v.trip_id] = [];
+      }
+      vehiclesByTrip[v.trip_id].push(v);
+    }
+
+    // Format response
+    let result = (trips || []).map(t => ({
+      ...t,
+      officer_name: t.officers?.name,
+      region_name: t.regions?.name,
+      region_code: t.regions?.code,
+      vehicles: vehiclesByTrip[t.id] || [],
+      vehicle_count: (vehiclesByTrip[t.id] || []).length,
+      trip_revenue: (vehiclesByTrip[t.id] || []).reduce((sum, v) => sum + (v.tariff_amount || 0), 0),
+    }));
+
+    // Filter by route
+    if (route) {
+      const upperRoute = route.toUpperCase();
+      result = result.filter(t =>
+        (t.route_from && t.route_from.toUpperCase().includes(upperRoute)) ||
+        (t.route_to && t.route_to.toUpperCase().includes(upperRoute))
+      );
+    }
+
+    res.json(result);
   } catch (error) {
     console.error('Report error:', error);
     res.status(500).json({ error: 'Failed to fetch report' });
   }
 });
 
+// ============================================
+// FILTER OPTIONS
+// ============================================
 
-
-router.get('/trips/filters', authenticate, requireAdmin, (req, res) => {
+router.get('/trips/filters', authenticate, requireAdmin, async (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT golongan, vehicle_type FROM tariffs WHERE is_active = 1 ORDER BY golongan, vehicle_type
-    `).all();
+    const client = supabaseAdmin || supabase;
 
-    const golongan = [];
-    const vehicleTypes = [];
-    for (const r of rows) {
-      if (r.golongan && !golongan.includes(r.golongan)) golongan.push(r.golongan);
-      if (r.vehicle_type && !vehicleTypes.includes(r.vehicle_type)) vehicleTypes.push(r.vehicle_type);
-    }
+    const { data: tariffs } = await client
+      .from('tariffs')
+      .select('golongan, vehicle_type')
+      .eq('is_active', 1)
+      .order('golongan', { ascending: true });
+
+    const golongan = [...new Set((tariffs || []).map(t => t.golongan).filter(Boolean))].sort();
+    const vehicleTypes = [...new Set((tariffs || []).map(t => t.vehicle_type).filter(Boolean))].sort();
+
     res.json({ golongan, vehicleTypes });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch filter options' });
   }
 });
-
-
 
 module.exports = router;
