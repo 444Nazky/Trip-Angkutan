@@ -148,6 +148,33 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return ids.size > 0 ? routeRows.filter(r => ids.has(r.dermaga_id)) : []
   }
 
+  /**
+   * Format routes for display - shows route_from -> route_to for each route
+   * Groups by dermaga for officers with dual access (2 dermagas)
+   */
+  const formatOfficerRoutes = (o: Officer): string => {
+    const routes = routesForOfficer(o)
+    if (routes.length === 0) return '—'
+
+    // Group routes by dermaga
+    const byDermaga = new Map<string, typeof routes>()
+    for (const r of routes) {
+      const dermagaId = r.dermaga_id
+      if (!byDermaga.has(dermagaId)) byDermaga.set(dermagaId, [])
+      byDermaga.get(dermagaId)!.push(r)
+    }
+
+    // Format: DERMAGA · ROUTE: ASAL -> TUJUAN | ASAL -> TUJUAN
+    const parts: string[] = []
+    for (const [dermagaId, dermagaRoutes] of byDermaga) {
+      const dermaga = routeDermagas.find(d => d.id === dermagaId)
+      const dermagaLabel = dermaga ? `${dermaga.region_name || dermaga.code} ${dermaga.code}` : ''
+      const routeLabels = dermagaRoutes.map(r => `${r.route_from} → ${r.route_to}`).join(' | ')
+      parts.push(`${dermagaLabel ? dermagaLabel + ' · ' : ''}RUTE = ${routeLabels}`)
+    }
+    return parts.join(' | ')
+  }
+
   const toggleId = (list: string[], id: string) => list.includes(id) ? list.filter(x => x !== id) : [...list, id]
   const findBackendOfficer = (o: { id?: string; name: string }) =>
     backendOfficers.find(b => String(b.id) === String(o.id)) ?? backendOfficers.find(b => b.name === o.name)
@@ -343,7 +370,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
         return (
-          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card stagger-item">
             <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
               <Lock size={14} className="text-blue-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
@@ -369,18 +396,10 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                         }
 
                       </td>
-                      <td className="p-4 text-[12px] text-slate-600">
-                        {routesForOfficer(o).length === 0
-                          ? <span className="text-slate-300">—</span>
-                          : <span className="flex flex-wrap gap-1">
-                            {routesForOfficer(o).map(r => (
-                              <span key={r.id} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
-                                {r.name || `${r.route_from} → ${r.route_to}`}
-                              </span>
-                            ))}
-                          </span>
-                        }
-
+                      <td className="p-4 text-[11px] text-slate-600 max-w-xs">
+                        <span className="line-clamp-2" title={formatOfficerRoutes(o)}>
+                          {formatOfficerRoutes(o)}
+                        </span>
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>

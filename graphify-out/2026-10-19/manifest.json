@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "backend/src/routes/auth.js": {
-    "mtime": 1792387029.807462,
-    "ast_hash": "1f323f400323e55cfe7abb91ccce14b1",
+    "mtime": 1792396727.110457,
+    "ast_hash": "03f71fd31a41f724bbef945b91ea3b60",
     "semantic_hash": ""
   },
   "backend/src/routes/dermagas.js": {
@@ -400,8 +400,8 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1792392081.557028,
-    "ast_hash": "fa5e64879633e5f460601a1b85e9900f",
+    "mtime": 1792396639.5087228,
+    "ast_hash": "fdf166c9369e521413d40ea61fd7500b",
     "semantic_hash": ""
   },
   "src/components/ServerSettingsModal.tsx": {
@@ -655,8 +655,8 @@
     "semantic_hash": ""
   },
   "src/services/auth.ts": {
-    "mtime": 1792396005.4153895,
-    "ast_hash": "e1a0d46f80a386699086fdb85fce5f9e",
+    "mtime": 1792396746.4409964,
+    "ast_hash": "86727c25e006ba02a0fa87d6f46b0016",
     "semantic_hash": ""
   },
   "src/services/credentialSync.ts": {
@@ -897,46 +897,6 @@
   "vitest.setup.ts": {
     "mtime": 1791992401.5731208,
     "ast_hash": "61a6a0301fae5e4c200a455717190674",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-3kUzmqHo.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "c6d529c3bee63ee94162234fcf2b5ca2",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-BNxvacpJ.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "204b90f3239f206d78a8529ac71e55a9",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-BzSkv707.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "fcaafb937cae7b34f641cadfbb2ce79b",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-C_SAVRAw.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "ef1e69261f0e1e5124b015eb518c9a5b",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-DFC4VVVF.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "dc7d80bae8e39b946f64fe1bdfa8f4b8",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-DN4IQ7FQ.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "9f72916605561a9d01f2ad8d917eb6f5",
-    "semantic_hash": ""
-  },
-  "www/assets/js/chunk-MU30fE2U.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "edd8b4cd62c108263d5fba3008452bef",
-    "semantic_hash": ""
-  },
-  "www/assets/js/main-EARZBXMN.js": {
-    "mtime": 1792396303.5797389,
-    "ast_hash": "55af9d5daa6a05957387214fbdc744f1",
     "semantic_hash": ""
   },
   "www/sw.js": {
@@ -1610,13 +1570,13 @@
     "semantic_hash": ""
   },
   "www/3rdpartylicenses.txt": {
-    "mtime": 1792396303.5797389,
+    "mtime": 1792396781.6043305,
     "ast_hash": "1942abdc56c86d1bb697995ce4979b84",
     "semantic_hash": ""
   },
   "www/index.html": {
-    "mtime": 1792396303.984853,
-    "ast_hash": "9c959f7e6353a492f2ac026d4a135867",
+    "mtime": 1792396781.924201,
+    "ast_hash": "e07f69675daadf22e4375ce2858b5a08",
     "semantic_hash": ""
   },
   "admin-ci/Assets/karyamasv.svg": {
@@ -3057,6 +3017,46 @@
   "www/assets/karyamasv.svg": {
     "mtime": 1791992582.999,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-BBUXAVGh.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "c88f82eec2f828b6dd04c2c0cd53e66d",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-BXDLVA5T.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "0dd58aaf12831568ff4ce1d0759f37f9",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-Bzh4Gu68.js": {
+    "mtime": 1792396781.604789,
+    "ast_hash": "b004a3c3bc5aff6f265044b59ef44837",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-C87SdlPG.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "4678f219dece05ef3711f0cbf4e184f6",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-CtKdfAXI.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "7207bc822d610edbf90acb92e6577993",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-D7i4B1mj.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "0ee9b6153007e91aab3594fc1b9c9cfb",
+    "semantic_hash": ""
+  },
+  "www/assets/js/chunk-DqH2FWVt.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "75de65df31130b92660609592cd4914a",
+    "semantic_hash": ""
+  },
+  "www/assets/js/main-K3VDGZZX.js": {
+    "mtime": 1792396781.6043305,
+    "ast_hash": "41827ef2327e9aadd605287bd71778f0",
     "semantic_hash": ""
   }
 }
