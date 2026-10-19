@@ -88,13 +88,31 @@ router.get('/resolve-link', authenticate, async (req, res) => {
   }
 });
 
+// ponytail: mobil masih kirim id kode ("BADAU-D1" dari registry lokal), DB pakai
+// UUID — resolve sekali di sini, semua client yang pakai kode ikut lega
+async function resolveDermagaId(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value;
+  const m = value.match(/^([A-Za-z0-9]+)-D(\d+)$/i);
+  if (!m) return value;
+  const client = supabaseAdmin || supabase;
+  const { data } = await client
+    .from('dermagas')
+    .select('id, code, regions!inner(code)')
+    .eq('code', `D${m[2]}`)
+    .eq('regions.code', m[1].toUpperCase())
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? value;
+}
+
 // ============================================
 // GET GEOFENCES
 // ============================================
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const dermagaId = String(req.query.dermagaId ?? '').trim();
+    const dermagaId = await resolveDermagaId(req.query.dermagaId);
     const scopeAll = String(req.query.scope ?? '').toLowerCase() === 'all';
     const client = supabaseAdmin || supabase;
 

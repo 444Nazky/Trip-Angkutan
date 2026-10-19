@@ -6,6 +6,20 @@ import { isDevMode } from './runtimeEnv'
 import { api } from './api'
 
 
+/**
+ * Detect if running in localhost development environment (Chrome dev)
+ * Disables update notifications and version reporting for local dev
+ */
+export function isLocalhostDev(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname || ''
+  const port = window.location.port || ''
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1'
+  const isDevPort = port === '5173' || port === '5174' || port === '3000' || port === '4200' || port === '8080'
+  return isLocalhost || isDevPort
+}
+
+
 
 
 // Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
@@ -55,8 +69,9 @@ async function getDeviceId(): Promise<string> {
  * LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
  */
 async function reportOtaVersion(version: string): Promise<boolean> {
-  if (isDevMode()) {
-    console.log('[OTA] DEV MODE: Skip report version ke server')
+  // Disable update reporting for localhost development
+  if (isDevMode() || isLocalhostDev()) {
+    console.log('[OTA] DEV/Localhost MODE: Skip report version ke server')
     return false
   }
   try {
@@ -515,8 +530,8 @@ type ManifestResult =
 
 
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
-  if (isDevMode()) {
-    console.log('[OTA] DEV MODE: skip fetch manifest server')
+  if (isDevMode() || isLocalhostDev()) {
+    console.log('[OTA] DEV/LOCALHOST MODE: skip fetch manifest server')
     return { ok: false, reason: 'not-found' }
   }
 
@@ -871,8 +886,8 @@ export async function auditOta(): Promise<{
   let remoteVersion: string | null = null
   let hasRemoteManifest = false
 
-  if (isDevMode()) {
-    console.log('[OTA] DEV MODE: skip audit fetch manifest server')
+  if (isDevMode() || isLocalhostDev()) {
+    console.log('[OTA] DEV/LOCALHOST MODE: skip audit fetch manifest server')
   } else {
     try {
       const ac = new AbortController()

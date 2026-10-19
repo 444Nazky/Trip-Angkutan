@@ -71,7 +71,7 @@ function getBaseUrl(): string {
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
-  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/api'
+  if (!url) return 'https://aplikasi-trip-api-production.up.railway.app/api'
   if (!/^https?:\/\//i.test(url)) {
     url = `${url.startsWith('localhost') ? 'http' : 'https'}://${url}`
   }
@@ -282,7 +282,7 @@ export interface ApiBaseCandidate {
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   return [
-    { url: 'https://bmiruktfruunegtbydyw.supabase.co/api', label: 'Supabase (Produksi)' },
+    { url: 'https://aplikasi-trip-api-production.up.railway.app/api', label: 'Produksi (Railway)' },
     { url: 'http://localhost:3000/api', label: 'Localhost :3000' },
   ]
 }
@@ -343,14 +343,14 @@ export function setApiBaseUrlOverride(url: string | null): void {
 
 // Default URL (synchronous)
 export function autoDetectApiBaseUrl(_timeoutMs?: number): string {
-  return 'https://bmiruktfruunegtbydyw.supabase.co/api'
+  return 'https://aplikasi-trip-api-production.up.railway.app/api'
 }
 
 // Async version for chained calls
 export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
   // Try to detect best server
   const candidates = [
-    'https://bmiruktfruunegtbydyw.supabase.co/api',
+    'https://aplikasi-trip-api-production.up.railway.app/api',
     'http://localhost:3000/api',
   ]
   for (const url of candidates) {

@@ -18,7 +18,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
       .from('officers')
       .select(`
         id, name, username, region_id, is_active,
-        regions(name, code)
+        regions!officers_region_id_fkey(name, code)
       `)
       .order('name', { ascending: true });
 
@@ -76,7 +76,7 @@ router.get('/my-region', authenticate, async (req, res) => {
       .from('officers')
       .select(`
         *,
-        regions(name, code)
+        regions!officers_region_id_fkey(name, code)
       `)
       .order('name', { ascending: true });
 
