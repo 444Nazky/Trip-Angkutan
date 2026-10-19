@@ -142,7 +142,18 @@ Deno.serve(async (req: Request) => {
       return notFound();
     }
 
-    // TODO: /plate-scans? /app-version, /app-download, /ota (manifest, versions, publish, report-version, device-versions)
+    // ---------------- app update / OTA ----------------
+    if (a === "app-version" && req.method === "GET") return await upd.getAppVersion(req, url);
+    if (a === "release-notes" && req.method === "GET" && b) return await upd.releaseNotes(req, b);
+    if (a === "apk-list" && req.method === "GET") return await upd.apkList(req);
+    if (a === "publish-version" && req.method === "POST") return await upd.publishVersion(req);
+    if (a === "app-download" && req.method === "GET" && b) return await upd.appDownload(req, b);
+    if (a === "ota-manifest" && req.method === "GET") return await upd.otaManifest(req);
+    if (a === "ota-versions" && req.method === "GET") return await upd.otaVersions(req);
+    if (a === "publish-ota" && req.method === "POST") return await upd.publishOta(req);
+    if (a === "report-version" && req.method === "POST") return await upd.reportDeviceVersion(req);
+    if (a === "device-versions" && req.method === "GET") return await upd.deviceVersions(req);
+
     return notFound();
   } catch (error) {
     console.error("[api]", req.method, path, error);

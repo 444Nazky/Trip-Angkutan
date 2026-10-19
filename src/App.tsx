@@ -6,12 +6,12 @@ import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { startConnectivitySync, syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
-import { syncGeofencesFromBackend } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
-import { autoDetectApiBaseUrlAsync, api } from "./services/api"
-import { isLocalhost } from "./services/runtimeEnv"
-import UpdateNotifier from "./components/UpdateNotifier"
-import { appUpdate } from "./services/appUpdate"
+import { api } from "./services/api"
+import { isLocalhostDev } from "./services/ota"
+
+// Completely disable automatic update checks - updates are MANUAL ONLY via Profile screen
+const AUTO_UPDATE_DISABLED = isLocalhostDev()
 
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
@@ -19,45 +19,32 @@ function Shell() {
   useEffect(() => {
     initializeSync()
     void initOfflineDb()
-    // Perangkat kembali online (WiFi ↔ seluler, atau sinyal hilang lalu balik)
-    // = tarik ulang master data secara senyap, tanpa notifikasi.
     startConnectivitySync()
     void checkAndRequestLocationOnStartup()
 
     // Debug: log status token saat startup
-    console.debug('[App] Startup - checking token:', {
+    console.debug('[App] Startup - token:', {
       hasToken: api.isAuthenticated,
       tokenLength: api.token?.length ?? 0,
       baseUrl: api.baseUrl,
+      autoUpdateDisabled: AUTO_UPDATE_DISABLED,
     })
 
-    // Endpoint bawaan (build rilis = Railway) belum tentu yang terjangkau dari
-    // jaringan petugas. Cari kandidat yang benar-benar menjawab, baru tarik data —
-    // dulu satu-satunya default adalah Railway sehingga server uji/LAN tak terpakai.
-    void autoDetectApiBaseUrlAsync()
-      // ponytail: start/resume = force — fetch murah, edit admin langsung sampai
-      .then((base: string) => {
-        console.debug('[App] API URL detected:', base)
-        if (base) void syncGeofencesFromBackend({ force: true })
-      })
-      .catch(() => { void syncGeofencesFromBackend({ force: true }) })
+    // NO automatic geofence sync on startup - user triggers manually from Profile
+    // NO automatic version checks
+    // NO automatic sync on resume either
+
+    if (!AUTO_UPDATE_DISABLED) {
+      void import('./services/api').then(m => m.autoDetectApiBaseUrlAsync().catch(() => {}))
+    }
   }, [])
 
-  // ponytail: tidak ada tendangan ke login saat 401 — sesi dibuat tidak
-  // expired; sync gagal = pakai cache lokal dan coba lagi berikutnya.
-
+  // Resume sync on app state change (foreground/background)
   useEffect(() => {
     let sub: { remove?: () => void } | undefined
     CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        syncOnResume()
-        // ponytail: resume = force (lihat catatan di atas), bukan background
-        void syncGeofencesFromBackend({ force: true })
-        // Setelah pengguna menyetujui pemasangan APK, aplikasi hidup kembali di sini:
-        // versi native dibaca ulang supaya status "sudah ter-update" hanya muncul
-        // kalau APK-nya benar-benar terpasang.
-        void appUpdate.syncInstalledVersion()
-      }
+      if (isActive) syncOnResume()
+      // NO automatic geofence sync on resume, NO automatic version checks
     }).then(s => { sub = s })
     return () => { sub?.remove?.() }
   }, [])
@@ -68,21 +55,15 @@ function Shell() {
     if (isAdminSession) logout()
   }, [isAdminSession, logout])
 
+  // NO UpdateNotifier at all - updates are manual only via Profile screen
   return (
     <div className="app-root bg-slate-50">
-      {!isLocalhost() && (
-        <UpdateNotifier
-          autoCheck={true}
-        />
-      )}
-      {loggedIn && !isAdminSession
+      {loggedIn && userType !== 'admin'
         ? <MobileApp />
         : <LoginPage onLogin={() => login('member')} />}
     </div>
   )
 }
-
-
 
 export default function App() {
   return <AppProvider><Shell /></AppProvider>

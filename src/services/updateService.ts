@@ -31,13 +31,13 @@ export function resolveDownloadUrl(raw: string): string {
   const url = String(raw || '').trim()
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
-  const origin = api.url.replace(/\/api\/?$/i, '')
-  return `${origin}/${url.startsWith('/') ? url.slice(1) : url}`
+  // Rute relatif dihitung dari API base Supabase (…/functions/v1/api)
+  return `${api.url}/${url.startsWith('/') ? url.slice(1) : url}`
 }
 
 export async function checkUpdate(currentVersion: string): Promise<UpdateInfo | null> {
   try {
-    const result = await api.get<UpdateInfo>(`/v1/app-version?current=${encodeURIComponent(currentVersion)}`, 10000)
+    const result = await api.get<UpdateInfo>(`/app-version?current=${encodeURIComponent(currentVersion)}`, 10000)
     if (result.ok && result.data) return result.data
   } catch (e) {
     console.warn('[update] check failed:', e)
@@ -67,7 +67,7 @@ export function shouldForceUpdate(current: string, minVersion: string): boolean 
 }
 
 export function getUpdateApiUrl(): string {
-  return api.url + '/v1/app-version'
+  return api.url + '/app-version'
 }
 
 export class UpdateService {

@@ -71,7 +71,7 @@ function getBaseUrl(): string {
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
-  if (!url) return 'https://aplikasi-trip-api-production.up.railway.app/api'
+  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
   if (!/^https?:\/\//i.test(url)) {
     url = `${url.startsWith('localhost') ? 'http' : 'https'}://${url}`
   }
@@ -114,6 +114,8 @@ async function request<T>(
   const token = loadToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
+  const anon = (environment as { supabaseAnonKey?: string }).supabaseAnonKey
+  if (anon) headers['apikey'] = anon
 
   const url = `${baseUrl}${path}`
   const ctrl = new AbortController()
@@ -282,7 +284,7 @@ export interface ApiBaseCandidate {
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   return [
-    { url: 'https://aplikasi-trip-api-production.up.railway.app/api', label: 'Produksi (Railway)' },
+    { url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', label: 'Produksi (Supabase)' },
     { url: 'http://localhost:3000/api', label: 'Localhost :3000' },
   ]
 }
@@ -343,14 +345,14 @@ export function setApiBaseUrlOverride(url: string | null): void {
 
 // Default URL (synchronous)
 export function autoDetectApiBaseUrl(_timeoutMs?: number): string {
-  return 'https://aplikasi-trip-api-production.up.railway.app/api'
+  return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
 }
 
 // Async version for chained calls
 export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
   // Try to detect best server
   const candidates = [
-    'https://aplikasi-trip-api-production.up.railway.app/api',
+    'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
     'http://localhost:3000/api',
   ]
   for (const url of candidates) {

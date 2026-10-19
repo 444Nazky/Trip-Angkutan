@@ -1,6 +1,6 @@
 // App update/OTA handlers — Supabase-native: release metadata in `app_versions`
 // table, OTA manifests in `ota_bundles`, file bytes in public buckets `apks` and `ota`.
-import { db, json, requireAdmin } from "../_shared.ts";
+import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
 const APK_BUCKET = "apks";
 const OTA_BUCKET = "ota";
@@ -10,17 +10,16 @@ function storagePublicUrl(bucket: string, path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
-function parse(v: string): [number, number, number, string] {
+function parse(v: string): [number, number, number, number] {
   const [core = "", stamp = "0"] = String(v ?? "").split("+");
   const [a = 0, b = 0, c = 0] = String(core).split(".").map((n) => Number(n) || 0);
-  return [a, b, c, stamp];
+  return [a, b, c, Number(stamp) || 0];
 }
 
 function compareVersions(a: string, b: string): number {
   const pa = parse(a);
   const pb = parse(b);
-  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
-  if (pa[3] !== pb[3]) return pa[3] < pb[3] ? -1 : 1;
+  for (let i = 0; i < 4; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
   return String(a).localeCompare(String(b));
 }
 
@@ -37,7 +36,7 @@ function isForce(row: any): boolean {
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -207,19 +206,22 @@ export async function otaManifest(_req: Request): Promise<Response> {
     // ponytail: pick active (highest version) client-side; cukup karena manifest kecil
     const active = (data as any[]).sort((a, b) => compareVersions(b.manifest.version, a.manifest.version))[0];
     const m = active.manifest;
-    return json(
-      {
-        version: m.version,
-        assets: m.assets,
-        integrity: m.integrity || {},
-        minVersion: m.minVersion || null,
-        isForceUpdate: Boolean(m.isForceUpdate),
-        releaseNotes: m.releaseNotes || "",
-        publishedAt: m.publishedAt || active.published_at || null,
+    return new Response(JSON.stringify({
+      version: m.version,
+      assets: m.assets,
+      integrity: m.integrity || {},
+      minVersion: m.minVersion || null,
+      isForceUpdate: Boolean(m.isForceUpdate),
+      releaseNotes: m.releaseNotes || "",
+      publishedAt: m.publishedAt || active.published_at || null,
+    }), {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
-      200,
-      { "Cache-Control": "no-cache, no-store, must-revalidate" },
-    );
+    });
   } catch (error) {
     console.error("OTA manifest error:", error);
     return json({ error: "OTA_MANIFEST_FAILED", message: "Gagal membaca manifest modul" }, 500);

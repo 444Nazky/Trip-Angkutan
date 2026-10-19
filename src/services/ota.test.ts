@@ -32,10 +32,10 @@ if (!globalThis.crypto?.subtle) {
   throw new Error('[ota.test] WebCrypto SubtleCrypto tidak tersedia — verifikasi integritas tidak bisa diuji')
 }
 
-/** Harus sama dengan URL yang dipakai ota.ts: manifest & aset dari server API. */
-const ORIGIN = resolveApiBaseUrl().replace(/\/api\/?$/i, '')
-const MANIFEST_URL = `${ORIGIN}/api/v1/ota-manifest`
-const ASSETS_BASE = `${ORIGIN}/ota/`
+/** Harus sama dengan URL yang dipakai ota.ts: manifest dari Edge Function, aset dari bucket publik. */
+const SUPA_ORIGIN = new URL(resolveApiBaseUrl()).origin
+const MANIFEST_URL = `${resolveApiBaseUrl()}/ota-manifest`
+const ASSETS_BASE = `${SUPA_ORIGIN}/storage/v1/object/public/ota/`
 
 const h = vi.hoisted(() => ({
   native: true,
