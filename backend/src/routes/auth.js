@@ -163,7 +163,7 @@ router.post('/member-login', authRateLimiter, async (req, res) => {
     // Find officer by username
     const { data: officerRows, error } = await (supabaseAdmin || supabase)
       .from('officers')
-      .select('*, regions(name, code)')
+      .select('*, regions!officers_region_id_fkey(name, code)')
       .ilike('username', normalizedUsername)
       .eq('is_active', 1);
 
@@ -241,7 +241,7 @@ router.post('/login', authRateLimiter, async (req, res) => {
 
     const { data: officer, error } = await (supabaseAdmin || supabase)
       .from('officers')
-      .select('*, regions(name, code)')
+      .select('*, regions!officers_region_id_fkey(name, code)')
       .eq('id', officerId)
       .eq('is_active', 1)
       .limit(1)
@@ -323,7 +323,7 @@ router.post('/select-dermaga', authenticate, async (req, res) => {
     // Get dermaga details
     const { data: dermaga, error: dermagaError } = await (supabaseAdmin || supabase)
       .from('dermagas')
-      .select('*, regions(name, code)')
+      .select('*, regions!officers_region_id_fkey(name, code)')
       .eq('id', dermagaId)
       .limit(1)
       .single();
@@ -359,7 +359,7 @@ router.post('/refresh', authenticate, async (req, res) => {
   try {
     const { data: officer, error } = await (supabaseAdmin || supabase)
       .from('officers')
-      .select('*, regions(name, code)')
+      .select('*, regions!officers_region_id_fkey(name, code)')
       .eq('id', req.user.officerId)
       .eq('is_active', 1)
       .limit(1)

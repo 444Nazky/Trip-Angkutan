@@ -13,9 +13,9 @@ const { authenticate } = require('../middleware/auth');
  * nominal muatan/kosong tetap benar saat sinyal hilang — sebelumnya tarif hanya
  * hidup di sisi admin, jadi HP jatuh ke angka contoh di data.ts.
  */
-router.get('/tariffs', authenticate, (req, res) => {
+router.get('/tariffs', authenticate, async (req, res) => {
   try {
-    const tariffs = db.prepare(`
+    const tariffs = await db.prepare(`
       SELECT id, golongan, vehicle_type, loaded_tariff, empty_tariff, description
       FROM tariffs
       WHERE is_active = 1

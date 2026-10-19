@@ -1,6 +1,15 @@
 import { applyUpdate, checkForUpdate, getCurrentVersion, type CheckResult, type UpdateState } from './ota'
 import { getNativeVersion, isNewerVersion, shouldForceUpdate, updateService } from './updateService'
 import { hardReloadToNewBundle } from './otaReload'
+import { isLocalhostDev } from './ota'
+
+
+
+// Disable update checks for localhost development
+const LOCALHOST_UPDATE_DISABLED = isLocalhostDev()
+if (LOCALHOST_UPDATE_DISABLED) {
+  console.log('[Update] Localhost/DEV mode: Update notifications disabled')
+}
 
 
 
@@ -94,6 +103,10 @@ class AppUpdateController {
 
 
   async refreshVersions(): Promise<{ module: string | null; app: string | null }> {
+    // Skip version refresh for localhost development
+    if (LOCALHOST_UPDATE_DISABLED) {
+      return { module: null, app: null }
+    }
     try {
       this._currentModule = (await getCurrentVersion()) ?? this._currentModule
     } catch { /* pakai nilai lama */ }
@@ -108,6 +121,11 @@ class AppUpdateController {
 
   // Pemeriksaan ganda; hasil lama tidak ditumpuk agar tombol tidak dobel proses.
   check(): Promise<AppUpdateState> {
+    // Skip update checks for localhost development
+    if (LOCALHOST_UPDATE_DISABLED) {
+      console.log('[Update] Localhost mode - skipping update check')
+      return Promise.resolve({ ...IDLE, status: 'up-to-date' })
+    }
     if (this._checking) return this._checking
     const run = this.runCheck().finally(() => { this._checking = null })
     this._checking = run

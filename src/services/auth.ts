@@ -211,6 +211,9 @@ export function isSessionReady(): boolean {
 }
 
 function setSessionReady(ready: boolean) {
+  // ponytail: guard re-entrancy — ponsel yang sudah siap mengundang
+  // ensureBackendSession→fetch→setSessionReady melingkar tanpa batas
+  if (_sessionReady === ready) return
   _sessionReady = ready
   if (ready) {
     try { window.dispatchEvent(new Event(SESSION_READY_EVENT)) } catch { /* ignore */ }
