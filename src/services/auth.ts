@@ -232,8 +232,9 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   debugAuth('ensureBackendSession: token kosong, coba renew dari credentials')
 
   const cred = getCredentials()
-  debugAuth('Credentials ditemukan', { hasOfficerId: !!cred.officerId, hasPin: !!cred.pin })
+  debugAuth('Credentials ditemukan', { hasOfficerId: !!cred.officerId, hasPin: !!cred.pin, username: cred.username })
 
+  // Case 1: Ada officerId + PIN → gunakan loginWithPin
   if (cred.officerId && cred.pin) {
     const id = officerId || cred.officerId
     const pin = cred.pin
@@ -241,15 +242,24 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
 
     const result = await loginWithPin(id, pin)
     if (result.success) {
-      debugAuth('Renew session BERHASIL')
+      debugAuth('Renew session BERHASIL (loginWithPin)')
       setSessionReady(true)
       return true
     } else {
-      debugAuth('Renew session GAGAL', { error: result.error })
+      debugAuth('Renew session GAGAL (loginWithPin)', { error: result.error })
     }
-  } else {
-    debugAuth('Tidak ada credentials untuk renew', { credKeys: Object.keys(cred) })
   }
+
+  // Case 2: Hanya ada username (tanpa PIN) → coba memberLogin ulang
+  // Ini terjadi jika login pertama kali pakai username/password
+  if (cred.username) {
+    debugAuth('Tidak ada PIN, coba memberLogin dengan username saja')
+    // Tapi kita tidak punya password di credentials...
+    // Dalam kasus ini, kita tidak bisa renew - petugas perlu login ulang
+    debugAuth('Tidak bisa renew tanpa PIN/password - petugas perlu login ulang')
+  }
+
+  debugAuth('Tidak ada credentials untuk renew', { credKeys: Object.keys(cred).filter(k => cred[k as keyof typeof cred]) })
 
   setSessionReady(false)
   return false
@@ -413,23 +423,67 @@ export async function selectDermaga(
 
 /**
  * Login sebagai member (petugas).
+ * Response dari backend sekarang sudah menyertakan dermagas dan routes.
  */
 export async function memberLogin(
   username: string,
   password: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await api.post<{ token: string; officer: StoredOfficer }>('/auth/login', { username, password })
+    // Endpoint /auth/member-login sekarang mengembalikan dermagas dan routes
+    const res = await api.post<{
+      token: string
+      officer: StoredOfficer
+      dermagas?: Dermaga[]
+      routes?: Record<string, Route[]>
+      isDualAccess?: boolean
+    }>('/auth/member-login', { username, password })
+
     if (!res.ok || !res.data?.token) {
+      debugAuth('memberLogin gagal', { error: res.error?.message })
       return { success: false, error: res.error?.message || 'Login gagal' }
     }
+
+    debugAuth('memberLogin berhasil', {
+      hasToken: !!res.data.token,
+      hasDermagas: !!res.data.dermagas?.length,
+      hasRoutes: !!res.data.routes,
+    })
+
+    // Set token FIRST - ini yang paling penting untuk API calls selanjutnya
     api.setToken(res.data.token)
     saveOfficerApi(res.data.officer)
     try { localStorage.setItem('trip.officer', JSON.stringify(res.data.officer)) } catch {}
-    storeCredentials({ username })
+
+    // Simpan credentials untuk session renewal - butuh officerId dan PIN
+    // PIN tidak ada di response, jadi simpan username saja
+    const officerId = res.data.officer?.id
+    storeCredentials({ username, officerId: officerId || username })
+
+    // Store ALL dermagas
+    if (res.data.dermagas && res.data.dermagas.length > 0) {
+      try {
+        localStorage.setItem('trip.dermaga.all', JSON.stringify(res.data.dermagas))
+      } catch {}
+      storeDermagaApi(res.data.dermagas[0])
+      try { localStorage.setItem('trip.dermaga', JSON.stringify(res.data.dermagas[0])) } catch {}
+      debugAuth('Dermagas disimpan', { count: res.data.dermagas.length })
+    }
+
+    // Store routes - INI KRUSIAL UNTUK GEOFENCE FILTERING
+    if (res.data.routes) {
+      saveRoutesApi(res.data.routes)
+      try { localStorage.setItem('trip.routes', JSON.stringify(res.data.routes)) } catch {}
+      try { localStorage.setItem('trip.routes.v2', JSON.stringify(res.data.routes)) } catch {}
+      const routeCount = Object.values(res.data.routes).flat().length
+      debugAuth('Routes disimpan', { routeCount, keys: Object.keys(res.data.routes) })
+    }
+
     setSessionReady(true)
+    debugAuth('memberLogin selesai, session ready')
     return { success: true }
   } catch (e) {
+    debugAuth('memberLogin exception', { error: String(e) })
     return { success: false, error: String(e) }
   }
 }
