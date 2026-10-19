@@ -8,7 +8,7 @@ import { startConnectivitySync, syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { syncGeofencesFromBackend } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
-import { autoDetectApiBaseUrl } from "./services/api"
+import { autoDetectApiBaseUrlAsync, api } from "./services/api"
 import UpdateNotifier from "./components/UpdateNotifier"
 import { appUpdate } from "./services/appUpdate"
 
@@ -22,12 +22,23 @@ function Shell() {
     // = tarik ulang master data secara senyap, tanpa notifikasi.
     startConnectivitySync()
     void checkAndRequestLocationOnStartup()
+
+    // Debug: log status token saat startup
+    console.debug('[App] Startup - checking token:', {
+      hasToken: api.isAuthenticated,
+      tokenLength: api.token?.length ?? 0,
+      baseUrl: api.baseUrl,
+    })
+
     // Endpoint bawaan (build rilis = Railway) belum tentu yang terjangkau dari
     // jaringan petugas. Cari kandidat yang benar-benar menjawab, baru tarik data —
     // dulu satu-satunya default adalah Railway sehingga server uji/LAN tak terpakai.
-    void autoDetectApiBaseUrl()
+    void autoDetectApiBaseUrlAsync()
       // ponytail: start/resume = force — fetch murah, edit admin langsung sampai
-      .then(base => { if (base) void syncGeofencesFromBackend({ force: true }) })
+      .then((base: string) => {
+        console.debug('[App] API URL detected:', base)
+        if (base) void syncGeofencesFromBackend({ force: true })
+      })
       .catch(() => { void syncGeofencesFromBackend({ force: true }) })
   }, [])
 
