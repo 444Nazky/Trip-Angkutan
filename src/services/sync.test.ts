@@ -271,7 +271,7 @@ describe('antrean sinkron', () => {
     expect(rows).toHaveLength(1)                       // ← idempoten
     expect(rows[0].syncId).toBe(syncIdPertama)         // ← kunci tidak berubah
     expect(rows[0].trip.officer).toBe('Petugas Dua')   // ← data diperbarui
-    expect(rows[0].photos[0].dataUrl).toBe(IMG_BARU)
+    expect(rows[0].photos![0].dataUrl).toBe(IMG_BARU)
     expect(rows[0].attempts).toBe(0)
   })
 

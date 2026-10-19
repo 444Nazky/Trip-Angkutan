@@ -43,7 +43,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const checkNow = async () => {
     setBusy(true)
     try {
-      await appUpdate.check()
+      console.debug('[Profile] Memulai cek update...')
+      const result = await appUpdate.check()
+      console.debug('[Profile] Hasil cek update:', result)
     } finally {
       setBusy(false)
       await appUpdate.refreshVersions()
@@ -55,7 +57,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const applyNow = async () => {
     setBusy(true)
     try {
-      await appUpdate.apply()
+      console.debug('[Profile] Memulai apply update, kind:', appUpdate.state.kind)
+      const success = await appUpdate.apply()
+      console.debug('[Profile] Apply update selesai:', success, 'state:', appUpdate.state)
     } finally {
       setBusy(false)
     }

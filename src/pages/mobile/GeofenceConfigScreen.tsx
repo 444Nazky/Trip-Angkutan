@@ -116,19 +116,36 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
     setSyncing(true)
     setError(null)
     try {
-      // ponytail: sinkronisasi TIDAK lagi digantung pada renew session terpisah.
-      // Dulu renew dipanggil duluan dan — karena tanpa token renew mustahil —
-      // tombol selalu berakhir "Sesi habis", padahal petugas sudah login. Sekarang
-      // sync mencoba sendiri (termasuk login-diam-diam) dan selalu memakai cache
-      // lokal sebagai last-known-good.
+      // Coba renew session DULU agar geofence sync bisa berjalan
+      const { renewSessionIfNeeded } = await import('../../services/auth')
+      const sessionOk = await renewSessionIfNeeded().catch(() => false)
+      console.log('[GeofenceConfig] Session renewal:', sessionOk)
+
       const result = await forceSyncGeofencesFromBackend()
       console.log('[GeofenceConfig] Sync result:', result)
+
       if (result.reason === 'unauthorized') {
-        setError('Sesi server belum siap — data lokal tetap dipakai. Coba lagi saat online.')
+        // Jika unauthorized tapi ada cache, tetap tampilkan dan beri info
+        const cachedPoints = getStoredGeofencePoints()
+        if (cachedPoints.length > 0) {
+          setError('Sesi server belum siap — data lokal (' + cachedPoints.length + ' titik) tetap dipakai.')
+        } else {
+          setError('Sesi server belum siap. Coba lagi saat online.')
+        }
       } else if (result.reason === 'network') {
-        setError('Gagal terhubung ke server. Periksa koneksi internet — titik lokal tetap dipakai.')
+        const cachedPoints = getStoredGeofencePoints()
+        if (cachedPoints.length > 0) {
+          setError('Gagal terhubung ke server — data lokal (' + cachedPoints.length + ' titik) tetap dipakai.')
+        } else {
+          setError('Gagal terhubung ke server. Periksa koneksi internet.')
+        }
+      } else if (result.count === 0 && !result.ok) {
+        setError('Tidak ada data geofence. Hubungi admin untuk mengatur titik geofence.')
       } else if (result.count === 0) {
         setError('Belum ada titik geofence di server untuk dermaga/rute Anda. Minta admin mendaftarkannya di Master Rute.')
+      } else {
+        // Success - tidak perlu error message
+        setError(null)
       }
       // Ambil data terbaru dari storage
       setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
