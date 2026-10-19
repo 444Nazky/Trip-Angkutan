@@ -4,6 +4,7 @@ import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../servic
 import {
   getActiveGeofenceSnapshot,
   forceSyncGeofencesFromBackend,
+  getCurrentPosition,
   resetGpsFixCache,
   pointIsForOtherDermaga,
   GEOFENCE_UPDATED_EVENT,
@@ -62,12 +63,25 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   useEffect(() => {
     let alive = true
 
-    const evaluate = async (): Promise<void> => {
+    const evaluate = async (forceGps = false): Promise<Awaited<ReturnType<typeof getActiveGeofenceSnapshot>> | null> => {
+      const position = await getCurrentPosition({ force: forceGps })
+      if (!alive) return null
+      if (!position) {
+        setActiveGeofence(null)
+        setDockMismatch(null)
+        setGeoStatus('blocked')
+        setConfigMissing(false)
+        setSyncNote('GPS tidak tersedia. Pastikan izin lokasi aktif dan GPS perangkat menyala.')
+        return null
+      }
       // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik
       // dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2
       // yang radiusnya tumpang tindih.
-      const result = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
-      if (!alive) return
+      const result = await getActiveGeofenceSnapshot(
+        { latitude: position.lat, longitude: position.lng },
+        dockId ?? undefined,
+      )
+      if (!alive) return null
 
       if (result.valid && result.activePoint) {
         setActiveGeofence(result.activePoint)
@@ -85,7 +99,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             actualGeofenceId: result.activePoint.id,
           })
           setGeoStatus('mismatch')
-          return
+          return result
         }
         setDockMismatch(null)
         setGeoStatus('inside')
@@ -95,19 +109,19 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setGeoStatus('blocked')
         setConfigMissing(result.configMissing === true)
       }
+      return result
     }
 
-    const evaluateWithSelfHeal = async (): Promise<void> => {
-      const first = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
-      if (!alive) return
-      if (first.valid || !first.configMissing) { void evaluate(); return }
+    const evaluateWithSelfHeal = async (forceGps = false): Promise<void> => {
+      const first = await evaluate(forceGps)
+      if (!alive || !first?.configMissing) return
 
       setSyncingGeo(true)
       const sync = await forceSyncGeofencesFromBackend()
       if (!alive) return
       setSyncingGeo(false)
       if (sync.ok && sync.count > 0) {
-        await evaluate()
+        await evaluate(forceGps)
         return
       }
       setActiveGeofence(null)
@@ -124,9 +138,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
 
     void evaluateWithSelfHeal()
-    const timer = window.setInterval(() => { void evaluate() }, 15000)
-    const onFocus = () => { void evaluate() }
-    const onOnline = () => { void evaluateWithSelfHeal() }
+    const timer = window.setInterval(() => { void evaluate(true) }, 15000)
+    const onFocus = () => { void evaluate(true) }
+    const onOnline = () => { void evaluateWithSelfHeal(true) }
     const onGeofenceUpdated = () => { void evaluate() }
     window.addEventListener('focus', onFocus)
     window.addEventListener('online', onOnline)
@@ -138,13 +152,19 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       window.removeEventListener('online', onOnline)
       window.removeEventListener(GEOFENCE_UPDATED_EVENT, onGeofenceUpdated)
     }
-  }, [])
+  }, [dockId])
 
   const handleSyncGeofence = async () => {
     setSyncingGeo(true)
     setSyncNote(null)
     const sync = await forceSyncGeofencesFromBackend()
-    const snap = await getActiveGeofenceSnapshot(undefined, dockId ?? undefined)
+    const position = await getCurrentPosition({ force: true })
+    const snap = position
+      ? await getActiveGeofenceSnapshot(
+          { latitude: position.lat, longitude: position.lng },
+          dockId ?? undefined,
+        )
+      : { valid: false, activePoint: null, blocked: true, configMissing: false, reason: 'GPS tidak tersedia' }
     setSyncingGeo(false)
     if (snap.valid && snap.activePoint) {
       setActiveGeofence(snap.activePoint)
@@ -170,7 +190,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     setGeoStatus('blocked')
     setConfigMissing(snap.configMissing === true)
     setSyncNote(
-      sync.reason === 'empty'
+      !position
+        ? 'GPS tidak tersedia. Periksa izin lokasi dan pengaturan perangkat.'
+        : sync.reason === 'empty'
         ? 'Titik lokasi resmi belum terdaftar.'
         : sync.reason === 'unauthorized'
           ? 'Sesi server belum siap.'

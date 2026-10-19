@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink } from 'lucide-react'
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
 import { fetchGeofencePointsForRoute, createRouteGeofencePoint, updateGeofenceRule, deleteGeofenceRule } from '../../../services/geofences'
@@ -34,6 +34,33 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
   const [currentRouteForGeofence, setCurrentRouteForGeofence] = useState<RouteRow | null>(null)
 
   const resolveTimer = useRef<number | null>(null)
+
+  /**
+   * Kelompokkan rute berdasarkan Region → Dermaga
+   * Agar admin mudah mengedit data tanpa tercampur berdasarkan kode rute
+   */
+  function groupRoutesByRegionAndDermaga(rows: RouteRow[]): Record<string, Record<string, RouteRow[]>> {
+    const grouped: Record<string, Record<string, RouteRow[]>> = {}
+    for (const r of rows) {
+      const region = r.region_name || r.region_id || 'Tanpa Wilayah'
+      const dermaga = r.dermaga_name || r.dermaga_code || 'Tanpa Dermaga'
+      if (!grouped[region]) grouped[region] = {}
+      if (!grouped[region][dermaga]) grouped[region][dermaga] = []
+      grouped[region][dermaga].push(r)
+    }
+    // Urutkan region berdasarkan nama
+    const sorted: Record<string, Record<string, RouteRow[]>> = {}
+    Object.keys(grouped).sort().forEach(key => {
+      sorted[key] = grouped[key]
+      // Urutkan dermaga dalam setiap region
+      const dermagaSorted: Record<string, RouteRow[]> = {}
+      Object.keys(sorted[key]).sort().forEach(dKey => {
+        dermagaSorted[dKey] = sorted[key][dKey]
+      })
+      sorted[key] = dermagaSorted
+    })
+    return sorted
+  }
 
   useEffect(() => () => {
     if (resolveTimer.current !== null) window.clearTimeout(resolveTimer.current)
@@ -394,23 +421,46 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
-            {routeRows.map(r => (
-              <tr key={r.id} className={editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}>
-                <td className="p-4 font-semibold text-slate-700">{r.region_name || '—'}</td>
-                <td className="p-4 text-slate-500">{r.dermaga_name || '—'} <span className="text-[10px] text-slate-400">({r.dermaga_code || ''})</span></td>
-                <td className="p-4 font-semibold text-slate-800">{r.name}</td>
-                <td className="p-4 font-mono text-slate-600">{r.route_from}</td>
-                <td className="p-4 font-mono text-slate-600">{r.route_to}</td>
-                <td className="p-4 text-slate-500">{r.distance || '—'}</td>
-                <td className="p-4 text-slate-500">{r.duration || '—'}</td>
-                <td className="p-4 text-right whitespace-nowrap">
-                  <button onClick={() => startEdit(r)} className="text-blue-600 font-bold text-sm mr-3 hover:underline">Edit</button>
-                  <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-bold text-sm mr-3 hover:underline flex items-center gap-1">
-                    <MapPin size={12} /> Geofence
-                  </button>
-                  <button onClick={() => void handleDel(r.id)} className="text-red-500 font-bold text-sm hover:underline">Hapus</button>
-                </td>
-              </tr>
+            {/* Kelompokkan berdasarkan Region → Dermaga */}
+            {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
+              <React.Fragment key={regionName}>
+                <tr className="bg-slate-100">
+                  <td colSpan={8} className="p-3 text-left">
+                    <span className="font-bold text-slate-800 text-sm">{regionName}</span>
+                  </td>
+                </tr>
+                {Object.entries(regions).map(([dermagaName, routes]) => (
+                  <React.Fragment key={dermagaName}>
+                    <tr className="bg-blue-50/50">
+                      <td colSpan={8} className="p-2 text-left">
+                        <span className="font-semibold text-slate-700 text-xs flex items-center gap-2">
+                          <span className="w-1 h-1 rounded-full bg-blue-500" />
+                          {dermagaName}
+                          <span className="text-slate-400 font-normal">({routes.length} rute)</span>
+                        </span>
+                      </td>
+                    </tr>
+                    {routes.map(r => (
+                      <tr key={r.id} className={editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}>
+                        <td className="p-4"></td>
+                        <td className="p-4 text-slate-500 text-xs">{r.dermaga_code || ''}</td>
+                        <td className="p-4 font-semibold text-slate-800">{r.name}</td>
+                        <td className="p-4 font-mono text-slate-600">{r.route_from}</td>
+                        <td className="p-4 font-mono text-slate-600">{r.route_to}</td>
+                        <td className="p-4 text-slate-500">{r.distance || '—'}</td>
+                        <td className="p-4 text-slate-500">{r.duration || '—'}</td>
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <button onClick={() => startEdit(r)} className="text-blue-600 font-bold text-sm mr-3 hover:underline">Edit</button>
+                          <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-bold text-sm mr-3 hover:underline flex items-center gap-1">
+                            <MapPin size={12} /> Geofence
+                          </button>
+                          <button onClick={() => void handleDel(r.id)} className="text-red-500 font-bold text-sm hover:underline">Hapus</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

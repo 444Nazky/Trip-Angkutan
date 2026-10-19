@@ -140,8 +140,7 @@ describe('cache geofence tidak dibuang saat petugas yang sama login ulang', () =
       ok: true,
       data: {
         token: fakeJwt('o-1'),
-        officer: officer('o-1'),
-        dermagas: [{ id: 'd-1', name: 'Dermaga 1', code: 'D1' }, { id: 'd-2', name: 'Dermaga 2', code: 'D2' }],
+        officer: officer('o-1'),         dermagas: [{ id: 'd-1', name: 'BADAU D1', code: 'D1' }, { id: 'd-2', name: 'BADAU D2', code: 'D2' }],
       },
     }
 
