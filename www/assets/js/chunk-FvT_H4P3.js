@@ -1,1 +1,0 @@
-import{t as D}from"./main-LCE7HHBX.js";var t=D(`Network`,{web:()=>import(`./chunk-Wz1-pVxn.js`).then(r=>new r.NetworkWeb)});export{t as Network};
