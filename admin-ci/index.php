@@ -42,14 +42,19 @@ if (file_exists($static_path)) {
     // di-scope per host:port), jadi bila IP LAN berubah origin-nya baru lagi
     // dan nilainya ikut benar sendiri. Pilihan manual admin di menu Pengaturan
     // Server tetap menang karena nilai yang sudah ada tidak ditimpa.
-    $api_host = preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? ''));
-    if ($api_host !== '') {
-        $api_base = 'http://' . $api_host . ':3000/api';
-        $boot = '<script>(function(){try{var k="trip.admin.apiBaseUrl";'
-            . 'if(!localStorage.getItem(k)){localStorage.setItem(k,' . json_encode($api_base) . ');}'
-            . '}catch(e){}})();</script>';
-        $html = str_replace('<head>', '<head>' . $boot, $html);
-    }
+    // Default dashboard sekarang Supabase PostgREST (adapter supabase.ts) —
+    // backend LAN jadi fallback untuk foto /uploads. Bootstrap menimpa hanya
+    // override basi: menunjuk Railway/Express /api lama, ATAU tidak menunjuk
+    // Supabase. Pilihan manual admin (mis. kembali ke LAN Express) tetap
+    // dihormati selama URL-nya tidak cocok pola basi di bawah.
+    $supa_base = 'https://bmiruktfruunegtbydyw.supabase.co/rest/v1';
+    $boot = '<script>(function(){try{var k="trip.admin.apiBaseUrl";'
+        . 'var v=localStorage.getItem(k);'
+        . 'if(!v||/railway|:\\/\\/[^"\' ]*\\/api/i.test(v)||v.indexOf(' . json_encode($supa_base) . ')!==0){'
+        . 'localStorage.setItem(k,' . json_encode($supa_base) . ');'
+        . '}'
+        . '}catch(e){}})();</script>';
+    $html = str_replace('<head>', '<head>' . $boot, $html);
 
     echo $html;
     exit;

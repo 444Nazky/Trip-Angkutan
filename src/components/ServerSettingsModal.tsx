@@ -90,7 +90,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
       setApiBaseUrlOverride(normalizeApiBaseInput(v))
       setUrl(resolveApiBaseUrl())
     }
-    setStatus(statusFromProbe(r.ms, r.reachable, r.blockedByCors, r.status, r.timedOut, r.cleartextBlocked, r.detail))
+    setStatus(statusFromProbe(r.ms ?? 0, r.reachable, r.blockedByCors ?? false, r.status, r.timedOut ?? false, r.cleartextBlocked ?? false, r.detail))
   }
 
 

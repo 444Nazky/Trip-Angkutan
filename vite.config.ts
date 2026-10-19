@@ -6,4 +6,5 @@ export default defineConfig({
   base: '/',
   server: { port: 5173 },
   build: { outDir: 'www' },
+  exclude: ['**/*.test.ts', '**/*.test.tsx'],
 })

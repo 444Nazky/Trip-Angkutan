@@ -25,7 +25,7 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
   if (!u || !p) return false
 
   try {
-    const res = await loginOffline(u, p)
+    const res = await loginOffline()
     if (res.success) {
       window.dispatchEvent(new Event(SESSION_READY_EVENT))
       return true
@@ -37,18 +37,21 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
   try {
     const officers = getStoredOfficers()
     const match = officers.find(o => String(o.id) === u || o.name === u || o.username === u)
-    if (match && (await verifyPinOffline(String(match.id), p))) {
-      api.setToken(null)
-      localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
-        id: String(match.id),
-        name: match.name,
-        regionId: match.region,
-        regionName: match.region,
-        regionCode: match.region,
-        offlineMode: true,
-      }))
-      window.dispatchEvent(new Event(SESSION_READY_EVENT))
-      return true
+    if (match) {
+      const pinValid = await verifyPinOffline(String(match.id), p)
+      if (pinValid) {
+        api.setToken(null)
+        localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
+          id: String(match.id),
+          name: match.name,
+          regionId: match.region,
+          regionName: match.region,
+          regionCode: match.region,
+          offlineMode: true,
+        }))
+        window.dispatchEvent(new Event(SESSION_READY_EVENT))
+        return true
+      }
     }
   } catch { /* no-op */ }
   return false
