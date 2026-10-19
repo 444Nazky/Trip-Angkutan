@@ -9,6 +9,7 @@ import { initOfflineDb } from "./services/offlineDb"
 import { syncGeofencesFromBackend } from "./services/geofence"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
 import { autoDetectApiBaseUrlAsync, api } from "./services/api"
+import { isLocalhost } from "./services/runtimeEnv"
 import UpdateNotifier from "./components/UpdateNotifier"
 import { appUpdate } from "./services/appUpdate"
 
@@ -69,9 +70,11 @@ function Shell() {
 
   return (
     <div className="app-root bg-slate-50">
-      <UpdateNotifier
-        autoCheck={true}
-      />
+      {!isLocalhost() && (
+        <UpdateNotifier
+          autoCheck={true}
+        />
+      )}
       {loggedIn && !isAdminSession
         ? <MobileApp />
         : <LoginPage onLogin={() => login('member')} />}

@@ -51,15 +51,18 @@ const REGIONS = {
   KELAPAKAMPIT: { id: '18758498-2495-4387-93b5-d33e99b47b43', name: 'Kelapa Kampit', code: 'KELAPAKAMPIT' },
 } as const
 
+// Helper untuk format nama dermaga: "{REGION} D{n}" → "BADAU D1", "ENTIKONG D1"
+const dermagaName = (regionCode: string, dockNum: string) => `${regionCode} D${dockNum}`
+
 const DERMAGA = {
-  BADAU_D1: { id: '10724ce5-f710-4ef6-a383-8710bc5b451f', name: 'Dermaga 1', code: 'D1', region_id: REGIONS.BADAU.id },
-  BADAU_D2: { id: 'f3401fb6-116e-4cde-9579-a8010e90e964', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.BADAU.id },
-  ENTIKONG_D1: { id: '83d12643-72a1-4063-99ad-1f1d81d807d0', name: 'Dermaga 1', code: 'D1', region_id: REGIONS.ENTIKONG.id },
-  ENTIKONG_D2: { id: 'fc75f867-e376-4d25-923f-7f66b4dfb909', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.ENTIKONG.id },
-  BELITUNG_D1: { id: '9fff82cd-76a1-462a-b5bd-ebf5fffbe288', name: 'Dermaga 1', code: 'D1', region_id: REGIONS.BELITUNG.id },
-  BELITUNG_D2: { id: 'bce6428f-d154-44ca-b7f8-810023c68a69', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.BELITUNG.id },
-  KPK_D1: { id: 'dd6b4b11-f130-46b5-a4f7-7bccba2d80bf', name: 'Dermaga 1', code: 'D1', region_id: REGIONS.KELAPAKAMPIT.id },
-  KPK_D2: { id: '6d0c826f-491d-43c5-8fd5-30db32959e87', name: 'Dermaga 2', code: 'D2', region_id: REGIONS.KELAPAKAMPIT.id },
+  BADAU_D1: { id: '10724ce5-f710-4ef6-a383-8710bc5b451f', name: dermagaName('BADAU', '1'), code: 'D1', region_id: REGIONS.BADAU.id },
+  BADAU_D2: { id: 'f3401fb6-116e-4cde-9579-a8010e90e964', name: dermagaName('BADAU', '2'), code: 'D2', region_id: REGIONS.BADAU.id },
+  ENTIKONG_D1: { id: '83d12643-72a1-4063-99ad-1f1d81d807d0', name: dermagaName('ENTIKONG', '1'), code: 'D1', region_id: REGIONS.ENTIKONG.id },
+  ENTIKONG_D2: { id: 'fc75f867-e376-4d25-923f-7f66b4dfb909', name: dermagaName('ENTIKONG', '2'), code: 'D2', region_id: REGIONS.ENTIKONG.id },
+  BELITUNG_D1: { id: '9fff82cd-76a1-462a-b5bd-ebf5fffbe288', name: dermagaName('BELITUNG', '1'), code: 'D1', region_id: REGIONS.BELITUNG.id },
+  BELITUNG_D2: { id: 'bce6428f-d154-44ca-b7f8-810023c68a69', name: dermagaName('BELITUNG', '2'), code: 'D2', region_id: REGIONS.BELITUNG.id },
+  KPK_D1: { id: 'dd6b4b11-f130-46b5-a4f7-7bccba2d80bf', name: dermagaName('KELAPAKAMPIT', '1'), code: 'D1', region_id: REGIONS.KELAPAKAMPIT.id },
+  KPK_D2: { id: '6d0c826f-491d-43c5-8fd5-30db32959e87', name: dermagaName('KELAPAKAMPIT', '2'), code: 'D2', region_id: REGIONS.KELAPAKAMPIT.id },
 } as const
 
 export const SEED_OFFICERS: SeedOfficer[] = [

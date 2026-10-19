@@ -29,7 +29,7 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
       ? b.dermagas
       : old?.dermagaAccess && old.dermagaAccess.length > 0
         ? old.dermagaAccess
-        : [{ id: '', name: 'Dermaga 1', code: 'D1' }]
+        : [{ id: '', name: '', code: 'D1' }]
     return {
       id: String(b.id),
       name: b.name,
