@@ -1,11 +1,9 @@
 export const environment = {
   production: true,
 
-  // Backend API URL
-  // For production, this should be your deployed backend URL
-  // Example: https://api.yourdomain.com/api
-  // Or if using Supabase Edge Functions: https://your-project.supabase.co/functions/v1
-  apiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
+  // Supabase Edge Functions API (single endpoint: supabase/functions/api)
+  apiBaseUrl: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
+  supabaseAnonKey: '',
 
   geolocation: {
     rute1: 'https://www.google.com/maps?q=-6.2389899548617285,106.97475839406252',

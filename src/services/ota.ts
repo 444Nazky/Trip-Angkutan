@@ -24,16 +24,15 @@ export function isLocalhostDev(): boolean {
 
 // Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
 // dan /ota/<versi>/...), sehingga penerbitan tidak lagi bergantung repo GitHub.
-function serverOrigin(): string {
-  return api.baseUrl.replace(/\/api\/?$/i, '')
-}
-
+// Semua hit ke Edge Function lewat api.baseUrl (…/functions/v1/api)
 function manifestUrl(): string {
-  return `${serverOrigin()}/api/v1/ota-manifest`
+  return `${api.baseUrl}/ota-manifest`
 }
 
 function assetsBase(): string {
-  return `${serverOrigin()}/ota/`
+  // Berkas bundel disimpan di Supabase Storage bucket publik "ota"
+  const supabaseUrl = new URL(api.baseUrl).origin
+  return `${supabaseUrl}/storage/v1/object/public/ota/`
 }
 
 
@@ -76,8 +75,7 @@ async function reportOtaVersion(version: string): Promise<boolean> {
   }
   try {
     const deviceId = await getDeviceId()
-    const baseUrl = api.baseUrl.replace(/\/api\/?$/i, '')
-    const url = `${baseUrl}/api/v1/report-version`
+    const url = `${api.baseUrl}/report-version`
 
     const response = await CapacitorHttp.request({
       url,
