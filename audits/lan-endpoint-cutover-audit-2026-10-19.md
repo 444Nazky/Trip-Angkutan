@@ -30,7 +30,7 @@ Semua layanan listen di `0.0.0.0` supaya bisa diakses perangkat lain di jaringan
 | `Trip-Dashboard Admin Branch/src/environments/environment.ts` | `apiBaseUrl` → `http://192.168.1.124:3000/api` |
 | `Trip-Dashboard Admin Branch/src/services/api.ts` | kandidat `LAN 192.168.1.124` (dulu `10.187.220.110`) |
 | `admin-ci/` | bundle dibangun ulang dari sumber di atas |
-| `start-services.sh` (root + salinan) | IP target, path `Aplikasi-Trip-Main Branch`, verifikasi berulang, cek jalur petugas |
+| `start-services.sh` (root + salinan) | IP target, `PROJECT_DIR` = `/home/ubuntu/Trip-Angkutan` (letak PC kantor) + override lewat env, verifikasi berulang, cek jalur petugas |
 | `.gitignore` | `android/keystore.properties`, `*.keystore` |
 | `src/services/serverUrl.test.ts`, `Trip-Dashboard Admin Branch/src/services/api.test.ts` | asersi auto-deteksi diselaraskan (kandidat LAN kini pertama) + isolasi kunci cache antar-tes |
 
@@ -108,14 +108,18 @@ firewall — perlu dipastikan; RST instan lebih menunjuk ke "tidak ada listener"
 | Verifikasi menunggu kesiapan (bukan tebak 2 detik) | ✅ |
 | Deteksi apakah `192.168.1.124` benar-benar melayani + pesan perbaikan bila tidak | ✅ |
 
+`PROJECT_DIR` runner kini **sudah** diset ke letak PC kantor: `/home/ubuntu/Trip-Angkutan`
+(skrip menolak jalan bila direktori itu tidak ada, dan menyebut cara override).
+
 Yang **belum** bisa diverifikasi dari sini: runner dijalankan di PC kantor itu sendiri
-(`192.168.1.124`), termasuk kecocokan `PROJECT_DIR=/home/nazky/RPL/Intern/...` dan
-ketersediaan `node`, `npm`, `php` di sana.
+(`192.168.1.124`), termasuk ketersediaan `node`, `npm`, `php` di sana dan kesesuaian
+path `/home/ubuntu/Trip-Angkutan` dengan letak repo yang benar-benar dipakai.
 
 ## 6. Langkah berikutnya
 
-1. Jalankan `bash start-services.sh` **di PC `192.168.1.124`** (server kantor); pastikan
-   `PROJECT_DIR` di skrip sesuai letak repo di mesin itu.
+1. Salin repo ke `/home/ubuntu/Trip-Angkutan` di PC `192.168.1.124` (server kantor) —
+   `PROJECT_DIR` runner sudah menunjuk ke sana — lalu jalankan `bash start-services.sh` di
+   mesin itu. Bila repo diletakkan di path lain: `PROJECT_DIR=<path> bash start-services.sh`.
 2. Bila skrip sudah jalan tetapi port tetap tertutup: izinkan inbound TCP `3000`, `5173`,
    `8000` pada firewall PC tersebut (Windows Firewall / `ufw`) dan batasi binding ke
    `0.0.0.0` (sudah dilakukan kode).
@@ -124,3 +128,20 @@ ketersediaan `node`, `npm`, `php` di sana.
    setelah commit/push atau penyalinan manual (termasuk `admin-ci/` dan APK).
 5. Untuk klien yang **se-LAN**, port forwarding sebenarnya tidak diperlukan; forward di
    Linksys baru berperan bagi klien dari sisi WAN (jaringan lain).
+
+## 7. Penyelarasan seluruh branch (lanjutan 2026-10-19)
+
+Permintaan lanjutan: “update semua branch”. Endpoint LAN disamakan di keempat branch, dan
+`PROJECT_DIR` diarahkan ke letak PC kantor `/home/ubuntu/Trip-Angkutan`.
+
+| Branch | Perubahan |
+|--------|-----------|
+| `Aplikasi-Trip-Main Branch` | sudah selaras sejak §2; `start-services.sh` → `PROJECT_DIR=${PROJECT_DIR:-/home/ubuntu/Trip-Angkutan}` + guard direktori |
+| `mobile-trip Mobile Branch` | `backend/src/index.js` (DEV_ORIGINS `.124` + `PRIVATE_LAN_ORIGIN`), `src/environments/environment{,.prod}.ts`, `src/services/api.ts` (kandidat LAN pertama, Railway cadangan), `src/services/adminPull.ts`, `src/services/serverUrl.test.ts`; `www/` + `android/app/src/main/assets/public` di-build ulang |
+| `endpoint-trip Endpoint Branch` | `backend/src/index.js`: `10.187.220.110` → `192.168.1.124` + `PRIVATE_LAN_ORIGIN` |
+| `Trip-Dashboard Admin Branch` | sudah `.124`; error `tsc` diperbaiki (`useCallback` di `App.tsx`, `setServerState('loading')` → `'connecting'` di `AdminDashboard.tsx`), `www/` di-build ulang |
+| Runner root (`/home/nazky/RPL/Intern/start-services.sh`) | disalin identik dengan runner branch Main (`diff` bersih) |
+
+Bukti: `vitest` mobile-trip 149/149, admin 36/36, `tsc --noEmit` admin exit 0, `ng build` mobile
++ `vite build` admin sukses, `node --check` 3 backend OK, dan regex `PRIVATE_LAN_ORIGIN` ketiga
+backend identik (10 kasus origin: LAN lolos, domain publik/evil ditolak).
