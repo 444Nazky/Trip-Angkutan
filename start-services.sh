@@ -15,10 +15,19 @@ API_PORT=3000
 MOBILE_PORT=5173
 ADMIN_PORT=8000
 
-PROJECT_DIR="/home/ubuntu/Trip-Angkutan"
+# Letak repo di PC kantor (server yang dipakai petugas). Ubah lewat env bila repo
+# disalin ke lokasi lain:  PROJECT_DIR="$PWD" bash start-services.sh
+PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/Trip-Angkutan}"
 BACKEND_DIR="$PROJECT_DIR/backend"
 MOBILE_DIR="$PROJECT_DIR"
 ADMIN_DIR="$PROJECT_DIR/admin-ci"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+  echo "ERROR: PROJECT_DIR tidak ditemukan: $PROJECT_DIR"
+  echo "  Default skrip = letak repo di PC kantor (/home/ubuntu/Trip-Angkutan)."
+  echo "  Di mesin lain jalankan: PROJECT_DIR=\"$PWD\" bash start-services.sh"
+  exit 1
+fi
 
 export JWT_SECRET="${JWT_SECRET:-trip-angkut-lan-dev-secret}"
 

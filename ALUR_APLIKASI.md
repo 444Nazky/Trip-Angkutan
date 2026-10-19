@@ -332,4 +332,4 @@ GET    /reports/trips/filters → {golongan[], vehicleTypes[]}
 
 ---
 
-*Dokumen ini disinkronkan dengan implementasi aktual di codebase `/home/nazky/RPL/Intern/Aplikasi-Trip-Ionic` per September 2026.*
+*Dokumen ini disinkronkan dengan implementasi aktual di codebase `/home/ubuntu/Trip-Angkutan` (letak repo di PC kantor) per September 2026.*
