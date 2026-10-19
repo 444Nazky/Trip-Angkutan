@@ -66,22 +66,43 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   useEffect(() => {
     if (!draft.routeCode) return
     let alive = true
+    let errorTimeout: number | null = null
     const run = () => {
       setGeofenceLoading(true)
+      // Clear previous error with debounce to let GPS settle
+      if (errorTimeout) clearTimeout(errorTimeout)
+      setGeofenceError(null)
       validateRouteForCurrentLocation(draft.routeCode!)
         .then(result => {
           if (!alive) return
-          setGeofenceBlocked(result.blocked === true)
-          setGeofenceError(result.valid ? null : (result.reason ?? 'Lokasi tidak valid'))
+          // Debounce error display - give GPS time to stabilize
+          errorTimeout = window.setTimeout(() => {
+            if (!alive) return
+            setGeofenceBlocked(result.blocked === true)
+            setGeofenceError(result.valid ? null : formatGeofenceError(result))
+          }, 1500)
         })
         .catch(() => { if (alive) setGeofenceError(null) })
-        .finally(() => { if (alive) setGeofenceLoading(false) })
+        .finally(() => { if (alive) { setGeofenceLoading(false) } })
     }
     run()
     const timer = window.setInterval(run, 20000)
     window.addEventListener('focus', run)
-    return () => { alive = false; window.clearInterval(timer); window.removeEventListener('focus', run) }
+    return () => {
+      alive = false
+      if (errorTimeout) clearTimeout(errorTimeout)
+      window.clearInterval(timer)
+      window.removeEventListener('focus', run)
+    }
   }, [draft.routeCode])
+
+  // Format geofence error for user-friendly display
+  const formatGeofenceError = (result: { reason?: string; activePoint?: { name?: string } | null }) => {
+    if (result.activePoint) {
+      return `Lokasi terdeteksi di area "${result.activePoint.name || 'titik geofence'} tapi rute tidak cocok`
+    }
+    return result.reason || 'Lokasi di luar area geofence'
+  }
 
   useEffect(() => {
     if (!confirmDialog.isOpen || confirmDialog.countdown <= 0) return

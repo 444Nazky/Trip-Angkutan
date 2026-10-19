@@ -29,6 +29,8 @@ export type OfficerClaims = {
   regionId?: string;
   role?: "admin" | "officer";
   username?: string;
+  isDualAccess?: boolean;
+  [k: string]: unknown;
 };
 
 function b64urlDecode(s: string): string {
