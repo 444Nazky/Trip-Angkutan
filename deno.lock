@@ -1,0 +1,55 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.118.0",
+    "https://esm.sh/@types/bcryptjs@~2.4.6/index.d.ts": "https://esm.sh/@types/bcryptjs@2.4.6/index.d.ts"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.118.0": "56fce2ec273698af8a739c03a005c4b2160e163e5d2c0ede05de7e9bd47e28b8",
+    "https://esm.sh/bcryptjs@2.4.3": "49851f367e562ad6e108c851ced8948944ea392fd46e576f7fdb1eb9e1ffddf0"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@angular/build@^22.2.2",
+        "npm:@angular/cli@^22.2.2",
+        "npm:@angular/compiler-cli@22.1.7",
+        "npm:@angular/compiler@22.1.7",
+        "npm:@angular/core@22.1.7",
+        "npm:@capacitor-community/sqlite@^8.1.1",
+        "npm:@capacitor/android@^8.5.1",
+        "npm:@capacitor/app@^8.1.1",
+        "npm:@capacitor/assets@^3.0.5",
+        "npm:@capacitor/camera@^8.2.5",
+        "npm:@capacitor/cli@8.5.2",
+        "npm:@capacitor/core@^8.5.2",
+        "npm:@capacitor/device@^8.0.3",
+        "npm:@capacitor/filesystem@^8.1.4",
+        "npm:@capacitor/geolocation@^8.2.3",
+        "npm:@capacitor/ios@^8.5.1",
+        "npm:@capacitor/network@8",
+        "npm:@types/react-dom@^19.3.0",
+        "npm:@types/react@^19.3.0",
+        "npm:angular-eslint@22.0.0",
+        "npm:autoprefixer@^10.6.1",
+        "npm:bcryptjs@^3.0.3",
+        "npm:cordova-plugin-file-opener2@4",
+        "npm:eslint@^10.10.0",
+        "npm:express@^4.19.2",
+        "npm:fake-indexeddb@^6.2.5",
+        "npm:jsdom@26",
+        "npm:lucide-react@^1.47.0",
+        "npm:postcss@^8.5.28",
+        "npm:react-dom@^19.3.0",
+        "npm:react@^19.3.0",
+        "npm:rxjs@7.8",
+        "npm:tailwindcss@^3.4.19",
+        "npm:tesseract.js@7",
+        "npm:tslib@^2.3.0",
+        "npm:typescript-eslint@^8.61.0",
+        "npm:typescript@6.0",
+        "npm:vitest@^4.1.11"
+      ]
+    }
+  }
+}

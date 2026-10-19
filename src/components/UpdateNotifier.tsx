@@ -1,16 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, RefreshCw, Sparkles, X } from 'lucide-react'
 import { appUpdate, type AppUpdateState } from '../services/appUpdate'
+import { isLocalhostDev } from '../services/ota'
 
-
+// Disable update checks for localhost development
+const UPDATE_DISABLED = isLocalhostDev()
 
 // Satu sumber status pembaruan untuk seluruh UI.
 export function useAppUpdate(): AppUpdateState {
+  if (UPDATE_DISABLED) {
+    return {
+      status: 'idle',
+      kind: null,
+      version: null,
+      notes: null,
+      isForce: false,
+      error: null,
+    }
+  }
   const [state, setState] = useState<AppUpdateState>(appUpdate.state)
   useEffect(() => appUpdate.subscribe(setState), [])
   return state
 }
-
 
 
 interface UpdateNotifierProps {
@@ -18,12 +29,15 @@ interface UpdateNotifierProps {
 }
 
 
-
 export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps) {
+  // Skip entire component for localhost/dev mode - no update notifications
+  if (UPDATE_DISABLED) {
+    return null
+  }
+
   const state = useAppUpdate()
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
-
 
 
   useEffect(() => {
@@ -31,11 +45,9 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   }, [autoCheck])
 
 
-
   useEffect(() => {
     if (state.status === 'ready') setDismissed(false)
   }, [state.status, state.version])
-
 
 
   const apply = useCallback(async () => {
@@ -48,7 +60,6 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   }, [])
 
 
-
   const retry = useCallback(async () => {
     setBusy(true)
     try {
@@ -57,7 +68,6 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
       setBusy(false)
     }
   }, [])
-
 
 
   if (state.status === 'installing' && state.kind === 'apk') {
@@ -85,14 +95,12 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   if (dismissed && !state.isForce) return null
 
 
-
   const label = state.error ? 'Pembaruan Gagal' : state.kind === 'apk' ? 'Update APK Tersedia' : 'Update Modul Tersedia'
   const detail = state.status === 'error'
     ? state.error
     : state.kind === 'apk'
       ? `Versi ${state.version ?? '—'} siap diinstal. Tekan tombol untuk memulai.`
       : `Modul versi ${state.version ?? '—'} siap dipasang.`
-
 
 
   if (state.isForce && state.status === 'ready') {
@@ -123,7 +131,6 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
       </div>
     )
   }
-
 
 
   return (

@@ -555,17 +555,47 @@ export async function validateRouteForCurrentLocation(
   }
 
   const point = snap.activePoint
-  if (!point.allowedRoutes.includes(routeCode)) {
-    const allowed = point.allowedRoutes.join(', ')
-    return {
-      valid: false,
-      blocked: true,
-      activePoint: point,
-      reason: `Rute ${routeCode} tidak diizinkan di titik ${point.name}. Rute yang diizinkan: ${allowed}`,
-    }
+
+  // Normalize route codes for comparison - support both hyphen and arrow formats
+  const normalizeCode = (code: string): string => {
+    const upper = code.toUpperCase().trim()
+    // Support both formats: "SBDZ-SJRE", "SJRE-SBDZ", "SBDZ→SJRE", "SJRE→SBDZ"
+    return upper.replace(/→|->|>/g, '-')
   }
 
-  return { valid: true, activePoint: point }
+  const normalizedRouteCode = normalizeCode(routeCode)
+  const normalizedAllowed = point.allowedRoutes.map(normalizeCode)
+
+  // Check direct match
+  const directMatch = normalizedAllowed.includes(normalizedRouteCode)
+
+  // Check reverse direction match (e.g., "SBDZ-SJRE" matches "SJRE-SBDZ" for round-trip routes)
+  const reverseCode = [...normalizedRouteCode].reverse().join('').replace('--', '-')
+  const reverseMatch = normalizedAllowed.includes(reverseCode)
+
+  // Debug logging for troubleshooting
+  console.debug('[geofence] Route validation:', {
+    requestedCode: routeCode,
+    normalizedCode: normalizedRouteCode,
+    reverseCode,
+    allowedCodes: point.allowedRoutes,
+    normalizedAllowed,
+    directMatch,
+    reverseMatch,
+    pointName: point.name,
+  })
+
+  if (directMatch || reverseMatch) {
+    return { valid: true, activePoint: point }
+  }
+
+  const allowed = point.allowedRoutes.join(', ')
+  return {
+    valid: false,
+    blocked: true,
+    activePoint: point,
+    reason: `Rute ${routeCode} tidak diizinkan di titik ${point.name}. Rute yang diizinkan: ${allowed}`,
+  }
 }
 
 // ─── Validation helpers ──────────────────────────────────────────────────
