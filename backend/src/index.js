@@ -58,6 +58,18 @@ const allowAnyOrigin = allowedOrigins.includes('*');
 
 const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const NATIVE_SHELL_ORIGIN = /^(capacitor|ionic):\/\/localhost$/;
+// Host privat (RFC1918) di port berapa pun. Daftar origin eksplisit tidak cukup
+// di jaringan kantor: dashboard/mobile sering dibuka lewat IP LAN langsung
+// (mis. http://192.168.1.2:8000) sementara allowlist berisi IP alias lain, dan
+// IP mesin bisa berganti kapan saja. Tanpa ini browser memblokir tiap panggilan
+// API (toast "Server tidak merespon") padahal server hidup.
+const PRIVATE_LAN_ORIGIN = new RegExp(
+  '^https?://(' +
+    '10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}' +
+    '|192\\.168\\.\\d{1,3}\\.\\d{1,3}' +
+    '|172\\.(?:1[6-9]|2\\d|3[01])\\.\\d{1,3}\\.\\d{1,3}' +
+  ')(:\\d+)?$',
+);
 
 const corsOptions = {
   origin(origin, callback) {
@@ -66,7 +78,13 @@ const corsOptions = {
     if (allowAnyOrigin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     // Port dev-server dapat berubah → izinkan localhost/127.0.0.1 di port apa pun.
-    if (LOCALHOST_ORIGIN.test(origin) || NATIVE_SHELL_ORIGIN.test(origin)) {
+    // Host privat (LAN kantor) diperlakukan sama supaya klien yang membuka lewat
+    // IP LAN mana pun tetap bisa memanggil API.
+    if (
+      LOCALHOST_ORIGIN.test(origin) ||
+      PRIVATE_LAN_ORIGIN.test(origin) ||
+      NATIVE_SHELL_ORIGIN.test(origin)
+    ) {
       return callback(null, true);
     }
     // Origin tak dikenal: jangan kirim header CORS (browser memblokir),
