@@ -42,6 +42,10 @@ const DEV_ORIGINS = [
   'https://localhost',
   'capacitor://localhost',
   'ionic://localhost',
+  // Wi-Fi lokal kantor: mobile (vite 5173), dashboard admin (8000), API (3000).
+  'http://192.168.1.124:5173',
+  'http://192.168.1.124:8000',
+  'http://192.168.1.124:3000',
 ];
 
 const envOrigins = (process.env.CORS_ORIGIN || '')

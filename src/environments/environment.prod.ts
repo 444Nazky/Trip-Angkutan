@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiBaseUrl: 'https://aplikasi-trip-api-production.up.railway.app/api',
+  apiBaseUrl: 'http://192.168.1.124:3000/api',
 };

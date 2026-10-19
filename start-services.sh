@@ -1,122 +1,107 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Trip Angkutan — start SEMUA layanan, siap diakses dari jaringan LAN (0.0.0.0)
+# Trip Angkutan — Start SEMUA layanan di IP Wi-Fi lokal
 #
-# Layout nyata repo ini (empat checkout terpisah; tidak ada folder
-# "Aplikasi-Trip-Ionic"):
-#   Backend API 3000 : <repo>/backend     (Express, listen 0.0.0.0)
-#   Mobile      5173 : <repo>             (Angular CLI `ng serve`, --host 0.0.0.0)
-#   Admin       8000 : <repo>/admin-ci    (php -S 0.0.0.0:8000 + shim index.php)
+#   API Backend      : http://192.168.1.124:3000
+#   Mobile Client    : http://192.168.1.124:5173
+#   Admin Dashboard  : http://192.168.1.124:8000
 #
-#   <repo> = direktori script ini berada = "Aplikasi-Trip-Main Branch"
-#
-# PENTING: semua service listen di 0.0.0.0 (BUKAN localhost/127.0.0.1) supaya
-# orang lain di jaringan yang sama bisa membukanya lewat http://<IP-LAN>:PORT
-# tanpa Cloudflare Tunnel. Script mencetak URL LAN-nya di akhir.
-#
-# Override opsional: API_PORT, MOBILE_PORT, ADMIN_PORT, JWT_SECRET,
-# ADMIN_AUTH_DISABLED (default 1 = dashboard admin terbuka tanpa login, khusus LAN).
+# Semua service listen di 0.0.0.0 supaya perangkat di jaringan bisa akses.
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$PROJECT_DIR/backend"
-ADMIN_DIR="$PROJECT_DIR/admin-ci"
-ADMIN_SHIM="$PROJECT_DIR/archive/admin-ci/index.php"
+LAN_IP="192.168.1.124"
+API_PORT=3000
+MOBILE_PORT=5173
+ADMIN_PORT=8000
 
-# Backend fail-fast: tanpa JWT_SECRET proses langsung exit(1). Default dev di
-# bawah sama dengan nilai yang dipakai README/Railway agar token lokal cocok.
-# Di produksi WAJIB di-override lewat environment.
-# Intranet: dashboard admin (port 8000) dibuka tanpa login. Hanya instance lokal
-# ini yang terbuka — Railway produksi tidak menyetel variabel ini, jadi di sana
-# token admin tetap wajib. Matikan dengan ADMIN_AUTH_DISABLED=0 sebelum menjalankan.
-export ADMIN_AUTH_DISABLED="${ADMIN_AUTH_DISABLED:-1}"
-API_PORT="${API_PORT:-3000}"
-MOBILE_PORT="${MOBILE_PORT:-5173}"
-ADMIN_PORT="${ADMIN_PORT:-8000}"
+PROJECT_DIR="/home/nazky/RPL/Intern/Aplikasi-Trip-Main Branch"
+BACKEND_DIR="$PROJECT_DIR/backend"
+MOBILE_DIR="$PROJECT_DIR"
+ADMIN_DIR="$PROJECT_DIR/admin-ci"
+
+# Backend menolak start tanpa JWT_SECRET (tidak membaca berkas .env).
+# Pakai nilai dari environment bila ada; kalau tidak, pasang default lokal.
+export JWT_SECRET="${JWT_SECRET:-trip-angkut-lan-dev-secret}"
 
 echo "🔴 Killing all services..."
 pkill -f "node src/index.js" 2>/dev/null
 pkill -f "php -S" 2>/dev/null
-pkill -f "ng serve" 2>/dev/null
 pkill -f "vite" 2>/dev/null
+pkill -f "ng serve" 2>/dev/null
 
 sleep 2
 
-# IP LAN mesin ini (dipakai untuk mencetak URL yang bisa dibuka dari HP/laptop lain).
-MY_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}')
-if [ -z "${MY_IP:-}" ]; then
-  MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-fi
-echo "🌐 PC LAN IP Detected: ${MY_IP:-unknown}"
+echo "🌐 Local Wi-Fi IP Target: $LAN_IP"
 
 echo "🟢 Starting Backend API ($API_PORT)..."
 cd "$BACKEND_DIR" || exit 1
-setsid nohup npm start > backend.log 2>&1 &
+nohup node src/index.js > "$BACKEND_DIR/backend.log" 2>&1 &
 disown
 
 sleep 3
 
 echo "🟢 Starting Mobile ($MOBILE_PORT)..."
-cd "$PROJECT_DIR" || exit 1
-setsid nohup npm start -- --host 0.0.0.0 --port "$MOBILE_PORT" > mobile.log 2>&1 &
+cd "$MOBILE_DIR" || exit 1
+# `ng serve` (bukan `npx vite`) karena entry aplikasi mobile ada di src/index.html;
+# index.html di root project milik dashboard admin.
+nohup npm start -- --host 0.0.0.0 --port "$MOBILE_PORT" > "$MOBILE_DIR/mobile.log" 2>&1 &
 disown
 
 sleep 4
 
 echo "🟢 Starting Admin ($ADMIN_PORT)..."
 cd "$ADMIN_DIR" || exit 1
-# Shim index.php (gaya CodeIgniter) disalin dari archive/ bila belum ada.
-[ -f "$ADMIN_SHIM" ] && cp "$ADMIN_SHIM" ./index.php 2>/dev/null
-setsid nohup php -S "0.0.0.0:$ADMIN_PORT" > admin.log 2>&1 &
+nohup php -S 0.0.0.0:"$ADMIN_PORT" > "$ADMIN_DIR/admin.log" 2>&1 &
 disown
 
 sleep 2
 
-echo ""
-echo "⏳ Waiting for services to be ready..."
-API_OK=0; MOBILE_OK=0; ADMIN_OK=0
-for _ in $(seq 1 45); do
-  if [ "$API_OK" = 0 ] && curl -s "http://localhost:$API_PORT/api/health" | grep -q '"status":"ok"'; then API_OK=1; fi
-  if [ "$MOBILE_OK" = 0 ] && curl -s "http://localhost:$MOBILE_PORT" | grep -q "Trip Angkutan"; then MOBILE_OK=1; fi
-  if [ "$ADMIN_OK" = 0 ] && curl -s "http://localhost:$ADMIN_PORT" | grep -q "Trip Angkutan"; then ADMIN_OK=1; fi
-  if [ "$API_OK" = 1 ] && [ "$MOBILE_OK" = 1 ] && [ "$ADMIN_OK" = 1 ]; then break; fi
-  # ng serve kompilasi pertama bisa 30-60 detik
-  sleep 2
-done
-
-echo ""
-echo "Verification (localhost)..."
-if [ "$API_OK" = 1 ]; then echo "API: OK"; else echo "API: FAIL"; fi
-if [ "$MOBILE_OK" = 1 ]; then echo "Mobile: OK"; else echo "Mobile: FAIL"; fi
-if [ "$ADMIN_OK" = 1 ]; then echo "Admin: OK"; else echo "Admin: FAIL"; fi
-
-# Pastikan socket benar-benar terikat ke 0.0.0.0 (bukan 127.0.0.1 saja),
-# itulah yang membuat perangkat lain di LAN bisa konek.
-echo ""
-echo "Verification (binding LAN 0.0.0.0)..."
-if command -v ss >/dev/null 2>&1; then
-  LISTEN=$(ss -ltn 2>/dev/null)
-else
-  LISTEN=$(netstat -ltn 2>/dev/null)
+# Bila IP LAN belum terpasang di mesin ini (mis. baru pindah jaringan),
+# verifikasi lewat localhost supaya status service tetap terbaca.
+probe_host="$LAN_IP"
+if ! ip -4 -o addr show | grep -q " $probe_host/"; then
+  echo "⚠️  $probe_host belum terpasang di interface mesin ini — verifikasi lewat localhost."
+  probe_host="127.0.0.1"
 fi
-for p in "$API_PORT" "$MOBILE_PORT" "$ADMIN_PORT"; do
-  if echo "$LISTEN" | grep -qE "0\.0\.0\.0:$p\b"; then
-    echo "  $p: listening on 0.0.0.0 ✓"
+
+# Dev-server mobile butuh puluhan detik sebelum siap: tunggu, jangan tebak.
+wait_http() {
+  local name=$1 url=$2 pattern=$3 tries=${4:-30}
+  for _ in $(seq 1 "$tries"); do
+    if curl -s -m 3 "$url" | grep -q "$pattern"; then return 0; fi
+    sleep 3
+  done
+  return 1
+}
+
+echo "Verification..."
+wait_http "API" "http://$probe_host:$API_PORT/api/health" '"status":"ok"' 10 \
+  && echo "API: OK (http://$LAN_IP:$API_PORT)" || echo "API: FAIL"
+wait_http "Mobile" "http://$probe_host:$MOBILE_PORT" "Trip Angkutan" 40 \
+  && echo "Mobile: OK (http://$LAN_IP:$MOBILE_PORT)" || echo "Mobile: FAIL"
+wait_http "Admin" "http://$probe_host:$ADMIN_PORT" "Trip Angkutan" 10 \
+  && echo "Admin: OK (http://$LAN_IP:$ADMIN_PORT)" || echo "Admin: FAIL"
+
+# Layanan hidup di mesin ini belum berarti petugas bisa terhubung: alamat yang
+# dipakai HP adalah $LAN_IP, yang bisa jadi ROUTER/JEMBATAN — bukan mesin ini.
+# Uji juga lewat alamat itu supaya kegagalan forwarding ketahuan di sini, bukan
+# nanti di lapangan sebagai "Server tidak merespon".
+self_lan_ip="$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print $2, a[1]}' \
+  | awk -v target="${LAN_IP%.*}" '$2 ~ ("^" target "\\.") {print $2; exit}')"
+if [ -n "$self_lan_ip" ]; then
+  if curl -s -m 4 -o /dev/null "http://$LAN_IP:$API_PORT/api/health"; then
+    echo "Jalur petugas: OK — $LAN_IP menjawab di :$API_PORT"
   else
-    echo "  $p: NOT on 0.0.0.0 ✗ (klien LAN tidak akan bisa konek)"
+    echo "⚠️  $LAN_IP tidak menjawab di :$API_PORT/:$MOBILE_PORT/:$ADMIN_PORT."
+    echo "    Bila alamat itu router/jembatan (bukan mesin ini), aktifkan"
+    echo "    port forward TCP $API_PORT, $MOBILE_PORT, $ADMIN_PORT → $self_lan_ip"
+    echo "    atau arahkan HP langsung ke http://$self_lan_ip:$API_PORT/api"
   fi
-done
+fi
 
 echo ""
-echo "═══════════════════════════════════════════════════════════"
-echo "  Akses dari jaringan yang sama (HP/laptop lain):"
-echo "    API     : http://${MY_IP:-<IP-LAN>}:$API_PORT"
-echo "    Mobile  : http://${MY_IP:-<IP-LAN>}:$MOBILE_PORT"
-echo "    Admin   : http://${MY_IP:-<IP-LAN>}:$ADMIN_PORT"
-echo ""
-echo "  Untuk mengarahkan aplikasi ke backend lokal ini, isi URL server di"
-echo "  menu Pengaturan Server dengan: http://${MY_IP:-<IP-LAN>}:$API_PORT/api"
-echo "═══════════════════════════════════════════════════════════"
-echo ""
-echo "📝 Logs: tail -f $BACKEND_DIR/backend.log $PROJECT_DIR/mobile.log $ADMIN_DIR/admin.log"
+echo "  Logs:"
+echo "    tail -f $BACKEND_DIR/backend.log"
+echo "    tail -f $MOBILE_DIR/mobile.log"
+echo "    tail -f $ADMIN_DIR/admin.log"

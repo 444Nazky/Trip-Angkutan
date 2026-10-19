@@ -31,6 +31,9 @@ import { environment } from '../environments/environment'
 afterEach(() => {
   setApiBaseUrlOverride(null)
   localStorage.removeItem('trip.api.autoBaseUrl')
+  // Kunci cache auto-deteksi yang benar-benar dipakai kode: tanpa ini hasil tes
+  // sebelumnya bocor ke tes berikutnya dan kandidat tidak pernah diuji ulang.
+  localStorage.removeItem('trip.api.autoBaseUrl.v2')
 })
 
 
@@ -252,7 +255,7 @@ describe('probeServerHealth di APK (native)', () => {
 // ── Auto-deteksi endpoint kandidat ────────────────────────────────────────
 
 describe('autoDetectApiBaseUrl', () => {
-  it('pakai kandidat pertama yang menjawab, simpan sementara, dan override manual tetap menang', async () => {
+  it('pakai kandidat pertama yang menjawab (LAN), simpan sementara, dan override manual tetap menang', async () => {
     globalThis.fetch = vi.fn(async (url: string) => {
       if (String(url).includes('localhost:3000')) throw new TypeError('Failed to fetch')
       return { ok: true, status: 200, type: 'cors' } as unknown as Response
@@ -260,12 +263,25 @@ describe('autoDetectApiBaseUrl', () => {
 
     const found = await autoDetectApiBaseUrl(60)
 
-    expect(found).toBe('https://aplikasi-trip-api-production.up.railway.app/api')
+    expect(found).toBe('http://192.168.1.124:3000/api')
     expect(resolveApiBaseUrl()).toBe(found)
 
     setApiBaseUrlOverride('https://manual.example.com')
     expect(await autoDetectApiBaseUrl(60)).toBe('https://manual.example.com/api')
     expect(resolveApiBaseUrl()).toBe('https://manual.example.com/api')
+  })
+
+  it('LAN mati → jatuh ke server produksi (Railway) sebagai cadangan', async () => {
+    globalThis.fetch = vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target.includes('192.168.1.124') || target.includes('localhost:3000')) {
+        throw new TypeError('Failed to fetch')
+      }
+      return { ok: true, status: 200, type: 'cors' } as unknown as Response
+    }) as unknown as typeof fetch
+
+    expect(await autoDetectApiBaseUrl(60))
+      .toBe('https://aplikasi-trip-api-production.up.railway.app/api')
   })
 
   it('tidak ada kandidat yang menjawab → null, URL default tidak diubah', async () => {

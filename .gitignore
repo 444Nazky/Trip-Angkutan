@@ -74,6 +74,10 @@ backend/apks/
 public/releases/
 backend/public/
 
+# Kredensial signing APK release — jangan pernah ikut ter-commit
+android/keystore.properties
+*.keystore
+
 # Runtime databases (local/dev only, never commit)
 data/*.db
 *.db
