@@ -285,7 +285,7 @@ export interface ApiBaseCandidate {
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   return [
     { url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', label: 'Produksi (Supabase)' },
-    { url: 'http://localhost:3000/api', label: 'Localhost :3000' },
+    // Localhost DIHAPUS dari kandidat - URL produksi selalu digunakan
   ]
 }
 
@@ -343,21 +343,18 @@ export function setApiBaseUrlOverride(url: string | null): void {
   setApiBaseUrl(url)
 }
 
-// Default URL (synchronous)
+// Default URL (synchronous) - PRODUKSI ONLY
 export function autoDetectApiBaseUrl(_timeoutMs?: number): string {
+  console.log('[API] Production mode: URL dikunci ke Supabase')
   return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
 }
 
-// Async version for chained calls
+// PRODUCTION: URL backend DIKUNCI ke Supabase - tidak ada auto-detect atau fallback ke localhost
+const PRODUCTION_API_URL = 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
+
+// Async version for chained calls - PRODUKSI ONLY, tidak pernah ke localhost
 export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
-  // Try to detect best server
-  const candidates = [
-    'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
-    'http://localhost:3000/api',
-  ]
-  for (const url of candidates) {
-    const result = await probeServerHealth(url)
-    if (result.reachable) return url
-  }
-  return candidates[0]
+  // SELALU kembalikan URL produksi - tidak ada deteksi
+  console.log('[API] Production mode: menggunakan Supabase API')
+  return PRODUCTION_API_URL
 }

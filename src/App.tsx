@@ -34,9 +34,8 @@ function Shell() {
     // NO automatic version checks
     // NO automatic sync on resume either
 
-    if (!AUTO_UPDATE_DISABLED) {
-      void import('./services/api').then(m => m.autoDetectApiBaseUrlAsync().catch(() => {}))
-    }
+    // Log startup info - URL sudah DIKUNCI ke Supabase Production di api.ts
+    console.debug('[App] Startup - URL Production:', api.baseUrl)
   }, [])
 
   // Resume sync on app state change (foreground/background)

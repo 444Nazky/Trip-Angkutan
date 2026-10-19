@@ -486,21 +486,20 @@ async function clearStuckOtaState(): Promise<void> {
 
 
 async function nativeFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const mergedOptions: RequestInit = {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-    },
-  }
-
+  // Untuk Capacitor native: TIDAK добавляем cache-control header
+  // karena CapacitorHttp tidak memerlukan header ini dan akan menyebabkan CORS preflight
   if (isNative()) {
     try {
       const response = await CapacitorHttp.request({
         url,
-        method: (mergedOptions.method as string) || 'GET',
-        headers: mergedOptions.headers as Record<string, string>,
+        method: (options.method as string) || 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          // Cache-Control DIHAPUS - menyebabkan CORS preflight di native
+          // 'Cache-Control': 'no-cache, no-store, must-revalidate',
+          // 'Pragma': 'no-cache',
+        },
         connectTimeout: 10000,
       })
       const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
@@ -514,6 +513,15 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
     }
   }
 
+  // Untuk web browser: tetap pakai cache-control untuk mencegah caching
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    },
+  }
   return fetch(url, mergedOptions)
 }
 
@@ -538,7 +546,7 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
     try {
       res = await nativeFetch(`${manifestUrl()}?t=${Date.now()}&n=${attempt}`, {
         signal,
-        cache: 'no-store',
+        // cache: 'no-store' - DIHAPUS, nativeFetch sudah handle caching dengan benar
         headers: { 'Accept': 'application/json' },
       })
       break
@@ -621,8 +629,9 @@ async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array>
         connectTimeout: 15000,
         readTimeout: 30000,
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
+          'Content-Type': 'application/octet-stream',
+          // Cache-Control DIHAPUS dari CapacitorHttp - menyebabkan CORS preflight
+          // Headers ini tidak diperlukan untuk OTA download
         },
       })
       if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
@@ -639,7 +648,14 @@ async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array>
     }
   }
 
-  const res = await fetch(url, { signal, cache: 'no-store' })
+  const res = await fetch(url, {
+    signal,
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    },
+  })
   if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const buf = await res.arrayBuffer()
