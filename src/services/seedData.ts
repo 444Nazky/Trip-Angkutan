@@ -292,3 +292,7 @@ export function seedRouteCacheIfAbsent(): void {
 
 
 
+
+export function seedGeofencePointsIfAbsent(): void {
+  /* no-op sengaja: geofence hanya dari Admin Dashboard */
+}

@@ -22,7 +22,7 @@ export function isLocalhostDev(): boolean {
 
 
 
-// Manifest & berkas modul kini dilayani edge function sendiri (/ota-manifest
+// Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
 // dan /ota/<versi>/...), sehingga penerbitan tidak lagi bergantung repo GitHub.
 // Semua hit ke Edge Function lewat api.baseUrl (…/functions/v1/api)
 function manifestUrl(): string {
@@ -69,7 +69,7 @@ async function getDeviceId(): Promise<string> {
  */
 async function reportOtaVersion(version: string): Promise<boolean> {
   // Disable update reporting for localhost development
-  if (isDevMode() || isLocalhostDev()) {
+  if (isDevMode()) {
     console.log('[OTA] DEV/Localhost MODE: Skip report version ke server')
     return false
   }
@@ -486,20 +486,21 @@ async function clearStuckOtaState(): Promise<void> {
 
 
 async function nativeFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  // Untuk Capacitor native: TIDAK добавляем cache-control header
-  // karena CapacitorHttp tidak memerlukan header ini dan akan menyebabkan CORS preflight
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    },
+  }
+
   if (isNative()) {
     try {
       const response = await CapacitorHttp.request({
         url,
-        method: (options.method as string) || 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          // Cache-Control DIHAPUS - menyebabkan CORS preflight di native
-          // 'Cache-Control': 'no-cache, no-store, must-revalidate',
-          // 'Pragma': 'no-cache',
-        },
+        method: (mergedOptions.method as string) || 'GET',
+        headers: mergedOptions.headers as Record<string, string>,
         connectTimeout: 10000,
       })
       const body = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
@@ -513,15 +514,6 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
     }
   }
 
-  // Untuk web browser: tetap pakai cache-control untuk mencegah caching
-  const mergedOptions: RequestInit = {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-    },
-  }
   return fetch(url, mergedOptions)
 }
 
@@ -536,7 +528,7 @@ type ManifestResult =
 
 
 async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
-  if (isDevMode() || isLocalhostDev()) {
+  if (isDevMode()) {
     console.log('[OTA] DEV/LOCALHOST MODE: skip fetch manifest server')
     return { ok: false, reason: 'not-found' }
   }
@@ -546,7 +538,7 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
     try {
       res = await nativeFetch(`${manifestUrl()}?t=${Date.now()}&n=${attempt}`, {
         signal,
-        // cache: 'no-store' - DIHAPUS, nativeFetch sudah handle caching dengan benar
+        cache: 'no-store',
         headers: { 'Accept': 'application/json' },
       })
       break
@@ -629,9 +621,8 @@ async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array>
         connectTimeout: 15000,
         readTimeout: 30000,
         headers: {
-          'Content-Type': 'application/octet-stream',
-          // Cache-Control DIHAPUS dari CapacitorHttp - menyebabkan CORS preflight
-          // Headers ini tidak diperlukan untuk OTA download
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         },
       })
       if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`)
@@ -648,14 +639,7 @@ async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array>
     }
   }
 
-  const res = await fetch(url, {
-    signal,
-    cache: 'no-store',
-    headers: {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-    },
-  })
+  const res = await fetch(url, { signal, cache: 'no-store' })
   if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const buf = await res.arrayBuffer()
@@ -900,7 +884,7 @@ export async function auditOta(): Promise<{
   let remoteVersion: string | null = null
   let hasRemoteManifest = false
 
-  if (isDevMode() || isLocalhostDev()) {
+  if (isDevMode()) {
     console.log('[OTA] DEV/LOCALHOST MODE: skip audit fetch manifest server')
   } else {
     try {

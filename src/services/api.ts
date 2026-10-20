@@ -28,6 +28,7 @@ export interface Officer {
   username?: string
   regionId?: string
   regionCode?: string
+  regionName?: string
   dermagaAccess?: { id: string; name?: string; code?: string }[]
 }
 
@@ -88,6 +89,10 @@ export function setApiBaseUrl(url: string | null) {
 }
 
 export function resolveApiBaseUrl(): string {
+  return getBaseUrl()
+}
+
+export function getApiBaseUrl(): string {
   return getBaseUrl()
 }
 
@@ -186,6 +191,64 @@ export const api = {
     const r = await request<T>('GET', path, undefined, timeoutMs)
     return r.ok ? (r.data ?? null) : null
   },
+  ping: async (timeoutMs = 5000): Promise<boolean> => {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const res = await fetch(`${baseUrl}/health?_t=${Date.now()}`, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        })
+        return res.ok
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      return false
+    }
+  },
+  postMultipart: async <T>(path: string, body: FormData): Promise<ApiResponse<T>> => {
+    let token: string | null = null
+    try { token = loadToken() } catch { /* storage offline */ }
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 60000)
+      let res: Response
+      try {
+        res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
+        // di salah satu dari 4 request paralel) menghapus token di storage,
+        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
+        // ("session renewal failed" padahal petugas sudah login). Token hanya
+        // diganti saat login/refresh eksplisit.
+        return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
+      }
+      return { ok: true, data }
+    } catch (err) {
+      const aborted = err instanceof DOMException && err.name === 'AbortError'
+      return {
+        ok: false,
+        error: { message: aborted ? 'Unggah dokumentasi melewati batas waktu' : err instanceof Error ? err.message : 'Network error' },
+      }
+    }
+  },
 }
 
 // ─── Geofence caching ─────────────────────────────────────────────────────────
@@ -226,7 +289,7 @@ export function isGeofenceCacheStale(): boolean {
 // ─── Officer storage ───────────────────────────────────────────────────────────
 
 const OFFICER_KEY = 'trip.officer.v2'
-const DERMAGA_KEY = 'trip.dermaga.v2'
+const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 const ROUTES_KEY = 'trip.routes.v2'
 const CREDENTIALS_KEY = 'trip.credentials'
 
@@ -364,7 +427,7 @@ export function setApiBaseUrlOverride(url: string | null): void {
 }
 
 // Default URL (synchronous) - PRODUKSI ONLY
-export function autoDetectApiBaseUrl(_timeoutMs?: number): string {
+export async function autoDetectApiBaseUrl(_timeoutMs?: number): Promise<string | null> {
   console.log('[API] Production mode: URL dikunci ke Supabase')
   return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
 }

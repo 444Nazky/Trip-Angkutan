@@ -39,12 +39,19 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     setBusy(true)
     setSyncState(null)
     try {
-      const r = await syncNow()
+      let r = await syncNow()
+      // Agresif: kalau online tapi masih ada yg gagal (token basi/foto gagal
+      // di pasangan request pertama), coba sekali lagi sebelum menyerah.
+      if (r.reachable && r.failed > 0) {
+        r = await syncNow()
+      }
       setSyncState(r)
       setPendingCount(getPendingCount())
       if (r.failed === 0) {
         setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
       }
+    } catch (err) {
+      setSyncState({ synced: 0, failed: getPendingCount(), reachable: false })
     } finally {
       setBusy(false)
       setPendingCount(getPendingCount())
@@ -52,8 +59,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   }
 
 
-  
-//woi
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'

@@ -20,18 +20,14 @@ export async function syncOnResume(force = false): Promise<void> {
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
   } catch { /* quota */ }
 
-  console.debug('[adminPull] syncOnResume mulai', { force })
-
-  // Coba renew session, tapi JANGAN block sync jika gagal
-  // Sync tetap berjalan dengan cached data jika session gagal
+  // ponytail: renew DULU sebelum 4 panggilan authed paralel. Dulu semuanya
+  // ditembak serentak dengan token basi → semua 401 → api.request menghapus
+  // token saat 401 pertama → sesi mati sendiri + geofence "renewal failed"
+  // padahal petugas sudah login. Tanpa sesi valid, jangan tembak sama sekali.
   const sessionOk = await renewSessionIfNeeded().catch(() => false)
-  console.debug('[adminPull] Session renewal:', sessionOk)
-
-  // Lanjutkan sync meskipun session gagal - cached data tetap dipakai
-  // Ini memungkinkan petugas tetap bisa pakai aplikasi dengan data lama
+  if (!sessionOk) return
 
   const officer = getStoredOfficer()
-  console.debug('[adminPull] Officer:', officer?.name, 'id:', officer?.id)
   void cacheDockOfficers(officer?.id)
   const dermaga = getStoredDermaga()
   if (dermaga?.id) void syncDermagaOfficersToDb(dermaga.id)
@@ -43,8 +39,6 @@ export async function syncOnResume(force = false): Promise<void> {
   // inilah yang membuat edit admin (koordinat baru) "langsung" sampai di HP.
   // Throttle 15 menit dulu yang bikin HP menampilkan titik basi berhari-hari.
   void syncGeofencesFromBackend({ force: true }).catch(() => null)
-
-  console.debug('[adminPull] syncOnResume selesai')
 }
 
 const LAST_SYNC_KEY = 'trip.officers.lastSync'
@@ -279,19 +273,12 @@ function scheduleSilentSync(): void {
 export async function silentMasterSync(): Promise<void> {
   try {
     // Belum pernah login = tidak ada yang bisa ditarik; jangan mengganggu.
-    if (!api.isAuthenticated && !getStoredOfficer()) {
-      console.debug('[adminPull] silentMasterSync: tidak ada officer tersimpan')
-      return
-    }
-
-    // Coba renew session, tapi tetap lanjut dengan cached data jika gagal
+    if (!api.isAuthenticated && !getStoredOfficer()) return
     const sessionOk = await renewSessionIfNeeded().catch(() => false)
-    console.debug('[adminPull] silentMasterSync: session renewal:', sessionOk)
-
+    if (!sessionOk) return
     await pullRegionsToLocal().catch(() => 0)
     await pullTariffsToLocal().catch(() => 0)
     // Petugas, ketersediaan dermaga, rute, dan geofence ditangani syncOnResume.
-    // syncOnResume tidak lagi early-return saat session gagal
     await syncOnResume(true).catch(() => {})
   } catch { /* senyap: saat offline tetap memakai cache lokal */ }
 }

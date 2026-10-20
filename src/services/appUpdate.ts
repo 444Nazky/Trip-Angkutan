@@ -140,7 +140,7 @@ class AppUpdateController {
 
     // Paket APK diperiksa lebih dulu: kalau ada versi native baru, itu yang dipasang.
     const apkInfo = await updateService.checkForUpdate().catch(() => null)
-    if (apkInfo?.updateAvailable && updateService.state.status === 'ready') {
+    if (apkInfo?.updateAvailable && updateService.state === 'ready') {
       const currentApp = this._currentApp ?? '0.0.0'
       const force = Boolean(apkInfo.isForceUpdate)
         || shouldForceUpdate(currentApp, apkInfo.minVersion ?? currentApp)
