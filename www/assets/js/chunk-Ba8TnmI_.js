@@ -1,1 +1,0 @@
-import{t as D}from"./main-3BNMKRSF.js";var t=D(`Network`,{web:()=>import(`./chunk-XGj_G5C-.js`).then(r=>new r.NetworkWeb)});export{t as Network};

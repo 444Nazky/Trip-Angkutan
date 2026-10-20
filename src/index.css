@@ -136,6 +136,8 @@
 
 .admin-tab-content {
   animation: admin-fade-in 0.25s ease-out both;
+  /* Prevent transform from affecting fixed-positioned children (modals/overlays) */
+  transform: none;
 }
 
 .admin-nav-item {

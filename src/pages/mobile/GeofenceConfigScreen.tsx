@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, RefreshCw } from 'lucide-react'
+import { ChevronLeft, MapPin, Plus, Trash2, Pencil, Check, RefreshCw, AlertTriangle } from 'lucide-react'
 import {
   getStoredGeofencePoints,
   saveGeofencePoints,
@@ -386,7 +386,10 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full" title={`ID: ${p.dermagaId} (tidak ditemukan di akses petugas)`}>
-                            ⚠️ Dermaga tidak dikenal
+                            <span className="flex items-center gap-2">
+                              <AlertTriangle size={16} className="text-amber-500" />
+                              Dermaga tidak dikenal
+                            </span>
                           </span>
                         )
                       })()
@@ -407,7 +410,10 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                           className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full"
                           title={`Menurut Master Rute admin, rute ${asing.join(', ')} dimiliki dermaga lain. Minta admin memperbaikinya.`}
                         >
-                          ⚠️ Rute bukan milik dermaga ini: {asing.join(', ')}
+                          <span className="flex items-center gap-2">
+                              <AlertTriangle size={16} className="text-amber-500" />
+                              Rute bukan milik dermaga ini: {asing.join(', ')}
+                            </span>
                         </span>
                       ) : null
                     })()}

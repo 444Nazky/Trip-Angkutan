@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect } from 'react'
-import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
@@ -304,13 +305,13 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
         </div>
       )}
 
-      {viewingPhotos && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingPhotos(null)}>
+      {viewingPhotos && createPortal((
+        <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4" onClick={() => setViewingPhotos(null)}>
           <div onClick={e => e.stopPropagation()} className="max-w-4xl w-full">
             <PhotoViewer photos={viewingPhotos} onClose={() => setViewingPhotos(null)} baseUrl={baseUrl} />
           </div>
         </div>
-      )}
+      ), document.body)}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full border-collapse text-[13px]">
@@ -387,7 +388,10 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                   // Date group header row
                   <tr key={`date-${date}`} className="bg-slate-800 text-white">
                     <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
-                      📅 {formattedDate}
+                      <span className="flex items-center gap-1">
+                        <Calendar size={14} className="text-slate-400" />
+                        {formattedDate}
+                      </span>
                       <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip · {dayTotal} unit)</span>
                     </td>
                     <td colSpan={3} className="px-3 py-2.5 text-right">

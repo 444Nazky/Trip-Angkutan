@@ -1,6 +1,7 @@
 import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes, renewSessionIfNeeded } from './auth'
 import { syncGeofencesFromBackend } from './geofence'
 import { api } from './api'
+import { Network } from '@capacitor/network'
 
 
 
@@ -247,14 +248,13 @@ export function startConnectivitySync(): void {
 
   // Jalur native: event `online` WebView tidak selalu andal saat jaringan
   // berpindah (WiFi ↔ seluler), jadi pakai plugin Network bila tersedia.
-  void (async () => {
-    try {
-      const { Network } = await import('@capacitor/network')
-      await Network.addListener('networkStatusChange', status => {
-        if (status?.connected) trigger()
-      })
-    } catch { /* plugin tak tersedia (web) — listener window sudah cukup */ }
-  })()
+  // Import statis: dynamic import() di sini membuat esbuild menghasilkan chunk
+  // yang mereferensi chunk helper yang tidak pernah di-emit (bundle rusak).
+  try {
+    void Network.addListener('networkStatusChange', status => {
+      if (status?.connected) trigger()
+    })
+  } catch { /* plugin tak tersedia (web) — listener window sudah cukup */ }
 }
 
 
