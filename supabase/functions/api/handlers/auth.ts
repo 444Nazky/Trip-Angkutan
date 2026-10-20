@@ -1,6 +1,6 @@
 // Auth route handlers (port of backend/src/routes/auth.js).
 // db helpers, signToken, auth etc. live in __shared.
-import * as bcryptjs from "https://esm.sh/bcryptjs@2.4.3";
+import bcryptjs from "npm:bcryptjs@2.4.3";
 import {
   db,
   json,
@@ -11,7 +11,7 @@ import {
   type OfficerClaims,
 } from "../_shared.ts";
 
-const OFFICER_TOKEN_TTL = 10 * 365 * 24 * 60 * 60;
+const OFFICER_TOKEN_TTL = 90 * 24 * 60 * 60;
 
 const rateBuckets = new Map<string, number[]>();
 
@@ -122,7 +122,7 @@ export async function memberLogin(req: Request): Promise<Response> {
   if (!authRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { username, password } = await req.json().catch(() => ({})) as any;
-    const normalizedUsername = String(username ?? "").toLowerCase();
+    const normalizedUsername = String(username ?? "").trim().toLowerCase();
     const pin = String(password ?? "");
 
     if (!normalizedUsername || !pin) return json({ error: "Username dan PIN wajib diisi" }, 400);

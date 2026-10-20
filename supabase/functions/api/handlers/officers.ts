@@ -1,5 +1,5 @@
 // Officers handlers (port of backend/src/routes/officers.js).
-import * as bcryptjs from "https://esm.sh/bcryptjs@2.4.3";
+import bcryptjs from "npm:bcryptjs@2.4.3";
 import { db, json, auth, requireAdmin } from "../_shared.ts";
 
 async function officerExtras(officerId: string) {
