@@ -3,8 +3,9 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Credentials": "true",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, cache-control, pragma, accept, origin, x-requested-with",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
 
