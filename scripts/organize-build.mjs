@@ -132,6 +132,18 @@ function rewriteIndexHtml(moved) {
   return count
 }
 
+function writeAdminIndex() {
+  const mobile = fs.readFileSync(path.join(WWW, 'index.html'), 'utf8')
+  let html = mobile
+  html = html.replace(/<html\b[^>]*>/, (m) => m.includes('data-admin') ? m : m.replace('>', ' data-admin>'))
+  html = html.replace(/<title>[^<]*<\/title>/, '<title>Admin Trip Angkutan</title>')
+  html = html.replace(/<link rel="icon"[^>]*>/, '<link rel="icon" type="image/svg+xml" href="/assets/karyamasv.svg" />')
+
+  const adminDir = path.join(WWW, 'admin')
+  if (!fs.existsSync(adminDir)) fs.mkdirSync(adminDir, { recursive: true })
+  fs.writeFileSync(path.join(adminDir, 'index.html'), html)
+}
+
 /** Kumpulkan referensi lokal dari index.html (href/src tanpa skema eksternal). */
 function collectHtmlRefs(html) {
   const refs = []
@@ -201,6 +213,7 @@ function main() {
     ? pruneStaleBundles(new Set(moved.map(m => m.name)))
     : []
   const rewritten = rewriteIndexHtml(moved)
+  writeAdminIndex()
   verify(moved)
 
   if (errors.length) {

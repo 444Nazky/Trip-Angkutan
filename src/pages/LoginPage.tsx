@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Eye, EyeOff, Settings, Shield } from 'lucide-react'
+import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
 import {
   loginOffline,
@@ -15,10 +15,8 @@ import ServerSettingsModal from '../components/ServerSettingsModal'
 
 
 interface LoginPageProps {
-  onLogin: (userType: 'member' | 'admin') => void
+  onLogin: () => void
 }
-
-type LoginMode = 'member' | 'admin'
 
 
 
@@ -48,7 +46,7 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
           name: match.name,
           regionId: match.region,
           regionName: match.region,
-          regionCode: match.region,
+      regionCode: match.region,
           offlineMode: true,
         }))
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
@@ -63,7 +61,6 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
 
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [mode, setMode] = useState<LoginMode>('member')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -99,14 +96,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)
           window.dispatchEvent(new Event(SESSION_READY_EVENT))
-          onLogin('member')
+          onLogin()
           return
         }
         const msg = result.error || ''
         if (/timeout|network|failed|fetch|terjangkau|merespon|unreachable/i.test(msg)) {
           if (await tryOfflineLogin(u, p)) {
             void initializeSync()
-            onLogin('member')
+            onLogin()
             void syncOfficersToLocal(true).catch(() => undefined)
             return
           }
@@ -116,17 +113,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           // supaya admin tahu apa yang harus dicocokkan di dashboard.
           setError(/tidak terdaftar|nonaktif|PIN salah/i.test(msg) ? msg : 'Username atau password salah.')
         }
-        return
+      return
       }
 
       if (await tryOfflineLogin(u, p)) {
         void initializeSync()
-        onLogin('member')
+        onLogin()
         return
       }
 
       setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
-      return
     } catch {
       setError('Verifikasi gagal. Silakan coba lagi.')
     } finally {
@@ -136,40 +132,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void handleLogin()
-  }
-
-  // Admin login handler
-  const handleAdminLogin = async () => {
-    if (!username.trim() || !password) {
-      setError('Username & password harus diisi.')
-      return
-    }
-    if (loading) return
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`${api.baseUrl}/auth/admin-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
-      })
-      const data = await res.json()
-      if (res.ok && data.token) {
-        api.setToken(data.token)
-        localStorage.setItem('trip.admin', JSON.stringify(data.admin))
-        onLogin('admin')
-        return
-      }
-      setError(data.error || 'Login gagal')
-    } catch {
-      setError('Tidak dapat terhubung ke server')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAdminKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') void handleAdminLogin()
   }
 
   return (
@@ -202,37 +164,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
         </div>
 
-        {/* Mode Switcher */}
-        <div className="flex gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => { setMode('member'); setError(null); setUsername(''); setPassword('') }}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'member' ? 'bg-[#1B3D6D] text-white' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            Petugas
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('admin'); setError(null); setUsername(''); setPassword('') }}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-              mode === 'admin' ? 'bg-[#1B3D6D] text-white' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            <Shield size={16} />
-            Admin
-          </button>
-        </div>
-
         {/* Welcome Text */}
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-slate-800">
-            {mode === 'admin' ? 'Login Admin' : 'Masuk'}
-          </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            {mode === 'admin' ? 'Masuk sebagai administrator' : 'Gunakan ID Petugas dan PIN Anda'}
-          </p>
+          <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
+          <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
         </div>
 
         {/* Form */}
@@ -243,8 +178,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               type="text"
               value={username}
               onChange={e => { setError(null); setUsername(e.target.value) }}
-              onKeyDown={mode === 'admin' ? handleAdminKey : onKey}
-              placeholder={mode === 'admin' ? 'Username Admin' : 'ID Petugas'}
+              onKeyDown={onKey}
+              placeholder="ID Petugas"
               autoCapitalize="none"
               autoCorrect="off"
               className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
@@ -255,13 +190,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
-              inputMode={mode === 'admin' ? 'text' : 'numeric'}
-              autoComplete={mode === 'admin' ? 'current-password' : 'one-time-code'}
-              maxLength={mode === 'admin' ? 100 : 6}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
               value={password}
-              onChange={e => { setError(null); setPassword(mode === 'admin' ? e.target.value : e.target.value.replace(/\D/g, '')) }}
-              onKeyDown={mode === 'admin' ? handleAdminKey : onKey}
-              placeholder={mode === 'admin' ? 'Password' : 'PIN'}
+              onChange={e => { setError(null); setPassword(e.target.value.replace(/\D/g, '')) }}
+              onKeyDown={onKey}
+              placeholder="PIN"
               className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] focus:ring-0 transition-colors"
             />
             <button
@@ -282,20 +217,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           {/* Submit */}
           <button
-            onClick={() => mode === 'admin' ? void handleAdminLogin() : void handleLogin()}
+            onClick={() => void handleLogin()}
             disabled={loading}
             className="w-full py-3.5 rounded-xl font-medium text-sm text-white bg-[#1B3D6D] hover:bg-[#0f2847] disabled:opacity-50 transition-colors mt-2"
           >
-            {loading ? 'Memproses…' : mode === 'admin' ? 'Masuk Admin' : 'Masuk'}
+            {loading ? 'Memproses…' : 'Masuk'}
           </button>
         </div>
-
-        {/* Admin hint */}
-        {mode === 'admin' && (
-          <p className="text-xs text-center text-slate-400 mt-6">
-            Akses terbatas untuk administrator sistem
-          </p>
-        )}
       </div>
 
       {/* ── Footer ── */}
