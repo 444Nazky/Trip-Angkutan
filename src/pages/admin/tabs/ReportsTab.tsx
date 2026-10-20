@@ -490,9 +490,12 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         )}
                       </td>
                     </tr>
-                  </Fragment>
+                    )}
+                </Fragment>
                 )
               })
+              ]
+            })
             })()}
           </tbody>
           <tfoot>

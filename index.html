@@ -6,12 +6,9 @@
   <!--
     CSP: batasi sumber daya yang boleh dimuat — membatasi dampak XSS.
 
-    connect-src SENGAJA tidak dibatasi ke satu domain: endpoint backend bisa diganti
-    admin saat runtime (Pengaturan → Server/Endpoint). Dulu allowlist-nya hanya
-    *.up.railway.app + localhost sehingga berpindah ke tunnel (mis. trycloudflare)
-    diblokir CSP secara instan → toast "Server tidak merespon (8 ms)" padahal server
-    hidup. Dibuka ke https: (tunnel/domain mana pun) + http lokal/LAN untuk uji.
-    frame-src dibutuhkan oleh pratinjau peta OpenStreetMap di tab Rute/Geofence.
+    connect-src dibuka ke https: (endpoint produksi Supabase) + http lokal/LAN
+    untuk pengujian perangkat. frame-src dibutuhkan oleh pratinjau peta
+    OpenStreetMap di tab Rute/Geofence.
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* ws://localhost:* wss://localhost:*; frame-src https://www.openstreetmap.org https://www.google.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
   <title>Admin Trip Angkutan</title>

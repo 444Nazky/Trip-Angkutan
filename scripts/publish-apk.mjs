@@ -14,7 +14,7 @@ import { URL } from 'url';
 const ARGUMENTS = {
   '--apk': { required: true, description: 'Path to APK file' },
   '--version': { required: true, description: 'Version (semver format, e.g., 1.0.0)' },
-  '--server': { default: 'http://localhost:3000', description: 'Backend server URL' },
+  '--server': { default: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', description: 'Backend server URL' },
   '--secret': { default: process.env.PUBLISH_SECRET || 'trip-angkut-secret', description: 'Publish secret' },
   '--force': { flag: true, description: 'Force publish even if version exists' },
   '--notes': { description: 'Release notes (optional)' },
@@ -114,7 +114,7 @@ Examples:
 Notes:
   - Version must be in semantic versioning format (X.Y.Z)
   - APK file will be read and sent as base64 to the backend
-  - The backend must have the /api/v1/publish-version endpoint configured
+  - The backend must have the /publish-version endpoint configured
 `);
 }
 
@@ -219,7 +219,7 @@ function validateVersion(version) {
 
 
 
-// aapt2 dari Android SDK (pola sama dengan verify-apks.mjs / publish-release.sh).
+// aapt2 dari Android SDK (pola sama dengan verify-apks.mjs).
 function findAapt2() {
   const candidates = [];
   if (process.env.AAPT2) candidates.push(process.env.AAPT2);
@@ -347,7 +347,7 @@ async function main() {
       apkVersionCode,
     };
 
-    const response = await httpRequest(`${args.server}/api/v1/publish-version`, {
+    const response = await httpRequest(`${args.server}/publish-version`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -363,8 +363,8 @@ async function main() {
 
       console.log('\n🎉 APK published successfully!');
       console.log(`   Version: ${args.version}`);
-      console.log(`   Download URL: ${args.server}/api/v1/app-download/${args.version}`);
-      console.log(`   Version check: ${args.server}/api/v1/app-version?current=${args.version}`);
+      console.log(`   Download URL: ${args.server}/app-download/${args.version}`);
+      console.log(`   Version check: ${args.server}/app-version?current=${args.version}`);
     } else if (response.status === 401) {
       console.error('❌ Authentication failed');
       console.error('   Check your --secret value');

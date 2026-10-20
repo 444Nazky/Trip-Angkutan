@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { App as CapacitorApp } from "@capacitor/app"
 import MobileApp from "./pages/mobile/MobileApp"
 import LoginPage from "./pages/LoginPage"
+import AdminDashboard from "./pages/admin/AdminDashboard"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { startConnectivitySync, syncOnResume } from "./services/adminPull"
@@ -48,18 +49,20 @@ function Shell() {
     return () => { sub?.remove?.() }
   }, [])
 
-  const isAdminSession = loggedIn && userType === 'admin'
-
-  useEffect(() => {
-    if (isAdminSession) logout()
-  }, [isAdminSession, logout])
+  const handleLogout = () => {
+    logout()
+  }
 
   // NO UpdateNotifier at all - updates are manual only via Profile screen
   return (
     <div className="app-root bg-slate-50">
-      {loggedIn && userType !== 'admin'
-        ? <MobileApp />
-        : <LoginPage onLogin={() => login('member')} />}
+      {!loggedIn ? (
+        <LoginPage onLogin={login} />
+      ) : userType === 'admin' ? (
+        <AdminDashboard onLogout={handleLogout} />
+      ) : (
+        <MobileApp />
+      )}
     </div>
   )
 }

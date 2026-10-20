@@ -91,7 +91,6 @@ function loadServiceWorker(): Env {
     return Promise.resolve(network(new URL(url).pathname))
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
   const run = new Function('self', 'caches', 'fetch', 'Response', 'Request', 'URL', swSource)
   run(selfStub, cacheStore, fetchStub, Response, Request, URL)
 
