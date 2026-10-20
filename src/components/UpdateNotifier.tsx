@@ -1,27 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, RefreshCw, Sparkles, X } from 'lucide-react'
 import { appUpdate, type AppUpdateState } from '../services/appUpdate'
-import { isLocalhostDev } from '../services/ota'
 
-// Disable update checks for localhost development
-const UPDATE_DISABLED = isLocalhostDev()
+
 
 // Satu sumber status pembaruan untuk seluruh UI.
 export function useAppUpdate(): AppUpdateState {
-  if (UPDATE_DISABLED) {
-    return {
-      status: 'idle',
-      kind: null,
-      version: null,
-      notes: null,
-      isForce: false,
-      error: null,
-    }
-  }
   const [state, setState] = useState<AppUpdateState>(appUpdate.state)
   useEffect(() => appUpdate.subscribe(setState), [])
   return state
 }
+
 
 
 interface UpdateNotifierProps {
@@ -29,15 +18,12 @@ interface UpdateNotifierProps {
 }
 
 
-export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps) {
-  // Skip entire component for localhost/dev mode - no update notifications
-  if (UPDATE_DISABLED) {
-    return null
-  }
 
+export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps) {
   const state = useAppUpdate()
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
+
 
 
   useEffect(() => {
@@ -45,9 +31,11 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   }, [autoCheck])
 
 
+
   useEffect(() => {
     if (state.status === 'ready') setDismissed(false)
   }, [state.status, state.version])
+
 
 
   const apply = useCallback(async () => {
@@ -60,6 +48,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   }, [])
 
 
+
   const retry = useCallback(async () => {
     setBusy(true)
     try {
@@ -68,6 +57,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
       setBusy(false)
     }
   }, [])
+
 
 
   if (state.status === 'installing' && state.kind === 'apk') {
@@ -95,12 +85,12 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   if (dismissed && !state.isForce) return null
 
 
-  const label = state.error ? 'Pembaruan Gagal' : state.kind === 'apk' ? 'Update APK Tersedia' : 'Update Modul Tersedia'
+
+  const label = state.error ? 'Pembaruan Gagal' : 'Pembaruan Siap'
   const detail = state.status === 'error'
     ? state.error
-    : state.kind === 'apk'
-      ? `Versi ${state.version ?? '—'} siap diinstal. Tekan tombol untuk memulai.`
-      : `Modul versi ${state.version ?? '—'} siap dipasang.`
+    : `Versi ${state.version ?? '—'} siap dipasang${state.kind === 'module' ? ' (tanpa ganti APK)' : ''}.`
+
 
 
   if (state.isForce && state.status === 'ready') {
@@ -110,9 +100,9 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
             <Sparkles size={32} />
           </div>
-          <h3 className="text-lg font-bold text-slate-800">Update Wajib</h3>
+          <h3 className="text-lg font-bold text-slate-800">Pembaruan Wajib</h3>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Versi <span className="font-semibold text-indigo-600">{state.version}</span> tersedia. Aplikasi harus diperbarui agar tetap dapat digunakan.
+            Versi <span className="font-semibold text-indigo-600">{state.version}</span> diperlukan agar aplikasi tetap berjalan optimal.
           </p>
           {state.notes && (
             <div className="mt-4 max-h-32 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-3 text-left text-[11px] text-slate-600">
@@ -125,12 +115,13 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
             disabled={busy}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-xs font-semibold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-60"
           >
-            {busy ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />} Update Sekarang
+            <Download size={15} /> Perbarui Sekarang
           </button>
         </div>
       </div>
     )
   }
+
 
 
   return (
@@ -159,7 +150,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
                   disabled={busy}
                   className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {busy ? 'Memasang…' : 'Update Sekarang'}
+                  Perbarui Sekarang
                 </button>
               )}
               {state.status === 'error' && (
@@ -168,7 +159,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
                   disabled={busy}
                   className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-rose-700 disabled:opacity-60"
                 >
-                  <RefreshCw size={12} className={busy ? 'animate-spin' : ''} /> {busy ? 'Memeriksa…' : 'Coba Lagi'}
+                  <RefreshCw size={12} /> Coba Lagi
                 </button>
               )}
               <button

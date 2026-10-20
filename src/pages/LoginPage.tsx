@@ -27,7 +27,7 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
   if (!u || !p) return false
 
   try {
-    const res = await loginOffline()
+    const res = await loginOffline(u, p)
     if (res.success) {
       window.dispatchEvent(new Event(SESSION_READY_EVENT))
       return true

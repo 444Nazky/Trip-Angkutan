@@ -20,7 +20,14 @@ const h = vi.hoisted(() => ({
 
 vi.mock('./api', () => ({
   saveOfficer: () => {},
-  getCredentials: () => ({}),
+  getStoredOfficer: () => null,
+  getStoredDermaga: () => null,
+  storeDermaga: () => {},
+  getStoredRoutes: () => ({}),
+  saveRoutes: () => {},
+  getCredentials: () => JSON.parse(localStorage.getItem('trip.credentials') ?? '{}'),
+  storeCredentials: () => {},
+  clearCredentials: () => {},
   api: {
     get isAuthenticated() { return !!h.token },
     get token() { return h.token },
