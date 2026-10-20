@@ -23,7 +23,8 @@ export const db: SupabaseClient = createClient(
 );
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET") ?? "trip-angkut-secret-key";
-const OFFICER_TOKEN_TTL_SECONDS = 10 * 365 * 24 * 60 * 60;
+// Token TTL: 90 hari - cukup untuk sesi aktif, tidak terlalu panjang jika browser compromise
+const OFFICER_TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
 
 export type OfficerClaims = {
   officerId?: string;
