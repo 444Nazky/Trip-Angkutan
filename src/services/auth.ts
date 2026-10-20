@@ -354,7 +354,9 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
     if (!res.ok || !Array.isArray(res.data)) return null
     const map: Record<string, Route[]> = {}
     for (const r of res.data) {
-      const key = (r as any).dermagaId || 'default'
+      // ponytail: server mengirim `dermaga_id` (snake_case) — dulu key selalu
+      // jatuh ke 'default' sehingga rute per dermaga hilang dari layar pilih rute.
+      const key = ((r as any).dermagaId || (r as any).dermaga_id) || 'default'
       if (!map[key]) map[key] = []
       map[key].push(r)
     }
@@ -505,3 +507,23 @@ export async function verifyPinOffline(
   return loginOffline().then(r => r.success)
 }
 
+
+// ─── Admin session ────────────────────────────────────────────────────────────
+
+export interface AdminSessionResult {
+  ok: boolean
+  authDenied: boolean
+}
+
+export async function ensureAdminSession(): Promise<AdminSessionResult> {
+  if (!api.token) return { ok: false, authDenied: true }
+
+  const probe = await api.get('/tariffs')
+  if (probe.ok) return { ok: true, authDenied: false }
+  if (probe.error?.code === '401') {
+    api.setToken(null)
+    return { ok: false, authDenied: true }
+  }
+
+  return { ok: false, authDenied: false }
+}

@@ -123,7 +123,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
     const r = await probeServerHealth(resolveApiBaseUrl())
     setStatus(r.reachable
       ? { kind: r.blockedByCors ? 'warn' : 'ok', msg: `Default aktif (${r.ms} ms)${r.blockedByCors ? ' — browser memblokir CORS' : ''}.` }
-      : { kind: 'fail', msg: `Default tidak merespon (${r.ms} ms). Nyalakan backend lokal di port 3000 atau isi URL server.` })
+      : { kind: 'fail', msg: `Default tidak merespon (${r.ms} ms). Periksa koneksi internet atau isi URL server.` })
   }
 
 

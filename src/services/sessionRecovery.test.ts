@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('./api', () => ({
+  saveOfficer: () => {},
+  getCredentials: () => ({}),
   api: {
     get isAuthenticated() { return !!h.token },
     get token() { return h.token },

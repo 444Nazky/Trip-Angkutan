@@ -91,6 +91,30 @@ export function resolveApiBaseUrl(): string {
   return getBaseUrl()
 }
 
+export function normalizeBaseUrl(raw: string): string {
+  return normalizeUrl(raw)
+}
+
+export interface PingResult {
+  ok: boolean
+  ms: number
+  blockedByCors?: boolean
+  timedOut?: boolean
+  status?: number
+  mixedContent?: boolean
+  detail?: string
+}
+
+export async function pingBaseUrl(url: string, timeoutMs = 5000): Promise<PingResult> {
+  const pageHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
+  const mixed = pageHttps && /^http:\/\//i.test(url) && !isPrivateHostUrl(url)
+  if (mixed) {
+    return { ok: false, ms: 0, mixedContent: true, detail: 'http:// diblokir dari halaman https (mixed content)' }
+  }
+  const r = await probeServerHealth(url, timeoutMs)
+  return { ok: r.reachable, ms: r.ms ?? 0, blockedByCors: r.blockedByCors, timedOut: r.timedOut, status: r.status, detail: r.detail }
+}
+
 // ─── Token storage ───────────────────────────────────────────────────────────────
 
 function loadToken(): string | null {
@@ -269,11 +293,7 @@ export function clearCredentials() {
 // ─── Server Settings helpers ─────────────────────────────────────────────────
 
 export function apiBaseCandidateLabel(candidate: string): string {
-  if (/^https?:\/\/localhost/i.test(candidate)) return 'Localhost'
-  if (/^https?:\/\/127\./i.test(candidate)) return 'Local IP'
-  if (/\.supabase\.co$/i.test(candidate)) return 'Supabase'
-  if (/\.railway\.app$/i.test(candidate)) return 'Railway'
-  if (/\.vercel\.app$/i.test(candidate)) return 'Vercel'
+  if (/\.supabase\.co/i.test(candidate)) return 'Supabase'
   return new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`).hostname
 }
 

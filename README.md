@@ -1,45 +1,42 @@
-# Trip Dashboard (Admin)
+# Trip Angkutan (Mobile + Admin)
 
-Dashboard admin untuk aplikasi Trip Angkutan — mengelola master tarif, plat, rute + geofence, petugas, dan laporan trip. Frontend React 19 + Vite + Tailwind, backend Node.js/Express + SQLite, deploy ke Firebase Hosting.
+Aplikasi Trip Angkutan: aplikasi mobile petugas lapangan (Ionic/Capacitor + React) dengan dashboard admin tertanam di codebase yang sama. Seluruh API berjalan sebagai Supabase Edge Functions, tanpa backend mandiri.
 
 ## Stack
 
 | Bagian | Teknologi |
 |--------|-----------|
-| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS, lucide-react |
-| Backend | Express 4, better-sqlite3, JWT, bcryptjs, multer |
-| Build/deploy | `vite build` → `www/` → Firebase Hosting (GitHub Actions) |
+| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS, lucide-react, Ionic, Capacitor |
+| Backend | Supabase Edge Functions (Deno) — satu function `api` |
+| Database | Supabase Postgres + Storage (APK, foto bukti trip, OTA bundle) |
+| Build | `vite build` → `www/` → Capacitor Android (APK di Supabase Storage) |
 
 ## Struktur
 
 ```
-src/                    # Frontend admin (React + Vite)
-  pages/admin/          # Dashboard, tab, laporan (ReportSheet), komponen
-  services/             # Klien API (api, auth, trips, tariffs, geofences, geo, xlsx, theme)
-  environments/         # apiBaseUrl (localhost vs produksi, lewat import.meta.env.PROD)
-public/Assets/          # Logo statis
-backend/src/
-  index.js              # Express app + routing
-  db.js                 # Schema, migrasi idempoten, seed (better-sqlite3)
-  routes/               # auth, tariffs, plates, officers, routes, geofences, reports, trips
-  middleware/auth.js    # authenticate (JWT) + requireAdmin
-data/trip.db            # SQLite (dibuat & dimigrasi otomatis saat boot)
-firebase.json           # Hosting: publish www/, SPA rewrite
-.github/workflows/      # Deploy otomatis ke Firebase saat push ke main
+src/                    # Aplikasi (React + Ionic)
+  pages/mobile/         # Layar petugas (login PIN, trip, riwayat, profil)
+  pages/admin/          # Dashboard admin tertanam (overview, tarif, plat, petugas, laporan, pengaturan)
+  services/             # Klien API (api.ts lock ke Supabase) + offline-first (sync, offlineDb)
+supabase/
+  functions/api/        # Edge Function "api" — seluruh endpoint
+    handlers/           # auth, trips, tariffs, plates, routes, geofences, officers, reports, appVersion (OTA)
+  migrations/           # Skema SQL
+android/                # Capacitor Android (source project)
+scripts/                # Rilis APK/OTA (publish-apk.mjs, publish-ota, sync-version.mjs)
 ```
 
 ## Menjalankan
 
 ```bash
 npm install
-npm run dev             # frontend → http://localhost:5173
-
-cd backend
-npm install
-JWT_SECRET=change-me npm run dev    # API → http://localhost:3000 (dev: node --watch)
+npm run dev             # http://localhost:8000 (LAN privat kantor / cepat dev admin)
 ```
 
-Variabel backend: `JWT_SECRET` (**wajib**), `PORT` (default 3000), `DB_PATH` (default `data/trip.db`), `ADMIN_USERNAME` / `ADMIN_PASSWORD` (default `admin` / `admin123`, bisa diganti lewat menu Pengaturan).
+Login admin: `admin` / `admin123456` (dashboard admin tertanam). Petugas mobile: PIN 6 digit dari tabel `officers` (bcrypt, server-side verify).
+
+Config Supabase (`src/environments/environment.ts`): project key `bmiruktfruunegtbydyw`, endpoint
+`https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api`.
 
 ## Perintah
 
@@ -47,52 +44,51 @@ Variabel backend: `JWT_SECRET` (**wajib**), `PORT` (default 3000), `DB_PATH` (de
 |----------|--------|
 | `npm run dev` / `start` | Dev server Vite (HMR) |
 | `npm run build` | Build produksi ke `www/` |
-| `npm run preview` | Pratinjau hasil build |
 | `npm run lint` | ESLint untuk `src/**/*.{ts,tsx}` |
-| `npm run typecheck` | `tsc --noEmit` |
-| `backend: npm run dev` | API dengan restart otomatis |
+| `npx tsc --noEmit -p tsconfig.app.json` | Typecheck (tidak ada script `typecheck`) |
+| `npx vitest run` | Unit test services |
+
+## Deploy Backend
+
+Deploy ulang edge function setelah perubahan di `supabase/functions/`:
+
+```bash
+npx supabase functions deploy api --project-ref bmiruktfruunegtbydyw --no-verify-jwt
+```
+
+`verify_jwt = false` di `supabase/config.toml` — autentikasi dilakukan oleh handler (`auth.ts` token JWT custom, TTL 90 hari).
 
 ## API
 
-Semua endpoint di bawah `/api`, di belakang `Authorization: Bearer <token>`:
+Endpoint di bawah `/functions/v1/api`, melalui header `Authorization: Bearer <token>`:
 
-- `POST /auth/admin-login`, `POST /auth/change-admin-password`
+- `POST /auth/admin-login`, `POST /auth/member-login`, `PUT /auth/change-admin-password`
 - `GET|POST /tariffs`, `PUT|DELETE /tariffs/:id`, `GET /region-tariffs`, `PUT /region-tariffs/:regionId`
-- `GET|POST /plates`, `PUT|DELETE /plates/:id`
-- `GET|POST /officers`, `PUT /officers/:id/{regions,dermagas,pin,status}`, `DELETE /officers/:id`
+- `GET|POST /plates`, `POST /plates/check`, `PUT|DELETE /plates/:id`
+- `GET|POST /officers`, `GET /officers/my-region`, `PUT /officers/:id/{regions,dermagas,pin,status}`, `DELETE /officers/:id`
 - `GET|POST /routes`, `PUT|DELETE /routes/:id`, `GET /dermagas`, `GET /regions`
 - `GET|POST /geofences`, `PUT|DELETE /geofences/:id`, `GET /geofences/resolve-link?url=`
 - `GET /reports/summary`, `GET /reports/trips`, `GET /reports/trips/filters`
-- `GET /trips`, `POST /trips/complete` (unggah bukti foto), `GET /api/health`
+- `GET /trips`, `POST /trips/complete`
 
-Kode rute untuk geofence berformat `ASAL-TUJUAN` (cth. `SJRE-SBDZ`).
+Kode rute geofence berformat `ASAL-TUJUAN` (cth. `SJRE-SBDZ`).
 
-## Deploy
+## Update Aplikasi (APK + OTA)
 
-Push ke `main` → GitHub Actions menjalankan `npm ci && npm run build` lalu deploy `www/` ke Firebase Hosting (project `aplikasi-trip`). Konfigurasi hosting ada di `firebase.json`.
-
-URL API produksi di-set di `src/environments/environment.ts` (cabang `import.meta.env.PROD`).
-
-## 🔄 Custom Self-Hosted API Update System
-
-> **Status:** PRODUKSI — Mengganti sistem OTA pihak ketiga yang sering mengalami kegagalan patch/update sekunder.
-> **Tanggal Overhaul:** 2026-10-14
-
-### API Endpoints
+Sistem update mandiri lewat Supabase Storage. Endpoint yang relevan di edge function:
 
 | Endpoint | Method | Deskripsi |
 |----------|--------|-----------|
-| `/api/v1/app-version` | GET | Cek versi terbaru aplikasi mobile |
-| `/api/v1/app-download/:version` | GET | Download file APK |
-| `/api/v1/apk-list` | GET | List semua versi APK |
-| `/api/v1/apk-info/:version` | GET | Info APK (size, hash) |
-| `/api/v1/release-notes/:version` | GET | Catatan rilis |
-| `/api/v1/publish-version` | POST | Publish APK baru (admin) |
+| `/app-version?current=` | GET | Cek versi APK terbaru |
+| `/app-download/:version` | GET | Download file APK |
+| `/apk-list` | GET | List semua versi APK |
+| `/release-notes/:version` | GET | Catatan rilis versi |
+| `/publish-version` | POST | Publish APK baru (admin) |
+| `/ota-manifest` | GET | Manifest bundle OTA modul |
 
-### Publish APK Baru
+Publish APK baru:
 
 ```bash
-# Install di root project
 node scripts/publish-apk.mjs \
   --apk=/path/to/app-release.apk \
   --version=1.0.1 \
@@ -106,17 +102,10 @@ node scripts/publish-apk.mjs \
   --min-version=1.0.0
 ```
 
-### Penyimpanan
+Penyimpanan: bucket Supabase Storage `apks` (file APK) dan metadata versi di tabel Postgres.
 
-```
-backend/
-├── apks/               # File APK
-│   ├── app-1.0.0.apk
-│   └── app-1.0.1.apk
-└── metadata/
-    └── versions.json   # Metadata versi
-```
+## Dokumen Terkait
 
-### Dokumentasi Lengkap
-
-Lihat `UPDATE-SYSTEM-ARCHITECTURE.md` untuk detail arsitektur lengkap.
+- `Structure.md` — struktur direktori dan alur layar.
+- `System-Design.md` — arsitektur data + services.
+- `UPDATE-SYSTEM-ARCHITECTURE.md` — detail sistem update/OTA.

@@ -4,12 +4,12 @@
 > Sejak unifikasi sistem update, manifest & aset modul **tidak lagi** dipublikasikan ke
 > cabang `mobile` (GitHub raw). Yang berlaku sekarang:
 >
-> - `GET /api/v1/ota-manifest` + `GET /ota/<versi>/<berkas>` di server API sendiri.
-> - Publikasi: `npm run ota:publish` → `scripts/publish-ota-server.mjs` (POST `/api/v1/publish-ota`).
+> - `GET /ota-manifest` + `GET /ota/<versi>/<berkas>` di server API sendiri.
+> - Publikasi: `npm run ota:publish` → `scripts/publish-ota-server.mjs` (POST `/publish-ota`).
 >   `scripts/publish-ota-git.mjs` dan seluruh alur `git add -f version.json` di bawah **sudah dihapus**.
 > - Satu tombol `Cek & Perbarui Aplikasi` menggabungkan kanal modul + kanal paket APK.
 >
-> Rincian + bukti verifikasi: `audits/update-unification-audit-2026-10-16.md`.
+> Rincian + bukti verifikasi: `UPDATE-SYSTEM-ARCHITECTURE.md` (kanal modul) dan `OTA-UPDATE-SYSTEM.md` (arsitektur klien).
 > Bagian di bawah tetap berguna sebagai catatan arsitektur klien (staging, hash, purge, SW).
 
 Dokumen ini menjelaskan cara kerja `src/services/ota.ts` + `src/sw.js` **versi v4**, bug

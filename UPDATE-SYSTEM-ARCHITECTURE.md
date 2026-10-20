@@ -9,11 +9,11 @@
 > - **Satu tombol** `Cek & Perbarui Aplikasi` (`src/services/appUpdate.ts`) memeriksa
 >   kanal modul web DAN kanal paket APK sekaligus. Tombol terpisah dihapus.
 > - **Manifest & aset modul dilayani server API sendiri**, bukan GitHub raw:
->   `GET /api/v1/ota-manifest` dan `GET /ota/<versi>/<berkas>`.
+>   `GET /ota-manifest` dan `GET /ota/<versi>/<berkas>`.
 > - **Publikasi** memakai `npm run ota:publish` → `scripts/publish-ota-server.mjs`
->   (POST `/api/v1/publish-ota`, secret `PUBLISH_SECRET`). Skrip `publish-ota-git.mjs` dihapus.
+>   (POST `/publish-ota`, secret `PUBLISH_SECRET`). Skrip `publish-ota-git.mjs` dihapus.
 >
-> Detail lengkap + langkah verifikasi: `audits/update-unification-audit-2026-10-16.md`.
+> Detail lengkap + langkah verifikasi: `OTA-UPDATE-SYSTEM.md`.
 
 **Tanggal Overhaul:** 2026-10-14
 
@@ -54,10 +54,10 @@
 │         │            │ (durable)    │                                   │
 │         │            └──────────────┘                                   │
 └─────────┼─────────────────────────────────────────────────────────────────┘
-          │ HTTP GET /api/v1/app-version
+          │ HTTP GET /app-version
           ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        BACKEND SERVER (Express.js/Railway)                   │
+│                        SUPABASE EDGE FUNCTION (/functions/v1/api)                   │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
 │  │  Version     │    │   APK File   │    │  Release    │               │
 │  │  Check API  │───▶│  Storage     │───▶│  Notes API  │               │
@@ -74,7 +74,7 @@
 ```
 Mobile App                          Backend API
     │                                    │
-    │── GET /api/v1/app-version ────────▶│
+    │── GET /app-version ────────▶│
     │   ?current=1.0.0                    │
     │                                    │
     │◀── 200 OK (JSON) ──────────────────│
@@ -82,14 +82,14 @@ Mobile App                          Backend API
     │     "latestVersion": "1.0.1",
     │     "updateAvailable": true,
     │     "isForceUpdate": false,
-    │     "downloadUrl": "/api/v1/app-download/1.0.1",
+    │     "downloadUrl": "/app-download/1.0.1",
     │     "releaseNotes": "Perbaikan bug dan peningkatan performa",
     │     "apkSize": 15728640,
     │     "apkHash": "sha256:abc123..."
     │   }
 ```
 
-**Endpoint:** `GET /api/v1/app-version?current=:version`
+**Endpoint:** `GET /app-version?current=:version`
 
 **Headers:**
 - `Cache-Control: no-cache, no-store`
@@ -115,7 +115,7 @@ interface AppVersionResponse {
 ```
 Mobile App                          Backend API
     │                                    │
-    │── GET /api/v1/app-download/1.0.1 ─▶│
+    │── GET /app-download/1.0.1 ─▶│
     │   (binary stream)                   │
     │                                    │
     │◀── 200 OK (application/vnd.android.package-archive) ──│
@@ -150,7 +150,7 @@ Mobile App                          Android OS
 ```typescript
 // Selalu ambil manifest terbaru
 const timestamp = Date.now();
-const url = `${API_BASE}/api/v1/app-version?current=${currentVersion}&t=${timestamp}`;
+const url = `${API_BASE}/app-version?current=${currentVersion}&t=${timestamp}`;
 
 const response = await CapacitorHttp.request({
   url,
@@ -166,7 +166,7 @@ const response = await CapacitorHttp.request({
 ### 3.2 APK Download dengan Cache-Buster
 
 ```typescript
-const downloadUrl = `${API_BASE}/api/v1/app-download/${version}?t=${Date.now()}`;
+const downloadUrl = `${API_BASE}/app-download/${version}?t=${Date.now()}`;
 
 // Download ke Directory.Data (durable storage)
 const result = await Filesystem.downloadFile({
@@ -328,11 +328,11 @@ interface UpdateNotifierProps {
 
 ## 7. Backend API Specification
 
-### 7.1 GET /api/v1/app-version
+### 7.1 GET /app-version
 
 **Request:**
 ```
-GET /api/v1/app-version?current=1.0.0
+GET /app-version?current=1.0.0
 ```
 
 **Response (200):**
@@ -341,7 +341,7 @@ GET /api/v1/app-version?current=1.0.0
   "latestVersion": "1.0.1",
   "updateAvailable": true,
   "isForceUpdate": false,
-  "downloadUrl": "/api/v1/app-download/1.0.1",
+  "downloadUrl": "/app-download/1.0.1",
   "releaseNotes": "Perbaikan bug geofencing dan peningkatan performa sinkronisasi",
   "apkSize": 15728640,
   "apkHash": "sha256:a1b2c3d4e5f6...",
@@ -365,11 +365,11 @@ GET /api/v1/app-version?current=1.0.0
 }
 ```
 
-### 7.2 GET /api/v1/app-download/:version
+### 7.2 GET /app-download/:version
 
 **Request:**
 ```
-GET /api/v1/app-download/1.0.1
+GET /app-download/1.0.1
 ```
 
 **Response (200):**
@@ -385,11 +385,11 @@ GET /api/v1/app-download/1.0.1
 }
 ```
 
-### 7.3 GET /api/v1/release-notes/:version
+### 7.3 GET /release-notes/:version
 
 **Request:**
 ```
-GET /api/v1/release-notes/1.0.1
+GET /release-notes/1.0.1
 ```
 
 **Response (200):**
@@ -660,8 +660,8 @@ mobile-trip Mobile Branch/
 ├── backend/
 │   └── src/
 │       └── routes/
-│           ├── appVersion.js     # GET /api/v1/app-version
-│           └── appDownload.js    # GET /api/v1/app-download/:version
+│           ├── appVersion.js     # GET /app-version
+│           └── appDownload.js    # GET /app-download/:version
 │
 └── scripts/
     └── publish-apk.mjs          # Script upload APK ke server
@@ -685,7 +685,7 @@ cd android
 npm run publish:apk -- --version=1.0.1 --apk=./app/build/outputs/apk/release/app-release.apk
 
 # 3. Verifikasi
-curl "https://api.example.com/api/v1/app-version?current=1.0.0"
+curl "https://api.example.com/app-version?current=1.0.0"
 ```
 
 ### 12.2 Backend APK Storage

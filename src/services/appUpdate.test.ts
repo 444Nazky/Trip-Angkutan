@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
 
 
 vi.mock('./ota', () => ({
+  isLocalhostDev: () => false,
   getCurrentVersion: async () => '1.0.10',
   checkForUpdate: async (_local: string | null | undefined, onState?: (s: { status: string }) => void) => {
     onState?.({ status: h.moduleState })

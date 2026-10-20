@@ -33,6 +33,7 @@ export interface RouteRow {
   dermaga_name?: string
   dermaga_code?: string
   region_name?: string
+  region_id?: string
 }
 
 

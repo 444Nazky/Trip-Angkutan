@@ -16,7 +16,7 @@ const args = process.argv.slice(2)
 const argValue = (name) => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
 const hasFlag = (name) => args.includes(`--${name}`)
 
-const SERVER = (argValue('server') || process.env.TRIP_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
+const SERVER = (argValue('server') || process.env.TRIP_API_URL || 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api').replace(/\/+$/, '')
 const SECRET = argValue('secret') || process.env.PUBLISH_SECRET || 'trip-angkut-secret'
 
 
@@ -84,7 +84,7 @@ const payload = {
 
 let response
 try {
-  response = await fetch(`${SERVER}/api/v1/publish-ota`, {
+  response = await fetch(`${SERVER}/publish-ota`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-publish-secret': SECRET },
     body: JSON.stringify(payload),

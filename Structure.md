@@ -1,7 +1,7 @@
 # Struktur Proyek Aplikasi-Trip-Ionic
 
 ## Overview
-Proyek ini adalah aplikasi mobile (Ionic/Capacitor + React/TypeScript) dengan backend Node.js/Express, dan dua versi admin panel (PHP `admin/` dan Ionic/Angular build `admin-ci/`).
+Proyek ini adalah aplikasi mobile (Ionic/Capacitor + React/TypeScript) dengan admin dashboard tertanam di modul yang sama. Seluruh API berjalan sebagai Supabase Edge Functions (folder `supabase/functions/api`), tanpa backend Express mandiri.
 
 ---
 
@@ -9,12 +9,11 @@ Proyek ini adalah aplikasi mobile (Ionic/Capacitor + React/TypeScript) dengan ba
 
 ```
 Aplikasi-Trip-Ionic/
-├── src/                    # Source code utama (React + Ionic Mobile)
-├── backend/                # Backend API (Node.js/Express)
-├── admin/                  # Admin Panel v1 (PHP)
-├── admin-ci/               # Admin Panel v2 (Ionic/Angular build output)
+├── src/                    # Source code utama (React + Ionic Mobile + Admin Dashboard)
+├── supabase/               # Supabase Edge Functions (API) + scripts migrasi
 ├── android/                # Konfigurasi Android (Capacitor)
 ├── www/                    # Build output web (Ionic)
+├── scripts/                # Script rilis APK/OTA (publish-apk, sync-version, dll.)
 ├── .angular/               # Angular cache
 ├── .vscode/                # VS Code settings
 ├── capacitor.config.ts     # Konfigurasi Capacitor
@@ -97,45 +96,17 @@ src/
 
 ---
 
-## Detail backend/ (Backend API)
+## Detail supabase/ (API, Edge Functions)
 
 ```
-backend/
-├── package.json
-├── package-lock.json
-├── node_modules/
-└── src/
-    └── db.js             # Database connection (PostgreSQL/MySQL/SQLite)
-```
-
----
-
-## Detail admin/ (Admin Panel v1 - PHP)
-
-```
-admin/
-├── index.php             # Entry point PHP
-├── package.json          # Jika pakai build tools
-└── src/                  # Source PHP/JS
-```
-
----
-
-## Detail admin-ci/ (Admin Panel v2 - Ionic/Angular Build)
-
-```
-admin-ci/
-├── index.html            # Entry HTML
-├── index.php             # PHP fallback
-├── 3rdpartylicenses.txt  # Licenses
-├── prerendered-routes.json
-├── main-*.js             # Bundled JS (multiple versions)
-├── styles-*.css          # Bundled CSS
-├── assets/
-│   ├── guest-profile.jpeg
-│   └── icon/
-│       └── favicon.png
-└── svg/                  # Ionicon SVG icons (300+ files)
+supabase/
+├── config.toml             # Konfigurasi Supabase lokal (verify_jwt = false)
+├── functions/api/          # Edge Function tunggal "api" — routing semua endpoint
+│   ├── index.ts            # Router utama (path via query param/pathname)
+│   └── handlers/           # auth, trips, tariffs, plates, routes, geofences,
+│                           #   officers, reports, regions, dermagas, appVersion (OTA)
+├── migrations/             # Skema SQL Supabase
+└── scripts/                # migrate_sqlite_to_supabase.py (provenance)
 ```
 
 ---
@@ -178,18 +149,15 @@ www/
 - **Tailwind CSS** (Utility-first CSS)
 - **React Context** (State management via store.tsx)
 - **Tesseract.js** (OCR plat nomor)
-- **Axios/Fetch** (API client)
+- **Supabase API Client** (klien API resmi)
 
 ### Backend
-- **Node.js** + **Express**
-- **Database**: PostgreSQL/MySQL/SQLite (via db.js)
-- **JWT** Authentication
+- **Supabase Edge Functions** (Deno) — satu function `api` yang melayani seluruh endpoint
+- **Database**: Supabase Postgres (RLS per wilayah)
+- **Auth**: JWT (bcrypt compare PIN petugas di sisi server)
 
-### Admin Panel v1
-- **PHP** (Vanilla/Laravel?)
-
-### Admin Panel v2
-- **Angular** + **Ionic** (Build output di admin-ci/)
+### Admin
+- Dashboard admin tertanam di aplikasi yang sama (`src/pages/admin/`) — login mode admin
 
 ### Mobile Native
 - **Android** (Capacitor)
@@ -213,7 +181,7 @@ MobileShell (FloatingBottomNav)
     │       ├── "Mulai Trip" → TripConditionScreen
     │       │       ├── "Kosong" (Angkutan Kosong)
     │       │       │       ├── routeCode = SJRE-SBDZ (locked)
-    │       │       │       ├── RouteSelectScreen (rute terkunci, Lock icon)
+    │       │       │       ├── RouteSelectScreen (kedua rute tampil; salah satu di-lock sesuai titik GPS/geofence, Lock icon)
     │       │       │       ├── TripSummaryScreen (wajib foto kamera)
     │       │       │       ├── Submit Trip → TripActiveScreen
     │       │       │       └── TripCompleteScreen → Selesai + Sync
@@ -325,7 +293,7 @@ interface Draft {
 
 ## Catatan Penting
 
-1. **Dual Admin Panel**: PHP (`admin/`) dan Ionic/Angular build (`admin-ci/`)
+1. **Satu Codebase**: aplikasi mobile + admin dashboard tertanam (src/pages/admin/)
 2. **Capacitor**: Config di `capacitor.config.ts`, build Android di `android/`
 3. **OCR Integration**: Tesseract.js di `CameraScreen` untuk scan plat nomor
 4. **Offline Support**: `sync.ts` handle queue saat offline, sinkron saat online

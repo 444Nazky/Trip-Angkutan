@@ -202,20 +202,31 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     )
   }
 
-  const list = geoStatus === 'checking' || geoStatus === 'blocked'
-    ? []
-    : activeGeofence
-      ? dermagaFiltered.filter(r => activeGeofence.allowedRoutes.includes(r.code))
-      : []
+  // ponytail: SEMUA rute dock ditampilkan; rute yang tidak cocok dengan titik
+  // GPS aktif di-lock (bukan disembunyikan) sesuai SOP rute ganda. Bila rute
+  // untuk dock terpilih belum tersinkron, tampilkan seluruh rute tersimpan —
+  // kedua arah (mis. SBDZ→SJRE dan SJRE→SBDZ) tetap tampak, dan locking
+  // geofence tetap membatasi input ke rute yang sesuai titik GPS aktif.
+  const list = dermagaFiltered.length ? dermagaFiltered : routes
 
-  const validSelected = draft.routeCode && list.some(r => r.code === draft.routeCode)
+  // ponytail: normalisasi kode rute — format "SBDZ-SJRE" vs "SBDZ→SJRE" harus
+  // dianggap rute yang sama, jadi locking geofence tidak salah kunci.
+  const normalizeRouteCode = (code: string): string =>
+    code.toUpperCase().trim().replace(/→|->|>/g, '-')
+
+  const isRouteLocked = (code: string): boolean => {
+    if (geoStatus !== 'inside' || !activeGeofence) return true
+    const normalized = normalizeRouteCode(code)
+    return !activeGeofence.allowedRoutes.some(r => normalizeRouteCode(r) === normalized)
+  }
+
+  const validSelected = draft.routeCode && !isRouteLocked(draft.routeCode)
     ? draft.routeCode
     : null
 
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
-    if (!validSelected) return
-    if (activeGeofence && !activeGeofence.allowedRoutes.includes(validSelected)) return
+    if (!validSelected || isRouteLocked(validSelected)) return
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
@@ -358,22 +369,27 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
 
       <div className="space-y-2.5 mb-5">
         {!loading && list.map(r => {
+          const locked = isRouteLocked(r.code)
           const isSelected = validSelected === r.code
           return (
             <button
               key={r.code}
               onClick={() => patchDraft({ routeCode: r.code })}
+              disabled={locked}
+              title={locked ? 'Rute terkunci: titik GPS aktif tidak cocok' : undefined}
               className={`w-full rounded-2xl p-4 text-left border-2 transition-all ${
-                isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'
+                locked
+                  ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                  : isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
-                      <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${locked ? 'bg-slate-200' : isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
+                      {locked ? <Lock size={15} className="text-slate-500" /> : <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />}
                     </div>
                   <div>
-                    <p className="font-bold text-slate-900 text-[13px]">{r.from} → {r.to}</p>
+                    <p className={`font-bold text-[13px] ${locked ? 'text-slate-400' : 'text-slate-900'}`}>{r.from} → {r.to}</p>
                     <p className="text-[11px] text-slate-400">{r.label}</p>
                   </div>
                 </div>
@@ -383,10 +399,20 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
                   {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                 </div>
               </div>
-              <div className="flex gap-4 pl-[52px]">
+              <div className="flex gap-4 pl-[52px] items-center">
                 <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance || '—'}</span>
                 <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration || '—'}</span>
               </div>
+              {locked && (
+                <p className="mt-2 ml-[52px] text-[10px] font-medium text-slate-500 flex items-center gap-1">
+                  <AlertTriangle size={10} className="text-slate-400 shrink-0" />
+                  {geoStatus === 'inside'
+                    ? 'Lokasi Anda sesuai titik rute lain — rute ini terkunci'
+                    : geoStatus === 'checking'
+                      ? 'Memeriksa lokasi GPS...'
+                      : 'Anda di luar radius geofence untuk rute ini'}
+                </p>
+              )}
             </button>
           )
         })}

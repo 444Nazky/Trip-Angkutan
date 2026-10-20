@@ -22,7 +22,7 @@ export interface UpdateState {
   error?: string
 }
 
-let _currentVersion: string | null = null
+const _currentVersion: string | null = null
 let _state: UpdateState = { status: 'idle' }
 let _error: { message: string; code?: string } | null = null
 let _pendingVersion: string | null = null

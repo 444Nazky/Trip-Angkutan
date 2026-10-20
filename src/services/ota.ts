@@ -22,7 +22,7 @@ export function isLocalhostDev(): boolean {
 
 
 
-// Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
+// Manifest & berkas modul kini dilayani edge function sendiri (/ota-manifest
 // dan /ota/<versi>/...), sehingga penerbitan tidak lagi bergantung repo GitHub.
 // Semua hit ke Edge Function lewat api.baseUrl (…/functions/v1/api)
 function manifestUrl(): string {

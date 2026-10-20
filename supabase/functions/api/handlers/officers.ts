@@ -16,6 +16,8 @@ async function officerExtras(officerId: string) {
 function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
   return {
     ...o,
+    pin_hash: o.pin ?? null,
+    pin: undefined,
     region_name: o.regions?.name,
     region_code: o.regions?.code,
     ...extras,
@@ -42,6 +44,30 @@ export async function getOfficers(req: Request): Promise<Response> {
   } catch (error) {
     console.error("Fetch officers error:", error);
     return json({ error: "Failed to fetch officers" }, 500);
+  }
+}
+
+// GET /officers/:id/dermaga-access — daftar dermaga akses petugas.
+// Petugas hanya boleh melihat akses dirinya sendiri; admin boleh siapa pun.
+export async function officerDermagaAccess(req: Request, officerId: string): Promise<Response> {
+  try {
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "Not authenticated" }, 401);
+    const isAdmin = String(ctx.role ?? "") === "admin";
+    if (!isAdmin && String(ctx.officerId ?? "") !== String(officerId)) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const { data, error } = await db
+      .from("officer_dermagas")
+      .select("dermagas(id, name, code, region_id)")
+      .eq("officer_id", officerId);
+    if (error) throw error;
+
+    return json((data ?? []).map((od: any) => od.dermagas).filter(Boolean));
+  } catch (error) {
+    console.error("Fetch officer dermaga-access error:", error);
+    return json({ error: "Failed to fetch dermaga access" }, 500);
   }
 }
 
