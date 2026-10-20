@@ -1,6 +1,6 @@
 import { WebPlugin, buildRequestInit } from "./@capacitor_core.js";
 import { Encoding } from "./@capacitor_filesystem.js";
-//#region node_modules/@capacitor/filesystem/dist/esm/web.js
+//#region node_modules/.deno/@capacitor+filesystem@8.1.5/node_modules/@capacitor/filesystem/dist/esm/web.js
 function resolve(path) {
 	const posix = path.split("/").filter((item) => item !== ".");
 	const newPosix = [];

@@ -1,79 +1,79 @@
 {
-  "hash": "7c6d5c1d",
-  "configHash": "55766cb3",
+  "hash": "23e5da5b",
+  "configHash": "622ff9a1",
   "lockfileHash": "aed0556e",
-  "browserHash": "4529a5f8",
+  "browserHash": "7d2a6f95",
   "optimized": {
     "@capacitor/app": {
-      "src": "../../../../../../node_modules/@capacitor/app/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+app@8.1.2/node_modules/@capacitor/app/dist/esm/index.js",
       "file": "@capacitor_app.js",
-      "fileHash": "1fda18c3",
+      "fileHash": "852dc908",
       "needsInterop": false
     },
     "@capacitor/camera": {
-      "src": "../../../../../../node_modules/@capacitor/camera/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+camera@8.2.6/node_modules/@capacitor/camera/dist/esm/index.js",
       "file": "@capacitor_camera.js",
-      "fileHash": "ef597a80",
+      "fileHash": "cf742f75",
       "needsInterop": false
     },
     "@capacitor/core": {
-      "src": "../../../../../../node_modules/@capacitor/core/dist/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+core@8.5.3/node_modules/@capacitor/core/dist/index.js",
       "file": "@capacitor_core.js",
-      "fileHash": "26f29eb7",
+      "fileHash": "15a80dbf",
       "needsInterop": false
     },
     "@capacitor/device": {
-      "src": "../../../../../../node_modules/@capacitor/device/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+device@8.0.3/node_modules/@capacitor/device/dist/esm/index.js",
       "file": "@capacitor_device.js",
-      "fileHash": "fa87d924",
+      "fileHash": "57ace631",
       "needsInterop": false
     },
     "@capacitor/filesystem": {
-      "src": "../../../../../../node_modules/@capacitor/filesystem/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+filesystem@8.1.5/node_modules/@capacitor/filesystem/dist/esm/index.js",
       "file": "@capacitor_filesystem.js",
-      "fileHash": "d16569da",
+      "fileHash": "992a21ee",
       "needsInterop": false
     },
     "@capacitor/geolocation": {
-      "src": "../../../../../../node_modules/@capacitor/geolocation/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+geolocation@8.2.4/node_modules/@capacitor/geolocation/dist/esm/index.js",
       "file": "@capacitor_geolocation.js",
-      "fileHash": "37ef8092",
+      "fileHash": "abfe70ba",
       "needsInterop": false
     },
     "@capacitor/network": {
-      "src": "../../../../../../node_modules/@capacitor/network/dist/esm/index.js",
+      "src": "../../../../../../node_modules/.deno/@capacitor+network@8.0.1/node_modules/@capacitor/network/dist/esm/index.js",
       "file": "@capacitor_network.js",
-      "fileHash": "09ca46fe",
+      "fileHash": "cef43eb6",
       "needsInterop": false
     },
     "lucide-react": {
-      "src": "../../../../../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "src": "../../../../../../node_modules/.deno/lucide-react@1.59.0/node_modules/lucide-react/dist/esm/lucide-react.mjs",
       "file": "lucide-react.js",
-      "fileHash": "cf4a22f1",
+      "fileHash": "0fd5c30c",
       "needsInterop": false
     },
     "react-dom/client": {
-      "src": "../../../../../../node_modules/react-dom/client.js",
+      "src": "../../../../../../node_modules/.deno/react-dom@19.3.1/node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "69eb1bbb",
+      "fileHash": "d7aad1a3",
       "needsInterop": true
     },
     "react": {
-      "src": "../../../../../../node_modules/react/index.js",
+      "src": "../../../../../../node_modules/.deno/react@19.3.1/node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "4abcdaa8",
+      "fileHash": "c5c31440",
       "needsInterop": true
     },
     "react/jsx-runtime": {
-      "src": "../../../../../../node_modules/react/jsx-runtime.js",
+      "src": "../../../../../../node_modules/.deno/react@19.3.1/node_modules/react/jsx-runtime.js",
       "file": "react_jsx-runtime.js",
-      "fileHash": "e7e9c3b8",
+      "fileHash": "6600bff7",
       "needsInterop": true
     },
     "tesseract.js": {
-      "src": "../../../../../../node_modules/tesseract.js/src/index.js",
+      "src": "../../../../../../node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/index.js",
       "file": "tesseract__js.js",
-      "fileHash": "5dd068c6",
+      "fileHash": "69ac6688",
       "needsInterop": true
     }
   },
@@ -82,28 +82,28 @@
       "file": "rolldown-runtime-xMd7gp_u.js",
       "isDynamicEntry": false
     },
-    "synapse-DhWU51FR": {
-      "file": "synapse-DhWU51FR.js",
+    "synapse-C06u7IgU": {
+      "file": "synapse-C06u7IgU.js",
       "isDynamicEntry": false
     },
-    "web-8YuiPUEH": {
-      "file": "web-8YuiPUEH.js",
+    "web-C6N6HA7-": {
+      "file": "web-C6N6HA7-.js",
       "isDynamicEntry": true
     },
-    "web-AEK0fH6Z": {
-      "file": "web-AEK0fH6Z.js",
+    "web-Cjjt4-xe": {
+      "file": "web-Cjjt4-xe.js",
       "isDynamicEntry": true
     },
-    "web-B_JAPfM0": {
-      "file": "web-B_JAPfM0.js",
+    "web-DXVmUZdf": {
+      "file": "web-DXVmUZdf.js",
       "isDynamicEntry": true
     },
-    "web-C8ChANo-": {
-      "file": "web-C8ChANo-.js",
+    "web-SyqXhKiX": {
+      "file": "web-SyqXhKiX.js",
       "isDynamicEntry": true
     },
-    "web-C9MQ4OOn": {
-      "file": "web-C9MQ4OOn.js",
+    "web-z5hUYdzB": {
+      "file": "web-z5hUYdzB.js",
       "isDynamicEntry": true
     }
   }

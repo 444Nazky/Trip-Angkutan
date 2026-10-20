@@ -1,6 +1,6 @@
 import { registerPlugin } from "./@capacitor_core.js";
-import { t as f } from "./synapse-DhWU51FR.js";
-//#region node_modules/@capacitor/filesystem/dist/esm/definitions.js
+import { t as f } from "./synapse-C06u7IgU.js";
+//#region node_modules/.deno/@capacitor+filesystem@8.1.5/node_modules/@capacitor/filesystem/dist/esm/definitions.js
 var Directory;
 (function(Directory) {
 	/**
@@ -125,8 +125,8 @@ var FilesystemDirectory = Directory;
 */
 var FilesystemEncoding = Encoding;
 //#endregion
-//#region node_modules/@capacitor/filesystem/dist/esm/index.js
-var Filesystem = registerPlugin("Filesystem", { web: () => import("./web-B_JAPfM0.js").then((m) => new m.FilesystemWeb()) });
+//#region node_modules/.deno/@capacitor+filesystem@8.1.5/node_modules/@capacitor/filesystem/dist/esm/index.js
+var Filesystem = registerPlugin("Filesystem", { web: () => import("./web-DXVmUZdf.js").then((m) => new m.FilesystemWeb()) });
 f();
 //#endregion
 export { Directory, Encoding, Filesystem, FilesystemDirectory, FilesystemEncoding };

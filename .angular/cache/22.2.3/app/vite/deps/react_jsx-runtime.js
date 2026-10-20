@@ -1,6 +1,6 @@
 import { t as __commonJSMin } from "./rolldown-runtime-xMd7gp_u.js";
 import { t as require_react } from "./react.js";
-//#region node_modules/react/cjs/react-jsx-runtime.development.js
+//#region node_modules/.deno/react@19.3.1/node_modules/react/cjs/react-jsx-runtime.development.js
 /**
 * @license React
 * react-jsx-runtime.development.js
@@ -212,7 +212,7 @@ var require_react_jsx_runtime_development = /* @__PURE__ */ __commonJSMin(((expo
 	})();
 }));
 //#endregion
-//#region node_modules/react/jsx-runtime.js
+//#region node_modules/.deno/react@19.3.1/node_modules/react/jsx-runtime.js
 var require_jsx_runtime = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_jsx_runtime_development();
 }));

@@ -1,5 +1,5 @@
 import { WebPlugin } from "./@capacitor_core.js";
-//#region node_modules/@capacitor/geolocation/dist/esm/web.js
+//#region node_modules/.deno/@capacitor+geolocation@8.2.4/node_modules/@capacitor/geolocation/dist/esm/web.js
 var GeolocationWeb = class extends WebPlugin {
 	constructor() {
 		super();
