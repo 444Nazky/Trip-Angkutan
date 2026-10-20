@@ -1,4 +1,4 @@
-//#region node_modules/@capacitor/core/dist/index.js
+//#region node_modules/.deno/@capacitor+core@8.5.3/node_modules/@capacitor/core/dist/index.js
 /*! Capacitor: https://capacitorjs.com/ - MIT License */
 var ExceptionCode;
 (function(ExceptionCode) {

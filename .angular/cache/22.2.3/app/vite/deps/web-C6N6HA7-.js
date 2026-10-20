@@ -1,5 +1,5 @@
 import { WebPlugin } from "./@capacitor_core.js";
-//#region node_modules/@capacitor/network/dist/esm/web.js
+//#region node_modules/.deno/@capacitor+network@8.0.1/node_modules/@capacitor/network/dist/esm/web.js
 function translatedConnection() {
 	const connection = window.navigator.connection || window.navigator.mozConnection || window.navigator.webkitConnection;
 	let result = "unknown";

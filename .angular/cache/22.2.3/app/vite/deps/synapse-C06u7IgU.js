@@ -1,4 +1,4 @@
-//#region node_modules/@capacitor/synapse/dist/synapse.mjs
+//#region node_modules/.deno/@capacitor+synapse@1.0.4/node_modules/@capacitor/synapse/dist/synapse.mjs
 function s(t) {
 	t.CapacitorUtils.Synapse = new Proxy({}, { get(e, n) {
 		return new Proxy({}, { get(w, o) {

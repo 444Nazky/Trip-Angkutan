@@ -1,5 +1,5 @@
 import { r as __require, t as __commonJSMin } from "./rolldown-runtime-xMd7gp_u.js";
-//#region node_modules/regenerator-runtime/runtime.js
+//#region node_modules/.deno/regenerator-runtime@0.13.11/node_modules/regenerator-runtime/runtime.js
 var require_runtime = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* Copyright (c) 2014-present, Facebook, Inc.
@@ -436,12 +436,12 @@ var require_runtime = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/utils/getId.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/utils/getId.js
 var require_getId = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = (prefix, cnt) => `${prefix}-${cnt}-${Math.random().toString(16).slice(3, 8)}`;
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/createJob.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/createJob.js
 var require_createJob = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var getId = require_getId();
 	var jobCounter = 0;
@@ -459,7 +459,7 @@ var require_createJob = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/utils/log.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/utils/log.js
 var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var logging = false;
 	exports.logging = logging;
@@ -469,7 +469,7 @@ var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.log = (...args) => logging ? console.log.apply(exports, args) : null;
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/createScheduler.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/createScheduler.js
 var require_createScheduler = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var createJob = require_createJob();
 	var { log } = require_log();
@@ -540,7 +540,7 @@ var require_createScheduler = /* @__PURE__ */ __commonJSMin(((exports, module) =
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/utils/getEnvironment.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/utils/getEnvironment.js
 var require_getEnvironment = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = (key) => {
 		const env = {};
@@ -552,7 +552,7 @@ var require_getEnvironment = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/utils/resolvePaths.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/utils/resolvePaths.js
 var require_resolvePaths = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var resolveURL = require_getEnvironment()("type") === "browser" ? (s) => new URL(s, window.location.href).href : (s) => s;
 	module.exports = (options) => {
@@ -568,7 +568,7 @@ var require_resolvePaths = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/constants/OEM.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/constants/OEM.js
 var require_OEM = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		TESSERACT_ONLY: 0,
@@ -578,7 +578,7 @@ var require_OEM = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/package.json
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/package.json
 var require_package = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		"name": "tesseract.js",
@@ -665,7 +665,7 @@ var require_package = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/constants/defaultOptions.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/constants/defaultOptions.js
 var require_defaultOptions$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		workerBlobURL: true,
@@ -673,7 +673,7 @@ var require_defaultOptions$1 = /* @__PURE__ */ __commonJSMin(((exports, module) 
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/defaultOptions.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/defaultOptions.js
 var require_defaultOptions = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var version = require_package().version;
 	module.exports = {
@@ -682,7 +682,7 @@ var require_defaultOptions = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/spawnWorker.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/spawnWorker.js
 var require_spawnWorker = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* spawnWorker
@@ -701,7 +701,7 @@ var require_spawnWorker = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/terminateWorker.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/terminateWorker.js
 var require_terminateWorker = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* terminateWorker
@@ -715,7 +715,7 @@ var require_terminateWorker = /* @__PURE__ */ __commonJSMin(((exports, module) =
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/onMessage.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/onMessage.js
 var require_onMessage = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = (worker, handler) => {
 		worker.onmessage = ({ data }) => {
@@ -724,7 +724,7 @@ var require_onMessage = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/send.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/send.js
 var require_send = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* send
@@ -738,7 +738,7 @@ var require_send = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/loadImage.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/loadImage.js
 var require_loadImage = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* readFromBlobOrFile
@@ -786,7 +786,7 @@ var require_loadImage = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = loadImage;
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/worker/browser/index.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/worker/browser/index.js
 var require_browser = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		defaultOptions: require_defaultOptions(),
@@ -798,7 +798,7 @@ var require_browser = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/createWorker.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/createWorker.js
 var require_createWorker = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var resolvePaths = require_resolvePaths();
 	var createJob = require_createJob();
@@ -989,7 +989,7 @@ var require_createWorker = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/Tesseract.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/Tesseract.js
 var require_Tesseract = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var createWorker = require_createWorker();
 	var recognize = async (image, langs, options) => {
@@ -1010,7 +1010,7 @@ var require_Tesseract = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/constants/languages.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/constants/languages.js
 var require_languages = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* @typedef {object} Languages
@@ -1226,7 +1226,7 @@ var require_languages = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/constants/PSM.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/constants/PSM.js
 var require_PSM = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		OSD_ONLY: "0",
@@ -1246,7 +1246,7 @@ var require_PSM = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/tesseract.js/src/index.js
+//#region node_modules/.deno/tesseract.js@7.0.0/node_modules/tesseract.js/src/index.js
 var require_src = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	*

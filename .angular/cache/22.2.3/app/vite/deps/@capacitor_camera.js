@@ -1,5 +1,5 @@
 import { CapacitorException, WebPlugin, registerPlugin } from "./@capacitor_core.js";
-//#region node_modules/@capacitor/camera/dist/esm/definitions.js
+//#region node_modules/.deno/@capacitor+camera@8.2.6/node_modules/@capacitor/camera/dist/esm/definitions.js
 /**
 * @deprecated This enum is only meant to be used for deprecated `getPhoto` method.
 * It will be removed in a future major version of the plugin, along with `getPhoto`.
@@ -164,7 +164,7 @@ var CameraErrorCode;
 	CameraErrorCode["GeneralError"] = "OS-PLUG-CAMR-0026";
 })(CameraErrorCode || (CameraErrorCode = {}));
 //#endregion
-//#region node_modules/@capacitor/camera/dist/esm/web.js
+//#region node_modules/.deno/@capacitor+camera@8.2.6/node_modules/@capacitor/camera/dist/esm/web.js
 var CameraWeb = class extends WebPlugin {
 	async takePhoto(options) {
 		return new Promise(async (resolve, reject) => {
@@ -574,7 +574,7 @@ var CameraWeb = class extends WebPlugin {
 };
 new CameraWeb();
 //#endregion
-//#region node_modules/@capacitor/camera/dist/esm/index.js
+//#region node_modules/.deno/@capacitor+camera@8.2.6/node_modules/@capacitor/camera/dist/esm/index.js
 var Camera = registerPlugin("Camera", { web: () => new CameraWeb() });
 //#endregion
 export { Camera, CameraDirection, CameraErrorCode, CameraResultType, CameraSource, EncodingType, MediaType, MediaTypeSelection };

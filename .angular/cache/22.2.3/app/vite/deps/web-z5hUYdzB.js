@@ -1,5 +1,5 @@
 import { WebPlugin } from "./@capacitor_core.js";
-//#region node_modules/@capacitor/app/dist/esm/web.js
+//#region node_modules/.deno/@capacitor+app@8.1.2/node_modules/@capacitor/app/dist/esm/web.js
 var AppWeb = class extends WebPlugin {
 	constructor() {
 		super();

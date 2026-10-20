@@ -1,5 +1,5 @@
 import { t as __commonJSMin } from "./rolldown-runtime-xMd7gp_u.js";
-//#region node_modules/react/cjs/react.development.js
+//#region node_modules/.deno/react@19.3.1/node_modules/react/cjs/react.development.js
 /**
 * @license React
 * react.development.js
@@ -774,12 +774,12 @@ var require_react_development = /* @__PURE__ */ __commonJSMin(((exports, module)
 		exports.useTransition = function() {
 			return resolveDispatcher().useTransition();
 		};
-		exports.version = "19.3.0";
+		exports.version = "19.3.1";
 		"undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
 	})();
 }));
 //#endregion
-//#region node_modules/react/index.js
+//#region node_modules/.deno/react@19.3.1/node_modules/react/index.js
 var require_react = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_react_development();
 }));
