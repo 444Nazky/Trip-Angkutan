@@ -208,13 +208,6 @@ export async function hasPersistFlag(): Promise<boolean> {
 
 
 
-export async function getAppliedVersion(): Promise<string | null> {
-  try { return localStorage.getItem(APPLIED_VER_KEY) } catch { return null }
-}
-
-
-
-
 const isNative = () => Capacitor.isNativePlatform()
 
 
@@ -856,20 +849,6 @@ export async function resetOtaStorage(): Promise<void> {
 
 
 
-export async function resetAppCacheFully(): Promise<void> {
-  await resetOtaStorage()
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(regs.map(r => r.unregister().catch(() => false)))
-    }
-  } catch { /* tidak ada SW */ }
-  console.log('[OTA] resetAppCacheFully() selesai — reload akan memakai bundle bawaan')
-}
-
-
-
-
 export async function auditOta(): Promise<{
   localVersion: string
   remoteVersion: string | null
@@ -922,31 +901,6 @@ export async function auditOta(): Promise<{
     cacheActiveEntries,
     hasRemoteManifest,
   }
-}
-
-
-
-
-export function registerOtaServiceWorker(forceRefresh = false): void {
-  if (!('serviceWorker' in navigator)) return
-  if (location.protocol === 'file:') return
-  navigator.serviceWorker.register('sw.js', { scope: '/', updateViaCache: 'none' }).then(reg => {
-    void reg.update().catch(() => undefined)
-    const activateNew = (worker: ServiceWorker | null) => {
-      worker?.postMessage({ type: 'SKIP_WAITING' })
-    }
-    activateNew(reg.waiting)
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing
-      if (!newWorker) return
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) activateNew(newWorker)
-      })
-    })
-    if (forceRefresh) activateNew(reg.waiting)
-  }).catch(err => {
-    console.warn('[OTA] service worker gagal didaftarkan:', err)
-  })
 }
 
 

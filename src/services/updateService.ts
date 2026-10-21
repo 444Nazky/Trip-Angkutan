@@ -438,7 +438,6 @@ class UpdateService {
   private _updateInfo: UpdateInfo | null = null;
   private _pendingVersion: string | null = null;
   private _error: UpdateError | null = null;
-  private _listeners: Set<(state: UpdateState, info?: UpdateInfo | null, error?: UpdateError | null) => void> = new Set();
 
   constructor() {
     this.init();
@@ -460,10 +459,6 @@ class UpdateService {
     return this._currentVersion;
   }
 
-  get updateInfo(): UpdateInfo | null {
-    return this._updateInfo;
-  }
-
   get pendingVersion(): string | null {
     return this._pendingVersion;
   }
@@ -472,28 +467,9 @@ class UpdateService {
     return this._error;
   }
 
-  subscribe(callback: (state: UpdateState, info?: UpdateInfo | null, error?: UpdateError | null) => void): () => void {
-    this._listeners.add(callback);
-    return () => {
-      this._listeners.delete(callback);
-    };
-  }
-
-  private notify(state?: UpdateState, info?: UpdateInfo | null, error?: UpdateError | null): void {
-    const newState = state ?? this._state;
-    for (const listener of this._listeners) {
-      try {
-        listener(newState, info ?? this._updateInfo, error ?? this._error);
-      } catch (e) {
-        console.error('[Update] Listener error:', e);
-      }
-    }
-  }
-
   async checkForUpdate(): Promise<UpdateInfo | null> {
     this._state = 'checking';
     this._error = null;
-    this.notify();
 
     try {
       // Versi native selalu jadi acuan: build yang di-download belum tentu terpasang.
@@ -512,7 +488,6 @@ class UpdateService {
             message: `Gagal menghubungi server update (${api.baseUrl})`,
           };
         }
-        this.notify();
         return null;
       }
 
@@ -522,7 +497,6 @@ class UpdateService {
       if (!info.updateAvailable) {
         this._state = 'up-to-date';
         this._error = null;
-        this.notify();
         return info;
       }
 
@@ -535,7 +509,6 @@ class UpdateService {
 
       this._state = 'downloading';
       this._pendingVersion = info.latestVersion;
-      this.notify();
 
       if (info.downloadUrl) {
         await this.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash);
@@ -547,7 +520,6 @@ class UpdateService {
           code: 'DOWNLOAD_FAILED',
           message: 'Server menyatakan ada versi baru, tetapi paket APK-nya tidak tersedia. Laporkan ke admin.',
         };
-        this.notify();
       }
 
       return info;
@@ -557,7 +529,6 @@ class UpdateService {
         code: 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Gagal terhubung ke server'
       };
-      this.notify();
       return null;
     }
   }
@@ -566,7 +537,6 @@ class UpdateService {
     this._state = 'downloading';
     this._pendingVersion = version;
     this._error = null;
-    this.notify();
 
     let retries = 0;
     const maxRetries = 3;
@@ -581,7 +551,6 @@ class UpdateService {
           try { await Filesystem.deleteFile({ path, directory: Directory.Data }) } catch { /* sudah hilang */ }
           this._state = 'error';
           this._error = { code: 'HASH_MISMATCH', message: verified.message };
-          this.notify();
           return false;
         }
 
@@ -591,7 +560,6 @@ class UpdateService {
         // versi lama. Versi resmi hanya berubah bila APK benar-benar terpasang
         // (dibaca ulang dari App.getInfo() saat aplikasi hidup lagi).
         this._state = 'ready';
-        this.notify();
         return true;
 
       } catch (error) {
@@ -604,7 +572,6 @@ class UpdateService {
             code: 'DOWNLOAD_FAILED',
             message: `Gagal mengunduh setelah ${maxRetries} percobaan`
           };
-          this.notify();
           return false;
         }
 
@@ -622,13 +589,11 @@ class UpdateService {
         code: 'UNKNOWN',
         message: 'Tidak ada update yang siap diinstal'
       };
-      this.notify();
       return false;
     }
 
     this._state = 'installing';
     this._error = null;
-    this.notify();
 
     try {
       const apkPath = await getApkPath(this._pendingVersion);
@@ -642,7 +607,6 @@ class UpdateService {
           code: 'INSTALL_FAILED',
           message: 'Pemasangan APK hanya bisa dari aplikasi Android. Buka aplikasi di HP petugas, lalu tekan Update di sana.',
         };
-        this.notify();
         return false;
       }
 
@@ -655,7 +619,6 @@ class UpdateService {
           code: 'DOWNLOAD_FAILED',
           message: 'Berkas APK tidak ditemukan di perangkat. Unduh ulang pembaruan.',
         };
-        this.notify();
         return false;
       }
       if (typeof info.size === 'number' && info.size > 0 && info.size < 1_000_000) {
@@ -664,7 +627,6 @@ class UpdateService {
           code: 'DOWNLOAD_FAILED',
           message: `Berkas APK cacat (${info.size} byte) — kemungkinan respons error server. Unduh ulang.`,
         };
-        this.notify();
         return false;
       }
 
@@ -675,7 +637,6 @@ class UpdateService {
       if (!instal.ok) {
         this._state = 'error';
         this._error = { code: 'INSTALL_FAILED', message: instal.message };
-        this.notify();
         return false;
       }
 
@@ -690,7 +651,6 @@ class UpdateService {
         code: 'INSTALL_FAILED',
         message: error instanceof Error ? error.message : 'Gagal memulai instalasi'
       };
-      this.notify();
       return false;
     }
   }
@@ -730,7 +690,6 @@ class UpdateService {
           this._updateInfo = null
           this._state = 'up-to-date'
           this._error = null
-          this.notify()
         } else if (this._state === 'installing') {
           // Installer dibuka tetapi versi belum berubah → jangan klaim sukses.
           this._state = 'ready'
@@ -738,7 +697,6 @@ class UpdateService {
             code: 'INSTALL_FAILED',
             message: `Pemasangan belum selesai — aplikasi masih versi ${native}. Tekan Pasang lagi, lalu setujui dialog pemasangan Android.`,
           }
-          this.notify()
         }
       }
       return native
@@ -820,7 +778,6 @@ class UpdateService {
     }
 
     clearStoredState();
-    this.notify();
   }
 
   async getReleaseNotes(version?: string): Promise<ReleaseNotes | null> {
