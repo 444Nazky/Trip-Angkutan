@@ -2433,5 +2433,10 @@
     "mtime": 1792617752.1783233,
     "ast_hash": "7ad4268ac72ee6fa9f4cd623b5df9aae",
     "semantic_hash": ""
+  },
+  "AUDIT-OFFLINE-DAN-LAPORAN-2026-10-22.md": {
+    "mtime": 1792623962.5471816,
+    "ast_hash": "cfd869c5fe63ef0cc27d88030d953fa6",
+    "semantic_hash": ""
   }
 }
