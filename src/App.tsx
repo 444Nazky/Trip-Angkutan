@@ -6,7 +6,8 @@ import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
 import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
-import { syncGeofencesFromBackend } from "./services/geofence"
+import { startGpsWatch, stopGpsWatch } from "./services/geofence"
+import { prefetchAllCriticalData, startMasterDataAutoSync, stopMasterDataAutoSync } from "./services/prefetch"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
 import { autoDetectApiBaseUrl, api } from "./services/api"
 import { appUpdate } from "./services/appUpdate"
@@ -29,9 +30,15 @@ function Shell() {
       initializeSync()
       void initOfflineDb()
       void checkAndRequestLocationOnStartup()
+      // ponytail: SATU prefetch (rute + geofence + tarif + akses dermaga),
+      // bukan beberapa request terpisah. Prefetch punya TTL + single-flight
+      // sehingga tidak mengulang request yang sama.
       void autoDetectApiBaseUrl()
-        .then(base => { if (base) void syncGeofencesFromBackend({ force: true }) })
-        .catch(() => { void syncGeofencesFromBackend({ force: true }) })
+        .then(() => prefetchAllCriticalData({ force: true }))
+        .catch(() => prefetchAllCriticalData({ force: true }))
+      // GPS watch: fix GPS selalu hangat -> layar "Pilih Rute" tidak nunggu
+      // cold start GPS (detik-detik) setiap kali dibuka.
+      startGpsWatch()
     }
   }, [isAdminMode])
 
@@ -45,8 +52,15 @@ function Shell() {
       CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
           syncOnResume()
-          void syncGeofencesFromBackend({ force: true })
+          // Tarik master data (PIN/petugas/akses/rute/geofence/tarif) dari
+          // dashboard admin begitu aplikasi aktif kembali.
+          void prefetchAllCriticalData({ force: true })
+          startMasterDataAutoSync()
           void appUpdate.syncInstalledVersion()
+          startGpsWatch()
+        } else {
+          stopGpsWatch()
+          stopMasterDataAutoSync()
         }
       }).then(s => { sub = s })
       return () => { sub?.remove?.() }

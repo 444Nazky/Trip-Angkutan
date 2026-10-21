@@ -4,8 +4,9 @@ import { addToSyncQueue, onTripSynced, retrySyncItem, notifyQueueListeners } fro
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
 import { dbAll, dbClear, dbPutMany, initLocalDb } from '../services/localDb'
-import { syncOfficersToLocal } from '../services/officers'
-import { syncGeofencesFromBackend } from '../services/geofence'
+import { syncOfficersToLocal, OFFICERS_UPDATED_EVENT } from '../services/officers'
+import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
+import { prefetchAllCriticalData } from '../services/prefetch'
 import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
@@ -374,7 +375,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
-  const [tariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
+  // ponytail: tarif bisa di-update runtime oleh prefetch (master tarif server).
+  // Dulu state-nya read-only -> hasil prefetch tidak pernah masuk ke UI.
+  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
   const [officers, setOfficers] = useState<Officer[]>(() => {
     const saved = load<Officer[]>(LS.officers, [])
     return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
@@ -428,6 +431,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
   }, [tariffs])
+  useEffect(() => {
+    const onTariffs = () => {
+      const next = load<TariffRow[]>(LS.tariffs, tariffData)
+      setTariffs(prev => (prev.length === next.length ? prev : next))
+    }
+    window.addEventListener(TARIFF_UPDATED_EVENT, onTariffs)
+    return () => window.removeEventListener(TARIFF_UPDATED_EVENT, onTariffs)
+  }, [])
   useEffect(() => {
     try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
   }, [officers])
@@ -705,7 +716,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (force) {
       // tarik manual = segarkan semua: petugas + titik (tanpa logout)
       // ponytail: foreground = force agar edit admin langsung sampai
-      void syncGeofencesFromBackend({ force: true })
+      void prefetchAllCriticalData({ force: true }).catch(() => undefined)
 
       const ok = await refreshBackendSession(String(officerId))
 
@@ -734,10 +745,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [markTripSynced])
 
   useEffect(() => {
+    // ponytail: begitu perangkat ONLINE (atau sesi siap), TARIK SEMUA master
+    // data dari dashboard admin: PIN baru, petugas baru, akses dermaga baru,
+    // rute, geofence, tarif. Hasilnya langsung menggantikan cache lokal.
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
-      // ponytail: online/kembali-sesi = force, lihat catatan di atas
-      void syncGeofencesFromBackend({ force: true })
+      void prefetchAllCriticalData({ force: true }).catch(() => undefined)
     }
     const onOnline = () => pullAuthorizedMasterData()
     const onSessionReady = () => pullAuthorizedMasterData()
@@ -748,6 +761,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener(SESSION_READY_EVENT, onSessionReady)
     }
   }, [refreshOfficers])
+
+  // Roster yang ditarik dari server (PIN/petugas/akses baru) langsung
+  // menggantikan roster di UI.
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const roster = (e as CustomEvent).detail?.roster
+      if (!Array.isArray(roster) || !roster.length) return
+      setOfficers(prev => {
+        const byId = new Map(prev.map(o => [String(o.id), o]))
+        for (const o of roster) {
+          const prevO = byId.get(String(o.id))
+          byId.set(String(o.id), prevO ? { ...prevO, ...o } : o)
+        }
+        return [...byId.values()]
+      })
+    }
+    window.addEventListener(OFFICERS_UPDATED_EVENT, onUpdated)
+    return () => window.removeEventListener(OFFICERS_UPDATED_EVENT, onUpdated)
+  }, [])
 
   const value = useMemo<StoreValue>(() => ({
     loggedIn, login, logout, userType,

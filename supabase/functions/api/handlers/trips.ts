@@ -19,7 +19,21 @@ function validPhotoIndex(value: unknown, count: number): number | null | undefin
   return undefined;
 }
 
+// ponytail: cache tarif per-request. Dulu tiap kendaraan memicu query
+// tariffs sendiri (1 query per kendaraan, berurutan). Dengan cache, lookup
+// diulang untuk kombinasi yang sama hanya terjadi sekali.
+const tariffCache = new Map<string, Promise<any>>();
+
 async function getTariff(vehicleType: string, golongan?: string) {
+  const key = `${vehicleType}::${golongan ?? ''}`;
+  const cached = tariffCache.get(key);
+  if (cached) return cached;
+  const p = getTariffUncached(vehicleType, golongan);
+  tariffCache.set(key, p);
+  return p;
+}
+
+async function getTariffUncached(vehicleType: string, golongan?: string) {
   // Query tariffs table - filter by vehicle_type AND golongan if golongan is provided
   const query = db
     .from("tariffs")
@@ -113,6 +127,7 @@ async function insertVehicle(tripId: string, vehicle: any, photoPath: string): P
 
 // POST /trips/complete — multipart form: payload JSON + photos[]
 export async function completeTrip(req: Request): Promise<Response> {
+  tariffCache.clear();
   const form = await req.formData().catch(() => null);
   if (!form) return json({ error: "Payload file not uploaded" }, 400);
 
@@ -168,9 +183,10 @@ export async function completeTrip(req: Request): Promise<Response> {
 
     const dermagaId = await resolveOfficerDermaga(officerId, regionId, form.get("dermagaId"));
 
-    // Upload photos BEFORE database inserts (so failure doesn't orphan rows)
-    const photoPaths: string[] = [];
-    for (const f of files) photoPaths.push(await storePhoto(f));
+    // Upload photos BEFORE database inserts (so failure doesn't orphan rows).
+    // ponytail: upload SEKUENSIAL dulu -> 4 foto = 4 round-trip ke Storage
+    // berurutan. Sekarang paralel -> 1 round trip.
+    const photoPaths: string[] = await Promise.all(files.map(f => storePhoto(f)));
 
     const tripId = existingTrip ? existingTrip.id : crypto.randomUUID();
     const noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
@@ -198,9 +214,9 @@ export async function completeTrip(req: Request): Promise<Response> {
         for (const row of oldVehicles) await db.from("vehicles").delete().eq("id", row.vehicle_id);
       }
 
-      for (let i = 0; i < vehicles.length; i++) {
-        await insertVehicle(tripId, vehicles[i], photoPaths[vehiclePhotoIndexes[i]!]);
-      }
+      await Promise.all(
+        vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!])),
+      );
       return json({ id: tripId, noTrip, updated: true }, 200);
     }
 
@@ -215,9 +231,9 @@ export async function completeTrip(req: Request): Promise<Response> {
     });
     if (insErr) throw insErr;
 
-    for (let i = 0; i < vehicles.length; i++) {
-      await insertVehicle(tripId, vehicles[i], photoPaths[vehiclePhotoIndexes[i]!]);
-    }
+    await Promise.all(
+      vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!])),
+    );
 
     return json({ id: tripId, noTrip }, 201);
   } catch (error) {

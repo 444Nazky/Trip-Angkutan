@@ -5,6 +5,7 @@ import { semverLabel } from '../../services/ota'
 import { resolveApiBaseUrl } from '../../services/api'
 import ServerSettingsModal from '../../components/ServerSettingsModal'
 import { useAppUpdate } from '../../components/UpdateNotifier'
+import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -29,6 +30,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
+    // Prefetch data kritis saat app aktif
+    void prefetchAllCriticalData()
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)

@@ -20,6 +20,13 @@ export interface BackendOfficer {
 const OFFICER_CACHE_KEY = 'trip.officers.cache.v1'
 const OFFICER_CACHE_TTL = 5 * 60 * 1000
 
+/**
+ * Dipancarkan setiap roster petugas ditarik ulang dari server (perubahan
+ * admin: PIN baru, petugas baru, akses dermaga baru). Store listens ke
+ * event ini supaya UI langsung ikut berubah tanpa perlu reload.
+ */
+export const OFFICERS_UPDATED_EVENT = 'trip:officers-updated'
+
 
 
 
@@ -137,12 +144,24 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     payload: { ...o, username: o.username, dermagaAccess: o.dermagaAccess },
   })))
 
+  // ponytail: kegagalan simpan hash PIN TIDAK boleh membatalkan seluruh
+  // sinkron roster. Dulu satu hash gagal -> throw -> roster (nama, akses
+  // dermaga, petugas baru) TIDAK pernah ditulis ke localStorage, sehingga
+  // perubahan admin di dashboard tidak pernah sampai ke HP.
+  const pinFailures: string[] = []
   for (const bo of backendOfficers) {
     if (!bo.pin_hash) continue
-    await setPinHash(String(bo.id), bo.pin_hash)
-    if (await getPinHash(String(bo.id)) !== bo.pin_hash) {
-      throw new Error('Gagal menyimpan PIN petugas di perangkat')
+    try {
+      await setPinHash(String(bo.id), bo.pin_hash)
+      if (await getPinHash(String(bo.id)) !== bo.pin_hash) {
+        pinFailures.push(String(bo.id))
+      }
+    } catch {
+      pinFailures.push(String(bo.id))
     }
+  }
+  if (pinFailures.length) {
+    console.warn('[officers] Hash PIN gagal disimpan untuk:', pinFailures.join(', '))
   }
 
   const stored = await listOfficers<{ id: string }>()
@@ -162,6 +181,8 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   for (const [id, o] of local) if (!merged.has(id)) merged.set(id, o)
   const roster = [...merged.values()]
   localStorage.setItem('trip.officers.v1', JSON.stringify(roster))
+  // Beri tahu UI: roster (nama, PIN, akses dermaga) sudah replaced.
+  try { window.dispatchEvent(new CustomEvent(OFFICERS_UPDATED_EVENT, { detail: { roster } })) } catch { /* ignore */ }
 
   return roster
 }

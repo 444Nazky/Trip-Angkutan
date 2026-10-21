@@ -9,6 +9,7 @@ import {
 } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
+import { prefetchAllCriticalData } from '../services/prefetch'
 import ServerSettingsModal from '../components/ServerSettingsModal'
 
 
@@ -95,6 +96,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         if (result.success) {
           void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)
+          // ponytail: setelah login pertama, TARIK SEMUA data sekaligus
+          // (rute, geofence, tarif, akses dermaga) supaya langkah berikutnya
+          // (pilih rute, form kendaraan) instan — tidak ada spinner jaringan.
+          void prefetchAllCriticalData({ force: true }).catch(() => undefined)
           window.dispatchEvent(new Event(SESSION_READY_EVENT))
           onLogin()
           return
@@ -105,6 +110,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             void initializeSync()
             onLogin()
             void syncOfficersToLocal(true).catch(() => undefined)
+            void prefetchAllCriticalData().catch(() => undefined)
             return
           }
           setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')

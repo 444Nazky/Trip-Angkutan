@@ -3,6 +3,7 @@ import { ChevronLeft, Lock, Delete } from 'lucide-react'
 import { api } from '../../services/api'
 import { loginOffline, loginWithPin, SESSION_READY_EVENT } from '../../services/auth'
 import { syncNow } from '../../services/sync'
+import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -47,6 +48,8 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     if (verifyIntent === 'switch') setOfficerId(targetId)
     clearVerify()
     go('profile')
+    // Prefetch data kritis di background setelah login
+    prefetchAllCriticalData().catch(() => {})
   }
 
   const confirm = async () => {
@@ -58,7 +61,12 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       // Check if we can do offline login (already has stored credentials)
       const local = await loginOffline()
       if (local.success) {
-        if (navigator.onLine) void refreshSessionInBackground(targetId, pressedPin)
+        if (navigator.onLine) {
+          void refreshSessionInBackground(targetId, pressedPin)
+        } else {
+          // Offline mode - prefetch dari cache
+          prefetchAllCriticalData().catch(() => {})
+        }
         finishAuth()
         return
       }
@@ -97,6 +105,8 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       await loginWithPin(id, pin)
       if (api.isAuthenticated) {
         void syncNow().catch(() => undefined)
+        // Prefetch data kritis di background
+        void prefetchAllCriticalData().catch(() => undefined)
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
     } catch { /* tetap mode offline — sinkron menyusul */ }

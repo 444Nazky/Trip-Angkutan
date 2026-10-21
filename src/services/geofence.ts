@@ -205,8 +205,15 @@ function getCachedGpsFix(): GpsFix | null {
   } catch { return null }
 }
 
+let _gpsFixWrittenAt = 0
+
 function cacheGpsFix(fix: GpsFix) {
   _cachedFix = fix
+  // ponytail: GPS watch bisa update tiap beberapa detik. Menulis ke
+  // localStorage tiap update bikin jank; tulis ke storage paling sering
+  // setiap 10 detik (cache di memori tetap real-time).
+  if (Date.now() - _gpsFixWrittenAt < 10_000) return
+  _gpsFixWrittenAt = Date.now()
   try { localStorage.setItem(GPS_FIX_CACHE_KEY, JSON.stringify(fix)) } catch {}
 }
 
@@ -618,8 +625,40 @@ export function isValidGeofencePoint(p: GeofencePoint): string[] {
  * Coba dapat posisi GPS dari browser/device.
  * Mengembalikan null pada kegagalan (bukan throw).
  */
-const GPS_CACHE_TTL = 12_000
+const GPS_CACHE_TTL = 30_000
 let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } | null> | null = null
+
+// ponytail: GPS watch Keeping cache tetap hangat. Dengan watch, layar "Pilih
+// Rute" hampir selalu punya fix instan (tidak menunggu 8-15 detik GPS cold
+// start). Watch hanya hidup selama aplikasi aktif.
+let _gpsWatchId: string | null = null
+
+export function startGpsWatch(): void {
+  if (_gpsWatchId) return
+  try {
+    void Geolocation.watchPosition(
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 3000 },
+      (position: { coords?: { latitude: number; longitude: number; accuracy?: number } } | null) => {
+        const c = position?.coords
+        if (!c) return
+        cacheGpsFix({
+          latitude: c.latitude,
+          longitude: c.longitude,
+          accuracy: c.accuracy,
+          timestamp: Date.now(),
+        })
+      },
+    )
+      .then(id => { _gpsWatchId = id })
+      .catch(() => { _gpsWatchId = null })
+  } catch { /* GPS tidak tersedia */ }
+}
+
+export function stopGpsWatch(): void {
+  if (!_gpsWatchId) return
+  try { void Geolocation.clearWatch({ id: _gpsWatchId }) } catch { /* ignore */ }
+  _gpsWatchId = null
+}
 
 export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{ lat: number; lng: number; accuracy?: number } | null> {
   const cached = getCachedGpsFix()
@@ -628,7 +667,7 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
   }
   if (pendingGpsRequest) return pendingGpsRequest
 
-  pendingGpsRequest = Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+  pendingGpsRequest = Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 })
       .then(position => {
         const fix = {
           latitude: position.coords.latitude,

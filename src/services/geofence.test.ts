@@ -376,7 +376,7 @@ describe('performa pemindaian lokasi (cache & dedup fix GPS)', () => {
     expect(results.every(r => r?.lat === -6.1891005)).toBe(true)
   })
 
-  it('panggilan berikutnya dalam 12 dtk memakai cache — TANPA sesi GPS baru', async () => {
+  it('panggilan berikutnya dalam jendela freshness memakai cache — TANPA sesi GPS baru', async () => {
     h.position = { lat: -6.1891005, lon: 106.8371641, accuracy: 8 }
     await getCurrentPosition()
     await getCurrentPosition()
@@ -384,12 +384,12 @@ describe('performa pemindaian lokasi (cache & dedup fix GPS)', () => {
     expect(h.gpsCalls).toBe(1)
   })
 
-  it('lewat jendela freshness → GPS diminta ulang (interval 15 dtk tetap mendeteksi gerak)', async () => {
+  it('lewat jendela freshness (30 dtk) → GPS diminta ulang (interval 15 dtk tetap mendeteksi gerak)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       h.position = { lat: -6.1891005, lon: 106.8371641, accuracy: 8 }
       await getCurrentPosition()
-      vi.setSystemTime(Date.now() + 13_000)
+      vi.setSystemTime(Date.now() + 31_000)
       await getCurrentPosition()
       expect(h.gpsCalls).toBe(2)
     } finally {

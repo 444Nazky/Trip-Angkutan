@@ -36,9 +36,11 @@ export async function getOfficers(req: Request): Promise<Response> {
       .order("name", { ascending: true });
     if (error) throw error;
 
+    const officers_ = officers ?? [];
+    const extrasList = await Promise.all(officers_.map(o => officerExtras(o.id)));
     const result: any[] = [];
-    for (const o of officers ?? []) {
-      result.push(shapeOfficer(o, await officerExtras(o.id)));
+    for (let i = 0; i < officers_.length; i++) {
+      result.push(shapeOfficer(officers_[i], extrasList[i]));
     }
     return json(result);
   } catch (error) {
@@ -87,9 +89,15 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
       .select("*, regions!officers_region_id_fkey(name, code)")
       .order("name", { ascending: true });
 
+    // ponytail: extras (regions + dermaga) diambil PARALEL. Dulu satu per
+    // satu dalam loop = 2 query per petugas berurutan -> roster region ini
+    // lambat sekali di HP, padahal ini yang menarik PIN & akses terbaru.
+    const officers_ = officers ?? [];
+    const extrasList = await Promise.all(officers_.map(o => officerExtras(o.id)));
     const result: any[] = [];
-    for (const o of officers ?? []) {
-      const extras = await officerExtras(o.id);
+    for (let i = 0; i < officers_.length; i++) {
+      const o = officers_[i];
+      const extras = extrasList[i];
       const sharesRegion =
         extras.regions.some((r: any) => myRegionIds.has(r.id)) || myRegionIds.has(o.region_id);
       if (sharesRegion || String(o.id) === meId) {

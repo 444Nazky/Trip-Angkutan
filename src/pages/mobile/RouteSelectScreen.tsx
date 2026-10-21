@@ -32,13 +32,27 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const dock = dockId ? accessibleDermagas.find(d => d.id === dockId) ?? null : null
   const dockName = dock?.name ?? null
 
+  // ponytail: rute HARUS tampil seketika dari cache localStorage. Dulu list
+  // disembunyikan selama `loading` → petugas menunggu satu round-trip server
+  // hanya untuk melihat daftar rute. Sekarang: cache tampil dulu, refresh
+  // server jalan di background tanpa menutupi list.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(() => getStoredRoutes().length === 0)
 
   useEffect(() => {
     let alive = true
+    const cached = getStoredRoutes()
+    if (cached.length) {
+      setRoutes(cached)
+      setLoading(false)
+      // Refresh diam-diam; list tetap terlihat.
+      refreshStoredRoutes().then(fresh => {
+        if (alive && fresh?.length) setRoutes(fresh)
+      }).catch(() => {})
+      return () => { alive = false }
+    }
     setLoading(true)
-    refreshStoredRoutes().then(fresh => {
+    refreshStoredRoutes({ force: true }).then(fresh => {
       if (alive && fresh) setRoutes(fresh)
     }).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -138,8 +152,11 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
 
     void evaluateWithSelfHeal()
-    const timer = window.setInterval(() => { void evaluate(true) }, 15000)
-    const onFocus = () => { void evaluate(true) }
+    // ponytail: JANGAN paksa GPS tiap 15 detik. GPS watch (lihat geofence.ts)
+    // sudah menjaga cache tetap hangat, jadi evaluate() tanpa force = instan.
+    // evaluate(true) dulu memicu request GPS baru (8 detik) tiap 15 detik.
+    const timer = window.setInterval(() => { void evaluate() }, 15000)
+    const onFocus = () => { void evaluate() }
     const onOnline = () => { void evaluateWithSelfHeal(true) }
     const onGeofenceUpdated = () => { void evaluate() }
     window.addEventListener('focus', onFocus)
@@ -359,7 +376,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading — hanya tampil kalau benar-benar tidak ada rute di cache */}
       {loading && (
         <div className="rounded-2xl border border-slate-100 bg-white p-4 mb-2 flex items-center gap-3 text-[12px] text-slate-500">
           <span className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />

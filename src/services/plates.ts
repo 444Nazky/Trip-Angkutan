@@ -24,16 +24,26 @@ export interface PlateCheck {
 
 
 
+// ponytail: cache hasil cek plat di memori supaya plat yang sama tidak
+// memicu request server berulang (mis. saat user mengoreksi lalu mengetik ulang).
+const plateCheckCache = new Map<string, { at: number; data: PlateCheck | null }>()
+const PLATE_CACHE_TTL = 5 * 60 * 1000
+
 export async function checkPlate(
   plate: string,
   originRegionId?: string | null,
 ): Promise<PlateCheck | null> {
+  const key = `${String(plate || '').trim().toUpperCase()}::${originRegionId ?? ''}`
+  const cached = plateCheckCache.get(key)
+  if (cached && Date.now() - cached.at < PLATE_CACHE_TTL) return cached.data
+
   const res = await api.post<PlateCheck>('/plates/check', {
     plate,
     originRegionId: originRegionId || undefined,
   })
-  if (res.ok && res.data) return res.data
-  return null
+  const data = res.ok && res.data ? res.data : null
+  plateCheckCache.set(key, { at: Date.now(), data })
+  return data
 }
 
 export interface PlateRecord {
