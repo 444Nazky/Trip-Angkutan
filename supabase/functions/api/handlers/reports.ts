@@ -8,6 +8,83 @@ function dateRange(url: URL): { start?: string; end?: string } {
   return { start: `${startDate}T00:00:00`, end: `${endDate}T23:59:59` };
 }
 
+// Kategori operasional kendaraan (bukan Golongan master tarif I..V).
+const OPERATIONAL_CATEGORIES = ["Internal", "Eksternal", "Lokal"];
+
+// Normalisasi nilai golongan pada tabel vehicles menjadi kategori operasional.
+function normalizeGolongan(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s) return null;
+  if (s.startsWith("internal")) return "Internal";
+  if (s.startsWith("eksternal")) return "Eksternal";
+  if (s.startsWith("lokal")) return "Lokal";
+  return null;
+}
+
+// Status plat pada tabel vehicle_plates / plate_scans memakai huruf kecil.
+function normalizePlateStatus(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (s === "internal") return "Internal";
+  if (s === "eksternal") return "Eksternal";
+  if (s === "lokal") return "Lokal";
+  return null;
+}
+
+// Samakan bentuk nomor plat agar bisa dibandingkan antar tabel.
+function plateKey(raw: unknown): string {
+  return String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// Ambil kategori operasional per plat dari hasil pemindaian plat terbaru.
+// Sumber urutan: plate_scans (paling baru) -> vehicle_plates (master plat).
+async function fetchPlateCategories(plates: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const keys = [...new Set(plates.map(plateKey).filter(Boolean))];
+  if (!keys.length) return map;
+
+  const { data: scans } = await db
+    .from("plate_scans")
+    .select("*")
+    .limit(5000);
+
+  const latest = new Map<string, { status: string; at: string }>();
+  for (const row of (scans ?? []) as any[]) {
+    const key = plateKey(row.plate);
+    const status = normalizePlateStatus(row.status);
+    if (!key || !status) continue;
+    const at = String(row.created_at ?? row.scanned_at ?? row.checked_at ?? "");
+    const prev = latest.get(key);
+    if (!prev || at > prev.at) latest.set(key, { status, at });
+  }
+  for (const [key, v] of latest) map.set(key, v.status);
+
+  const { data: masterPlates } = await db
+    .from("vehicle_plates")
+    .select("plate, status")
+    .limit(5000);
+
+  for (const row of (masterPlates ?? []) as any[]) {
+    const key = plateKey(row.plate);
+    const status = normalizePlateStatus(row.status);
+    if (!key || !status) continue;
+    if (!map.has(key)) map.set(key, status);
+  }
+
+  return map;
+}
+
+// Cocokkan filter golongan: bandingkan kategori operasional, atau nilai mentah
+// bila memang kategori lawas (mis. "V") yang dipilih.
+function matchesGolongan(raw: unknown, target: string): boolean {
+  const t = String(target ?? "").trim().toLowerCase();
+  if (!t) return true;
+  const norm = normalizeGolongan(raw);
+  if (norm) return norm.toLowerCase() === t;
+  return String(raw ?? "").trim().toLowerCase() === t;
+}
+
 // Fetch all active tariffs for tariff recalculation
 async function getAllActiveTariffs(): Promise<Map<string, { loaded: number; empty: number }>> {
   const { data, error } = await db
@@ -98,6 +175,8 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     const golongan = url.searchParams.get("golongan");
     const vehicleType = url.searchParams.get("vehicleType");
     const route = url.searchParams.get("route");
+    const muatan = url.searchParams.get("muatan"); // ada | tanpa (status muatan kendaraan)
+    const q = (url.searchParams.get("q") || "").trim().toLowerCase();
 
     // Fetch active tariffs for recalculation
     const tariffMap = await getAllActiveTariffs();
@@ -140,9 +219,47 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       return v;
     });
 
+    // Kategori operasional kendaraan (Internal / Eksternal / Lokal) diambil dari
+    // pindaian plat terbaru; nilai lama pada kolom vehicles dipakai sebagai cadangan.
+    const plateCategories = await fetchPlateCategories(
+      vehicles.map((v: any) => v.no_polisi),
+    );
+    vehicles = vehicles.map((v: any) => {
+      const fromScan = plateCategories.get(plateKey(v.no_polisi)) ?? null;
+      const stored = normalizeGolongan(v.golongan);
+      return { ...v, kategori: fromScan ?? stored };
+    });
+
     let filtered = vehicles;
-    if (golongan) filtered = filtered.filter((v) => v.golongan === golongan);
+    if (golongan) filtered = filtered.filter((v) => matchesGolongan(v.kategori, golongan));
     if (vehicleType) filtered = filtered.filter((v) => v.vehicle_type === vehicleType);
+    if (muatan === "ada") filtered = filtered.filter((v) => Number(v.has_load) > 0);
+    if (muatan === "tanpa") filtered = filtered.filter((v) => !Number(v.has_load));
+
+    // Pencarian bebas: cocok di tingkat trip (no trip, petugas, rute, wilayah)
+    // atau di tingkat kendaraan (plat, jenis, kategori).
+    if (q) {
+      const tripMeta = new Map<string, string[]>();
+      for (const t of (trips ?? []) as any[]) {
+        tripMeta.set(t.id, [
+          t.no_trip,
+          t.officers?.name,
+          t.route_from,
+          t.route_to,
+          t.route_from_name,
+          t.route_to_name,
+          t.regions?.name,
+          t.regions?.code,
+        ].map((x) => String(x ?? "").toLowerCase()));
+      }
+      filtered = filtered.filter((v) => {
+        const tripHit = (tripMeta.get(v.trip_id) || []).some((x) => x.includes(q));
+        if (tripHit) return true;
+        return [v.no_polisi, v.vehicle_type, v.golongan, v.kategori]
+          .map((x) => String(x ?? "").toLowerCase())
+          .some((x) => x.includes(q));
+      });
+    }
 
     const vehiclesByTrip = new Map<string, any[]>();
     for (const v of filtered) {
@@ -193,6 +310,20 @@ export async function tripFilters(req: Request): Promise<Response> {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
 
+    // Opsi diturunkan dari data kendaraan yang benar-benar dipakai di lapangan,
+    // bukan dari master tarif (yang masih memakai Golongan I..V).
+    const { data: vehRows, error: vehError } = await db
+      .from("vehicles")
+      .select("golongan, vehicle_type")
+      .not("trip_id", "is", null)
+      .limit(5000);
+    if (vehError) throw vehError;
+
+    const foundTypes = new Set<string>();
+    for (const v of (vehRows ?? []) as any[]) {
+      if (v.vehicle_type) foundTypes.add(String(v.vehicle_type));
+    }
+
     const { data: tariffs, error } = await db
       .from("tariffs")
       .select("golongan, vehicle_type")
@@ -200,10 +331,14 @@ export async function tripFilters(req: Request): Promise<Response> {
       .order("golongan", { ascending: true });
     if (error) throw error;
 
-    return json({
-      golongan: [...new Set((tariffs ?? []).map((t: any) => t.golongan).filter(Boolean))].sort(),
-      vehicleTypes: [...new Set((tariffs ?? []).map((t: any) => t.vehicle_type).filter(Boolean))].sort(),
-    });
+    const vehicleTypes = foundTypes.size > 0
+      ? [...foundTypes].sort()
+      : [...new Set((tariffs ?? []).map((t: any) => t.vehicle_type).filter(Boolean))].sort();
+
+    // Selalu kembalikan tiga kategori operasional, urut Internal - Eksternal - Lokal.
+    const golongan = OPERATIONAL_CATEGORIES.slice();
+
+    return json({ golongan, vehicleTypes });
   } catch (error) {
     console.error("Filters error:", error);
     return json({ error: "Failed to fetch filter options" }, 500);

@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
+import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -23,7 +23,7 @@ function vehiclePhotoCaption(
         ? `${vehicle.latitude.toFixed(5)}, ${vehicle.longitude.toFixed(5)}` : ''),
   ].filter(Boolean).join(' · ')
   const unit = vehicleUnitLabel(trip.vehicles, vehicle)
-  return `${trip.no_trip} · ${unit} · ${vehicle.no_polisi} · ${vehicle.vehicle_type} · ${vehicle.golongan}${metadata ? ` · ${metadata}` : ''}`
+  return `${trip.no_trip} · ${unit} · ${vehicle.no_polisi} · ${vehicle.vehicle_type} · ${reportGolongan(vehicle)}${metadata ? ` · ${metadata}` : ''}`
 }
 
 interface ReportsTabProps {
@@ -124,11 +124,11 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       ['Detail Kendaraan per Trip'],
       ['Rentang Tanggal', rentang],
       [],
-      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Kategori', 'Beban', 'Tarif (Rp)'],
+      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Beban', 'Tarif (Rp)'],
       ...reportTrips.flatMap(t => {
         const d = formatReportDateTime(t.created_at)
         return t.vehicles.map(v => [t.no_trip, d.date, d.time, reportPlace(t), v.no_polisi, v.vehicle_type,
-          v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'), v.golongan,
+          reportGolongan(v),
           v.has_load ? 'Ada Muatan' : 'Kosong', v.tariff_amount || 0])
       }),
     ]
@@ -217,7 +217,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
           <select value={reportFilters.golongan || ''} onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
             className="border rounded-xl px-3 py-2 text-sm min-w-[140px] bg-white">
             <option value="">Semua</option>
-            {golonganOptions.map(g => <option key={g} value={g}>Gol {g}</option>)}
+            {golonganOptions.map(g => <option key={g} value={g}>{g}</option>)}
           </select></div>
         <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jenis Kendaraan</label>
           <select value={reportFilters.vehicleType || ''} onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
@@ -483,7 +483,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                                   </td>
                                   <td className="p-3 font-mono font-bold">{v.no_polisi}</td>
                                   <td className="p-3">{v.vehicle_type}</td>
-                                  <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-semibold border ${v.golongan === 'Internal' ? 'border-slate-800 text-slate-800' : v.golongan === 'Eksternal' ? 'border-slate-400 text-slate-600' : 'border-slate-200 text-slate-500'}`}>{v.golongan}</span></td>
+                                  <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-semibold border ${reportGolongan(v) === 'Internal' ? 'border-slate-800 text-slate-800' : reportGolongan(v) === 'Eksternal' ? 'border-slate-400 text-slate-600' : 'border-slate-200 text-slate-500'}`}>{reportGolongan(v)}</span></td>
                                   <td className="p-3">{v.has_load ? 'Ada Muatan' : 'Kosong'}</td>
                                   <td className="p-3 text-right font-bold"><CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={v.tariff_amount || 0} /></td>
                                 </tr>
