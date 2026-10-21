@@ -4,7 +4,16 @@ cd "$(dirname "$0")"
 
 echo "[-] Membangun & menjalankan aplikasi via Docker..."
 BASE="$(cd "$(dirname "$0")" && pwd)"
-sudo docker build -t trip-angkutan "$BASE" 
+
+echo "[-] Tarik kode terbaru dari repo..."
+if git -C "$BASE" pull --ff-only; then
+    echo "    OK"
+else
+    echo "    DILEWATI: ada perubahan lokal / tidak bisa akses repo (kode tetap dipakai dari sumber saat ini)"
+fi
+git -C "$BASE" log --oneline -1
+
+sudo docker build -t trip-angkutan "$BASE"
 sudo docker compose -f "$BASE/docker-compose.yml" up -d
 
 sleep 2
