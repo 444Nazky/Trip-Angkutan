@@ -11,9 +11,11 @@ import type { MobileScreen } from '../types'
 
 
 
+
 interface ProfileScreenProps {
   go: (s: MobileScreen) => void
 }
+
 
 
 
@@ -24,7 +26,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const [busy, setBusy] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
   const [showServer, setShowServer] = useState(false)
-
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
@@ -37,6 +38,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       window.removeEventListener('offline', handleOffline)
     }
   }, [refreshOfficers])
+
+
 
 
 
@@ -54,6 +57,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
+
+
   const applyNow = async () => {
     setBusy(true)
     try {
@@ -67,18 +72,20 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
+
+
   const updateReady = update.status === 'ready'
   const appVersion = appUpdate.currentAppVersion
   const moduleVersion = appUpdate.currentModuleVersion
   const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
-
-  // Status check untuk menentukan state tombol
+ // Status check untuk menentukan state tombol
   const isChecking = update.status === 'checking'
   const isDownloading = update.status === 'downloading'
   const isInstalling = update.status === 'installing'
   const isUpToDate = update.status === 'up-to-date'
   const hasError = update.status === 'error'
   const isIdleOrOffline = update.status === 'idle' || update.status === 'offline'
+
 
   const updateNote = (() => {
     if (busy || isChecking) return 'Memeriksa pembaruan…'
@@ -95,6 +102,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     return versionLine
   })()
 
+
+
+
   // Tentukan state tombol
   const buttonState = (() => {
     if (busy || isChecking) return { label: 'Memeriksa…', disabled: true, action: 'check' }
@@ -107,6 +117,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     return { label: 'Cek & Perbarui', disabled: false, action: 'check' }
   })()
 
+
+
+
+
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
 
   const units = new Set(
@@ -114,6 +128,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
       .filter(p => p && p !== '-'),
   )
+
+
+
+
   return (
     <div className="min-h-full bg-slate-50 px-4 pb-8 pt-4 space-y-4">
       <div>
@@ -133,6 +151,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           </div>
         </div>
 
+
+
+
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
           {[{ v: String(myTrips.length), l: 'Trip' }, { v: String(units.size), l: 'Kendaraan' }].map((stat, index) => (
             <div key={stat.l} className={`text-center ${index > 0 ? 'border-l border-white/10 pl-4' : ''}`}>
@@ -142,6 +163,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           ))}
         </div>
 
+
+
+
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
           <Lock size={12} className="text-slate-500" />
           <span className="text-[11px] text-slate-500">Region Locked</span>
@@ -149,6 +173,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
         </div>
       </section>
+
+
+
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="px-4 pb-2 pt-3">
@@ -171,6 +198,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         </div>
       </section>
 
+
+
+
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <button
           onClick={() => setShowServer(true)}
@@ -185,6 +215,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         </button>
       </section>
       {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
+
+
+
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 p-4">
@@ -202,6 +235,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
                 : 'border-slate-300 bg-transparent text-slate-700 hover:border-slate-400 hover:bg-slate-50'
             } disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:bg-slate-50`}
           >
+
+
+
             {busy || isChecking ? <RefreshCw size={12} className="animate-spin" /> : null}
             {buttonState.label}
           </button>
@@ -218,6 +254,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         )}
       </section>
 
+
+
+
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <button
           onClick={() => go('geofence-config')}
@@ -231,6 +270,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <ChevronRight size={16} className="text-slate-400" />
         </button>
       </section>
+
+
+
 
       <button
         onClick={() => go('officer-switch')}
