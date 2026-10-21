@@ -198,13 +198,6 @@ async function seedDefaultOfficers(): Promise<void> {
       })
     }
     localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
-
-    const creds = lsCredentials()
-    let changed = false
-    for (const s of SEED_OFFICERS) {
-      void s;
-    }
-    if (changed) localStorage.setItem(LS_CREDENTIALS, JSON.stringify(creds))
   } catch { /* quota — dicoba lagi pada init berikutnya */ }
 }
 

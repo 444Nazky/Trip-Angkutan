@@ -71,6 +71,8 @@ export interface ReportTrip {
   vehicle_count: number
   trip_revenue: number | null
   vehicles: ReportVehicle[]
+  all_photos?: string[]
+  trip_photo?: string | null
 }
 
 

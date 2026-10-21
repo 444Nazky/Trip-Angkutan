@@ -465,6 +465,14 @@ describe('validasi lokasi terhadap konfigurasi', () => {
     expect(res.reason).toContain('SJRE-SBDZ')
   })
 
+  it('rute round-trip arah terbalik → valid (reverse per-segmen, bukan per-karakter)', async () => {
+    saveGeofencePoints([{ ...POINT, allowedRoutes: ['SBDZ-SJRE'] }])
+    h.position = { lat: -6.1891005, lon: 106.8371641, accuracy: 8 }
+
+    expect(await validateRouteForCurrentLocation('SJRE-SBDZ')).toMatchObject({ valid: true })
+    expect(await validateRouteForCurrentLocation('LAIN-XYZ')).toMatchObject({ valid: false })
+  })
+
   it('GPS mati → diblokir (tidak ada fallback koordinat hardcoded)', async () => {
     saveGeofencePoints([POINT])
     h.position = null

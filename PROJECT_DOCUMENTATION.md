@@ -342,3 +342,44 @@ php -S 0.0.0.0:8000 -t www/admin > admin.log 2>&1 &
 | Logo tidak muncul | Path case-sensitive |
 | Modal di luar viewport | Portal ke document.body aktif |
 | Login 401 | Edge Functions verify_jwt=false |
+| Grafik/chart tidak tampil | Cek CSS variables (lihat bawah) |
+
+---
+
+## CSS Variables - PERHATIKAN!
+
+### ATURAN PENTING
+**JANGAN** gunakan CSS variable yang tidak terdefinisi dalam inline styles.
+
+### Contoh SALAH (menyebabkan grafik tidak tampil)
+```tsx
+// var(--admin-accent) TIDAK terdefinisi di mana pun!
+// Ini akan membuat grafik terlihat seperti background solid
+style={{ background: `conic-gradient(var(--admin-accent) ...)` }}
+```
+
+### Contoh BENAR
+```tsx
+// Gunakan warna hardcoded
+style={{ background: `conic-gradient(#3B82F6 ...)` }}
+
+// Atau gunakan Tailwind class
+className="bg-blue-500"
+```
+
+### Warna Aman untuk Inline Styles
+- Biru: `#3B82F6` (blue-500)
+- Hijau: `#10B981` (green-500)
+- Merah: `#EF4444` (red-500)
+- Abu-abu: `#CBD5E1` (slate-300), `#94A3B8` (slate-400)
+
+---
+
+## Checklist Sebelum Deploy
+
+- [ ] Run `npx tsc --noEmit --skipLibCheck` - tidak ada error
+- [ ] Cek semua CSS variable dalam inline styles terdefinisi
+- [ ] Build: `npm run build`
+- [ ] Copy: `cp -r www/* /path/to/admin-www/`
+- [ ] Deploy backend: `supabase functions deploy api --project-ref bmiruktfruunegtbydyw`
+- [ ] Test di browser (clear cache jika perlu)

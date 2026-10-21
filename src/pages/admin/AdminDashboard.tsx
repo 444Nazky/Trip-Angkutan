@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { LayoutGrid, Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin } from 'lucide-react'
 import { fetchTariffs } from '../../services/tariffs'
-import { fetchTrips, fetchReportSummary, dayKeyWib } from '../../services/trips'
+import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
 import type { AdminTab } from './components/types'
@@ -15,7 +15,6 @@ import { environment } from '../../environments/environment'
 import LoginPage from '../LoginPage'
 import ReportSheet from './ReportSheet'
 
-import { OverviewTab } from './tabs/OverviewTab'
 import { TariffTab } from './tabs/TariffTab'
 import { PlatesTab } from './tabs/PlatesTab'
 import { RoutesTab } from './tabs/RoutesTab'
@@ -30,12 +29,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [officers, setOfficers] = useState<Officer[]>([])
   const [revealed, setRevealed] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const [tab, setTab] = useState<AdminTab>('overview')
+  const [tab, setTab] = useState<AdminTab>('reports')
   const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline'>('connecting')
-  const [serverTrips, setServerTrips] = useState<BackendTrip[]>([])
+  const [, setServerTrips] = useState<BackendTrip[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
-  const [dashSummary, setDashSummary] = useState<{ totalTrips: number; totalRevenue: number; totalVehicles: number } | null>(null)
-  const [dashAt, setDashAt] = useState('')
 
   const [authDenied, setAuthDenied] = useState(false)
   const [authRetry, setAuthRetry] = useState(0)
@@ -95,34 +92,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     return () => { alive = false }
   }, [authRetry])
 
-  const activeOfficerCount = officers.filter(o => o.status === 'Aktif').length
-
-  const loadOverview = async () => {
-    const sess = await ensureAdminSession()
-    if (!sess.ok) {
-      if (sess.authDenied) { setAuthDenied(true); return }
-      setServerState('offline'); return
-    }
-
-    const today = dayKeyWib(new Date().toISOString())
-    const [trips, summ] = await Promise.all([fetchTrips(), fetchReportSummary(today, today)])
-    if (trips) setServerTrips(trips)
-    setServerState('online')
-    setDashSummary(summ)
-    setDashAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))
-  }
-
-  useEffect(() => {
-    if (tab !== 'overview' || authDenied) return
-    void loadOverview()
-    const id = setInterval(() => void loadOverview(), 15000)
-    return () => clearInterval(id)
-  }, [tab, authDenied])
-
-  // Reorganized navigation: Laporan first, removed redundant Dashboard
+  // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
-    { key: 'overview', label: 'Dashboard', Icon: LayoutGrid },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
@@ -170,18 +142,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
         <div className="p-8 max-w-[1400px] admin-tab-content">
-          {tab === 'overview' && (
-            <OverviewTab
-              serverTrips={serverTrips}
-              dashSummary={dashSummary}
-              dashAt={dashAt}
-              activeOfficerCount={activeOfficerCount}
-              officers={officers}
-              serverState={serverState}
+          {tab === 'reports' && (
+            <ReportsTab
+              onServerTripsChange={setServerTrips}
+              showToast={showToast}
               revealed={revealed}
               onToggleReveal={() => setRevealed(r => !r)}
-              onRefresh={() => void loadOverview()}
-              onOpenReports={() => setTab('reports')}
+              baseUrl={environment.apiBaseUrl}
             />
           )}
 
@@ -211,16 +178,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               officers={officers}
               onSaveOfficers={setOfficers}
               showToast={showToast}
-            />
-          )}
-
-          {tab === 'reports' && (
-            <ReportsTab
-              onServerTripsChange={setServerTrips}
-              showToast={showToast}
-              revealed={revealed}
-              onToggleReveal={() => setRevealed(r => !r)}
-              baseUrl={environment.apiBaseUrl}
             />
           )}
 

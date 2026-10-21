@@ -531,7 +531,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       vehicles.push({
         noPolisi: v.plate,
         vehicleType: v.type,
-        golongan: v.category,
+        golongan: v.golongan ?? v.category ?? '',
         hasLoad,
         photoIndex: vi,
         photoCapturedAt: v.photoCapturedAt ?? null,

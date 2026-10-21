@@ -8,6 +8,52 @@ function dateRange(url: URL): { start?: string; end?: string } {
   return { start: `${startDate}T00:00:00`, end: `${endDate}T23:59:59` };
 }
 
+// Fetch all active tariffs for tariff recalculation
+async function getAllActiveTariffs(): Promise<Map<string, { loaded: number; empty: number }>> {
+  const { data, error } = await db
+    .from("tariffs")
+    .select("golongan, vehicle_type, loaded_tariff, empty_tariff")
+    .eq("is_active", 1);
+
+  if (error || !data) return new Map();
+
+  const tariffMap = new Map<string, { loaded: number; empty: number }>();
+  for (const t of data) {
+    // Key format: "vehicle_type|golongan" for precise matching
+    const key1 = `${t.vehicle_type}|${t.golongan}`;
+    const key2 = `${t.vehicle_type}|`; // fallback without golongan
+    tariffMap.set(key1, { loaded: t.loaded_tariff, empty: t.empty_tariff });
+    if (!tariffMap.has(key2)) {
+      tariffMap.set(key2, { loaded: t.loaded_tariff, empty: t.empty_tariff });
+    }
+  }
+  return tariffMap;
+}
+
+// Calculate tariff amount for a vehicle based on vehicle_type, golongan, and has_load
+function calculateTariffAmount(
+  vehicleType: string,
+  golongan: string | null,
+  hasLoad: number,
+  tariffMap: Map<string, { loaded: number; empty: number }>,
+): number {
+  // Try precise match first (vehicle_type + golongan)
+  const key1 = `${vehicleType}|${golongan || ''}`;
+  const tariff1 = tariffMap.get(key1);
+  if (tariff1) {
+    return hasLoad ? tariff1.loaded : tariff1.empty;
+  }
+
+  // Fallback: vehicle_type only
+  const key2 = `${vehicleType}|`;
+  const tariff2 = tariffMap.get(key2);
+  if (tariff2) {
+    return hasLoad ? tariff2.loaded : tariff2.empty;
+  }
+
+  return 0;
+}
+
 // GET /reports/summary
 export async function summary(req: Request, url: URL): Promise<Response> {
   try {
@@ -53,6 +99,9 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     const vehicleType = url.searchParams.get("vehicleType");
     const route = url.searchParams.get("route");
 
+    // Fetch active tariffs for recalculation
+    const tariffMap = await getAllActiveTariffs();
+
     let query = db
       .from("trips")
       .select("*, officers(name), regions(name, code)")
@@ -77,6 +126,20 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       vehicles = (tvData ?? []).map((tv: any) => ({ ...tv.vehicles, trip_id: tv.trip_id }));
     }
 
+    // Recalculate tariff_amount for vehicles that have 0 or null tariff_amount
+    vehicles = vehicles.map((v) => {
+      if (!v.tariff_amount || v.tariff_amount === 0) {
+        const calculatedAmount = calculateTariffAmount(
+          v.vehicle_type,
+          v.golongan,
+          v.has_load,
+          tariffMap,
+        );
+        return { ...v, tariff_amount: calculatedAmount };
+      }
+      return v;
+    });
+
     let filtered = vehicles;
     if (golongan) filtered = filtered.filter((v) => v.golongan === golongan);
     if (vehicleType) filtered = filtered.filter((v) => v.vehicle_type === vehicleType);
@@ -89,6 +152,12 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
 
     let result = (trips ?? []).map((t: any) => {
       const tv = vehiclesByTrip.get(t.id) ?? [];
+      // Collect all vehicle photos plus trip proof photo
+      const allPhotos = [
+        ...tv.map((v: any) => v.foto_path).filter(Boolean),
+        t.foto_kosong_path,
+      ].filter(Boolean);
+
       return {
         ...t,
         officer_name: t.officers?.name,
@@ -96,7 +165,9 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
         region_code: t.regions?.code,
         vehicles: tv,
         vehicle_count: tv.length,
-        trip_revenue: tv.reduce((s, v) => s + (v.tariff_amount || 0), 0),
+        trip_revenue: tv.reduce((s: number, v: any) => s + (v.tariff_amount || 0), 0),
+        all_photos: allPhotos,
+        trip_photo: t.foto_kosong_path,
       };
     });
 

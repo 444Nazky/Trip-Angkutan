@@ -195,7 +195,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           <tbody className="divide-y">
             <tr className="bg-slate-50/60">
               <td className="p-4 font-bold text-slate-600">Semua region</td>
-              <td className="p-4"><span className="inline-flex items-center gap-1.5 bg-slate-800 text-white text-[11px] font-black px-2.5 py-1 rounded-full">Rp 0 · Dikunci</span></td>
+              <td className="p-4"><span className="inline-flex items-center gap-1.5 bg-slate-800 text-white text-[11px] font-black px-2.5 py-1 rounded-full">Rp 0 - Dikunci</span></td>
               <td className="p-4 text-[11px] text-slate-400" colSpan={2}>Plat internal tidak dikenakan tarif</td>
               <td className="p-4 text-right text-[11px] text-slate-300">—</td>
             </tr>
