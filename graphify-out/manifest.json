@@ -1985,8 +1985,8 @@
     "semantic_hash": ""
   },
   "restart-all.sh": {
-    "mtime": 1792555135.627554,
-    "ast_hash": "01b40bafae94b8a3900c5934e05beb31",
+    "mtime": 1792557501.1698697,
+    "ast_hash": "ba7500083d8c1dda22f5c9be2630f9aa",
     "semantic_hash": ""
   },
   "src/admin-main.tsx": {
@@ -2320,8 +2320,8 @@
     "semantic_hash": ""
   },
   "restart-all-ubuntu.sh": {
-    "mtime": 1792555135.625536,
-    "ast_hash": "01b40bafae94b8a3900c5934e05beb31",
+    "mtime": 1792557501.167701,
+    "ast_hash": "ba7500083d8c1dda22f5c9be2630f9aa",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
