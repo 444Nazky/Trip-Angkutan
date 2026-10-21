@@ -35,6 +35,7 @@ export interface ReportVehicle {
 
   golongan: string
 
+  kategori?: string | null
   master_golongan?: string | null
   has_load: number
   tariff_amount: number
@@ -77,6 +78,26 @@ export interface ReportTrip {
 
 
 
+export const OPERATIONAL_CATEGORIES = ['Internal', 'Eksternal', 'Lokal']
+
+
+
+// Bacai kategori operasional kendaraan (Internal / Eksternal / Lokal).
+// Backend sudah resolves kategori dari pindaian plat terbaru; nilai pada
+// tabel vehicles dipakai sebagai cadangan untuk data lama.
+export function reportGolongan(vehicle: ReportVehicle | undefined | null): string {
+  const resolved = String(vehicle?.kategori ?? '').trim()
+  if (resolved) return resolved
+  const raw = String(vehicle?.golongan ?? '').trim()
+  const low = raw.toLowerCase()
+  if (low.startsWith('internal')) return 'Internal'
+  if (low.startsWith('eksternal')) return 'Eksternal'
+  if (low.startsWith('lokal')) return 'Lokal'
+  return raw || '-'
+}
+
+
+
 export function vehicleUnitLabel(
   vehicles: ReportVehicle[],
   vehicle: ReportVehicle | undefined,
@@ -99,6 +120,8 @@ export interface ReportFilters {
   vehicleType?: string
   route?: string
   status?: string
+  muatan?: 'ada' | 'tanpa'
+  q?: string
 
   startDate?: string
   endDate?: string
@@ -113,6 +136,8 @@ function toQuery(f?: ReportFilters): string {
   if (f.vehicleType) params.set('vehicleType', f.vehicleType)
   if (f.route) params.set('route', f.route)
   if (f.status) params.set('status', f.status)
+  if (f.muatan) params.set('muatan', f.muatan)
+  if (f.q) params.set('q', f.q)
   if (f.startDate) params.set('startDate', f.startDate)
   if (f.endDate) params.set('endDate', f.endDate)
   const qs = params.toString()

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check } from 'lucide-react'
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
 import { fetchGeofencePointsForRoute, createRouteGeofencePoint, updateGeofenceRule, deleteGeofenceRule } from '../../../services/geofences'
 import { isShortMapsLink, parseMapsUrl, resolveMapsShortLink, osmEmbeddedMapUrl, googleMapsLink, type ParsedGeo } from '../../../services/geo'
@@ -470,8 +471,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
         </table>
       </div>
 
-      {showGeofencePanel && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      {showGeofencePanel && createPortal((
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
 
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
@@ -597,7 +598,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                         Latitude
                         {coordsFromLink && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                            ✓ Terisi Otomatis
+                            <Check size={11} /> Terisi Otomatis
                           </span>
                         )}
                       </label>
@@ -616,7 +617,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                         Longitude
                         {coordsFromLink && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                            ✓ Terisi Otomatis
+                            <Check size={11} /> Terisi Otomatis
                           </span>
                         )}
                       </label>
@@ -720,7 +721,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   )
 }

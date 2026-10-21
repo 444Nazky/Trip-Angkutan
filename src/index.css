@@ -135,8 +135,11 @@
 }
 
 .admin-tab-content {
-  animation: admin-fade-in 0.25s ease-out both;
-  /* Prevent transform from affecting fixed-positioned children (modals/overlays) */
+  /* Fill mode 'backwards' (bukan 'both') agar nilai transform dari keyframe
+     tidak tertinggal setelah animasi selesai. Transform yang tertinggal membuat
+     elemen ini menjadi containing block bagi anak position: fixed, sehingga
+     modal tampil di tengah dokumen dan bukan di tengah viewport. */
+  animation: admin-fade-in 0.25s ease-out backwards;
   transform: none;
 }
 
@@ -162,12 +165,12 @@
 }
 
 .admin-date-group {
-  animation: admin-slide-in 0.2s ease-out both;
+  animation: admin-slide-in 0.2s ease-out backwards;
 }
 
 /* Staggered animation for list items */
 .stagger-item {
-  animation: admin-fade-in 0.25s ease-out both;
+  animation: admin-fade-in 0.25s ease-out backwards;
 }
 .stagger-item:nth-child(1) { animation-delay: 0ms; }
 .stagger-item:nth-child(2) { animation-delay: 50ms; }
