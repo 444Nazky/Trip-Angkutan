@@ -1,7 +1,6 @@
 import { cacheDockOfficers, syncDermagaOfficersToDb, getStoredDermaga, getStoredOfficer, refreshStoredRoutes, renewSessionIfNeeded } from './auth'
 import { syncGeofencesFromBackend } from './geofence'
 import { api } from './api'
-import { Network } from '@capacitor/network'
 
 
 
@@ -217,54 +216,6 @@ export async function pullTariffsToLocal(): Promise<number> {
   if (rows.length === 0) return cached.length
   saveTariffs(rows)
   return rows.length
-}
-
-
-
-// ── Sinkron senyap saat koneksi kembali ──────────────────────────────────────
-
-let connectivityBound = false
-let pendingSync: ReturnType<typeof setTimeout> | null = null
-
-
-
-/**
- * Bawa seluruh master data (petugas + PIN, dermaga, rute, geofence, region)
- * selaras begitu perangkat kembali punya internet.
- *
- * Sengaja TANPA notifikasi/toast — petugas cukup melihat datanya berubah.
- * Dijeda 1,5 detik karena satu peralihan jaringan sering memicu beberapa event
- * berturut-turut (`online` + `networkStatusChange`).
- */
-export function startConnectivitySync(): void {
-  if (connectivityBound) return
-  connectivityBound = true
-
-  const trigger = () => { scheduleSilentSync() }
-
-  try {
-    window.addEventListener('online', trigger)
-  } catch { /* non-browser */ }
-
-  // Jalur native: event `online` WebView tidak selalu andal saat jaringan
-  // berpindah (WiFi ↔ seluler), jadi pakai plugin Network bila tersedia.
-  // Import statis: dynamic import() di sini membuat esbuild menghasilkan chunk
-  // yang mereferensi chunk helper yang tidak pernah di-emit (bundle rusak).
-  try {
-    void Network.addListener('networkStatusChange', status => {
-      if (status?.connected) trigger()
-    })
-  } catch { /* plugin tak tersedia (web) — listener window sudah cukup */ }
-}
-
-
-
-function scheduleSilentSync(): void {
-  if (pendingSync) clearTimeout(pendingSync)
-  pendingSync = setTimeout(() => {
-    pendingSync = null
-    void silentMasterSync()
-  }, 1500)
 }
 
 

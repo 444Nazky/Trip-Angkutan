@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    image: trip-angkutan
+    container_name: trip-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "5173:5173"

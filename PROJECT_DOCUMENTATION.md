@@ -2,7 +2,30 @@
 
 ## Catatan Penting - Build & Deploy
 
-### Setiap Kali Build, Wajib Jalankan Perintah Ini:
+### Metode Utama: Docker (rekomendasi, otomatis)
+
+```bash
+./restart-all.sh      # atau restart-all-ubuntu.sh (isi identik)
+```
+
+Script ini: build image (node:26 + npm ci + `npm run build`), lalu jalankan container
+nginx `trip-web` di port **8000 (Admin)** dan **5173 (Mobile)**. Docker menghasilkan
+build baru setiap eksekusi, jadi laptop/komputer lain tidak akan menampilkan kode lama.
+
+```bash
+# Stop semua: sudo docker compose -f docker-compose.yml down
+# Cek logs  : sudo docker logs trip-web
+```
+
+- `Dockerfile`     : multi-stage, builder node:26-bookworm-slim, runtime nginx:stable-alpine
+- `nginx.conf`     : 8000 = docroot `/srv/admin` (index admin), 5173 = docroot `/srv/mobile`
+  aset `/assets/*` immutable 1 tahun; `index.html` & `sw.js` no-store
+- PENTING: diperlukan `sudo docker` (user belum masuk grup docker), dan path repo
+  mengandung spasi - script memakai path absolut, jangan pindah-pindah folder.
+- Catatan: `npm ci` di kontainer harus pakai node 26/npm 12 (lockfile dibuat npm 12;
+  node 22/npm 10 akan gagal sinkronisasi lock file).
+
+### Metode Lama (tanpa Docker, dev lokal):
 
 ```bash
 # 1. Build web app

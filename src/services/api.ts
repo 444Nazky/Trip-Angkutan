@@ -50,16 +50,6 @@ export interface Route {
   dermagaId?: string
 }
 
-export interface GeofencePoint {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  radiusMeters?: number
-  allowedRoutes?: string[]
-  enabled?: boolean
-}
-
 // ─── URL resolution ───────────────────────────────────────────────────────────────
 
 function getBaseUrl(): string {
@@ -249,41 +239,6 @@ export const api = {
       }
     }
   },
-}
-
-// ─── Geofence caching ─────────────────────────────────────────────────────────
-
-const GEOFENCE_KEY = 'trip.geofence.cache'
-const GEOFENCE_TTL = 15 * 60 * 1000
-
-export function getCachedGeofences(): GeofencePoint[] {
-  try {
-    const raw = localStorage.getItem(GEOFENCE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed as GeofencePoint[]
-  } catch { return [] }
-}
-
-export function cacheGeofences(points: GeofencePoint[]) {
-  try {
-    if (points?.length) localStorage.setItem(GEOFENCE_KEY, JSON.stringify(points))
-    else localStorage.removeItem(GEOFENCE_KEY)
-  } catch {}
-}
-
-export function cachedGeofenceAge(): number {
-  try {
-    const raw = localStorage.getItem(GEOFENCE_KEY)
-    if (!raw) return Infinity
-    const parsed = JSON.parse(raw)
-    return Date.now() - (parsed?.cachedAt || 0)
-  } catch { return Infinity }
-}
-
-export function isGeofenceCacheStale(): boolean {
-  return cachedGeofenceAge() > GEOFENCE_TTL
 }
 
 // ─── Officer storage ───────────────────────────────────────────────────────────

@@ -113,7 +113,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     <div className="flex items-center gap-4">
 
       <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
-        <img src="/Assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
+        <img src="/assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
       </div>
 
       <div>

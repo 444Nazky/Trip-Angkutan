@@ -1,21 +1,21 @@
 # Graph Report - Aplikasi-Trip-Main Branch  (2026-10-21)
 
 ## Corpus Check
-- 371 files · ~524,210 words
+- 348 files · ~448,198 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 9473 nodes · 24704 edges · 412 communities (366 shown, 46 thin omitted)
-- Extraction: 92% EXTRACTED · 8% INFERRED · 0% AMBIGUOUS · INFERRED: 2087 edges (avg confidence: 0.64)
+- 6892 nodes · 15332 edges · 361 communities (314 shown, 47 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 590 edges (avg confidence: 0.52)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7f336364`
+- Built from commit: `f82c4e49`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- admin-ci/assets/js/main-RI6SS7LQ.js
+- admin-www/assets/js/main-VLHRN7HI.js
 - assets/js/main-MPVPD54R.js
 - ota/assets/js/main-MPVPD54R.js
 - C
@@ -23,15 +23,13 @@
 - New session - 2026-10-20T02:55:56.951Z
 - Ce
 - .addEventListener
-- admin-www/assets/js/main-VTPHTKRZ.js
+- q
 - json
-- assets/js/chunk-CH_yQx9E.js
-- ota/assets/js/chunk-CH_yQx9E.js
-- api.ts
-- store.tsx
-- admin-ci/assets/js/main-VTPHTKRZ.js
+- AdminDashboard.tsx
+- MobileApp.tsx
 - l
-- _buildPhotoMediaResult
+- bL
+- wa
 - assets/js/chunk-B5pVNIil.js
 - ota/assets/js/chunk-B5pVNIil.js
 - C
@@ -43,12 +41,12 @@
 - ReportSheet.tsx
 - brandkit/SKILL.md
 - Ce
-- admin-www/assets/js/main-RI6SS7LQ.js
+- lt
 - Database Tables
 - chunk-V1_x9wlm.js
 - Common Issues & Solutions
 - Fitur Utama
-- o
+- sy
 - ota.ts
 - mI
 - updateService.ts
@@ -59,28 +57,28 @@
 - adminPull.ts
 - vI
 - App Hosting CLI Commands
-- sS
-- www/assets/js/chunk-CO2zY9X8.js
+- admin-www/assets/js/chunk-Bt8IOqlF.js
+- api.ts
 - wv
 - devDependencies
 - dependencies
-- index-CrleS6t_.js
-- l
-- Za
+- z1
+- Ke
+- Ba
 - get
 - cI
 - updateFlow.test.ts
 - High-Agency Frontend Skill
-- Se
-- www/assets/js/main-RI6SS7LQ.js
+- H
+- www/assets/js/main-VLHRN7HI.js
 - Icon & Assets
 - Alur Aplikasi Trip Angkutan — Dokumentasi Lengkap
 - Dokumentasi Proyek Trip Angkutan
 - Deterministic Rules for Migration
 - Changelog
-- permission.ts
+- Gr
 - Troubleshooting
-- api
+- RoutesTab.tsx
 - Key Attributes
 - Angular Component
 - sync.ts
@@ -88,9 +86,9 @@
 - Security Reference
 - Architecture.md
 - assets/js/chunk-NnUIhVLM.js
-- L
-- styles
-- ota/assets/js/chunk-NnUIhVLM.js
+- c
+- admin-www/assets/js/chunk-Csv_wGmV.js
+- zk
 - Supabase
 - Changelog
 - Firebase Crashlytics - Android Setup Guide (Kotlin)
@@ -98,11 +96,11 @@
 - get
 - Struktur Proyek Aplikasi-Trip-Ionic
 - compilerOptions
-- s
+- cg
 - Writing Guidelines for Postgres References
-- Kredensial Login
-- cI
-- Za
+- vI
+- nl
+- q
 - System-Design.md
 - Native SQL Examples
 - Schema Reference
@@ -113,19 +111,19 @@
 - Operations Reference
 - Analysis & Synthesis Instructions
 - 3. Functional Requirements (FR)
-- l
+- Za
 - ota.test.ts
 - 1. Vector Similarity Search (Semantic)
 - Agent Skill: Principal UI/UX Architect & Motion Choreographer (Awwwards-Tier)
-- ma
+- $t
 - Firestore Web SDK Usage Guide
 - Advanced Validation for Business Logic
 - SKILL: Industrial Brutalism & Tactical Telemetry UI
 - Arsitektur Offline-First Mobile Trip Angkutan
 - Section Definitions
-- q
-- admin-ci/assets/js/chunk-D706g1zh.js
-- he
+- rm
+- PlatesTab.tsx
+- zt
 - tasteskill: Anti-Slop Frontend Skill
 - Appendix B - Canonical Sources (read these before reinventing)
 - Firebase Authentication Web SDK
@@ -134,7 +132,7 @@
 - Design System: Taste Standard
 - ⛔️ CRITICAL RULES & ENVIRONMENT CHECKS
 - options
-- yy
+- K
 - organize-build.mjs
 - publish-ota-server.mjs
 - tariffs.ts
@@ -159,7 +157,7 @@
 - Trip Angkutan (Mobile + Admin)
 - publish-apk.mjs
 - migrate_sqlite_to_supabase.py
-- zt
+- If
 - 4. DESIGN ENGINEERING DIRECTIVES (Bias Correction)
 - Firebase Authentication - Android Setup Guide (Kotlin)
 - Flutter & Firebase Setup Guide
@@ -171,7 +169,7 @@
 - Cloud Firestore (Standard edition) - Android Setup Guide (Kotlin)
 - Trip Angkutan Android
 - production
-- Vt
+- app
 - Firebase AI Logic Basics
 - ⛔️ CRITICAL RULE: NO INLINE INITIALIZATION ⛔️
 - main.swift
@@ -196,7 +194,7 @@
 - tsconfig.json
 - admin-www/assets/js/chunk-D706g1zh.js
 - lock-advisory.md
-- x1
+- reorderRows
 - Firebase Functions V1 vs V2 Signature Mapping
 - ⛔️ CRITICAL RULE: NO INLINE INITIALIZATION ⛔️
 - firebase-basics/references/ios_setup.md
@@ -208,7 +206,7 @@
 - 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE
 - bL
 - Perubahan Terbaru (20 Okt 2024)
-- admin-ci/assets/js/chunk-V1_x9wlm.js
+- reorderRows
 - lock-deadlock-prevention.md
 - lock-short-transactions.md
 - lock-skip-locked.md
@@ -255,7 +253,7 @@
 - 13. COLOR & MATERIAL RULES
 - 4. HERO MINIMALISM RULES
 - ApkInstallerPlugin.java
-- app
+- angular.json
 - options
 - allowScripts
 - App Check Debug Tokens for Local Development & CI/CD
@@ -267,7 +265,7 @@
 - 29. ANTI-AI-SLOP RULES
 - 5. IMAGE COUNT & PAGE SLICING
 - MainActivity.java
-- j1
+- reorderRows
 - lint
 - development
 - verify-apks.mjs
@@ -292,116 +290,65 @@
 - 15. DEFAULT SITE PACKS
 - 20. EXAMPLE INTERPRETATIONS
 - gradlew
-- q
+- Catatan Penting - Build & Deploy
 - query-partial-indexes.md
-- q
-- cm
-- z1
-- j1
+- restart-all-ubuntu.sh
 - schema-constraints.md
 - lib
 - global.d.ts
 - schema-data-types.md
 - Package.swift
-- .addEventListener
 - capacitor.config.ts
-- sS
-- ny
 - Concept.md
 - eslint.config.js
 - reset_pins.js
 - schema-foreign-key-indexes.md
-- .post
+- l
 - schema-lowercase-identifiers.md
 - environment.prod.ts
 - schema-partitioning.md
 - schema-primary-keys.md
 - security-privileges.md
-- l
 - security-rls-basics.md
-- pa
 - security-rls-performance.md
 - _template.md
 - _shared.ts
 - restart-all.sh
 - appVersion.ts
-- q
-- ds
-- l
 - chunk-DCH68MUC.js
 - chunk-DLeADuY_.js
 - Mutations
 - www/sw.js
-- cm
-- lt
 - index.ts
 - handlers/trips.ts
 - wv
 - handlers/geofences.ts
-- s
+- ma
 - handlers/plates.ts
-- vx
-- H
-- admin-ci/assets/js/chunk-DXbIOCYn.js
 - admin-www/assets/js/chunk-DXbIOCYn.js
-- H
-- ql
-- admin-ci/assets/js/chunk-HTbCvUtE.js
+- ota/assets/js/chunk-NnUIhVLM.js
 - vitest
-- kt
-- admin-www/assets/js/chunk-HTbCvUtE.js
-- admin-www/assets/js/chunk-CO2zY9X8.js
-- zk
-- Yb
-- q
-- a1
-- lt
-- rm
-- Qe
-- Td
-- lt
+- c
 - AppUpdateController
-- f
-- admin-ci/assets/js/chunk-DCH68MUC.js
-- admin-ci/assets/js/chunk-DLeADuY_.js
 - admin-www/assets/js/chunk-DCH68MUC.js
 - admin-www/assets/js/chunk-DLeADuY_.js
-- Qe
-- admin-ci/sw.js
 - admin-www/sw.js
-- ot
-- k
-- ma
-- .addEventListener
-- bL
-- $t
-- z1
 - zk
+- wa
+- store.tsx
+- lt
 - Ke
-- z1
-- admin-ci/assets/js/chunk-CIkw_09T.js
-- admin-www/assets/js/chunk-CIkw_09T.js
-- zk
-- www/assets/js/chunk-CIkw_09T.js
-- zk
-- qt
-- Project Guidelines - Trip Angkutan
-- galleryInputExperience
-- dl
-- sy
-- iw
+- CSS Variables - ATURAN KRITIS
+- Zs
+- L
+- www/assets/js/chunk-Csv_wGmV.js
 - zt
-- Mf
-- Ol
-- cv
-- iw
-- Mf
-- cv
-- If
-- ota/assets/js/chunk-CGoL4ubf.js
-- ota/assets/js/chunk-DOysdLf_.js
-- ocr.ts
-- officers.test.ts
+- qt
+- Za
+- VehicleFormScreen.tsx
+- rm
+- www/assets/js/chunk-Bt8IOqlF.js
+- offlineDb.ts
 - CSS Variables - PERHATIKAN!
 - eslint
 - @angular/cli
@@ -409,101 +356,93 @@
 - tailwindcss
 
 ## God Nodes (most connected - your core abstractions)
-1. `o()` - 299 edges
-2. `New session - 2026-10-20T02:55:56.951Z` - 113 edges
+1. `New session - 2026-10-20T02:55:56.951Z` - 113 edges
+2. `l()` - 86 edges
 3. `l()` - 86 edges
-4. `l()` - 86 edges
-5. `l()` - 86 edges
-6. `l()` - 84 edges
-7. `l()` - 84 edges
-8. `f()` - 74 edges
-9. `json()` - 74 edges
-10. `q()` - 67 edges
+4. `json()` - 74 edges
+5. `q()` - 65 edges
+6. `q()` - 65 edges
+7. `requireAdmin()` - 45 edges
+8. `f1()` - 39 edges
+9. `f1()` - 39 edges
+10. `CORE DIRECTIVE: IMAGE-FIRST WEBSITE DESIGN TO CODE` - 39 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `run()` --indirect_call--> `o()`  [INFERRED]
-  admin-ci/assets/js/chunk-D706g1zh.js → admin-www/assets/index-CrleS6t_.js
-- `get()` --indirect_call--> `f()`  [INFERRED]
-  admin-ci/assets/js/chunk-DXbIOCYn.js → admin-www/assets/index-CrleS6t_.js
-- `tt()` --indirect_call--> `o()`  [INFERRED]
-  admin-ci/assets/js/main-RI6SS7LQ.js → admin-www/assets/index-CrleS6t_.js
-- `Ne()` --indirect_call--> `o()`  [INFERRED]
-  admin-ci/assets/js/main-RI6SS7LQ.js → admin-www/assets/index-CrleS6t_.js
-- `Te()` --indirect_call--> `f()`  [INFERRED]
-  admin-ci/assets/js/main-RI6SS7LQ.js → admin-www/assets/index-CrleS6t_.js
+- `getFromHTTPRequest()` --indirect_call--> `s()`  [INFERRED]
+  admin-www/assets/js/chunk-D706g1zh.js → admin-www/assets/js/chunk-roJYE7Nb.js
+- `getNativeVersion()` --references--> `app`  [EXTRACTED]
+  src/services/updateService.ts → angular.json
+- `Shell()` --references--> `@capacitor/app`  [EXTRACTED]
+  src/App.tsx → package.json
+- `getFromHTTPRequest()` --indirect_call--> `s()`  [INFERRED]
+  www/assets/js/chunk-D706g1zh.js → www/assets/js/chunk-roJYE7Nb.js
+- `pS()` --indirect_call--> `E()`  [INFERRED]
+  admin-www/assets/js/main-VLHRN7HI.js → admin-www/assets/js/chunk-Csv_wGmV.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (412 total, 46 thin omitted)
+## Communities (361 total, 47 thin omitted)
 
-### Community 0 - "admin-ci/assets/js/main-RI6SS7LQ.js"
+### Community 0 - "admin-www/assets/js/main-VLHRN7HI.js"
 Cohesion: 0.02
-Nodes (130): Ab(), ae$2(), Af(), Ag(), aI(), ao(), applyApk(), applyModule() (+122 more)
+Nodes (118): Ac(), aD(), ae$2(), Ag(), ao(), applyApk(), applyModule(), Ar() (+110 more)
 
 ### Community 1 - "assets/js/main-MPVPD54R.js"
 Cohesion: 0.02
-Nodes (136): A(), a2(), aa(), ac(), ad(), addListener(), addWindowListener(), Af() (+128 more)
+Nodes (117): A(), a2(), aa(), ad(), addListener(), addWindowListener(), Af(), b1() (+109 more)
 
 ### Community 2 - "ota/assets/js/main-MPVPD54R.js"
 Cohesion: 0.02
-Nodes (125): _1(), A(), a2(), ac(), addListener(), addWindowListener(), b1(), bk() (+117 more)
+Nodes (140): A(), a2(), aa(), ac(), addListener(), addWindowListener(), Af(), Ao() (+132 more)
 
 ### Community 3 - "C"
-Cohesion: 0.05
-Nodes (51): aw(), Ax(), bx(), C(), c0(), cg(), D1(), dn() (+43 more)
+Cohesion: 0.13
+Nodes (20): Ax(), C(), c0(), dn(), ed(), ei(), hx(), km() (+12 more)
 
 ### Community 4 - ".addEventListener"
 Cohesion: 0.06
-Nodes (58): fo(), $m, $2(), ah(), ar(), au(), aw(), Ba() (+50 more)
+Nodes (61): $2(), ah(), ar(), au(), Ba(), br(), Cd(), Cp() (+53 more)
 
 ### Community 5 - "New session - 2026-10-20T02:55:56.951Z"
 Cohesion: 0.02
 Nodes (111): Assistant (Build · GLM-5.3-Flash Free), Assistant (Build · GLM-5.3-Flash Free · 10.0s), Assistant (Build · GLM-5.3-Flash Free · 10.1s), Assistant (Build · GLM-5.3-Flash Free · 10.1s), Assistant (Build · GLM-5.3-Flash Free · 10.2s), Assistant (Build · GLM-5.3-Flash Free · 10.4s), Assistant (Build · GLM-5.3-Flash Free · 10.5s), Assistant (Build · GLM-5.3-Flash Free · 10.5s) (+103 more)
 
 ### Community 6 - "Ce"
-Cohesion: 0.14
-Nodes (25): Ai, ay(), bg(), Bt(), Ce(), Cr(), ey(), ga() (+17 more)
+Cohesion: 0.05
+Nodes (78): An(), Ao(), bf(), bg(), Bt(), Ce(), Cr(), df() (+70 more)
 
 ### Community 7 - ".addEventListener"
-Cohesion: 0.07
-Nodes (56): $2(), ah(), ar(), au(), Ba(), br(), Cd(), Cp() (+48 more)
+Cohesion: 0.08
+Nodes (47): $2(), ah(), ap(), ar(), au(), Av(), br(), Cp() (+39 more)
 
-### Community 8 - "admin-www/assets/js/main-VTPHTKRZ.js"
-Cohesion: 0.02
-Nodes (139): x0(), $0(), a2(), ab(), ae$1(), Af(), ah(), applyApk() (+131 more)
+### Community 8 - "q"
+Cohesion: 0.05
+Nodes (93): ah(), Al(), ap(), Ax(), Bk(), Bm(), bo(), bv() (+85 more)
 
 ### Community 9 - "json"
 Cohesion: 0.16
 Nodes (33): createDermaga(), createRegion(), createTariff(), deleteDermaga(), deleteRegion(), deleteTariff(), getAdminTariffs(), getDermagas() (+25 more)
 
-### Community 10 - "assets/js/chunk-CH_yQx9E.js"
-Cohesion: 0.03
-Nodes (4): executeSet(), query(), reorderRows(), run()
-
-### Community 11 - "ota/assets/js/chunk-CH_yQx9E.js"
-Cohesion: 0.03
-Nodes (4): executeSet(), query(), reorderRows(), run()
-
-### Community 12 - "api.ts"
-Cohesion: 0.06
-Nodes (54): App(), Shell(), Props, ServerSettingsModal(), Status, statusFromProbe(), environment, AdminDashboard() (+46 more)
-
-### Community 13 - "store.tsx"
-Cohesion: 0.04
-Nodes (96): useAppUpdate(), CameraScreen(), CameraScreenProps, loadImage(), FloatingBottomNav(), FloatingBottomNavProps, NavConfirmDialog, NavItem (+88 more)
-
-### Community 14 - "admin-ci/assets/js/main-VTPHTKRZ.js"
-Cohesion: 0.02
-Nodes (144): x0(), $0(), a2(), ae$1(), Af(), ah(), applyApk(), applyModule() (+136 more)
-
-### Community 15 - "l"
-Cohesion: 0.05
-Nodes (110): $$2(), Aa$1(), ae(), ag(), ay(), B(), be(), c() (+102 more)
-
-### Community 16 - "_buildPhotoMediaResult"
+### Community 12 - "AdminDashboard.tsx"
 Cohesion: 0.17
-Nodes (17): _buildPhotoMediaResult(), cameraExperience(), chooseFromGallery(), _createFileInput(), fileInputExperience(), galleryInputExperience(), _getBase64FromFile(), _getCameraPhoto() (+9 more)
+Nodes (19): App(), environment, AdminDashboard(), ChangePasswordProps, ChangePasswordSection(), SettingsTab(), SettingsTabProps, autoDetectApiBaseUrl() (+11 more)
+
+### Community 13 - "MobileApp.tsx"
+Cohesion: 0.06
+Nodes (53): useAppUpdate(), CameraScreen(), CameraScreenProps, loadImage(), FloatingBottomNav(), FloatingBottomNavProps, NavConfirmDialog, NavItem (+45 more)
+
+### Community 14 - "l"
+Cohesion: 0.06
+Nodes (60): a1(), av(), _buildPhotoMediaResult(), cameraExperience(), chooseFromGallery(), _createFileInput(), Cy(), Ea() (+52 more)
+
+### Community 15 - "bL"
+Cohesion: 0.07
+Nodes (60): a0(), ai(), aL(), Bc(), bL(), Cc(), Cf(), cI() (+52 more)
+
+### Community 16 - "wa"
+Cohesion: 0.08
+Nodes (36): Ak(), BA(), be(), bI(), cm(), Ct(), dc(), F0() (+28 more)
 
 ### Community 17 - "assets/js/chunk-B5pVNIil.js"
 Cohesion: 0.07
@@ -514,24 +453,20 @@ Cohesion: 0.07
 Nodes (38): addUpgradeStatement(), beginTransaction(), checkConnectionsConsistency(), close(), closeConnection(), commitTransaction(), copyFromAssets(), createConnection() (+30 more)
 
 ### Community 19 - "C"
-Cohesion: 0.07
-Nodes (36): Ao(), bx(), C(), dw(), ef(), ei(), Gg(), gx() (+28 more)
+Cohesion: 0.06
+Nodes (42): Ax(), bx(), C(), dw(), ed(), ef(), ei(), Fs() (+34 more)
 
 ### Community 20 - "Zs"
-Cohesion: 0.14
-Nodes (23): Ak(), ck(), dk(), fk(), gk(), ik(), jp(), kk() (+15 more)
+Cohesion: 0.09
+Nodes (31): Ak(), ck(), delete(), dk(), fk(), gk(), ik(), Jb() (+23 more)
 
 ### Community 21 - "services/auth.ts"
-Cohesion: 0.05
-Nodes (88): LoginPage(), LoginPageProps, tryOfflineLogin(), DermagaSelectScreen(), DermagaSelectScreenProps, clearCredentials(), Dermaga, getCredentials() (+80 more)
-
-### Community 22 - "www/assets/js/chunk-D706g1zh.js"
-Cohesion: 0.03
-Nodes (5): executeSet(), getFromHTTPRequest(), query(), reorderRows(), run()
+Cohesion: 0.07
+Nodes (50): LoginPage(), LoginPageProps, tryOfflineLogin(), DermagaSelectScreen(), DermagaSelectScreenProps, PinVerifyScreen(), PinVerifyScreenProps, clearCredentials() (+42 more)
 
 ### Community 23 - "geofence.ts"
 Cohesion: 0.08
-Nodes (53): activeRoutes(), allTrips, DermagaAccess, officerList, ROUTES, tariffData, DraftPoint, emptyDraft (+45 more)
+Nodes (52): activeRoutes(), allTrips, DermagaAccess, officerList, ROUTES, tariffData, DraftPoint, emptyDraft (+44 more)
 
 ### Community 24 - "Sistem Update — Custom Self-Hosted API Update System (Purge-First Full-Package)"
 Cohesion: 0.04
@@ -539,19 +474,19 @@ Nodes (45): 0. Alasan Perombakan Total, 10.1 Error Types, 10.2 Retry Logic, 10. 
 
 ### Community 25 - "ReportSheet.tsx"
 Cohesion: 0.09
-Nodes (49): CurrencyDisplay(), CurrencyDisplayProps, Photo, PhotoViewer(), PhotoViewerProps, resolvePhotoUrl(), AllPhotosCell(), asVehRow() (+41 more)
+Nodes (46): CurrencyDisplay(), CurrencyDisplayProps, Photo, PhotoViewer(), PhotoViewerProps, resolvePhotoUrl(), AllPhotosCell(), asVehRow() (+38 more)
 
 ### Community 26 - "brandkit/SKILL.md"
 Cohesion: 0.05
 Nodes (43): 1. Logo Cover, 1. Monogram + Meaning, 2 × 3 REFERENCE-STYLE LAYOUT, 2. Logo Construction, 2. Product Action, 3. Digital Application, 3. Metaphor Fusion, 4. Brand Essence (+35 more)
 
 ### Community 27 - "Ce"
-Cohesion: 0.13
-Nodes (24): bg(), Bt(), Ce(), Cr(), ey(), ga(), It(), Jf() (+16 more)
+Cohesion: 0.07
+Nodes (51): ae$1(), Be$1(), bf(), bg(), Bt(), Cd(), Ce(), Cr() (+43 more)
 
-### Community 28 - "admin-www/assets/js/main-RI6SS7LQ.js"
-Cohesion: 0.02
-Nodes (126): Ab(), Ac(), aD(), ae$2(), Ag(), ao(), applyApk(), applyModule() (+118 more)
+### Community 28 - "lt"
+Cohesion: 0.08
+Nodes (38): bb(), br(), dh(), Ds(), e1(), ey(), Fs(), gc() (+30 more)
 
 ### Community 29 - "Database Tables"
 Cohesion: 0.29
@@ -569,17 +504,17 @@ Nodes (6): 1. Admin Dashboard Blank / Assets Lama, 2. Logo Tidak Muncul / Favico
 Cohesion: 0.33
 Nodes (6): 1. Login & Auth, 2. Sinkronisasi Offline, 3. Geofencing, 4. OTA Update, 5. Laporan, Fitur Utama
 
-### Community 33 - "o"
-Cohesion: 0.09
-Nodes (34): o(), An(), ay(), bI(), bn(), cy(), eC(), en() (+26 more)
+### Community 33 - "sy"
+Cohesion: 0.17
+Nodes (16): An(), ay(), en(), h0(), Hu(), ji(), Ko(), ly() (+8 more)
 
 ### Community 34 - "ota.ts"
-Cohesion: 0.08
-Nodes (56): FORCE_ROSTER_SYNC_KEY, activateBundle(), activateStagedBundle(), ActiveMeta, applyUpdate(), assetPath(), assetsBase(), auditOta() (+48 more)
+Cohesion: 0.09
+Nodes (54): FORCE_ROSTER_SYNC_KEY, activateBundle(), activateStagedBundle(), ActiveMeta, applyUpdate(), assetPath(), assetsBase(), auditOta() (+46 more)
 
 ### Community 35 - "mI"
-Cohesion: 0.14
-Nodes (33): Eo(), bm(), c0(), dn(), Ee(), fa(), fI(), gn() (+25 more)
+Cohesion: 0.12
+Nodes (35): bm(), c0(), dn(), Ee(), fa(), fI(), gn(), Jc() (+27 more)
 
 ### Community 36 - "updateService.ts"
 Cohesion: 0.07
@@ -602,28 +537,28 @@ Cohesion: 0.40
 Nodes (5): Admin Dashboard, Backend (Supabase), Deployment Checklist, Frontend, Mobile App
 
 ### Community 41 - "adminPull.ts"
-Cohesion: 0.13
-Nodes (23): fmtRp(), getStoredRegions(), getStoredTariffs(), pullRegionsToLocal(), pullTariffsToLocal(), REGIONS_STORAGE_KEY, saveRegions(), saveTariffs() (+15 more)
+Cohesion: 0.08
+Nodes (34): Shell(), fmtRp(), getStoredRegions(), getStoredTariffs(), pullRegionsToLocal(), pullTariffsToLocal(), REGIONS_STORAGE_KEY, saveRegions() (+26 more)
 
 ### Community 42 - "vI"
 Cohesion: 0.10
-Nodes (33): Bc(), bf(), bI(), bn(), cy(), D1(), da(), Do() (+25 more)
+Nodes (29): aw(), bI(), bn(), cg(), cy(), D1(), Do(), eC() (+21 more)
 
 ### Community 43 - "App Hosting CLI Commands"
 Cohesion: 0.06
 Nodes (30): App Hosting CLI Commands, Automated deployment via GitHub (CI/CD), Backend Management, Initialization, `npx -y firebase-tools@latest apphosting:backends:create`, `npx -y firebase-tools@latest apphosting:backends:delete <backend-id>`, `npx -y firebase-tools@latest apphosting:backends:get <backend-id>`, `npx -y firebase-tools@latest apphosting:backends:list` (+22 more)
 
-### Community 44 - "sS"
-Cohesion: 0.06
-Nodes (46): Ec(), aw(), Bl(), dN(), dS(), du(), eA(), eh() (+38 more)
+### Community 44 - "admin-www/assets/js/chunk-Bt8IOqlF.js"
+Cohesion: 0.08
+Nodes (35): Aa(), C$1(), D(), Db(), de$2(), Dt(), dv(), _f() (+27 more)
 
-### Community 45 - "www/assets/js/chunk-CO2zY9X8.js"
-Cohesion: 0.04
-Nodes (119): Aa(), ae$1(), B(), bw(), c(), C$1(), cameraExperience(), cg() (+111 more)
+### Community 45 - "api.ts"
+Cohesion: 0.09
+Nodes (29): Props, ServerSettingsModal(), Status, statusFromProbe(), ApiBaseCandidate, apiBaseCandidateLabel(), apiBaseCandidates(), ApiError (+21 more)
 
 ### Community 46 - "wv"
-Cohesion: 0.12
-Nodes (27): $b(), bd(), bv(), cv(), dp(), gp(), h2(), hk() (+19 more)
+Cohesion: 0.11
+Nodes (30): $b(), bd(), bp(), bv(), c2(), cv(), dp(), g2() (+22 more)
 
 ### Community 47 - "devDependencies"
 Cohesion: 0.06
@@ -633,25 +568,25 @@ Nodes (33): @angular/build, @angular/compiler, @angular/compiler-cli, angular-es
 Cohesion: 0.06
 Nodes (35): @angular/core, bcryptjs, @capacitor/app, @capacitor/camera, @capacitor-community/sqlite, @capacitor/core, @capacitor/device, @capacitor/filesystem (+27 more)
 
-### Community 49 - "index-CrleS6t_.js"
-Cohesion: 0.04
-Nodes (56): ah, Am, $b(), Bb(), Bm, bo, bp, Cm (+48 more)
+### Community 49 - "z1"
+Cohesion: 0.11
+Nodes (33): $$1(), bh(), bt(), co(), fl(), gT(), hc(), Ip() (+25 more)
 
-### Community 50 - "l"
-Cohesion: 0.06
-Nodes (95): ap, Di(), Om, On(), Ub(), Aa$1(), ae(), ag() (+87 more)
+### Community 50 - "Ke"
+Cohesion: 0.14
+Nodes (25): b1(), Da(), Fb(), fI(), gh(), gi(), hh(), hi() (+17 more)
 
-### Community 51 - "Za"
+### Community 51 - "Ba"
 Cohesion: 0.06
-Nodes (52): aa(), ae$1(), Af(), ap(), ar$1(), At(), Av(), Be$1() (+44 more)
+Nodes (57): $0(), ar$1(), At(), aw(), Ba(), Ca(), cg(), De() (+49 more)
 
 ### Community 52 - "get"
-Cohesion: 0.20
-Nodes (25): $0(), Ae(), Bc(), bw(), cw(), cx(), fu(), fw() (+17 more)
+Cohesion: 0.13
+Nodes (35): Ae(), As(), bw(), by(), Ct(), cw(), cx(), Es() (+27 more)
 
 ### Community 53 - "cI"
-Cohesion: 0.07
-Nodes (59): aL(), Ao(), bf(), Cf(), cI(), da(), dI(), dt() (+51 more)
+Cohesion: 0.06
+Nodes (54): a0(), ad(), ai(), aL(), Am(), b0(), Bc(), Cc() (+46 more)
 
 ### Community 54 - "updateFlow.test.ts"
 Cohesion: 0.11
@@ -661,13 +596,13 @@ Nodes (4): h, nodeSpecifier, readFile(), toBase64()
 Cohesion: 0.06
 Nodes (30): 10. FINAL PRE-FLIGHT CHECK, 1. ACTIVE BASELINE CONFIGURATION, 2. DEFAULT ARCHITECTURE & CONVENTIONS, 3. DESIGN ENGINEERING DIRECTIVES (Bias Correction), 4. CREATIVE PROACTIVITY (Anti-Slop Implementation), 5. PERFORMANCE GUARDRAILS, 6. TECHNICAL REFERENCE (Dial Definitions), 7. AI TELLS (Forbidden Patterns) (+22 more)
 
-### Community 56 - "Se"
-Cohesion: 0.11
-Nodes (28): ae$1(), At(), Be$1(), by(), Ca(), De(), _e(), E$1() (+20 more)
+### Community 56 - "H"
+Cohesion: 0.05
+Nodes (61): ae$1(), ap(), ar$1(), As(), At(), Av(), ay(), Be$1() (+53 more)
 
-### Community 57 - "www/assets/js/main-RI6SS7LQ.js"
+### Community 57 - "www/assets/js/main-VLHRN7HI.js"
 Cohesion: 0.02
-Nodes (112): ae$2(), Af(), Ag(), ao(), applyApk(), applyModule(), B$1(), Bc() (+104 more)
+Nodes (132): ae$2(), Af(), Ag(), aI(), ao(), apply(), applyApk(), applyModule() (+124 more)
 
 ### Community 58 - "Icon & Assets"
 Cohesion: 0.40
@@ -678,8 +613,8 @@ Cohesion: 0.07
 Nodes (29): 1.1 Inisiasi Awal & Login, 1.2 Memulai Trip Baru, 1.3 Pemilihan Kondisi (TripConditionScreen), 1.4 Alur "Angkutan Kosong" (Kondisi: Kosong), 1.5 Alur "Ada Muatan" (Kondisi: Ada Angkutan), 1.6 Keamanan & Manajemen Petugas, 1. Alur Aplikasi Mobile (Petugas Lapangan), 2.1 Dashboard Overview (`AdminDashboard.tsx` tab 'overview') (+21 more)
 
 ### Community 60 - "Dokumentasi Proyek Trip Angkutan"
-Cohesion: 0.22
-Nodes (8): Arsitektur Aplikasi, Backend, Catatan Penting - Build & Deploy, Checklist Sebelum Deploy, Dokumentasi Proyek Trip Angkutan, Dua Aplikasi Terpisah, Setiap Kali Build, Wajib Jalankan Perintah Ini:, Struktur Direktori
+Cohesion: 0.20
+Nodes (9): Admin, Arsitektur Aplikasi, Backend, Checklist Sebelum Deploy, Dokumentasi Proyek Trip Angkutan, Dua Aplikasi Terpisah, Kredensial Login, Petugas (+1 more)
 
 ### Community 61 - "Deterministic Rules for Migration"
 Cohesion: 0.07
@@ -689,17 +624,17 @@ Nodes (27): 1. Per-Function Configuration, 2. Global Configuration (`setGlobalOp
 Cohesion: 0.10
 Nodes (20): [0.1.3](https://github.com/supabase/agent-skills/compare/v0.1.2...v0.1.3) (2026-06-02), [0.1.4](https://github.com/supabase/agent-skills/compare/v0.1.3...v0.1.4) (2026-06-05), [0.1.5](https://github.com/supabase/agent-skills/compare/v0.1.4...v0.1.5) (2026-07-10), [0.1.6](https://github.com/supabase/agent-skills/compare/v0.1.5...supabase-v0.1.6) (2026-07-30), [0.1.7](https://github.com/supabase/agent-skills/compare/v0.1.6...supabase-v0.1.7) (2026-08-12), [0.1.8](https://github.com/supabase/agent-skills/compare/v0.1.7...supabase-v0.1.8) (2026-09-24), [0.1.9](https://github.com/supabase/agent-skills/compare/v0.1.8...supabase-v0.1.9) (2026-09-28), Bug Fixes (+12 more)
 
-### Community 63 - "permission.ts"
-Cohesion: 0.36
-Nodes (9): checkAndRequestLocationOnStartup(), checkLocationPermission(), ensureLocationPermission(), getLocationWithPermissionCheck(), LOCATION_PERMISSION_KEY, markLocationPermissionRequested(), PermissionStatus, requestLocationPermission() (+1 more)
+### Community 63 - "Gr"
+Cohesion: 0.12
+Nodes (27): Bd(), cx(), dl(), dx(), Gr(), Hk(), Hm(), km() (+19 more)
 
 ### Community 64 - "Troubleshooting"
 Cohesion: 0.40
 Nodes (5): Cek Database Tables, Cek Edge Function Logs, Restart Admin Server, Test API Langsung, Troubleshooting
 
-### Community 65 - "api"
-Cohesion: 0.08
-Nodes (47): AdminTab, BackendOfficerRow, DermagaAccess, emptyRouteForm, GeofencePoint, Officer, RouteDermaga, RouteFormState (+39 more)
+### Community 65 - "RoutesTab.tsx"
+Cohesion: 0.10
+Nodes (36): AdminTab, BackendOfficerRow, DermagaAccess, emptyRouteForm, GeofencePoint, Officer, RouteDermaga, RouteFormState (+28 more)
 
 ### Community 66 - "Key Attributes"
 Cohesion: 0.08
@@ -711,7 +646,7 @@ Nodes (24): Angular Component Patterns, Attribute Directives on Components, Chil
 
 ### Community 68 - "sync.ts"
 Cohesion: 0.07
-Nodes (66): Trip, ALL_STORES, dbAll(), dbClear(), dbCount(), dbDelete(), dbGet(), dbPut() (+58 more)
+Nodes (64): Trip, ALL_STORES, dbAll(), dbClear(), dbCount(), dbDelete(), dbGet(), dbPut() (+56 more)
 
 ### Community 69 - "Configuration Reference"
 Cohesion: 0.08
@@ -729,17 +664,17 @@ Nodes (23): 10. Error Handling, 11. Security Considerations, 1. System Overview,
 Cohesion: 0.22
 Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
 
-### Community 73 - "L"
-Cohesion: 0.10
-Nodes (30): delete(), df(), dm(), fl(), gl(), Go(), hI(), iu() (+22 more)
+### Community 73 - "c"
+Cohesion: 0.07
+Nodes (70): ae$1(), B(), Bc(), bw(), c(), cg(), check(), cs() (+62 more)
 
-### Community 74 - "styles"
-Cohesion: 0.50
-Nodes (4): styles, src/global.scss, src/index.css, src/theme/variables.scss
-
-### Community 75 - "ota/assets/js/chunk-NnUIhVLM.js"
+### Community 74 - "admin-www/assets/js/chunk-Csv_wGmV.js"
 Cohesion: 0.22
 Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
+
+### Community 75 - "zk"
+Cohesion: 0.18
+Nodes (25): _a(), Bp(), cI(), ex(), Hp(), ht(), IN(), kd() (+17 more)
 
 ### Community 76 - "Supabase"
 Cohesion: 0.11
@@ -758,8 +693,8 @@ Cohesion: 0.08
 Nodes (21): 1. Add dependencies to Gradle build files, 2. Set in-app defaults, 3. Fetch and activate values, Firebase Remote Config - Android Setup Guide (Kotlin), Prerequisites, Add Swift Package Dependencies, Fetch and Activate Values, Firebase Remote Config iOS Setup Guide (+13 more)
 
 ### Community 80 - "get"
-Cohesion: 0.11
-Nodes (39): $0(), Ae(), As(), B$1(), bw(), Ct(), cw(), cx() (+31 more)
+Cohesion: 0.21
+Nodes (24): $0(), Ae(), bw(), cw(), cx(), fu(), fw(), get() (+16 more)
 
 ### Community 81 - "Struktur Proyek Aplikasi-Trip-Ionic"
 Cohesion: 0.10
@@ -769,25 +704,25 @@ Nodes (20): Admin, Alur Aplikasi Mobile (Petugas Lapangan), Backend, Catatan Pen
 Cohesion: 0.08
 Nodes (24): compilerOptions, allowJs, allowSyntheticDefaultImports, declaration, esModuleInterop, experimentalDecorators, forceConsistentCasingInFileNames, importHelpers (+16 more)
 
-### Community 83 - "s"
-Cohesion: 0.08
-Nodes (53): constructor(), getStatus(), s(), $a(), ad(), Al(), ao(), b1() (+45 more)
+### Community 83 - "cg"
+Cohesion: 0.12
+Nodes (23): apply(), cg(), check(), $e(), et(), Ft$1(), Ht$1(), iu() (+15 more)
 
 ### Community 84 - "Writing Guidelines for Postgres References"
 Cohesion: 0.12
 Nodes (15): 1. Concrete Transformation Patterns, 2. Error-First Structure, 3. Quantified Impact, 4. Self-Contained Examples, 5. Semantic Naming, Code Example Standards, Comments, Impact Level Guidelines (+7 more)
 
-### Community 85 - "Kredensial Login"
-Cohesion: 0.67
-Nodes (3): Admin, Kredensial Login, Petugas
+### Community 85 - "vI"
+Cohesion: 0.13
+Nodes (23): bI(), bn(), cy(), D1(), Do(), eC(), fe(), Fg() (+15 more)
 
-### Community 86 - "cI"
+### Community 86 - "nl"
 Cohesion: 0.08
-Nodes (50): a0(), ai(), aL(), Cc(), Cf(), cI(), dI(), dt() (+42 more)
+Nodes (37): _1(), ac(), Am(), b0(), cL(), Dl(), Eg(), er$1() (+29 more)
 
-### Community 87 - "Za"
-Cohesion: 0.25
-Nodes (11): dp(), em(), g1(), Hu(), k2(), od(), Tr(), Za() (+3 more)
+### Community 87 - "q"
+Cohesion: 0.05
+Nodes (92): ah(), Al(), ap(), Ax(), Bk(), Bm(), bo(), bv() (+84 more)
 
 ### Community 88 - "System-Design.md"
 Cohesion: 0.14
@@ -829,13 +764,13 @@ Nodes (18): 1. Define the Atmosphere, 2. Map the Color Palette, 3. Establish Typ
 Cohesion: 0.11
 Nodes (18): 1. Introduction, 2.1 Authentication & Authorization, 2.2 Trip Creation Workflow, 2.3 Vehicle Management, 2.4 Sync & Offline Support, 2.5 Admin Dashboard Features, 2.6 Error Handling & Recovery, 2. Core Requirements (+10 more)
 
-### Community 98 - "l"
-Cohesion: 0.05
-Nodes (97): Aa(), ae$1(), B(), bw(), c(), C$1(), cg(), cs() (+89 more)
+### Community 98 - "Za"
+Cohesion: 0.15
+Nodes (17): aI(), em(), fx(), g1(), Hd(), Hu(), iv(), k2() (+9 more)
 
 ### Community 99 - "ota.test.ts"
-Cohesion: 0.18
-Nodes (12): bytesOfFile(), cachedBytes(), cachedText(), cacheNames(), cachesApi(), h, makeFetch(), release() (+4 more)
+Cohesion: 0.16
+Nodes (13): isNewer(), bytesOfFile(), cachedBytes(), cachedText(), cacheNames(), cachesApi(), h, makeFetch() (+5 more)
 
 ### Community 100 - "1. Vector Similarity Search (Semantic)"
 Cohesion: 0.11
@@ -845,9 +780,9 @@ Nodes (17): 1. Query Formats (`queryFormat` argument), 1. Vector Similarity Sear
 Cohesion: 0.11
 Nodes (17): 1. Meta Information & Core Directive, 2. THE "ABSOLUTE ZERO" DIRECTIVE (STRICT ANTI-PATTERNS), 3. THE CREATIVE VARIANCE ENGINE, 4. HAPTIC MICRO-AESTHETICS (COMPONENT MASTERY), 5. MOTION CHOREOGRAPHY (FLUID DYNAMICS), 6. PERFORMANCE GUARDRAILS, 7. EXECUTION PROTOCOL, 8. PRE-OUTPUT CHECKLIST (+9 more)
 
-### Community 102 - "ma"
-Cohesion: 0.09
-Nodes (33): constructor(), getStatus(), s(), at(), cd(), Ec(), ee(), Fp() (+25 more)
+### Community 102 - "$t"
+Cohesion: 0.13
+Nodes (22): $e(), ee(), et(), Ft$1(), G(), Ht$1(), iu(), iw() (+14 more)
 
 ### Community 103 - "Firestore Web SDK Usage Guide"
 Cohesion: 0.12
@@ -869,17 +804,17 @@ Nodes (16): 10. API Endpoint Plan, 1. Prinsip Desain, 2. Arsitektur Lapisan, 3. 
 Cohesion: 0.20
 Nodes (9): 1. Query Performance (query), 2. Connection Management (conn), 3. Security & RLS (security), 4. Schema Design (schema), 5. Concurrency & Locking (lock), 6. Data Access Patterns (data), 7. Monitoring & Diagnostics (monitor), 8. Advanced Features (advanced) (+1 more)
 
-### Community 108 - "q"
-Cohesion: 0.05
-Nodes (83): am(), Bd(), Bm(), bn(), Bp(), Bx(), co(), cy() (+75 more)
+### Community 108 - "rm"
+Cohesion: 0.21
+Nodes (14): an(), ay(), cb(), cv(), eb(), Ib(), K0(), mi() (+6 more)
 
-### Community 109 - "admin-ci/assets/js/chunk-D706g1zh.js"
-Cohesion: 0.03
-Nodes (5): executeSet(), getFromHTTPRequest(), query(), reorderRows(), run()
+### Community 109 - "PlatesTab.tsx"
+Cohesion: 0.30
+Nodes (11): PlatesTab(), PlatesTabProps, createPlate(), deletePlate(), fetchPlates(), PlateCheck, PlateRecord, PlateStatus (+3 more)
 
-### Community 110 - "he"
-Cohesion: 0.14
-Nodes (29): a2(), b2(), bh(), c2(), d2(), e2(), f2(), fp (+21 more)
+### Community 110 - "zt"
+Cohesion: 0.22
+Nodes (12): dx(), hv(), id(), jy(), ls(), n2(), o2(), ping() (+4 more)
 
 ### Community 111 - "tasteskill: Anti-Slop Frontend Skill"
 Cohesion: 0.13
@@ -910,12 +845,12 @@ Cohesion: 0.13
 Nodes (14): 1. The Anti-Ruby Mandate, 2. Modern Xcode Folder Synchronization, 3. Allowed Scripting Languages, 4. Toolchain Verification, 5. Mandatory Linker Flags for Static Frameworks (Firebase), **CRITICAL: Always Use Latest SDK Version**, ⛔️ CRITICAL RULES & ENVIRONMENT CHECKS, Empty Directory Workflow (+6 more)
 
 ### Community 118 - "options"
-Cohesion: 0.18
-Nodes (11): options, assets, browser, index, inlineStyleLanguage, outputPath, polyfills, scripts (+3 more)
-
-### Community 119 - "yy"
 Cohesion: 0.13
-Nodes (16): Ci(), _h(), hh, Hm, hs(), k2(), lp, ms() (+8 more)
+Nodes (15): options, assets, browser, index, inlineStyleLanguage, outputPath, polyfills, scripts (+7 more)
+
+### Community 119 - "K"
+Cohesion: 0.18
+Nodes (13): ie$1(), je$1(), jt(), K(), Ke(), O$1(), Pt(), qe() (+5 more)
 
 ### Community 120 - "organize-build.mjs"
 Cohesion: 0.20
@@ -1013,9 +948,9 @@ Nodes (12): ARGUMENTS, detectApkBadging(), findAapt2(), formatBytes(), getFileSi
 Cohesion: 0.83
 Nodes (3): main(), rest(), supabase_cols()
 
-### Community 144 - "zt"
-Cohesion: 0.20
-Nodes (13): dx(), hv(), id(), jy(), ls(), n2(), o2(), ping() (+5 more)
+### Community 144 - "If"
+Cohesion: 0.39
+Nodes (9): Af(), Eu(), If(), Jt(), M0(), Mf(), Ou(), Rf() (+1 more)
 
 ### Community 145 - "4. DESIGN ENGINEERING DIRECTIVES (Bias Correction)"
 Cohesion: 0.17
@@ -1059,11 +994,11 @@ Nodes (11): Backend integration, Configuration, Development workflow, Features, 
 
 ### Community 155 - "production"
 Cohesion: 0.18
-Nodes (12): serve, configurations, progress, ci, production, budgets, buildTarget, fileReplacements (+4 more)
+Nodes (12): build, builder, configurations, defaultConfiguration, progress, ci, production, budgets (+4 more)
 
-### Community 156 - "Vt"
-Cohesion: 0.10
-Nodes (32): bp(), c2(), d2(), df(), fl(), g2(), gl(), i2() (+24 more)
+### Community 156 - "app"
+Cohesion: 0.33
+Nodes (6): prefix, projectType, root, schematics, sourceRoot, app
 
 ### Community 157 - "Firebase AI Logic Basics"
 Cohesion: 0.18
@@ -1117,9 +1052,9 @@ Nodes (9): src/**/*.tsx, angularCompilerOptions, enableI18nLegacyMessageIdFormat
 Cohesion: 0.03
 Nodes (5): executeSet(), getFromHTTPRequest(), query(), reorderRows(), run()
 
-### Community 181 - "x1"
-Cohesion: 0.05
-Nodes (72): am(), Bd(), Bp(), Bx(), co(), cy(), dc(), Dm() (+64 more)
+### Community 181 - "reorderRows"
+Cohesion: 0.50
+Nodes (4): executeSet(), query(), reorderRows(), run()
 
 ### Community 182 - "Firebase Functions V1 vs V2 Signature Mapping"
 Cohesion: 0.22
@@ -1158,16 +1093,16 @@ Cohesion: 0.22
 Nodes (9): 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE, Composition variety check, Conversion focus, Cross-section contrast, CTA specificity, Cultural / tonal alignment, Data-viz restraint, Image variety inside one comp (+1 more)
 
 ### Community 191 - "bL"
-Cohesion: 0.10
-Nodes (51): bL(), bm(), Cm(), e0(), Ee(), fa(), ff(), fI() (+43 more)
+Cohesion: 0.07
+Nodes (64): bL(), bm(), Cm(), da(), dt(), e0(), Ee(), eo() (+56 more)
 
 ### Community 192 - "Perubahan Terbaru (20 Okt 2024)"
 Cohesion: 0.40
 Nodes (5): Admin Dashboard, API Backend, Assets & Paths, Perubahan Terbaru (20 Okt 2024), Troubleshooting Cepat
 
-### Community 193 - "admin-ci/assets/js/chunk-V1_x9wlm.js"
-Cohesion: 0.07
-Nodes (38): addUpgradeStatement(), beginTransaction(), checkConnectionsConsistency(), close(), closeConnection(), commitTransaction(), copyFromAssets(), createConnection() (+30 more)
+### Community 193 - "reorderRows"
+Cohesion: 0.50
+Nodes (4): executeSet(), query(), reorderRows(), run()
 
 ### Community 197 - "appUpdate.ts"
 Cohesion: 0.10
@@ -1223,7 +1158,7 @@ Nodes (4): ExampleInstrumentedTest, ExampleUnitTest, org.junit.runner.RunWith, o
 
 ### Community 213 - "architect"
 Cohesion: 0.25
-Nodes (8): architect, build, extract-i18n, builder, defaultConfiguration, builder, options, buildTarget
+Nodes (8): architect, extract-i18n, serve, builder, options, buildTarget, builder, defaultConfiguration
 
 ### Community 215 - "ota/sw.js"
 Cohesion: 0.50
@@ -1321,9 +1256,9 @@ Nodes (7): 4. HERO MINIMALISM RULES, Absolute Hero Rules, Graphic Restraint, Hea
 Cohesion: 0.48
 Nodes (5): ApkInstallerPlugin, com.getcapacitor.annotation.CapacitorPlugin, com.getcapacitor.Plugin, com.getcapacitor.PluginCall, com.getcapacitor.PluginMethod
 
-### Community 240 - "app"
-Cohesion: 0.15
-Nodes (12): prefix, projectType, root, schematics, sourceRoot, analytics, cli, newProjectRoot (+4 more)
+### Community 240 - "angular.json"
+Cohesion: 0.29
+Nodes (6): analytics, cli, newProjectRoot, projects, $schema, version
 
 ### Community 241 - "options"
 Cohesion: 0.29
@@ -1369,9 +1304,9 @@ Nodes (6): 5. IMAGE COUNT & PAGE SLICING, Continuity Rule, Counting rule, Format
 Cohesion: 0.47
 Nodes (4): MainActivity, android.os.Bundle, com.getcapacitor.BridgeActivity, Override
 
-### Community 252 - "j1"
-Cohesion: 0.05
-Nodes (79): a1(), aI(), an(), apply(), at(), B2(), bi(), bo() (+71 more)
+### Community 252 - "reorderRows"
+Cohesion: 0.50
+Nodes (4): executeSet(), query(), reorderRows(), run()
 
 ### Community 253 - "lint"
 Cohesion: 0.33
@@ -1461,53 +1396,17 @@ Nodes (4): 20. EXAMPLE INTERPRETATIONS, Example 1, Example 2, Example 3
 Cohesion: 0.83
 Nodes (3): gradlew script, die(), warn()
 
-### Community 278 - "q"
-Cohesion: 0.05
-Nodes (87): ah(), Al(), ap(), Ax(), Bk(), Bm(), bo(), Bs() (+79 more)
-
-### Community 280 - "q"
-Cohesion: 0.06
-Nodes (78): ah(), Al(), ap(), Ax(), Bk(), bv(), bx(), by() (+70 more)
-
-### Community 281 - "cm"
-Cohesion: 0.06
-Nodes (48): av(), bc(), bk(), cm(), cx(), Dx(), ec(), ei() (+40 more)
-
-### Community 282 - "z1"
-Cohesion: 0.06
-Nodes (61): Be(), tp, uo(), $$1(), a1(), av(), bt(), co() (+53 more)
-
-### Community 283 - "j1"
-Cohesion: 0.06
-Nodes (63): $$1(), a1(), aI(), an(), apply(), at(), bi(), bo() (+55 more)
+### Community 278 - "Catatan Penting - Build & Deploy"
+Cohesion: 0.67
+Nodes (3): Catatan Penting - Build & Deploy, Metode Lama (tanpa Docker, dev lokal):, Metode Utama: Docker (rekomendasi, otomatis)
 
 ### Community 286 - "lib"
 Cohesion: 0.67
 Nodes (3): es2022, lib, dom
 
-### Community 290 - ".addEventListener"
+### Community 298 - "l"
 Cohesion: 0.06
-Nodes (49): Bd(), cm(), Ct(), cu(), cx(), dp(), dx(), eb() (+41 more)
-
-### Community 292 - "sS"
-Cohesion: 0.10
-Nodes (29): Ec(), Bl(), dN(), dS(), eA(), eu(), fS(), Ge() (+21 more)
-
-### Community 293 - "ny"
-Cohesion: 0.15
-Nodes (19): ey(), gh(), gp, io(), j2(), jo(), ka(), kh() (+11 more)
-
-### Community 298 - ".post"
-Cohesion: 0.25
-Nodes (7): _2(), cy(), Nm(), oy(), ry(), uy(), vy()
-
-### Community 319 - "l"
-Cohesion: 0.05
-Nodes (60): aI(), _buildPhotoMediaResult(), cameraExperience(), chooseFromGallery(), _createFileInput(), Cy(), Ea(), eN() (+52 more)
-
-### Community 321 - "pa"
-Cohesion: 0.05
-Nodes (52): Ax(), bk(), du(), Dx(), eh(), em(), Fm(), fu() (+44 more)
+Nodes (55): a1(), av(), _buildPhotoMediaResult(), cameraExperience(), chooseFromGallery(), _createFileInput(), Cy(), Ea() (+47 more)
 
 ### Community 324 - "_shared.ts"
 Cohesion: 0.21
@@ -1516,18 +1415,6 @@ Nodes (19): adminLogin(), authRateLimiter(), changeAdminPassword(), login(), mem
 ### Community 326 - "appVersion.ts"
 Cohesion: 0.20
 Nodes (17): apkList(), appDownload(), compareVersionFilter(), compareVersions(), compareVersionsNoStamp(), deviceVersions(), getAppVersion(), isForce() (+9 more)
-
-### Community 327 - "q"
-Cohesion: 0.08
-Nodes (51): aw(), B2(), bb(), bc(), Bm(), bv(), Cd(), da() (+43 more)
-
-### Community 328 - "ds"
-Cohesion: 0.15
-Nodes (16): ch(), co(), dh(), dp, ds(), ep(), fh(), jp() (+8 more)
-
-### Community 329 - "l"
-Cohesion: 0.06
-Nodes (60): a1(), aI(), _buildPhotoMediaResult(), chooseFromGallery(), _createFileInput(), Cy(), Ea(), em() (+52 more)
 
 ### Community 331 - "chunk-DCH68MUC.js"
 Cohesion: 0.31
@@ -1545,14 +1432,6 @@ Nodes (8): Create, Create with Server Values, Delete, Filtered Updates/Deletes (
 Cohesion: 0.50
 Nodes (7): cacheKey(), canonical(), handleRequest(), isBundleUrl(), isNavigation(), readActiveVersion(), withNoStore()
 
-### Community 335 - "cm"
-Cohesion: 0.11
-Nodes (27): ab(), av(), cm(), cp(), cx(), ec(), ei(), f2() (+19 more)
-
-### Community 336 - "lt"
-Cohesion: 0.06
-Nodes (58): ay(), bb(), Bd(), bh(), br(), cx(), dh(), Ds() (+50 more)
-
 ### Community 337 - "index.ts"
 Cohesion: 0.22
 Nodes (10): getRegionTariffs(), updateRegionTariff(), calculateTariffAmount(), dateRange(), getAllActiveTariffs(), summary(), tripFilters(), tripsReport() (+2 more)
@@ -1562,112 +1441,36 @@ Cohesion: 0.31
 Nodes (12): completeTrip(), createTrip(), EXT_BY_TYPE, getTariff(), insertVehicle(), numericCoordinate(), PHOTO_TYPES, publicUrl() (+4 more)
 
 ### Community 339 - "wv"
-Cohesion: 0.09
-Nodes (33): $b(), bd(), bp(), bv(), c2(), cv(), dp(), g2() (+25 more)
+Cohesion: 0.10
+Nodes (28): $b(), B$1(), bd(), bp(), bv(), c2(), cv(), Es() (+20 more)
 
 ### Community 340 - "handlers/geofences.ts"
 Cohesion: 0.33
 Nodes (11): clampRadius(), createGeofence(), deleteGeofence(), getGeofences(), numericCoordinate(), parseCoordsFromText(), resolveDermagaId(), resolveLink() (+3 more)
 
-### Community 341 - "s"
-Cohesion: 0.07
-Nodes (57): Xb(), constructor(), getStatus(), s(), $a(), ao(), Ba(), bb() (+49 more)
+### Community 341 - "ma"
+Cohesion: 0.09
+Nodes (31): constructor(), getStatus(), s(), at(), cd(), Ec(), ee(), Fp() (+23 more)
 
 ### Community 342 - "handlers/plates.ts"
 Cohesion: 0.48
 Nodes (6): checkPlate(), createPlate(), deletePlate(), getPlates(), normalizePlate(), updatePlate()
 
-### Community 343 - "vx"
-Cohesion: 0.09
-Nodes (32): a0(), ad(), ai(), Am(), b0(), Cc(), cL(), Dl() (+24 more)
-
-### Community 344 - "H"
-Cohesion: 0.06
-Nodes (29): ap(), ar$1(), Av(), d0(), Dd(), er$1(), G(), H() (+21 more)
-
-### Community 345 - "admin-ci/assets/js/chunk-DXbIOCYn.js"
-Cohesion: 0.12
-Nodes (21): addListener(), addWindowListener(), clearAllCookies(), clearCookies(), delete(), get(), hide(), notifyListeners() (+13 more)
-
 ### Community 346 - "admin-www/assets/js/chunk-DXbIOCYn.js"
 Cohesion: 0.12
 Nodes (21): addListener(), addWindowListener(), clearAllCookies(), clearCookies(), delete(), get(), hide(), notifyListeners() (+13 more)
 
-### Community 347 - "H"
+### Community 347 - "ota/assets/js/chunk-NnUIhVLM.js"
+Cohesion: 0.07
+Nodes (30): getId(), getInfo(), getUid(), parseUa(), uuid4(), augmentPosition(), constructor(), getCurrentPosition() (+22 more)
+
+### Community 353 - "c"
 Cohesion: 0.08
-Nodes (24): As(), B$1(), by(), constructor(), Ct(), d0(), dc(), dy() (+16 more)
-
-### Community 348 - "ql"
-Cohesion: 0.12
-Nodes (23): $$1(), ap(), c1(), dh(), dv(), Ep(), fl(), I1() (+15 more)
-
-### Community 349 - "admin-ci/assets/js/chunk-HTbCvUtE.js"
-Cohesion: 0.22
-Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
-
-### Community 351 - "kt"
-Cohesion: 0.14
-Nodes (16): bh(), c1(), dh(), dI(), fv(), ka(), kt(), nt() (+8 more)
-
-### Community 352 - "admin-www/assets/js/chunk-HTbCvUtE.js"
-Cohesion: 0.22
-Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
-
-### Community 353 - "admin-www/assets/js/chunk-CO2zY9X8.js"
-Cohesion: 0.06
-Nodes (91): aa(), Aa(), ae$1(), B(), Bc(), bw(), c(), C$1() (+83 more)
-
-### Community 354 - "zk"
-Cohesion: 0.15
-Nodes (26): Al(), b1(), Dd(), Dr(), ey(), fn(), fx(), GN() (+18 more)
-
-### Community 355 - "Yb"
-Cohesion: 0.10
-Nodes (26): Gb(), qb(), xo(), Yb(), ad(), bg(), bh(), df() (+18 more)
-
-### Community 356 - "q"
-Cohesion: 0.08
-Nodes (57): Al(), Ax(), Bk(), bv(), bx(), by(), Ca(), cn() (+49 more)
-
-### Community 357 - "a1"
-Cohesion: 0.06
-Nodes (53): a1(), av(), b1(), co(), Cy(), Da(), Fb(), fI() (+45 more)
-
-### Community 358 - "lt"
-Cohesion: 0.06
-Nodes (55): Ak(), BA(), bb(), be(), bh(), bI(), br(), dc() (+47 more)
-
-### Community 359 - "rm"
-Cohesion: 0.06
-Nodes (54): an(), ay(), cb(), cd(), cv(), de$2(), Dt(), eb() (+46 more)
-
-### Community 360 - "Qe"
-Cohesion: 0.14
-Nodes (20): $$2(), ay(), be(), C$1(), ee(), F$1(), Fe$1(), Gt$1() (+12 more)
-
-### Community 361 - "Td"
-Cohesion: 0.22
-Nodes (17): ap(), dv(), Ep(), fl(), Kd(), Kr(), lp(), nv() (+9 more)
-
-### Community 362 - "lt"
-Cohesion: 0.06
-Nodes (53): Ak(), BA(), bb(), be(), bh(), bI(), br(), dc() (+45 more)
+Nodes (65): ae$1(), B(), Bc(), bw(), c(), cs(), cu(), dg() (+57 more)
 
 ### Community 363 - "AppUpdateController"
 Cohesion: 0.14
 Nodes (6): UpdateNotifier(), AppUpdateController, getNativeVersion(), isNewerVersion(), parseVersion(), shouldForceUpdate()
-
-### Community 364 - "f"
-Cohesion: 0.12
-Nodes (23): by(), dy(), Em(), f(), fy(), Gm, hy(), ip (+15 more)
-
-### Community 366 - "admin-ci/assets/js/chunk-DCH68MUC.js"
-Cohesion: 0.31
-Nodes (5): augmentPosition(), constructor(), getCurrentPosition(), updateOrientation(), watchPosition()
-
-### Community 367 - "admin-ci/assets/js/chunk-DLeADuY_.js"
-Cohesion: 0.31
-Nodes (5): getId(), getInfo(), getUid(), parseUa(), uuid4()
 
 ### Community 369 - "admin-www/assets/js/chunk-DCH68MUC.js"
 Cohesion: 0.31
@@ -1677,169 +1480,97 @@ Nodes (5): augmentPosition(), constructor(), getCurrentPosition(), updateOrienta
 Cohesion: 0.31
 Nodes (5): getId(), getInfo(), getUid(), parseUa(), uuid4()
 
-### Community 371 - "Qe"
-Cohesion: 0.07
-Nodes (45): b1(), Bd(), Bm(), bo(), cx(), d1(), dd(), dl() (+37 more)
-
-### Community 372 - "admin-ci/sw.js"
-Cohesion: 0.50
-Nodes (7): cacheKey(), canonical(), handleRequest(), isBundleUrl(), isNavigation(), readActiveVersion(), withNoStore()
-
 ### Community 373 - "admin-www/sw.js"
 Cohesion: 0.50
 Nodes (7): cacheKey(), canonical(), handleRequest(), isBundleUrl(), isNavigation(), readActiveVersion(), withNoStore()
 
-### Community 374 - "ot"
+### Community 374 - "zk"
+Cohesion: 0.08
+Nodes (48): constructor(), getStatus(), s(), _a(), at(), b1(), Bp(), cI() (+40 more)
+
+### Community 378 - "wa"
 Cohesion: 0.08
 Nodes (36): Ak(), BA(), be(), bI(), cm(), Ct(), dc(), F0() (+28 more)
 
-### Community 375 - "k"
-Cohesion: 0.08
-Nodes (45): ah(), ap(), Bm(), bo(), c1(), cc(), d1(), Db() (+37 more)
-
-### Community 376 - "ma"
-Cohesion: 0.07
-Nodes (43): ay(), cd(), de$2(), Dr(), Dt(), ee(), fd(), Fe() (+35 more)
-
-### Community 377 - ".addEventListener"
-Cohesion: 0.09
-Nodes (32): apply(), cg(), check(), cm(), Ct(), eD(), F0(), H0() (+24 more)
-
-### Community 378 - "bL"
-Cohesion: 0.08
-Nodes (41): Am(), Ax(), b0(), bL(), cL(), Cm(), Dl(), e0() (+33 more)
-
-### Community 379 - "$t"
-Cohesion: 0.08
-Nodes (35): Ac(), aD(), apply(), Ar(), aS(), aw(), bn(), $e() (+27 more)
-
-### Community 380 - "z1"
-Cohesion: 0.11
-Nodes (33): $$1(), bt(), co(), fl(), gT(), hc(), Ip(), Jd() (+25 more)
-
-### Community 381 - "zk"
-Cohesion: 0.13
-Nodes (31): _a(), Bp(), cI(), er(), ex(), Hp(), ht(), IN() (+23 more)
-
-### Community 382 - "Ke"
-Cohesion: 0.14
-Nodes (26): av(), b1(), Da(), Fb(), fI(), gh(), gi(), hh() (+18 more)
-
-### Community 383 - "z1"
-Cohesion: 0.13
-Nodes (28): $$1(), bt(), fl(), hc(), hi(), hv(), hx(), Ip() (+20 more)
-
-### Community 384 - "admin-ci/assets/js/chunk-CIkw_09T.js"
-Cohesion: 0.22
-Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
-
-### Community 385 - "admin-www/assets/js/chunk-CIkw_09T.js"
-Cohesion: 0.22
-Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
-
-### Community 386 - "zk"
-Cohesion: 0.18
-Nodes (25): _a(), Bp(), cI(), ex(), Hp(), ht(), IN(), kd() (+17 more)
-
-### Community 387 - "www/assets/js/chunk-CIkw_09T.js"
-Cohesion: 0.22
-Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
-
-### Community 388 - "zk"
-Cohesion: 0.18
-Nodes (25): _a(), Bp(), cI(), ex(), Hp(), ht(), IN(), kd() (+17 more)
-
-### Community 389 - "qt"
-Cohesion: 0.13
-Nodes (22): Ac(), aD(), Ar(), aS(), aw(), bn(), eS(), fN() (+14 more)
-
-### Community 390 - "Project Guidelines - Trip Angkutan"
+### Community 379 - "store.tsx"
 Cohesion: 0.10
-Nodes (19): Backend Changes (Supabase Edge Functions), Before Deploying, Code Quality, Common Issues and Solutions, CSS Variables - CRITICAL RULES, DO NOT USE UNDEFINED CSS VARIABLES, Emoji Usage, Example - CORRECT (+11 more)
+Nodes (30): AdminLoginPage(), AdminLoginProps, ConfirmDialog, TripSummaryScreen(), AppProvider(), emptyDraft, fmtClock(), fmtDate() (+22 more)
 
-### Community 391 - "galleryInputExperience"
-Cohesion: 0.17
-Nodes (17): _buildPhotoMediaResult(), cameraExperience(), chooseFromGallery(), _createFileInput(), fileInputExperience(), galleryInputExperience(), _getBase64FromFile(), _getCameraPhoto() (+9 more)
+### Community 382 - "lt"
+Cohesion: 0.06
+Nodes (63): $$1(), bb(), bh(), bt(), co(), dh(), Ds(), e1() (+55 more)
 
-### Community 392 - "dl"
-Cohesion: 0.21
-Nodes (17): dl(), GL(), Gr(), Hk(), hn(), L1(), _m(), Ml() (+9 more)
-
-### Community 393 - "sy"
+### Community 383 - "Ke"
 Cohesion: 0.18
-Nodes (17): An(), en(), h0(), hf(), Hu(), hy(), ji(), ly() (+9 more)
+Nodes (21): Da(), Fb(), fI(), Fu(), gh(), gi(), hh(), hi() (+13 more)
 
-### Community 394 - "iw"
-Cohesion: 0.16
-Nodes (15): apply(), $e(), et(), fe$2(), Ft$1(), Ht$1(), iu(), iw() (+7 more)
+### Community 390 - "CSS Variables - ATURAN KRITIS"
+Cohesion: 0.11
+Nodes (18): Aset UI, Checklist Sebelum Deploy, CSS Variables - ATURAN KRITIS, CSS Variables yang Aman, File CSS yang Relevan untuk Chart/Graph Component, graphify Usage, JANGAN GUNAKAN CSS VARIABLES YANG TIDAK TERDEFINISI, Logo SVG (+10 more)
+
+### Community 391 - "Zs"
+Cohesion: 0.11
+Nodes (29): Ak(), ck(), dk(), fk(), gk(), hk(), ik(), jp() (+21 more)
+
+### Community 392 - "L"
+Cohesion: 0.19
+Nodes (21): df(), dm(), fl(), gl(), Go(), hI(), iu(), ky() (+13 more)
+
+### Community 394 - "www/assets/js/chunk-Csv_wGmV.js"
+Cohesion: 0.22
+Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
 
 ### Community 395 - "zt"
-Cohesion: 0.22
-Nodes (12): dx(), hv(), id(), jy(), ls(), n2(), o2(), ping() (+4 more)
-
-### Community 396 - "Mf"
-Cohesion: 0.29
-Nodes (12): eo(), B0(), Bf(), el(), iw(), lf(), Mf(), Of() (+4 more)
-
-### Community 397 - "Ol"
-Cohesion: 0.21
-Nodes (12): _1(), Eg(), fn(), jg(), lf(), mc(), nx(), Ol() (+4 more)
-
-### Community 398 - "cv"
-Cohesion: 0.25
-Nodes (11): an(), cb(), cv(), Ib(), K0(), mi(), Nb(), q0() (+3 more)
-
-### Community 399 - "iw"
 Cohesion: 0.24
-Nodes (11): $e(), et(), Ft$1(), Ht$1(), iu(), iw(), jt$1(), qt$1() (+3 more)
+Nodes (11): dx(), hv(), id(), ls(), n2(), o2(), ping(), Su() (+3 more)
 
-### Community 400 - "Mf"
-Cohesion: 0.33
-Nodes (11): eo(), B0(), Bf(), el(), iw(), Mf(), Of(), Pu() (+3 more)
+### Community 396 - "qt"
+Cohesion: 0.16
+Nodes (19): Ac(), aD(), Ar(), aS(), aw(), bn(), eS(), fN() (+11 more)
 
-### Community 401 - "cv"
+### Community 398 - "Za"
+Cohesion: 0.10
+Nodes (25): _1(), cL(), Dl(), Eg(), er$1(), fn(), jg(), Jx() (+17 more)
+
+### Community 401 - "VehicleFormScreen.tsx"
 Cohesion: 0.29
-Nodes (10): an(), cb(), cv(), Ib(), K0(), mi(), Nb(), q0() (+2 more)
+Nodes (13): VehicleFormScreen(), golonganFor(), tariffFor(), checkPlate(), formatPlateNumber(), getPlateSegments(), isDigit(), isLetter() (+5 more)
 
-### Community 402 - "If"
-Cohesion: 0.39
-Nodes (9): Af(), Eu(), If(), Jt(), M0(), Mf(), Ou(), Rf() (+1 more)
+### Community 403 - "rm"
+Cohesion: 0.05
+Nodes (55): an(), ay(), Bd(), cb(), cd(), cv(), cx(), dx() (+47 more)
 
-### Community 403 - "ota/assets/js/chunk-CGoL4ubf.js"
-Cohesion: 0.31
-Nodes (5): getId(), getInfo(), getUid(), parseUa(), uuid4()
+### Community 404 - "www/assets/js/chunk-Bt8IOqlF.js"
+Cohesion: 0.09
+Nodes (36): Aa(), C$1(), D(), de$2(), Dt(), _f(), Fe(), ga() (+28 more)
 
-### Community 404 - "ota/assets/js/chunk-DOysdLf_.js"
-Cohesion: 0.31
-Nodes (5): augmentPosition(), constructor(), getCurrentPosition(), updateOrientation(), watchPosition()
-
-### Community 405 - "ocr.ts"
-Cohesion: 0.52
-Nodes (6): blobToDataUrl(), normalizePlate(), preprocessImage(), preprocessSrc(), readPlateFromImage(), toStandardFormat()
+### Community 406 - "offlineDb.ts"
+Cohesion: 0.08
+Nodes (43): seedTestOfficer(), BackendOfficer, CacheEntry, fetchBackendOfficers(), loadCache(), saveCache(), syncOfficersToLocal(), BACKEND_ROW (+35 more)
 
 ### Community 407 - "CSS Variables - PERHATIKAN!"
 Cohesion: 0.40
 Nodes (5): ATURAN PENTING, Contoh BENAR, Contoh SALAH (menyebabkan grafik tidak tampil), CSS Variables - PERHATIKAN!, Warna Aman untuk Inline Styles
 
 ## Knowledge Gaps
-- **1843 isolated node(s):** `PackageDescription`, `Foundation`, `PathKit`, `Hb`, `Vb` (+1838 more)
+- **1807 isolated node(s):** `PackageDescription`, `Foundation`, `PathKit`, `$schema`, `version` (+1802 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `o()` connect `o` to `admin-ci/assets/js/main-RI6SS7LQ.js`, `assets/js/main-MPVPD54R.js`, `ota/assets/js/main-MPVPD54R.js`, `C`, `.addEventListener`, `Ce`, `.addEventListener`, `admin-www/assets/js/main-VTPHTKRZ.js`, `json`, `assets/js/chunk-CH_yQx9E.js`, `ota/assets/js/chunk-CH_yQx9E.js`, `admin-ci/assets/js/main-VTPHTKRZ.js`, `l`, `C`, `Zs`, `services/auth.ts`, `www/assets/js/chunk-D706g1zh.js`, `Ce`, `admin-www/assets/js/main-RI6SS7LQ.js`, `mI`, `vI`, `sS`, `www/assets/js/chunk-CO2zY9X8.js`, `index-CrleS6t_.js`, `l`, `Za`, `cI`, `Se`, `www/assets/js/main-RI6SS7LQ.js`, `L`, `get`, `s`, `cI`, `Za`, `l`, `ma`, `q`, `admin-ci/assets/js/chunk-D706g1zh.js`, `he`, `zt`, `Vt`, `admin-www/assets/js/chunk-D706g1zh.js`, `x1`, `bL`, `j1`, `q`, `q`, `cm`, `z1`, `j1`, `.addEventListener`, `sS`, `ny`, `.post`, `l`, `pa`, `q`, `ds`, `l`, `cm`, `lt`, `s`, `vx`, `H`, `H`, `ql`, `kt`, `admin-www/assets/js/chunk-CO2zY9X8.js`, `zk`, `Yb`, `q`, `a1`, `lt`, `rm`, `Qe`, `Td`, `lt`, `f`, `ot`, `k`, `ma`, `.addEventListener`, `bL`, `$t`, `z1`, `zk`, `Ke`, `z1`, `zk`, `zk`, `qt`, `sy`, `zt`, `Mf`, `Ol`, `cv`, `Mf`, `If`?**
-  _High betweenness centrality (0.473) - this node is a cross-community bridge._
-- **Why does `syncOfficersToLocal()` connect `services/auth.ts` to `o`, `store.tsx`, `officers.test.ts`?**
-  _High betweenness centrality (0.175) - this node is a cross-community bridge._
-- **Why does `f()` connect `f` to `admin-ci/assets/js/main-RI6SS7LQ.js`, `assets/js/main-MPVPD54R.js`, `C`, `.addEventListener`, `Ce`, `.addEventListener`, `admin-www/assets/js/main-VTPHTKRZ.js`, `admin-ci/assets/js/main-VTPHTKRZ.js`, `l`, `C`, `Zs`, `cm`, `j1`, `admin-www/assets/js/main-RI6SS7LQ.js`, `Ce`, `o`, `.addEventListener`, `ny`, `.post`, `www/assets/js/chunk-CO2zY9X8.js`, `index-CrleS6t_.js`, `l`, `Za`, `get`, `Se`, `www/assets/js/main-RI6SS7LQ.js`, `q`, `ds`, `l`, `cm`, `get`, `chunk-DXbIOCYn.js`, `handlers/trips.ts`, `s`, `lt`, `s`, `cI`, `Za`, `H`, `admin-ci/assets/js/chunk-DXbIOCYn.js`, `admin-www/assets/js/chunk-DXbIOCYn.js`, `H`, `vx`, `admin-www/assets/js/chunk-CO2zY9X8.js`, `l`, `Yb`, `lt`, `rm`, `lt`, `he`, `ot`, `.addEventListener`, `j1`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **Are the 289 inferred relationships involving `o()` (e.g. with `run()` and `Af()`) actually correct?**
-  _`o()` has 289 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `dependencies` connect `dependencies` to `package.json`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+- **Why does `Shell()` connect `adminPull.ts` to `dependencies`, `AdminDashboard.tsx`, `MobileApp.tsx`, `offlineDb.ts`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+- **Why does `@capacitor/app` connect `dependencies` to `adminPull.ts`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **Are the 47 inferred relationships involving `l()` (e.g. with `aw()` and `B()`) actually correct?**
   _`l()` has 47 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 47 inferred relationships involving `l()` (e.g. with `aw()` and `B()`) actually correct?**
   _`l()` has 47 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 47 inferred relationships involving `l()` (e.g. with `aw()` and `B()`) actually correct?**
-  _`l()` has 47 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `PackageDescription`, `Foundation`, `PathKit` to the rest of the system?**
+  _1807 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `admin-www/assets/js/main-VLHRN7HI.js` be split into smaller, more focused modules?**
+  _Cohesion score 0.022833375774552245 - nodes in this community are weakly interconnected._

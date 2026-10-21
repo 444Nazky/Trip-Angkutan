@@ -1,73 +1,44 @@
 #!/bin/bash
+set -e
+cd "$(dirname "$0")"
 
-# Directory Configuration
-MOBILE_DIR="/home/nazky/Trip-Angkutan"
-ADMIN_DIR="/home/nazky/Trip-Angkutan"
-
-echo "[-] Stopping existing services..."
-pkill -f "php -S" 2>/dev/null
-pkill -f "vite" 2>/dev/null
-pkill -f "npm start" 2>/dev/null
+echo "[-] Membangun & menjalankan aplikasi via Docker..."
+BASE="$(cd "$(dirname "$0")" && pwd)"
+sudo docker build -t trip-angkutan "$BASE" 
+sudo docker compose -f "$BASE/docker-compose.yml" up -d
 
 sleep 2
+echo "[*] Verifikasi layanan..."
 
-echo "[+] Starting Mobile (Port 5173)..."
-if [ -d "$MOBILE_DIR" ]; then
-    cd "$MOBILE_DIR" || exit 1
-    nohup npm start > mobile.log 2>&1 &
-    disown
-else
-    echo "[x] Error: Mobile directory not found!"
-    exit 1
-fi
+ADMIN_STATUS=1
+curl -sf http://localhost:8000 | grep -q "Admin Trip Angkutan" && ADMIN_STATUS=0
 
-sleep 3
-
-echo "[+] Starting Admin Dashboard (Port 8000)..."
-if [ -d "$ADMIN_DIR" ]; then
-    cd "$ADMIN_DIR" || exit 1
-    nohup php -S 0.0.0.0:8000 -t admin-www > admin.log 2>&1 &
-    disown
-else
-    echo "[x] Error: Admin directory not found!"
-    exit 1
-fi
-
-sleep 2
-
-echo "[*] Verifying services..."
-
-# Check Mobile Service
-curl -s http://localhost:5173 | grep -q "Trip Angkutan"
-MOBILE_STATUS=$?
-
-# Check Admin Service
-curl -s http://localhost:8000 | grep -q "Expert\|Trip\|Angkutan\|Admin"
-ADMIN_STATUS=$?
-
-if [ $MOBILE_STATUS -eq 0 ]; then
-    echo "  - Mobile Service : SUCCESS (Running smoothly)"
-else
-    echo "  - Mobile Service : FAILED (Check mobile.log)"
-fi
+MOBILE_STATUS=1
+curl -sf http://localhost:5173 | grep -q "Trip Angkutan" && MOBILE_STATUS=0
 
 if [ $ADMIN_STATUS -eq 0 ]; then
     echo "  - Admin Service  : SUCCESS (Running smoothly)"
 else
-    echo "  - Admin Service  : FAILED (Check admin.log)"
+    echo "  - Admin Service  : FAILED (sudo docker logs trip-web)"
 fi
 
-# Get LAN IP
+if [ $MOBILE_STATUS -eq 0 ]; then
+    echo "  - Mobile Service : SUCCESS (Running smoothly)"
+else
+    echo "  - Mobile Service : FAILED (sudo docker logs trip-web)"
+fi
+
 LAN_IP=$(ip -4 addr show scope global 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}' | head -1)
 LAN_IP=${LAN_IP:-not detected}
-
 echo ""
 echo "=========================================="
 echo "           ACCESS URL DIRECTORY           "
 echo "=========================================="
-echo " Mobile (Local)   : http://localhost:5173"
-echo " Mobile (LAN)     : http://${LAN_IP}:5173"
 echo " Admin  (Local)   : http://localhost:8000"
 echo " Admin  (LAN)     : http://${LAN_IP}:8000"
+echo " Mobile (Local)   : http://localhost:5173"
+echo " Mobile (LAN)     : http://${LAN_IP}:5173"
 echo "=========================================="
-echo "Logs: tail -f mobile.log admin.log"
+echo "Stop  : sudo docker compose -f $BASE/docker-compose.yml down"
+echo "Cek  ADMIN UI (LAN): link above"
+echo "Membersihkan kode lama otomatis: Docker membangun ulang dari sumber terbaru setiap eksekusi."

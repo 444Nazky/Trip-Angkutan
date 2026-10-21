@@ -12,7 +12,6 @@ import HistoryDetailScreen from './HistoryDetailScreen'
 import OfficerSwitchScreen from './OfficerSwitchScreen'
 import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
-import LocalOfficersScreen from './LocalOfficersScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
 import GeofenceConfigScreen from './GeofenceConfigScreen'
 import type { MobileScreen } from '../types'
@@ -24,7 +23,7 @@ import { useApp } from '../store'
 
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
-const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail', 'local-officers']
+const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
 const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'profile']
 
@@ -44,7 +43,6 @@ export default function MobileApp() {
   const fullscreenScreens: MobileScreen[] = [
     'camera',
     'officer-switch',
-    'local-officers',
     'pin-verify',
     'trip-complete',
   ]
@@ -69,7 +67,6 @@ export default function MobileApp() {
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
     'geofence-config': <GeofenceConfigScreen go={go} />,
-    'local-officers': <LocalOfficersScreen go={go} />,
   }
 
   function go(next: MobileScreen) {
@@ -141,12 +138,9 @@ export default function MobileApp() {
   }
 
   if (fullscreenScreens.includes(screen)) {
-    const animated = screen === 'local-officers'
     return framed(
       <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
-        {animated
-          ? <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
-          : screenMap[screen]}
+        {screenMap[screen]}
       </div>,
     )
   }
