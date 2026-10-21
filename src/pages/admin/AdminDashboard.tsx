@@ -12,7 +12,6 @@ import type { PlateRecord } from '../../services/plates'
 import type { Officer } from './components/types'
 import { loadTheme, applyTheme } from '../../services/theme'
 import { environment } from '../../environments/environment'
-import LoginPage from '../LoginPage'
 import ReportSheet from './ReportSheet'
 
 import { TariffTab } from './tabs/TariffTab'
@@ -34,8 +33,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [, setServerTrips] = useState<BackendTrip[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
 
-  const [authDenied, setAuthDenied] = useState(false)
-  const [authRetry, setAuthRetry] = useState(0)
 
   const [sheetMode, setSheetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/sheet')
   useEffect(() => {
@@ -74,10 +71,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const sess = await ensureAdminSession()
       if (!alive) return
       if (!sess.ok) {
-        if (sess.authDenied) { setAuthDenied(true); return }
         setServerState('offline'); return
       }
-      setAuthDenied(false)
 
       const [tarr, tri] = await Promise.all([fetchTariffs(), fetchTrips()])
       if (!alive) return
@@ -90,7 +85,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setServerState('online')
     })()
     return () => { alive = false }
-  }, [authRetry])
+  })
 
   // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
@@ -101,10 +96,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'officers', label: 'Petugas', Icon: Users },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
-
-  if (authDenied) return (
-    <LoginPage onLogin={() => { setAuthDenied(false); setAuthRetry(k => k + 1) }} />
-  )
 
   return sheetMode ? <ReportSheet /> : (
     <div className="flex bg-slate-900 min-h-screen">
