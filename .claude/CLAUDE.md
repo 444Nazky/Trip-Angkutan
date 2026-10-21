@@ -1,84 +1,75 @@
 # Project Guidelines - Trip Angkutan
 
 ## graphify Usage
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists
-- Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts
-- After modifying code, run `graphify update .` to keep the graph current
+- Untuk pertanyaan codebase, pertama jalan `graphify query "<pertanyaan>"` jika graphify-out/graph.json ada
+- Pakai `graphify path "<A>" "<B>"` untuk relasi dan `graphify explain "<konsep>"` untuk konsep spesifik
+- Setelah modifikasi code, jalan `graphify update .` agar graph selalu current
 
-## CSS Variables - CRITICAL RULES
+## CSS Variables - ATURAN KRITIS
 
-### DO NOT USE UNDEFINED CSS VARIABLES
-Before using any CSS variable in inline styles or component CSS:
-1. Always verify the variable is defined in the global styles (index.html, global CSS files, or Tailwind config)
-2. If a variable is not defined, use hardcoded values instead
-3. Common safe colors: `#3B82F6` (blue-500), `#10B981` (green-500), `#EF4444` (red-500)
+### JANGAN GUNAKAN CSS VARIABLES YANG TIDAK TERDEFINISI
+Sebelum pakai CSS variable di inline styles atau component CSS:
+1. Selalu verifikasi variable tsb terdefinisi di global styles (index.html, global CSS files, atau Tailwind config)
+2. Jika variable tidak terdefinisi, pakai nilai hardcoded sebagai ganti
+3. Warna aman yang umum: `#3B82F6` (blue-500), `#10B981` (green-500), `#EF4444` (red-500)
 
-### Known Safe CSS Variables
-- Colors defined in Tailwind config are safe to use via Tailwind classes
-- Custom CSS variables should be defined in `:root` or in component styles
+### CSS Variables yang Aman
+- Warna yang terdefinisi di Tailwind config aman dipakai lewat Tailwind classes
+- CSS variables custom sebaiknya didefinisikan di `:root` atau di component styles
 
-### Example - CORRECT
-```tsx
-// GOOD - Using hardcoded color
-<div style={{ background: '#3B82F6' }}>
+### File CSS yang Relevan untuk Chart/Graph Component
+- `src/pages/admin/tabs/ReportsTab.tsx` - Lihat bagaimana grafik komposisi muatan pakai warna hardcoded `#3B82F6`
+- Pola: bandingkan dengan file terkait untuk memastikan variable CSS dipakai dengan benar
 
-// GOOD - Using Tailwind class
-<div className="bg-blue-500">
+### Setup Linter Otomatis
+Untuk meminimalisir kesalahan serupa, setup pengecekan otomatis:
+- Tambahkan script di `package.json` untuk memeriksa semua file TypeScript/TSX
+- Cari semua instance `var(--` dalam inline styles dan verifikasi variable tersebut terdefinisi
 
-// GOOD - Only if --admin-accent is defined in global CSS
-<div style={{ background: 'var(--admin-accent)' }}>
-```
+---
 
-### Example - INCORRECT (causes silent failures)
-```tsx
-// BAD - var(--admin-accent) is NOT defined anywhere
-<div style={{ background: 'var(--admin-accent)' }}>
-```
+### Penggunaan Emoji
+- JANGAN pakai emoji di antarmuka UI
+- Pakai teks biasa atau ikon dari lucide-react sebagai ganti
 
-## UI/UX Guidelines
+### Pemisah Teks
+- Pakai `-` (strip) sebagai pemisah teks, bukan `·` (titik tengah)
 
-### Emoji Usage
-- Do NOT use emojis in the UI interface
-- Use plain text or icons from lucide-react instead
+### Navigasi Sidebar
+- Kelola navigasi tab dengan benar: `AdminDashboard.tsx` mengelola tab berbeda (`reports`, `tariff`, dst.)
+- Pastikan file component yang dimuat sesuai dengan tab yang dipilih
+- Contoh: tab `reports` → `ReportsTab`, tab `tariff` → `TariffTab`
 
-### Text Separators
-- Use `-` (dash) instead of `·` (middle dot) for text separators
+### Referensi File untuk Halaman Admin
+- Halaman laporan utama: `src/pages/admin/ReportSheet.tsx`
+- Komponen tab laporan: `src/pages/admin/tabs/ReportsTab.tsx`
+- Tab master tarif: `src/pages/admin/tabs/TariffTab.tsx`
 
-### Sidebar Navigation
-- "Laporan" (Reports) should be the first/primary menu item
-- Remove redundant tabs (like separate Dashboard) when their content is available in Reports
+## Aset UI
+### Logo SVG
+- Logo admin: `admin-www/Assets/karyamasv.svg`
+- Pastikan folder `assets/` atau `Assets/` ada dan berisi file yang dibutuhkan
+- Update graphify setelah menambah/mengubah aset
 
-## Code Quality
+## Checklist Sebelum Deploy
+- Setiap kali ada perubahan frontend:
+  1. Build: `npm run build`
+  2. Copy ke admin-www: `cp -r www/* /path/to/admin-www/ && cp -r www/* /path/to/admin-ci/`
+  3. Sinkronisasi ke direktori yang di-serve: pastikan file JS terupdate di `admin-www/assets/js/`
+- Backend:
+  - Deploy: `supabase functions deploy api --project-ref bmiruktfruunegtbydyw`
 
-### Before Deploying
-1. Run TypeScript compiler: `npx tsc --noEmit --skipLibCheck`
-2. Check for any undefined CSS variables in inline styles
-3. Verify all imports are correct
-4. Test the specific feature that was modified
+## Masalah Umum dan Solusi
 
-### Backend Changes (Supabase Edge Functions)
-When modifying backend handlers:
-1. Deploy to Supabase: `supabase functions deploy api --project-ref bmiruktfruunegtbydyw`
-2. Test the API endpoint directly
-3. Check Supabase logs for errors
+### Masalah: Grafik/chart tidak tampil
+- Cek apakah CSS variables yang dipakai di `conic-gradient`, `linear-gradient`, atau inline styles sudah terdefinisi
+- Pakai browser DevTools untuk inspeksi elemen dan cek computed styles
 
-### Frontend Changes
-When modifying frontend:
-1. Build: `npm run build`
-2. Copy to admin directory: `cp -r www/* /path/to/admin-www/`
-3. Test in browser (clear cache if needed)
+### Masalah: Perubahan tidak muncul setelah deploy
+- Clear browser cache (Ctrl+Shift+R atau Cmd+Shift+R)
+- Cek apakah versi lama di-serve dari cache
+- Verifikasi output build mengandung kode baru
 
-## Common Issues and Solutions
-
-### Issue: Chart/graph not displaying
-- Check if CSS variables used in `conic-gradient`, `linear-gradient`, or inline styles are defined
-- Use browser DevTools to inspect elements and check computed styles
-
-### Issue: Changes not appearing after deploy
-- Clear browser cache (Ctrl+Shift+R or Cmd+Shift+R)
-- Check if the old version is being served from cache
-- Verify the build output contains the new code
-
-### Issue: TypeScript errors
-- Run `npx tsc --noEmit --skipLibCheck` to identify issues
-- Ensure all type definitions are correct
+### Masalah: TypeScript errors
+- Jalankan `npx tsc --noEmit --skipLibCheck` untuk identifikasi masalah
+- Pastikan semua definisi tipe sudah benar
