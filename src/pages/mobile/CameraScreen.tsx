@@ -5,6 +5,14 @@ import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
 import { readPlateFromImage } from '../../services/ocr'
+import {
+  compressImage,
+  DOC_MAX_EDGE,
+  DOC_QUALITY,
+  OCR_MAX_EDGE,
+  OCR_QUALITY,
+} from '../../services/imageUtil'
+import { getCurrentPosition } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 
 
@@ -17,13 +25,30 @@ interface CameraScreenProps {
 
 
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('gambar gagal dimuat'))
-    img.src = src
-  })
+/**
+ * Ambil posisi GPS untuk watermark SEKARANG.
+ * Prioritas: fix yang sudah di-cache (hampir instan) → request langsung
+ * dengan timeout pendek. Tidak pernah menahan proses lebih dari ~2.5 detik.
+ */
+async function getPhotoPosition(): Promise<{ lat: number | null; lon: number | null }> {
+  try {
+    const cached = await Promise.race([
+      getCurrentPosition(),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 1500)),
+    ])
+    if (cached) return { lat: cached.lat, lon: cached.lng }
+  } catch { /* lanjut ke fallback */ }
+
+  try {
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: false,
+      timeout: 2500,
+      maximumAge: 30000,
+    })
+    return { lat: pos.coords.latitude, lon: pos.coords.longitude }
+  } catch {
+    return { lat: null, lon: null }
+  }
 }
 
 
@@ -139,97 +164,27 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     const cv = document.createElement('canvas')
     cv.width = v.videoWidth; cv.height = v.videoHeight
     cv.getContext('2d')?.drawImage(v, 0, 0)
-    return cv.toDataURL('image/jpeg', 0.92)
+    return cv.toDataURL('image/jpeg', 0.7)
   }
 
 
 
 
-  async function addWatermark(
+  // ponytail: watermark + resize + kompresi sekarang SATU canvas pass
+  // (lihat services/imageUtil.ts). Sebelumnya: load gambar ukuran penuh ->
+  // canvas penuh -> encode q0.92, lalu encode LAGI saat upload. itu 3x kerjaan
+  // dan penyebab utama "loading lama" setelah jepret.
+  const processPhoto = (
     dataUrl: string,
     lat: number | null,
     lon: number | null,
-    region: string,
     capturedAt: Date,
-  ): Promise<string> {
-    try {
-      const img = await loadImage(dataUrl)
-      const w = img.naturalWidth || img.width || 800
-      const h = img.naturalHeight || img.height || 600
-      const cv = document.createElement('canvas')
-      cv.width = w; cv.height = h
-      const ctx = cv.getContext('2d')
-      if (!ctx) return dataUrl
-      ctx.drawImage(img, 0, 0, w, h)
-
-
-
-
-      const lines: Array<{ text: string; color: string; font: string }> = [
-        {
-          text: capturedAt.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }),
-          color: '#ffffff',
-          font: 'bold 13px monospace',
-        },
-        {
-          text: (lat != null && lon != null)
-            ? `${lat.toFixed(5)}, ${lon.toFixed(5)}`
-            : 'Lokasi tidak tersedia',
-          color: '#93c5fd',
-          font: '12px monospace',
-        },
-      ]
-
-
-
-      if (region) lines.push({ text: region.toUpperCase(), color: '#fde68a', font: '11px monospace' })
-
-      const padX = 12, padY = 8, lineH = 17
-      ctx.font = 'bold 13px monospace'
-      const textW = Math.max(...lines.map(l => {
-        ctx.font = l.font
-        return ctx.measureText(l.text).width
-      }), 0)
-
-
-
-      const boxW = Math.min(w - 2 * padX, textW + padX * 2)
-      const boxH = lines.length * lineH + padY * 2
-      const bx = w - boxW - padX
-      const by = h - boxH - padY
-
-
-
-
-      ctx.save()
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'
-      ctx.beginPath()
-      if (typeof ctx.roundRect === 'function') ctx.roundRect(bx, by, boxW, boxH, 8)
-      else ctx.rect(bx, by, boxW, boxH)
-      ctx.fill()
-      ctx.restore()
-
-
-
-
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      let ty = by + padY + lineH / 2
-      for (const l of lines) {
-        ctx.font = l.font
-        ctx.shadowColor = 'rgba(0,0,0,0.6)'
-        ctx.shadowBlur = 3
-        ctx.shadowOffsetX = 1
-        ctx.shadowOffsetY = 1
-        ctx.fillStyle = l.color
-        ctx.fillText(l.text, bx + padX, ty)
-        ty += lineH
-      }
-      return cv.toDataURL('image/jpeg', 0.92)
-    } catch {
-      return dataUrl
-    }
-  }
+  ): Promise<string> =>
+    compressImage(dataUrl, {
+      maxEdge: DOC_MAX_EDGE,
+      quality: DOC_QUALITY,
+      watermark: { capturedAt, lat, lon, region: regionLabel },
+    })
 
 
 
@@ -239,24 +194,18 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     const capturedAt = new Date()
     setBusy(true)
 
-    let lat: number | null = null
-    let lon: number | null = null
-    try {
-      const pos = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true, timeout: 5000, maximumAge: 30000,
-      })
-      lat = pos.coords.latitude
-      lon = pos.coords.longitude
-    } catch { /* lokasi gagal — tetap lanjut */ }
-
-
-
-
-    const watermarked = await addWatermark(rawDataUrl, lat, lon, regionLabel, capturedAt)
+    // GPS: pakai fix cache kalau ada (hampir instan), fallback request singkat.
+    // Tidak pernah menahan proses lebih dari ~2.5 detik.
+    const { lat, lon } = await getPhotoPosition()
 
     if (isOcr) {
+      // OCR butuh resolusi lebih tinggi — downscale ke 1280 (bukan 640).
+      const ocrSource = await compressImage(rawDataUrl, {
+        maxEdge: OCR_MAX_EDGE,
+        quality: OCR_QUALITY,
+      })
       try {
-        const plate = await readPlateFromImage(rawDataUrl)
+        const plate = await readPlateFromImage(ocrSource)
         if (plate) patchDraft({ ocrResult: plate })
       } catch { /* OCR gagal — biarkan petugas isi manual */ }
       setBusy(false)
@@ -264,6 +213,8 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       go('vehicle-form')
       return
     }
+
+    const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt)
 
 
 
@@ -349,7 +300,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     setErrorMsg('')
     try {
       const image = await CapCamera.getPhoto({
-        quality: 85,
+        // ponytail: kualitas kamera TIDAK perlu HD untuk foto dokumentasi.
+        // q85 menghasilkan data URL raksasa (puluhan MB string base64) yang
+        // bikin encode + upload lambat. q30 + downscale 640px jauh lebih cepat
+        // dan ukurannya ~20x lebih kecil.
+        // Mode OCR tetap perlu kualitas lebih tinggi (teks plat harus terbaca).
+        quality: isOcr ? 60 : 30,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,

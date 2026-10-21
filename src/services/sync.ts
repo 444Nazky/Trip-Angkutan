@@ -403,11 +403,17 @@ async function toImageBlob(raw?: string): Promise<Blob | null> {
   const src = normalizeSource(raw)
   if (!src) return null
   let blob: Blob | null = null
-  try {
-    const res = await fetch(src)
-    blob = await res.blob()
-  } catch {
-    blob = src.startsWith('data:') ? dataUrlToBlobManual(src) : null
+  // ponytail: untuk data: URL decode manual JAUH lebih cepat daripada
+  // fetch(dataUrl) di WebView Android (tidak lewat network stack).
+  if (src.startsWith('data:')) {
+    blob = dataUrlToBlobManual(src)
+  } else {
+    try {
+      const res = await fetch(src)
+      blob = await res.blob()
+    } catch {
+      blob = null
+    }
   }
   if (!blob || blob.size === 0) return null
   if (!OK_MIME.test(blob.type)) blob = new Blob([blob], { type: 'image/jpeg' })
@@ -519,13 +525,22 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const vehicles: VehiclePayload[] = []
     const vehiclesList = trip.vehicles ?? []
+    // ponytail: GPS diambil SATU KALI untuk semua kendaraan. Dulu tiap
+    // kendaraan tanpa koordinat memanggil getCurrentPosition() (timeout 8
+    // detik) secara SEKUENSIAL -> 3 kendaraan = 24 detik extra sebelum
+    // request terkirim.
+    let sharedGeo: { lat: number; lon: number } | null | undefined
+    const ensureGeo = async (): Promise<{ lat: number; lon: number } | null> => {
+      if (sharedGeo === undefined) sharedGeo = await getCurrentPositionSafe()
+      return sharedGeo
+    }
     for (let i = 0; i < vehiclesList.length; i++) {
       const v = vehiclesList[i]
       const vi = await pushPhoto(item.photos?.[i]?.dataUrl || v.photoUrl)
       let lat: number | null = v.photoLatitude ?? null
       let lon: number | null = v.photoLongitude ?? null
       if (lat == null || lon == null) {
-        const geo = await getCurrentPositionSafe()
+        const geo = await ensureGeo()
         if (geo) { lat = geo.lat; lon = geo.lon }
       }
       vehicles.push({

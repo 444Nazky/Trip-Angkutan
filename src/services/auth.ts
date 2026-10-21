@@ -582,11 +582,26 @@ export async function syncDermagaOfficersToDb(dermagaId: string): Promise<void> 
 
 // ─── Route helpers ─────────────────────────────────────────────────────────────
 
+const ROUTES_SYNC_KEY = 'trip.routes.lastSync'
+const ROUTES_SYNC_TTL_MS = 60_000
+
 /**
  * Perbarui rute dari server.
+ * Default: skip network bila baru di-sync < 1 menit lalu (TTL) — supaya
+ * membuka layar "Pilih Rute" tidak memicu request berulang tiap kali.
+ * Cache lokal TETAP tersedia seketika — layar tidak perlu menunggu jaringan.
  */
-export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
+export async function refreshStoredRoutes(
+  opts?: { force?: boolean },
+): Promise<UiRoute[] | null> {
   try {
+    if (!opts?.force) {
+      const last = Number(localStorage.getItem(ROUTES_SYNC_KEY) || 0)
+      if (last && Date.now() - last < ROUTES_SYNC_TTL_MS) {
+        const cached = getStoredRoutes()
+        if (cached.length) return cached
+      }
+    }
     const res = await api.get<Route[]>('/routes/mine')
     if (!res.ok || !Array.isArray(res.data)) return null
     const map: Record<string, Route[]> = {}
@@ -599,6 +614,7 @@ export async function refreshStoredRoutes(): Promise<UiRoute[] | null> {
     }
     saveRoutesApi(map)
     try { localStorage.setItem('trip.routes', JSON.stringify(map)) } catch {}
+    try { localStorage.setItem(ROUTES_SYNC_KEY, String(Date.now())) } catch {}
     return getStoredRoutes()
   } catch {
     return null

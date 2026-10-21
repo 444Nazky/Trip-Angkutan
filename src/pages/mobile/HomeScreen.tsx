@@ -1,6 +1,7 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync'
+import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -47,6 +48,8 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       }
       setSyncState(r)
       setPendingCount(getPendingCount())
+      // Prefetch data kritis setelah sinkronisasi
+      void prefetchAllCriticalData().catch(() => undefined)
       if (r.failed === 0) {
         setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
       }
