@@ -19,14 +19,34 @@ function validPhotoIndex(value: unknown, count: number): number | null | undefin
   return undefined;
 }
 
-async function getTariff(vehicleType: string) {
-  const { data, error } = await db
+async function getTariff(vehicleType: string, golongan?: string) {
+  // Query tariffs table - filter by vehicle_type AND golongan if golongan is provided
+  const query = db
     .from("tariffs")
-    .select("id, loaded_tariff, empty_tariff")
+    .select("id, loaded_tariff, empty_tariff, golongan, vehicle_type")
     .eq("is_active", 1)
-    .eq("vehicle_type", vehicleType)
-    .limit(1);
+    .eq("vehicle_type", vehicleType);
+
+  // If golongan is provided, filter by it too for more precise matching
+  if (golongan && typeof golongan === 'string' && golongan.trim()) {
+    query.eq("golongan", golongan.trim());
+  }
+
+  const { data, error } = await query.limit(1);
   if (error && (error as any).code !== "PGRST116") return null;
+
+  // If no exact match with golongan, try without golongan filter
+  if ((!data || data.length === 0) && golongan && typeof golongan === 'string' && golongan.trim()) {
+    const fallbackQuery = await db
+      .from("tariffs")
+      .select("id, loaded_tariff, empty_tariff")
+      .eq("is_active", 1)
+      .eq("vehicle_type", vehicleType)
+      .limit(1);
+    if (fallbackQuery.error) return null;
+    return fallbackQuery.data?.[0] ?? null;
+  }
+
   return data?.[0] ?? null;
 }
 
@@ -57,11 +77,16 @@ async function storePhoto(file: File): Promise<string> {
 
 async function insertVehicle(tripId: string, vehicle: any, photoPath: string): Promise<void> {
   const vehicleId = crypto.randomUUID();
-  const tariff = await getTariff(vehicle.vehicleType);
-  const amount =
-    typeof vehicle.tariffAmount === "number" && vehicle.tariffAmount > 0
+  // Pass golongan to getTariff for precise matching
+  const tariff = await getTariff(vehicle.vehicleType, vehicle.golongan);
+  // Master Tarif diutamakan (server-authoritative); amount dari client hanya fallback
+  const amount = tariff
+    ? vehicle.hasLoad
+      ? tariff.loaded_tariff
+      : tariff.empty_tariff
+    : typeof vehicle.tariffAmount === "number" && vehicle.tariffAmount > 0
       ? vehicle.tariffAmount
-      : tariff ? (vehicle.hasLoad ? tariff.loaded_tariff : tariff.empty_tariff) : 0;
+      : 0;
 
   const { data: newVehicle, error } = await db
     .from("vehicles")

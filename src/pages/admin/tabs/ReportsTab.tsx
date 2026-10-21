@@ -281,7 +281,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
               <div className="relative w-28 h-28 shrink-0 rounded-full"
-                style={{ background: `conic-gradient(var(--admin-accent) 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
+                style={{ background: `conic-gradient(#3B82F6 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
                 <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
                   <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{totalTrip}</span>
                   <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>
@@ -295,7 +295,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-                  <span className="text-slate-600 font-semibold">Kosong</span>
+                  <span className="text-slate-600 font-semibold">Tanpa Muatan</span>
                   <span className="font-black text-slate-800 tabular-nums">{kosongCount}</span>
                 </div>
                 <p className="text-[11px] text-slate-400 pt-1">{Math.round(muatanPct)}% trip bermuatan</p>

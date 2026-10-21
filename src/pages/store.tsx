@@ -17,6 +17,7 @@ export interface VehicleEntry {
   plate: string
   type: string
   category: string
+  golongan?: string
   tariff: number
 
   photoUrl?: string
@@ -268,6 +269,10 @@ export function tariffFor(vehicleType: string) {
   )
 }
 
+// Get golongan from tariff table for a vehicle type (for backend submission)
+export function golonganFor(vehicleType: string): string {
+  return tariffFor(vehicleType).golongan
+}
 
 
 

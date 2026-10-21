@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
-import { tariffFor, unitLabel, useApp } from '../store'
+import { tariffFor, golonganFor, unitLabel, useApp } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 import {
@@ -122,7 +122,8 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     const entry = {
       plate: plate.trim().toUpperCase(),
       type: vehicleType,
-      category: category,
+      category,
+      golongan: golonganFor(vehicleType),
       tariff: tariffFor(vehicleType).loadedNum,
       photoUrl: draft.vPhotoUrl,
       photoCapturedAt: draft.vPhotoCapturedAt,

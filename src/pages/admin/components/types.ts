@@ -1,10 +1,9 @@
 export type AdminTab =
-  | 'overview'
+  | 'reports'
   | 'tariff'
   | 'plates'
   | 'routes'
   | 'officers'
-  | 'reports'
   | 'settings'
 
 

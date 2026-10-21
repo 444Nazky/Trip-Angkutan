@@ -28,8 +28,6 @@ const fotoUrl = (path: string | null | undefined) => {
   return resolvePhotoUrl(path, environment.apiBaseUrl)
 }
 
-
-
 const fmtCoords = (lat?: number | null, lng?: number | null) => {
   if (!lat || !lng) return null
   return { lat: Number(lat).toFixed(5), lng: Number(lng).toFixed(5), gmaps: `https://www.google.com/maps?q=${lat},${lng}` }
@@ -66,7 +64,7 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
           <div className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white text-xs font-semibold">
               <span className="flex items-center gap-2">
-                <ImageIcon size={13} /> Dokumentasi {label ? `· ${label}` : 'Kendaraan'}
+                <ImageIcon size={13} /> Dokumentasi {label ? ` - ${label}` : 'Kendaraan'}
               </span>
               <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded"><X size={14} /></button>
             </div>
@@ -74,9 +72,91 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
               <img src={url} alt="kendaraan" className="max-h-[65vh] w-auto object-contain rounded-lg" />
             </div>
             <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-mono">Trip: {no_trip}{label ? ` · ${label}` : ''}</span>
+              <span className="font-mono">Trip: {no_trip}{label ? ` - ${label}` : ''}</span>
               <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
                 <ExternalLink size={11} /> Buka Asli
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+    </span>
+  )
+}
+
+// Component to display all trip documentation photos
+const AllPhotosCell = ({ photos, no_trip, vehicleCount }: { photos?: string[]; no_trip: string; vehicleCount: number }) => {
+  const [open, setOpen] = useState(false)
+  const validPhotos = photos?.filter(Boolean) ?? []
+  if (validPhotos.length === 0) return <span className="text-slate-300 italic text-[11px]">-</span>
+
+  const tripPhoto = validPhotos[0]
+  const vehiclePhotos = validPhotos.slice(1)
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-semibold hover:bg-blue-100 transition-colors"
+        title={`Lihat ${validPhotos.length} foto dokumentasi`}
+      >
+        <ImageIcon size={11} />
+        {validPhotos.length} Foto
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setOpen(false)}>
+          <div className="relative max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden my-8" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-800 text-white">
+              <span className="flex items-center gap-2 font-semibold text-sm">
+                <ImageIcon size={14} /> Dokumentasi Lengkap Trip {no_trip}
+              </span>
+              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Trip Proof Photo */}
+            {tripPhoto && (
+              <div className="border-b border-slate-200">
+                <div className="px-4 py-2 bg-amber-50 text-amber-800 text-[11px] font-bold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  Foto Bukti Trip (Konfirmasi {validPhotos.length > 1 ? `${vehicleCount} Kendaraan` : ''})
+                </div>
+                <div className="bg-slate-900 p-3 flex items-center justify-center">
+                  <img src={fotoUrl(tripPhoto)!} alt="foto bukti trip" className="max-h-[50vh] w-auto object-contain rounded-lg" />
+                </div>
+              </div>
+            )}
+
+            {/* Vehicle Photos */}
+            {vehiclePhotos.length > 0 && (
+              <div>
+                <div className="px-4 py-2 bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-slate-500" />
+                  Foto Dokumentasi Kendaraan ({vehiclePhotos.length} unit)
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-slate-50">
+                  {vehiclePhotos.map((photo, idx) => (
+                    <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 bg-white">
+                      <img
+                        src={fotoUrl(photo)!}
+                        alt={`kendaraan ${idx + 1}`}
+                        className="w-full h-32 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(fotoUrl(photo)!, '_blank')}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                        <span className="text-white text-[10px] font-semibold">Kendaraan {idx + 1}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-mono">Total: {validPhotos.length} foto dokumentasi</span>
+              <a href={fotoUrl(validPhotos[0])!} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
+                <ExternalLink size={11} /> Buka Foto Pertama
               </a>
             </div>
           </div>
@@ -93,7 +173,7 @@ type LoadState = 'loading' | 'ready' | 'offline'
 
 const AUTO_REFRESH_MS = 15_000
 
-interface VehRow extends Array<string | number | LocCell | null> {
+interface VehRow extends Array<string | number | string[] | LocCell | null> {
   0: number; 1: string; 2: string; 3: string; 4: string; 5: string;
   6: string; 7: string; 8: string; 9: string; 10: number;
   11: string | null;
@@ -151,14 +231,15 @@ export default function ReportSheet() {
 
   const apply = (patch: ReportFilters) => setFilters(prev => ({ ...prev, ...patch }))
 
-  const tripHeader = ['#', 'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Petugas', 'Muatan', 'Unit', 'Pendapatan (Rp)']
-  const vehHeader = ['#', 'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Unit', 'Jenis Kendaraan', 'Golongan', 'Kategori', 'Tarif (Rp)', 'Foto', 'Lokasi']
+  const tripHeader = ['#', 'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Petugas', 'Muatan', 'Unit', 'Pendapatan (Rp)', 'Foto Dokumentasi']
+  const vehHeader = ['#', 'No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Unit', 'Jenis Kendaraan', 'Golongan', 'Status Muatan', 'Tarif (Rp)', 'Foto', 'Lokasi']
 
   const tripMatrix = useMemo(() => rows.map((t, i) => {
     const d = formatReportDateTime(t.created_at)
+    const photos = t.all_photos ?? []
     return [i + 1, t.no_trip, d.date, d.time, reportPlace(t), reportAsal(t), reportTujuan(t),
-      t.officer_name || '-', t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
-      t.vehicle_count || 0, t.trip_revenue || 0]
+      t.officer_name || '-', t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Tanpa Muatan',
+      t.vehicle_count || 0, t.trip_revenue || 0, photos]
   }), [rows])
 
   const vehFlat = useMemo(() => rows.flatMap(t => t.vehicles.map(v => ({ t, v }))), [rows])
@@ -172,11 +253,12 @@ export default function ReportSheet() {
       lat: base.lat,
       lng: base.lng,
       gmaps: base.gmaps,
-      tooltip: nd ? `${base.lat}, ${base.lng} · titik: ${nd.pointName} (${nd.pointLat}, ${nd.pointLng})` : `${base.lat}, ${base.lng}`,
+      tooltip: nd ? `${base.lat}, ${base.lng} - titik: ${nd.pointName} (${nd.pointLat}, ${nd.pointLng})` : `${base.lat}, ${base.lng}`,
     }
+    const loadStatus = v.has_load ? 'Ada Muatan' : 'Tanpa Muatan'
     return asVehRow([i + 1, t.no_trip, d.date, d.time, reportPlace(t), v.no_polisi,
       vehicleUnitLabel(t.vehicles, v), v.vehicle_type,
-      v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'), v.golongan, v.tariff_amount || 0,
+      v.master_golongan || (v.golongan.length <= 3 ? v.golongan : '-'), loadStatus, v.tariff_amount || 0,
       v.foto_path, loc])
   }), [vehFlat, geoRules])
 
@@ -193,10 +275,18 @@ export default function ReportSheet() {
 
     const vehExcelMatrix: (string | number | null)[][] = vehMatrix.map(r => [
       r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10],
-      fotoUrl(r[11]) || null,
-
+      fotoUrl(r[11] as string | null) || null,
       r[12] ? (r[12].dist || `${r[12].lat}, ${r[12].lng}`) : null,
     ])
+
+    const tripExcelMatrix = tripMatrix.map(r => {
+      const photos = r[11] as string[] | null
+      return [
+        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10],
+        photos?.length ? `${photos.length} foto` : null,
+      ] as (string | number | null)[]
+    })
+
     const meta: (string | number | null)[][] = [
       ['Laporan Spreadsheet'],
       ['Dicetak', now.toLocaleString('id-ID')],
@@ -208,13 +298,17 @@ export default function ReportSheet() {
       [],
     ]
     return [
-      { name: 'Laporan Trip', rows: [...meta, tripHeader, ...tripMatrix, [], ['TOTAL', '', '', '', '', '', '', '', '', totalUnit, totalRevenue]] },
+      { name: 'Laporan Trip', rows: [...meta, tripHeader, ...tripExcelMatrix, [], ['TOTAL', '', '', '', '', '', '', '', '', '', totalUnit, totalRevenue]] },
       { name: 'Detail Kendaraan', rows: [['Detail Kendaraan per Trip'], [], vehHeader, ...vehExcelMatrix, [], ['TOTAL', '', '', '', '', '', '', '', '', '', totalTarif, '', '']] },
     ]
   }
 
   const copyTsv = async () => {
     const tsvRows = matrix.map(r => r.map((cell, ci) => {
+      if (view === 'trip' && ci === 11) {
+        const photos = cell as string[] | null
+        return photos?.length ? `${photos.length} foto` : '-'
+      }
       if (view === 'vehicle' && ci === 11) return fotoUrl(cell as string | null) || '-'
       if (view === 'vehicle' && ci === 12) {
         const loc = cell as LocCell | null
@@ -226,7 +320,7 @@ export default function ReportSheet() {
       header.join('\t'),
       ...tsvRows.map(r => r.join('\t')),
       view === 'trip'
-        ? ['', 'TOTAL', '', '', '', '', '', '', '', totalUnit, totalRevenue].join('\t')
+        ? ['', 'TOTAL', '', '', '', '', '', '', '', '', totalUnit, totalRevenue].join('\t')
         : ['', 'TOTAL', '', '', '', '', '', '', '', '', totalTarif, '', ''].join('\t'),
     ].join('\n')
     try {
@@ -264,8 +358,8 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Tersinkron langsung dari database · refresh otomatis tiap 15 detik
-              {lastSync && <> · terakhir {lastSync} WIB</>}
+              Tersinkron langsung dari database - refresh otomatis tiap 15 detik
+              {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
           </div>
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
@@ -363,7 +457,7 @@ export default function ReportSheet() {
                     <th key={h} className={`px-3 py-2.5 border-b border-slate-200 bg-slate-100 ${
                       i === 0 ? 'w-10 text-left'
                       : /Unit|Tarif|Pendapatan/.test(h) ? 'text-right'
-                      : h === 'Foto' ? 'text-center w-16'
+                      : h === 'Foto' || h === 'Foto Dokumentasi' ? 'text-center w-24'
                       : 'text-left'
                     }`}>
                       {h}
@@ -381,6 +475,18 @@ export default function ReportSheet() {
                 ) : matrix.map((r, idx) => (
                   <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50/60' : ''}>
                     {r.map((cell, ci) => {
+                      // Handle photo column in trip view (column 11)
+                      if (view === 'trip' && ci === 11) {
+                        const photos = cell as string[] | null
+                        const noTrip = r[1] as string
+                        const vehicleCount = r[9] as number
+                        return (
+                          <td key={ci} className="px-3 py-2 border-b border-slate-100 text-center">
+                            <AllPhotosCell photos={photos ?? undefined} no_trip={noTrip} vehicleCount={vehicleCount} />
+                          </td>
+                        )
+                      }
+
                       if (view === 'vehicle' && ci === 11) {
                         const fotoPath = cell as string | null
                         const noTrip = r[1] as string
@@ -415,7 +521,7 @@ export default function ReportSheet() {
                           ci === 0 ? 'text-slate-400 tabular-nums'
                           : typeof cell === 'number' ? 'text-right tabular-nums' : ''
                         } ${ci === 1 ? 'font-mono font-semibold text-slate-700' : 'text-slate-700'}`}>
-                          {typeof cell === 'number' && ci > 0 && ci === 10
+                          {typeof cell === 'number' && ci > 0 && (ci === 10)
                             ? fmtRp(cell)
                             : typeof cell === 'string' || typeof cell === 'number'
                               ? cell
@@ -431,10 +537,10 @@ export default function ReportSheet() {
                   <tr className="bg-slate-100 font-bold text-slate-700">
                     <td className="px-3 py-3 border-t-2 border-slate-300" />
                     <td className="px-3 py-3 border-t-2 border-slate-300 text-[12px]">TOTAL</td>
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-[12px] text-slate-400" colSpan={view === 'trip' ? 7 : 8}>
-                      {totalTrip} trip · {totalUnit} unit
+                    <td className="px-3 py-3 border-t-2 border-slate-300 text-[12px] text-slate-400" colSpan={view === 'trip' ? 8 : 8}>
+                      {totalTrip} trip - {totalUnit} unit
                     </td>
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-right font-black text-slate-900" colSpan={view === 'trip' ? 2 : 3}>
+                    <td className="px-3 py-3 border-t-2 border-slate-300 text-right font-black text-slate-900" colSpan={view === 'trip' ? 3 : 3}>
                       {fmtRp(view === 'trip' ? totalRevenue : totalTarif)}
                     </td>
                   </tr>

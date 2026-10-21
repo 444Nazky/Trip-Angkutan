@@ -570,7 +570,7 @@ export async function validateRouteForCurrentLocation(
   const directMatch = normalizedAllowed.includes(normalizedRouteCode)
 
   // Check reverse direction match (e.g., "SBDZ-SJRE" matches "SJRE-SBDZ" for round-trip routes)
-  const reverseCode = [...normalizedRouteCode].reverse().join('').replace('--', '-')
+  const reverseCode = normalizedRouteCode.split('-').reverse().join('-')
   const reverseMatch = normalizedAllowed.includes(reverseCode)
 
   // Debug logging for troubleshooting
