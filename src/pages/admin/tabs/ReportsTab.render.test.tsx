@@ -93,7 +93,7 @@ vi.mock('../../../services/geofences', async (importOriginal) => {
 vi.mock('../../../services/xlsx', () => ({ downloadXlsx: vi.fn() }))
 
 // React 19 butuh penanda ini agar `act()` boleh dipakai di luar test renderer.
-;(globalThis as unknown as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
 describe('ReportsTab (render harness)', () => {
   let container: HTMLDivElement

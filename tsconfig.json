@@ -42,23 +42,13 @@
   "exclude": [
     "node_modules",
 
-    // ── Kode dashboard ADMIN yang ikut ter-merge ke repo MOBILE ini ──────────
-    // Dua aplikasi npm berbeda tidak bisa berbagi satu manifest di root. Admin
-    // sekarang punya package.json/tsconfig sendiri, dan kode yang tertinggal di
-    // sini mengimpor API versi admin (getOk, ensureAdminSession, pingBaseUrl)
-    // yang tidak ada di services/api.ts milik mobile → tsc gagal di file yang
-    // tidak pernah dipakai aplikasi mobile.
-    "src/pages/admin",
+    // ── Kode dashboard ADMIN sekarang ikut di-typecheck ─────────────────────
+    // Dulu admin dikecualikan karena "!tidak ada api.getOk / ensureAdminSession
+    // di services/api.ts". Keduanya sudah ada di services/api.ts & services/auth.ts
+    // yang dipakai bersama, sehingga kode admin boleh ikut dijaga TypeScript.
+    // Kalau file admin bermasalah, `npm run build` sekarang gagal cepat —
+    // jauh lebih baik daripada diam-diam lolos ke bundel.
     "src/services/api.test.ts",
-    "src/services/dermagas.ts",
-    "src/services/geofences.ts",
-    "src/services/geo.ts",
-    "src/services/geo.test.ts",
-    "src/services/locationDistance.ts",
-    "src/services/regions.ts",
-    "src/services/tariffs.ts",
-    "src/services/theme.ts",
-    "src/services/trips.ts",
-    "src/services/xlsx.ts"
+    "src/services/geo.test.ts"
   ]
 }

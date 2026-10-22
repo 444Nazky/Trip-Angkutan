@@ -177,9 +177,9 @@ type LoadState = 'loading' | 'ready' | 'offline'
 // Auto-refresh laporan.
 // 15 detik terlalu agresif: satu query laporan menarik hingga 1.000 trip +
 // kendaraan + tarif, jadi satu tab admin yang terbuka saja bisa menghabiskan
-// kuota egress proyek (sudah lewat 131% di siklus ini). 60 detik masih
-// terasa "live" untuk keperluan operasional.
-const AUTO_REFRESH_MS = 60_000
+// kuota egress proyek (sudah lewat 131% di siklus ini). 5 menit + refresh
+// seketika saat tab kembali kelihatan tetap terasa "live" untuk operasional.
+const AUTO_REFRESH_MS = 300_000
 
 // Kolom tabel datar: satu baris untuk satu unit kendaraan, tanpa nomor urut dan
 // tanpa kolom Unit (jenis kendaraan dan nomor polisi sudah mewakili unit tersebut).
@@ -274,7 +274,17 @@ export default function ReportSheet() {
       setTick(t => t + 1)
       void load(filters)
     }, AUTO_REFRESH_MS)
-    return () => { alive.current = false; clearInterval(id) }
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      setTick(t => t + 1)
+      void load(filters)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      alive.current = false
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [filters, load])
 
   // Pencarian diketik dengan jeda agar tidak membebani server tiap ketikan.
