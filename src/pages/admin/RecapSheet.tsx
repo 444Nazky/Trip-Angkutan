@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, RefreshCw, Table2 } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw, Table2 } from 'lucide-react'
 import { ensureAdminSession } from '../../services/auth'
 import { fetchTripReports, type ReportFilters, type ReportTrip } from '../../services/trips'
 import { buildRecap, recapRouteKey, recapRouteLabel } from '../../services/recap'
+import { downloadXlsx } from '../../services/xlsx'
 
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
 const dateKey = (d: Date) =>
@@ -73,6 +74,18 @@ export default function RecapSheet() {
     setEndDate(dateKey(end))
   }
 
+  const exportRecap = () => {
+    const header = ['Golongan', 'Jenis Kendaraan', 'Tanpa Muatan', 'Dengan Muatan', 'Total Kendaraan', 'Total Pendapatan (Rp)']
+    const body = groups.flatMap(g => [
+      ...g.rows.map(r => [g.golongan, r.jenis, r.empty, r.loaded, r.total, r.revenue]),
+      ['', `Subtotal ${g.golongan}`, g.empty, g.loaded, g.total, g.revenue],
+    ])
+    downloadXlsx(
+      `rekap-trip-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      [{ name: 'Rekap Trip', rows: [header, ...body, ['', 'Total All Golongan', total.empty, total.loaded, total.total, total.revenue]] }],
+    )
+  }
+
   const resetFilters = () => {
     setStartDate('')
     setEndDate('')
@@ -102,6 +115,11 @@ export default function RecapSheet() {
             }`} />
             {state === 'ready' ? 'Connected' : state === 'offline' ? 'Offline' : 'Connecting...'}
           </span>
+          <button onClick={exportRecap} disabled={groups.length === 0}
+            className="border border-emerald-300 text-emerald-700 px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-emerald-50 disabled:opacity-50"
+            title="Unduh rekap sebagai file Excel">
+            <Download size={15} /> .xlsx
+          </button>
           <button onClick={() => void load()} disabled={state === 'loading'}
             className="border border-slate-300 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Refresh
