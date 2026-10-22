@@ -17,7 +17,7 @@ interface HistoryDetailScreenProps {
 interface DocPhoto {
   url: string
   label: string
-  kind: 'trip' | 'vehicle'
+  kind: 'trip' | 'vehicle' | 'selfie'
   index?: number
 }
 
@@ -66,7 +66,9 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
   const photos: DocPhoto[] = isEmptyTrip
-    ? (t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : [])
+    ? [
+        ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+      ]
     : [
         ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
         ...vehicles.map((v, i) => ({
@@ -287,12 +289,14 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <img src={preview.url} alt={preview.label} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} · {t.id}</p>
-            <button
-              onClick={() => { const p = preview; setPreview(null); retakePhoto(p.kind, p.index) }}
-              className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
-            >
-              <RefreshCcw size={12} /> Ambil Ulang
-            </button>
+            {preview.kind !== 'selfie' && (
+              <button
+                onClick={() => { const p = preview; setPreview(null); p.kind === 'vehicle' ? retakePhoto('vehicle', p.index) : retakePhoto('trip') }}
+                className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
+              >
+                <RefreshCcw size={12} /> Ambil Ulang
+              </button>
+            )}
           </div>
         </div>
       )}

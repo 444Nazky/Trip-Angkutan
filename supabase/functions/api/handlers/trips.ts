@@ -1,5 +1,6 @@
 // Trips handlers (port of backend/src/routes/trips.js), photos on Storage.
 import { db, json, auth, generateTripNo, type OfficerClaims } from "../_shared.ts";
+import { resolveTariff, hasColumn, normalizeCategory, normalizeGolongan } from "./tariffRules.ts";
 
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const EXT_BY_TYPE: Record<string, string> = {
@@ -19,50 +20,22 @@ function validPhotoIndex(value: unknown, count: number): number | null | undefin
   return undefined;
 }
 
-// ponytail: cache tarif per-request. Dulu tiap kendaraan memicu query
-// tariffs sendiri (1 query per kendaraan, berurutan). Dengan cache, lookup
-// diulang untuk kombinasi yang sama hanya terjadi sekali.
-const tariffCache = new Map<string, Promise<any>>();
+// ── Ketersediaan kolom baru (aman dipakai sebelum/sesudah migrasi) ──────────
 
-async function getTariff(vehicleType: string, golongan?: string) {
-  const key = `${vehicleType}::${golongan ?? ''}`;
-  const cached = tariffCache.get(key);
-  if (cached) return cached;
-  const p = getTariffUncached(vehicleType, golongan);
-  tariffCache.set(key, p);
-  return p;
+const columnCache = new Map<string, boolean>();
+
+async function supportsColumn(table: string, column: string): Promise<boolean> {
+  const key = `${table}.${column}`;
+  const cached = columnCache.get(key);
+  if (cached !== undefined) return cached;
+  const ok = await hasColumn(table, column);
+  columnCache.set(key, ok);
+  return ok;
 }
 
-async function getTariffUncached(vehicleType: string, golongan?: string) {
-  // Query tariffs table - filter by vehicle_type AND golongan if golongan is provided
-  const query = db
-    .from("tariffs")
-    .select("id, loaded_tariff, empty_tariff, golongan, vehicle_type")
-    .eq("is_active", 1)
-    .eq("vehicle_type", vehicleType);
-
-  // If golongan is provided, filter by it too for more precise matching
-  if (golongan && typeof golongan === 'string' && golongan.trim()) {
-    query.eq("golongan", golongan.trim());
-  }
-
-  const { data, error } = await query.limit(1);
-  if (error && (error as any).code !== "PGRST116") return null;
-
-  // If no exact match with golongan, try without golongan filter
-  if ((!data || data.length === 0) && golongan && typeof golongan === 'string' && golongan.trim()) {
-    const fallbackQuery = await db
-      .from("tariffs")
-      .select("id, loaded_tariff, empty_tariff")
-      .eq("is_active", 1)
-      .eq("vehicle_type", vehicleType)
-      .limit(1);
-    if (fallbackQuery.error) return null;
-    return fallbackQuery.data?.[0] ?? null;
-  }
-
-  return data?.[0] ?? null;
-}
+// ponytail: cache tarif per-request. Resolver tarif (tariffRules.ts) sudah
+// punya cache sendiri per-instance (60 detik), jadi handler tidak perlu query
+// tariffs per kendaraan.
 
 async function resolveOfficerDermaga(officerId: string, regionId: string, bodyDermagaId: unknown): Promise<string | undefined> {
   if (bodyDermagaId) return String(bodyDermagaId);
@@ -89,37 +62,57 @@ async function storePhoto(file: File): Promise<string> {
   return await publicUrl("trip-photos", path);
 }
 
-async function insertVehicle(tripId: string, vehicle: any, photoPath: string): Promise<void> {
+async function insertVehicle(
+  tripId: string,
+  vehicle: any,
+  photoPath: string,
+  regionId: string,
+): Promise<void> {
   const vehicleId = crypto.randomUUID();
-  // Pass golongan to getTariff for precise matching
-  const tariff = await getTariff(vehicle.vehicleType, vehicle.golongan);
-  // Master Tarif diutamakan (server-authoritative); amount dari client hanya fallback
-  const amount = tariff
-    ? vehicle.hasLoad
-      ? tariff.loaded_tariff
-      : tariff.empty_tariff
-    : typeof vehicle.tariffAmount === "number" && vehicle.tariffAmount > 0
-      ? vehicle.tariffAmount
-      : 0;
 
-  const { data: newVehicle, error } = await db
-    .from("vehicles")
-    .insert({
-      id: vehicleId,
-      no_polisi: vehicle.noPolisi,
-      vehicle_type: vehicle.vehicleType,
-      golongan: vehicle.golongan,
-      trip_id: tripId,
-      has_load: vehicle.hasLoad ? 1 : 0,
-      tariff_id: tariff?.id || null,
-      tariff_amount: amount,
-      foto_path: photoPath,
-      foto_captured_at: vehicle.photoCapturedAt || null,
-      latitude: numericCoordinate(vehicle.latitude),
-      longitude: numericCoordinate(vehicle.longitude),
-    })
-    .select("id")
-    .single();
+  // Kategori operasional = apa yang dipilih petugas (Internal/Eksternal/Lokal).
+  // Golongan = gol master tarif (I..V). Keduanya dibedakan supaya tarif dan
+  // laporan bisa memakai sumber yang benar.
+  const kategori = normalizeCategory(vehicle.kategori ?? vehicle.category);
+  const golongan = vehicle.golongan ? normalizeGolongan(vehicle.golongan) : "";
+
+  const resolved = await resolveTariff({
+    vehicleType: vehicle.vehicleType,
+    hasLoad: !!vehicle.hasLoad,
+    golongan,
+    kategori,
+    regionId,
+  });
+
+  // Master Tarif diutamakan (server-authoritative). Nominal dari client hanya
+  // dipakai kalau server benar-benar tidak punya sumber harga.
+  const amount = resolved.source === "tanpa-tarif"
+    ? (typeof vehicle.tariffAmount === "number" && vehicle.tariffAmount > 0 ? vehicle.tariffAmount : 0)
+    : resolved.amount;
+
+  const row: Record<string, unknown> = {
+    id: vehicleId,
+    no_polisi: vehicle.noPolisi,
+    vehicle_type: vehicle.vehicleType,
+    golongan: vehicle.golongan ?? null,
+    trip_id: tripId,
+    has_load: vehicle.hasLoad ? 1 : 0,
+    tariff_amount: amount,
+    foto_path: photoPath,
+    foto_captured_at: vehicle.photoCapturedAt || null,
+    latitude: numericCoordinate(vehicle.latitude),
+    longitude: numericCoordinate(vehicle.longitude),
+  };
+
+  // Kolom baru hanya diisi kalau migrasi sudah diterapkan.
+  if (await supportsColumn("vehicles", "kategori")) {
+    row.kategori = kategori ?? null;
+  }
+  if (await supportsColumn("vehicles", "tarif_source")) {
+    row.tarif_source = resolved.source;
+  }
+
+  const { error } = await db.from("vehicles").insert(row).select("id").single();
   if (error) throw error;
 
   await db.from("trip_vehicles").insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
@@ -127,7 +120,6 @@ async function insertVehicle(tripId: string, vehicle: any, photoPath: string): P
 
 // POST /trips/complete — multipart form: payload JSON + photos[]
 export async function completeTrip(req: Request): Promise<Response> {
-  tariffCache.clear();
   const form = await req.formData().catch(() => null);
   if (!form) return json({ error: "Payload file not uploaded" }, 400);
 
@@ -168,6 +160,12 @@ export async function completeTrip(req: Request): Promise<Response> {
 
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files.length);
     const vehiclePhotoIndexes = vehicles.map((v: any) => validPhotoIndex(v.photoIndex, files.length));
+    // Swafoto (foto petugas) dikirim sebagai foto tambahan. Opsional di sisi
+    // server supaya versi aplikasi lama yang belum punya fitur swafoto tetap
+    // bisa sinkron — kewajiban swafoto ditegakkan di aplikasi mobile.
+    const selfieIndex = payload.selfieIndex === undefined || payload.selfieIndex === null
+      ? null
+      : validPhotoIndex(payload.selfieIndex, files.length);
 
     if (
       tripPhotoIndex === null || tripPhotoIndex === undefined ||
@@ -175,8 +173,12 @@ export async function completeTrip(req: Request): Promise<Response> {
     ) {
       return json({ error: "Semua foto dokumentasi wajib disertakan" }, 400);
     }
+    if (selfieIndex === undefined) {
+      return json({ error: "Index foto swafoto tidak valid" }, 400);
+    }
 
     const usedIndexes = [tripPhotoIndex, ...vehiclePhotoIndexes];
+    if (selfieIndex !== null) usedIndexes.push(selfieIndex);
     if (new Set(usedIndexes).size !== files.length) {
       return json({ error: "Payload harus menyertakan seluruh foto dokumentasi tepat satu kali" }, 400);
     }
@@ -191,7 +193,7 @@ export async function completeTrip(req: Request): Promise<Response> {
     const tripId = existingTrip ? existingTrip.id : crypto.randomUUID();
     const noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
 
-    const tripDoc = {
+    const tripDoc: Record<string, unknown> = {
       status_muatan: payload.statusMuatan,
       route_from: payload.routeFrom || null,
       route_to: payload.routeTo || null,
@@ -204,6 +206,14 @@ export async function completeTrip(req: Request): Promise<Response> {
       completed_at: payload.completedAt || null,
     };
 
+    // Swafoto disimpan terpisah di kolom sendiri (kalau migrasi sudah ada).
+    const hasSelfieCols = await supportsColumn("trips", "selfie_path") &&
+      await supportsColumn("trips", "selfie_captured_at");
+    if (hasSelfieCols) {
+      tripDoc.selfie_path = selfieIndex === null ? null : photoPaths[selfieIndex];
+      tripDoc.selfie_captured_at = selfieIndex === null ? null : (payload.selfieCapturedAt || null);
+    }
+
     if (existingTrip) {
       const { error: upErr } = await db.from("trips").update(tripDoc).eq("id", tripId);
       if (upErr) throw upErr;
@@ -215,7 +225,7 @@ export async function completeTrip(req: Request): Promise<Response> {
       }
 
       await Promise.all(
-        vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!])),
+        vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!], regionId)),
       );
       return json({ id: tripId, noTrip, updated: true }, 200);
     }
@@ -232,7 +242,7 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (insErr) throw insErr;
 
     await Promise.all(
-      vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!])),
+      vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!], regionId)),
     );
 
     return json({ id: tripId, noTrip }, 201);

@@ -509,12 +509,20 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const tripPhotoRaw = item.tripPhoto?.dataUrl ?? trip.photoUrl
     const tripPhotoIdx = await pushPhoto(tripPhotoRaw)
 
-    const hasLoad = trip.load === 'Ada Muatan'
+    // Swafoto (foto petugas) dikirim sebagai foto tambahan pada trip.
+    const selfieIdx = await pushPhoto(trip.selfieUrl ?? undefined)
+
+    const hasLoad = (trip.vehicles?.length ?? 0) > 0
+      ? trip.vehicles!.some(v => v.load !== 'empty')
+      : trip.load === 'Ada Muatan'
 
     interface VehiclePayload {
       noPolisi: string
       vehicleType: string
+      /** Golongan master tarif (I..V). */
       golongan: string
+      /** Kategori operasional (Internal / Eksternal / Lokal) — penentu tarif. */
+      kategori: string
       hasLoad: boolean
       photoIndex: number | null
       photoCapturedAt: string | null
@@ -546,8 +554,13 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       vehicles.push({
         noPolisi: v.plate,
         vehicleType: v.type,
-        golongan: v.golongan ?? v.category ?? '',
-        hasLoad,
+        // Golongan master tarif — TIDAK boleh diisi kategori, supaya lookup
+        // tarif master tidak meleset.
+        golongan: v.golongan ?? '',
+        // Kategori operasional (Internal/Eksternal/Lokal) dikirim terpisah;
+        // backend memakai ini untuk menentukan tarif (Internal = Rp 0).
+        kategori: v.category ?? '',
+        hasLoad: v.load ? v.load === 'loaded' : hasLoad,
         photoIndex: vi,
         photoCapturedAt: v.photoCapturedAt ?? null,
         latitude: lat,
@@ -577,6 +590,8 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       routeCode: routeCode ?? null,
       keterangan: trip.category && trip.category !== '-' ? trip.category : null,
       tripPhotoIndex: tripPhotoIdx,
+      selfieIndex: selfieIdx,
+      selfieCapturedAt: trip.selfieCapturedAt ?? null,
       tripPhotoCapturedAt: trip.photoCapturedAt ?? null,
       tripPhotoLatitude: trip.photoLatitude ?? null,
       tripPhotoLongitude: trip.photoLongitude ?? null,

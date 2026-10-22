@@ -53,7 +53,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             patchDraft({
               condition: 'kosong',
               vehicles: [],
-              vehicleForm: { plate: '', type: '', category: '' },
+              vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
               photo: false,
               photoUrl: undefined,
               photoCapturedAt: undefined,

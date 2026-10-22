@@ -446,3 +446,49 @@ npx tsc --noEmit --skipLibCheck          # → bersih
 npx vitest run                           # → 139 test lulus
 deno check supabase/functions/api/handlers/reports.ts
 ```
+
+---
+
+## 8. Status Implementasi P0 (2026-10-22, lanjutan)
+
+Keputusan owner yang dipakai: **Master Tarif = acuan utama, tarif terpusat per
+region = fallback**; **swafoto wajib untuk semua trip** (kosong & muatan);
+**migrasi DB dijalankan manual oleh owner**.
+
+### Selesai (kode)
+
+| Temuan | Perbaikan | File |
+| --- | --- | --- |
+| A-04 (Rp 0) | Resolver tarif tunggal (satu sumber harga untuk insert & laporan), normalisasi ejaan jenis kendaraan ("Truck Besar"/"Truk Besar") dan golongan (I..V / angka) | `supabase/functions/api/handlers/tariffRules.ts` (baru), `handlers/trips.ts`, `handlers/reports.ts` |
+| A-04 | Kategori operasional (Internal/Eksternal/Lokal) dikirim terpisah dari golongan master tarif | `src/services/sync.ts`, `handlers/trips.ts` |
+| A-02 | Riwayat pindah ke IndexedDB (foto penuh), localStorage hanya cache metadata | `src/pages/store.tsx` |
+| A-01 | Swafoto: mode kamera depan (getUserMedia), gate UI di ringkasan trip, validasi store (`finishEmptyTrip`/`finishMuatanTrip`), pengiriman ke server + kolom `trips.selfie_path` | `src/pages/mobile/CameraScreen.tsx`, `TripSummaryScreen.tsx`, `HistoryDetailScreen.tsx`, `src/pages/store.tsx`, `src/services/sync.ts`, `handlers/trips.ts` |
+| B-02 | Laporan menampilkan sumber tarif (`Master Tarif` / `Tarif Region` / `Internal (Rp 0)` / `Tanpa tarif`) & swafoto | `src/pages/admin/tabs/ReportsTab.tsx` |
+| B-03 | Master tarif offline: nominal 0 ditolak, state lokal tidak diubah saat server menolak | `src/pages/admin/tabs/TariffTab.tsx`, `handlers/master.ts` |
+| Validasi | `deno check supabase/functions/api/index.ts` bersih; `npx tsc --noEmit` bersih; `npx vitest run` 141 test lulus; `npm run build` sukses | — |
+
+### Tinggal dijalankan owner (blocked oleh izin akses DB)
+
+1. **Migrasi** — `supabase/migrations/20261022000100_kategori_dan_swafoto.sql`
+   (menambah `vehicles.kategori`, `vehicles.tarif_source`, `trips.selfie_path`,
+   `trips.selfie_captured_at`). Riwayat migrasi remote berbeda (10 file lokal
+   hilang), jadi jalankan manual lewat SQL Editor Supabase, atau repair dulu:
+   ```bash
+   supabase migration repair --status applied 20261019052052 20261019052126 \
+     20261019052209 20261019124219 20261019124335 20261019124432 \
+     20261019124625 20261019124726 20261019135348 20261019135710 --linked
+   supabase db push --linked
+   ```
+   Scripts backend aman dijalankan SEBELUM migrasi (kolom baru dilewati
+   otomatis lewat `hasColumn`).
+2. **Deploy backend**:
+   ```bash
+   supabase functions deploy api --project-ref bmiruktfruunegtbydyw
+   ```
+3. **Build admin** (setelah `npm run build`):
+   ```bash
+   rm -rf admin-www && mkdir -p admin-www/assets/js admin-www/assets/css admin-www/Assets
+   cp www/admin/index.html admin-www/
+   cp -r www/assets/* admin-www/assets/
+   cp www/assets/karyamasv.svg admin-www/Assets/
+   ```

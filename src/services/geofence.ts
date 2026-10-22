@@ -667,7 +667,18 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
   }
   if (pendingGpsRequest) return pendingGpsRequest
 
-  pendingGpsRequest = Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 })
+  const requestFix = (highAccuracy: boolean) => Geolocation.getCurrentPosition({
+    enableHighAccuracy: highAccuracy,
+    timeout: 8000,
+    maximumAge: highAccuracy ? 15000 : 60000,
+  })
+
+  pendingGpsRequest = requestFix(true)
+      // Timeout (code 3) = GPS tidak dapat fix; coba sekali pakai network fix.
+      .catch(error => {
+        if ((error as { code?: number } | null)?.code === 3) return requestFix(false)
+        throw error
+      })
       .then(position => {
         const fix = {
           latitude: position.coords.latitude,

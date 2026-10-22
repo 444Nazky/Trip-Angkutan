@@ -1,5 +1,6 @@
 // Master data handlers: regions, dermagas, tariffs.
 import { db, json, auth, requireAdmin } from "../_shared.ts";
+import { invalidateTariffCache } from "./tariffRules.ts";
 
 // ---------- REGIONS ----------
 
@@ -157,18 +158,31 @@ export async function createTariff(req: Request): Promise<Response> {
     if (!ctx) return json({ error: "Admin access required" }, 403);
     const { golongan, vehicleType, loadedTariff, emptyTariff, description } =
       await req.json().catch(() => ({})) as any;
+    if (!golongan || !vehicleType) {
+      return json({ error: "Golongan dan jenis kendaraan wajib diisi" }, 400);
+    }
+    // Nominal 0 = semua trip bertipe itu ditagih Rp 0 di laporan.
+    const loaded = Number(loadedTariff);
+    const empty = Number(emptyTariff);
+    if (!Number.isFinite(loaded) || loaded <= 0) {
+      return json({ error: "Nominal muatan harus lebih dari 0" }, 400);
+    }
+    if (!Number.isFinite(empty) || empty < 0) {
+      return json({ error: "Nominal kosong tidak boleh negatif" }, 400);
+    }
     const { data, error } = await db
       .from("tariffs")
       .insert({
         golongan,
         vehicle_type: vehicleType,
-        loaded_tariff: loadedTariff,
-        empty_tariff: emptyTariff,
+        loaded_tariff: loaded,
+        empty_tariff: empty,
         description: description || "",
       })
       .select()
       .single();
     if (error) throw error;
+    invalidateTariffCache();
     return json(data, 201);
   } catch (error) {
     console.error("Create tariff error:", error);
@@ -188,12 +202,25 @@ export async function updateTariff(req: Request, id: string): Promise<Response> 
     const updateData: Record<string, unknown> = {};
     if (b.golongan !== undefined) updateData.golongan = b.golongan;
     if (b.vehicleType !== undefined) updateData.vehicle_type = b.vehicleType;
-    if (b.loadedTariff !== undefined) updateData.loaded_tariff = b.loadedTariff;
-    if (b.emptyTariff !== undefined) updateData.empty_tariff = b.emptyTariff;
+    if (b.loadedTariff !== undefined) {
+      const v = Number(b.loadedTariff);
+      if (!Number.isFinite(v) || v <= 0) {
+        return json({ error: "Nominal muatan harus lebih dari 0" }, 400);
+      }
+      updateData.loaded_tariff = v;
+    }
+    if (b.emptyTariff !== undefined) {
+      const v = Number(b.emptyTariff);
+      if (!Number.isFinite(v) || v < 0) {
+        return json({ error: "Nominal kosong tidak boleh negatif" }, 400);
+      }
+      updateData.empty_tariff = v;
+    }
     if (b.description !== undefined) updateData.description = b.description;
     if (b.isActive !== undefined) updateData.is_active = b.isActive ? 1 : 0;
     const { error } = await db.from("tariffs").update(updateData).eq("id", id);
     if (error) throw error;
+    invalidateTariffCache();
     return json({ success: true });
   } catch (error) {
     console.error("Update tariff error:", error);
@@ -207,6 +234,7 @@ export async function deleteTariff(req: Request, id: string): Promise<Response> 
     if (!ctx) return json({ error: "Admin access required" }, 403);
     const { error } = await db.from("tariffs").delete().eq("id", id);
     if (error) throw error;
+    invalidateTariffCache();
     return json({ success: true });
   } catch (error) {
     console.error("Delete tariff error:", error);

@@ -69,15 +69,23 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
   const isOcr = draft.cameraMode === 'ocr'
+  // Swafoto = foto petugas dengan kamera depan. Tidak memakai kamera native
+  // (plugin Camera Android membuka aplikasi kamera sistem dan tidak bisa
+  // memaksa kamera depan), jadi selalu lewat getUserMedia di WebView.
+  const isSelfie = draft.cameraMode === 'selfie'
   const retake = draft.retakeTarget
-  const returnTo: MobileScreen = retake
-    ? 'history-detail'
-    : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
+  const returnTo: MobileScreen = isSelfie
+    ? (draft.cameraReturn ?? 'trip-summary')
+    : retake
+      ? 'history-detail'
+      : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
   const title = isOcr
     ? 'Scan Plat Nomor'
-    : retake
-      ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
-      : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
+    : isSelfie
+      ? 'Swafoto Petugas'
+      : retake
+        ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
+        : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
 
@@ -114,7 +122,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     setErrorMsg('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
+        video: { facingMode: { ideal: isSelfie ? 'user' : 'environment' } },
         audio: false,
       })
       streamRef.current = stream
@@ -125,7 +133,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       setLiveState('ready')
     } catch {
       setLiveState('denied')
-      if (!Capacitor.isNativePlatform()) setErrorMsg('Kamera tidak tersedia')
+      if (isSelfie) {
+        setErrorMsg('Kamera depan tidak tersedia — pastikan izin kamera diberikan')
+      } else if (!Capacitor.isNativePlatform()) {
+        setErrorMsg('Kamera tidak tersedia')
+      }
     }
   }
 
@@ -135,7 +147,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   useEffect(() => {
     if (launchedRef.current) return
     launchedRef.current = true
-    if (Capacitor.isNativePlatform()) {
+    if (Capacitor.isNativePlatform() && !isSelfie) {
       void openNativeCamera()
     } else {
       void startStream()
@@ -251,12 +263,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-    if (draft.selfieMode) {
+    if (isSelfie) {
       patchDraft({
         selfieUrl: watermarked,
         selfieCapturedAt: capturedIso,
         cameraReturn: undefined,
-        selfieMode: undefined,
       })
       setBusy(false)
       go(returnTo)
@@ -350,7 +361,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     if (busy) return
     setErrorMsg('')
 
-    if (Capacitor.isNativePlatform()) {
+    if (Capacitor.isNativePlatform() && !isSelfie) {
       await openNativeCamera()
       return
     }

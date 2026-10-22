@@ -42,6 +42,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Swafoto diambil lewat kamera depan (getUserMedia di WebView). Plugin
+         Camera native membuka aplikasi kamera sistem sehingga tidak bisa
+         memaksa kamera depan — makanya izin kamera ini wajib ada. -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <!-- Custom Self-Hosted API Update System: Allow APK installation from outside Play Store -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

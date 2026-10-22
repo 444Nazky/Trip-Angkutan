@@ -121,6 +121,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const route = activeRoutes().find(r => r.code === draft.routeCode) ?? activeRoutes()[0]
   const vehicles = draft.vehicles
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
+  // Foto bukti wajib untuk SEMUA trip (kosong & muatan).
   const canSubmit = hasTripPhoto && vehicles.filter(v => !v.photoUrl).length === 0
 
   const handleSubmit = async () => {
@@ -145,7 +146,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   const handleAddVehicle = () => {
     patchDraft({
-      vehicleForm: { plate: '', type: '', category: '' },
+      vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
       editVehicleIndex: null,
       vPhoto: false,
       vPhotoUrl: undefined,
@@ -241,7 +242,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-medium text-slate-800">{v.plate}</p>
-                      <p className="text-[10px] text-slate-500">{v.type} · {v.category}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {v.type} · {v.category} · {v.load === 'empty' ? 'Kosong' : 'Muatan'}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {v.photoUrl ? (

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
-import { tariffFor, golonganFor, unitLabel, useApp } from '../store'
+import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 import {
@@ -29,7 +29,7 @@ const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
-  const { plate, type: vehicleType, category } = draft.vehicleForm
+  const { plate, type: vehicleType, category, load: vehicleLoad } = draft.vehicleForm
   const editingIndex = draft.editVehicleIndex ?? null
   const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
   const photoTaken = draft.vPhoto
@@ -61,7 +61,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setCheckLoading(false)
   }
 
-  const setField = (p: Partial<{ plate: string; type: string; category: string }>) =>
+  const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,12 +119,17 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return false
     }
     if (!isFormComplete) return false
+    // Kategori = pilihan petugas (Internal / Eksternal / Lokal).
+    // Golongan = gol master tarif (I..V) — BEDA hal, jangan dicampur.
+    // Kendaraan Internal tidak ditagih (kebijakan: tarif Internal = Rp 0),
+    // jadi nominal yang ditampilkan ikut 0 supaya sama dengan server.
     const entry = {
       plate: plate.trim().toUpperCase(),
       type: vehicleType,
       category,
       golongan: golonganFor(vehicleType),
-      tariff: tariffFor(vehicleType).loadedNum,
+      load: vehicleLoad,
+      tariff: vehicleTariff(vehicleType, category, vehicleLoad),
       photoUrl: draft.vPhotoUrl,
       photoCapturedAt: draft.vPhotoCapturedAt,
       photoLatitude: draft.vPhotoLatitude,
@@ -134,7 +139,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     if (isEditing) patchDraftVehicle(editingIndex, entry)
     else addVehicle(entry)
     patchDraft({
-      vehicleForm: { plate: '', type: '', category: '' },
+      vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
       vPhoto: false,
       vPhotoUrl: undefined,
       vPhotoCapturedAt: undefined,
@@ -150,7 +155,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
   const cancelEdit = () => {
     patchDraft({
-      vehicleForm: { plate: '', type: '', category: '' },
+      vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
       vPhoto: false,
       vPhotoUrl: undefined,
       vPhotoCapturedAt: undefined,
@@ -242,8 +247,23 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+              className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
             />
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="group" aria-label="Kondisi kendaraan">
+              {([['loaded', 'Muatan'], ['empty', 'Kosong']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setField({ load: value })}
+                  aria-pressed={vehicleLoad === value}
+                  className={`px-2.5 py-2 text-[11px] font-semibold rounded-md transition-colors ${
+                    vehicleLoad === value ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
           {(check || checkLoading) && (
@@ -354,7 +374,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                   {unitLabel(draft.vehicles, i)}
                 </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
-                <span className="text-xs text-slate-500 ml-auto">{v.category}</span>
+                <span className="text-xs text-slate-500">{v.category} · {v.load === 'empty' ? 'Kosong' : 'Muatan'}</span>
                 {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
                 <button
                   onClick={() => editDraftVehicle(i)}
@@ -405,6 +425,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               <div className="flex justify-between">
                 <span className="text-slate-500">Kategori</span>
                 <span>{category}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Kondisi</span>
+                <span>{vehicleLoad === 'empty' ? 'Tanpa Muatan' : 'Ada Muatan'}</span>
               </div>
             </div>
 
