@@ -8,15 +8,26 @@ import {
   signToken,
   getOfficerDermagas,
   getDermagaRoutes,
+  getOfficerRoutesByDermaga,
   type OfficerClaims,
 } from "../_shared.ts";
+import { clientIp } from "../_ratelimit.ts";
 
 const OFFICER_TOKEN_TTL = 90 * 24 * 60 * 60;
 
+// Pembatas percobaan login.
+//
+// CATATAN: state ini hidup di memori instance Edge Function. Supabase Edge
+// Functions bisa menyelesaikan tiap request di instance yang berbeda, jadi
+// bucket ini TIDAK selalu 공유 antar request — jadi perlakukan sebagai
+// jaring pengaman pertama, bukan pengganti rate limiter di gateway.
+//
+// Versi lama memakai satu kunci "global": satu instance menahan login untuk
+// SEMUA pengguna sekaligus, sehingga(admin yang sah ikut terkunci). Sekarang
+// dipisah per IP.
 const rateBuckets = new Map<string, number[]>();
 
-function rateLimit(max: number, windowMs: number): boolean {
-  const key = "global";
+function rateLimit(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
   let hits = rateBuckets.get(key) ?? [];
   hits = hits.filter((t) => now - t < windowMs);
@@ -25,15 +36,15 @@ function rateLimit(max: number, windowMs: number): boolean {
   rateBuckets.set(key, hits);
   return true;
 }
-const authRateLimiter = () => rateLimit(20, 60_000);
-const strictRateLimiter = () => rateLimit(5, 60_000);
+const authRateLimiter = (req: Request) => rateLimit(`auth:ip:${clientIp(req)}`, 20, 60_000);
+const strictRateLimiter = (req: Request) => rateLimit(`auth:strict:ip:${clientIp(req)}`, 5, 60_000);
 
 // ============================================
 // ADMIN LOGIN
 // ============================================
 
 export async function adminLogin(req: Request): Promise<Response> {
-  if (!authRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
+  if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { username, password } = await req.json().catch(() => ({})) as any;
     const adminUser = Deno.env.get("ADMIN_USERNAME") ?? "admin";
@@ -73,7 +84,7 @@ export async function adminLogin(req: Request): Promise<Response> {
 // ============================================
 
 export async function regionLogin(req: Request): Promise<Response> {
-  if (!authRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
+  if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { regionCode, password } = await req.json().catch(() => ({})) as any;
     const code = String(regionCode ?? "").trim();
@@ -119,7 +130,7 @@ export async function regionLogin(req: Request): Promise<Response> {
 // ============================================
 
 export async function memberLogin(req: Request): Promise<Response> {
-  if (!authRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
+  if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { username, password } = await req.json().catch(() => ({})) as any;
     const normalizedUsername = String(username ?? "").trim().toLowerCase();
@@ -146,8 +157,8 @@ export async function memberLogin(req: Request): Promise<Response> {
     if (!officer) return json({ error: "PIN salah" }, 401);
 
     const dermagas = await getOfficerDermagas(officer.id);
-    const routesMap: Record<string, unknown> = {};
-    for (const dm of dermagas) routesMap[dm.id] = await getDermagaRoutes(dm.id);
+    // Satu query untuk semua rute (bukan satu query per dermaga).
+    const routesMap = await getOfficerRoutesByDermaga(officer.id);
 
     const isDualAccess = dermagas.length > 1;
     const token = await signToken(
@@ -181,7 +192,7 @@ export async function memberLogin(req: Request): Promise<Response> {
 // ============================================
 
 export async function login(req: Request): Promise<Response> {
-  if (!authRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
+  if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { officerId, pin } = await req.json().catch(() => ({})) as any;
 
@@ -202,8 +213,8 @@ export async function login(req: Request): Promise<Response> {
     if (!validPin) return json({ error: "Invalid credentials" }, 401);
 
     const dermagas = await getOfficerDermagas(officerId);
-    const routesMap: Record<string, unknown> = {};
-    for (const dm of dermagas) routesMap[dm.id] = await getDermagaRoutes(dm.id);
+    // Satu query untuk semua rute (bukan satu query per dermaga).
+    const routesMap = await getOfficerRoutesByDermaga(officerId);
 
     const isDualAccess = dermagas.length > 1;
     const token = await signToken(
@@ -324,7 +335,7 @@ export async function refreshToken(req: Request): Promise<Response> {
 // ============================================
 
 export async function changeAdminPassword(req: Request): Promise<Response> {
-  if (!strictRateLimiter()) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
+  if (!strictRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { currentPassword, newPassword } = await req.json().catch(() => ({})) as any;
 

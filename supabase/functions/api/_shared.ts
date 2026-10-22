@@ -134,6 +134,40 @@ export async function getDermagaRoutes(dermagaId: string) {
   return data ?? [];
 }
 
+/**
+ * Rute milik seorang officer, dikelompokkan per dermaga — SATU query.
+ *
+ * Versi lama memanggil `getDermagaRoutes` satu per dermaga di dalam loop,
+ * jadi login dengan 2 dermaga saja sudah 3 query (N+1). Sekarang semua rute
+ * diambil sekali lewat join officer_dermagas -> dermagas -> routes.
+ *
+ * Bentuk hasil sama dengan `getDermagaRoutes`: array per `dermagaId`.
+ */
+export async function getOfficerRoutesByDermaga(
+  officerId: string,
+): Promise<Record<string, unknown[]>> {
+  const { data, error } = await db
+    .from("officer_dermagas")
+    .select(`dermagas(id, routes(id, name, route_from, route_to, distance, duration))`)
+    .eq("officer_id", officerId);
+  if (error) throw error;
+
+  const map: Record<string, unknown[]> = {};
+  for (const od of (data ?? []) as any[]) {
+    const dm = od.dermagas;
+    if (!dm?.id) continue;
+    map[String(dm.id)] = (dm.routes ?? []).map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      route_from: r.route_from,
+      route_to: r.route_to,
+      distance: r.distance,
+      duration: r.duration,
+    }));
+  }
+  return map;
+}
+
 export function generateTripNo(): string {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const random = Array.from(crypto.getRandomValues(new Uint8Array(4)))
