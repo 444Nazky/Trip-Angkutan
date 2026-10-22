@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, Check, ClipboardCopy, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Search, Table2, X } from 'lucide-react'
+import { Calendar, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Search, Table2, X } from 'lucide-react'
 import { ensureAdminSession } from '../../services/auth'
 import {
   fetchTripReports,
@@ -235,7 +235,6 @@ export default function ReportSheet() {
   const [state, setState] = useState<LoadState>('loading')
   const [lastSync, setLastSync] = useState('')
   const [tick, setTick] = useState(0)
-  const [copied, setCopied] = useState(false)
   const alive = useRef(true)
 
   const load = useCallback(async (f: ReportFilters) => {
@@ -398,44 +397,6 @@ export default function ReportSheet() {
     ]
   }
 
-  const copyTsv = async () => {
-    const tsvRows = vehicleRows.map(r => [
-      r.trip.no_trip,
-      r.date,
-      r.time,
-      reportPlace(r.trip),
-      reportAsal(r.trip),
-      reportTujuan(r.trip),
-      r.trip.officer_name || '-',
-      r.vehicle.no_polisi,
-      r.vehicle.vehicle_type || '-',
-      r.category,
-      Number(r.vehicle.has_load) > 0 ? 'Ada Muatan' : 'Tanpa Muatan',
-      r.tarif,
-      fotoUrl(r.vehicle.foto_path) || '-',
-      r.loc ? (r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`) : '-',
-    ].map(c => String(c ?? '')).join('\t'))
-    const tsv = [
-      COLUMNS.map(c => c.label).join('\t'),
-      ...tsvRows,
-      ['TOTAL', `${totalTrip} trip - ${totalUnit} unit`, '', '', '', '', '', '', '', '', '', totalRevenue, '', ''].join('\t'),
-    ].join('\n')
-    try {
-      await navigator.clipboard.writeText(tsv)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = tsv
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   const presets = [{ label: 'Hari Ini', days: 1 }, { label: '7 Hari', days: 7 }, { label: '30 Hari', days: 30 }]
   const applyPreset = (days: number) => {
     const end = new Date()
@@ -477,11 +438,11 @@ export default function ReportSheet() {
             className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Refresh
           </button>
-          <button onClick={copyTsv} disabled={state !== 'ready' || vehicleRows.length === 0}
-            className={`px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 disabled:opacity-50 ${
-              copied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}>
-            {copied ? <Check size={15} /> : <ClipboardCopy size={15} />} {copied ? 'Copied!' : 'Export'}
+          <button onClick={() => { window.location.hash = '#/sheet/rekap' }}
+            disabled={state !== 'ready'}
+            title="Buka rekap per golongan dan jenis kendaraan"
+            className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
+            <Table2 size={15} /> Rekap
           </button>
           <button onClick={() => downloadXlsx(`laporan-trip-${new Date().toISOString().slice(0, 10)}.xlsx`, buildSheets())}
             disabled={state !== 'ready' || vehicleRows.length === 0}
@@ -684,7 +645,7 @@ export default function ReportSheet() {
 
         <p className="text-[11px] text-slate-400 mt-3 flex items-center gap-1.5">
           <ExternalLink size={12} />
-          Data diambil langsung dari database. Tombol Export menyalin tabel (TSV) siap tempel ke Google Sheets atau Excel.
+          Data diambil langsung dari database. Tombol Rekap menampilkan ringkasan per golongan dan jenis kendaraan.
         </p>
       </main>
     </div>

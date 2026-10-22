@@ -66,9 +66,14 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const myTrips = trips.filter(t =>
-    t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
-  )
+  const myTrips = trips
+    .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+    // Urutkan kronologis terbaru lebih dulu; sumbernya tetap data lokal.
+    .sort((a, b) => {
+      const ta = Date.parse(a.completedAt ?? '') || 0
+      const tb = Date.parse(b.completedAt ?? '') || 0
+      return tb - ta
+    })
   const filtered = filter === 'all'
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')

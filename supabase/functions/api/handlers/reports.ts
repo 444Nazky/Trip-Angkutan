@@ -182,7 +182,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       .from("trips")
       .select("*, officers(name), regions(name, code)")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(1000);
 
     if (range.start && range.end) query = query.gte("created_at", range.start).lte("created_at", range.end);
     if (regionId) query = query.eq("region_id", regionId);
