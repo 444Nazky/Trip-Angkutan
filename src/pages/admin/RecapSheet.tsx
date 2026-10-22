@@ -5,7 +5,6 @@ import { fetchTripReports, type ReportFilters, type ReportTrip } from '../../ser
 import { buildRecap, recapRouteKey, recapRouteLabel } from '../../services/recap'
 import { downloadXlsx } from '../../services/xlsx'
 
-const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -185,13 +184,13 @@ export default function RecapSheet() {
           <div className="overflow-auto max-h-[calc(100vh-250px)]">
             <table className="w-full border-collapse text-[13px] min-w-[860px]">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-100 text-[12px] font-bold text-slate-900">
-                  <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Golongan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-left">Jenis Kendaraan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[150px]">Tanpa Muatan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[150px]">Dengan Muatan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[140px]">Total Kendaraan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[180px]">Total Pendapatan (Rp)</th>
+                <tr className="bg-[#1f3864] text-[12px] font-bold text-white">
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left w-[120px]">Golongan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left">Jenis Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Tanpa Muatan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Dengan Muatan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[140px]">Total Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[180px]">Total Pendapatan (Rp)</th>
                 </tr>
               </thead>
 
@@ -207,8 +206,11 @@ export default function RecapSheet() {
                 <tbody>
                   <tr><td colSpan={6} className="p-10 text-center text-slate-400">Tidak ada data pada filter ini</td></tr>
                 </tbody>
-              ) : groups.map(group => (
+              ) : groups.map((group, gi) => (
                 <tbody key={`gol-${group.golongan}`}>
+                  {gi > 0 && (
+                    <tr><td colSpan={6} className="bg-[#1f3864] border border-[#2e4a7d] h-[10px] p-0" /></tr>
+                  )}
                   {group.rows.map((row, idx) => (
                     <tr key={`${group.golongan}-${row.jenis}`} className="hover:bg-slate-50/60">
                       {idx === 0 && (
@@ -221,7 +223,7 @@ export default function RecapSheet() {
                       <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.empty}</td>
                       <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.loaded}</td>
                       <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.total}</td>
-                      <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{fmtRp(row.revenue)}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-right tabular-nums">{row.revenue}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -229,14 +231,14 @@ export default function RecapSheet() {
 
               {groups.length > 0 && (
                 <tfoot>
-                  <tr className="bg-slate-100 font-bold text-slate-900">
-                    <td colSpan={2} className="px-3 py-3 border border-slate-200 uppercase tracking-wide text-[11px]">
+                  <tr className="bg-[#1f3864] font-bold text-white">
+                    <td colSpan={2} className="px-3 py-3 border border-[#2e4a7d] uppercase tracking-wide text-[11px]">
                       Total All Golongan
                     </td>
-                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.empty}</td>
-                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.loaded}</td>
-                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.total}</td>
-                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{fmtRp(total.revenue)}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.empty}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.loaded}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.total}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-right tabular-nums">{total.revenue}</td>
                   </tr>
                 </tfoot>
               )}
