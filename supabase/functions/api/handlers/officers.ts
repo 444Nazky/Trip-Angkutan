@@ -1,6 +1,7 @@
 // Officers handlers (port of backend/src/routes/officers.js).
 import bcryptjs from "npm:bcryptjs@2.4.3";
 import { db, json, auth, requireAdmin } from "../_shared.ts";
+import { groupOfficerExtras } from "../_officerExtras.ts";
 
 /**
  * Extras untuk BANYAK officer sekaligus — 2 query, bukan 2 per officer.
@@ -24,18 +25,7 @@ async function officerExtrasBulk(officerIds: string[]) {
       .in("officer_id", officerIds),
   ]);
 
-  const map: Record<string, { regions: any[]; dermagas: any[] }> = {};
-  for (const id of officerIds) map[id] = { regions: [], dermagas: [] };
-
-  for (const row of (regionRows ?? []) as any[]) {
-    const bucket = map[String(row.officer_id)];
-    if (bucket && row.regions) bucket.regions.push(row.regions);
-  }
-  for (const row of (dermagaRows ?? []) as any[]) {
-    const bucket = map[String(row.officer_id)];
-    if (bucket && row.dermagas) bucket.dermagas.push(row.dermagas);
-  }
-  return map;
+  return groupOfficerExtras(officerIds, regionRows, dermagaRows);
 }
 
 function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
