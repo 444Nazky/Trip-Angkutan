@@ -55,7 +55,17 @@ export interface OfflineMasterPack {
 
 export const OFFLINE_MASTER_KEY = 'trip.master.offline.v1'
 
-const EMPTY_PACK: OfflineMasterPack = { pulledAt: 0, regions: [], plates: [], regionTariffs: [] }
+/**
+ * Umur paket master offline yang masih dianggap segar (menit).
+ *
+ * Paket ini berisi seluruh master plat — bisa berukuran ratusan KB. Kalau
+ * ditarik setiap siklus prefetch (30 menit) per perangkat, boros kuota Edge
+ * Function dan kuota data petugas. Karena isinya master data yang jarang
+ * berubah, 2 jam cukup; cek plat yang butuh data terbaru tetap memakai
+ * server whenever online.
+ */
+export const OFFLINE_MASTER_TTL_MS = 2 * 60 * 60 * 1000
+
 
 /**
  * Kunci pencocokan plat: huruf + angka saja, huruf besar.
@@ -99,7 +109,7 @@ function parsePack(raw: string | null): OfflineMasterPack | null {
     const regionTariffs: OfflineRegionTariff[] = Array.isArray(p.regionTariffs)
       ? p.regionTariffs
           .filter((t): t is OfflineRegionTariff => !!t && typeof t === 'object')
-          .map(t => ({
+          .map((t): OfflineRegionTariff => ({
             regionId: String(t.regionId ?? ''),
             regionCode: t.regionCode ? String(t.regionCode) : null,
             tariffType: t.tariffType === 'eksternal' ? 'eksternal' : 'lokal',
@@ -165,14 +175,33 @@ export function clearOfflineMaster(): void {
  *
  * Satu request untuk region + plat + tarif region supaya kuota Edge Function
  * tidak naik. Gagal (offline / 401) TIDAK menghapus cache lokal.
+ *
+ * Kalau cache masih segar (< TTL) tidak ada request sama sekali — paket itu
+ * masih dipakai. Paksa dengan `{ force: true }`.
  */
-export async function pullOfflineMaster(): Promise<{
+export async function pullOfflineMaster(opts?: { force?: boolean }): Promise<{
   ok: boolean
   plates: number
   regions: number
   tariffs: number
+  /** true bila endpoint belum ada di backend (belum ter-deploy). */
+  missing?: boolean
 }> {
   const cached = getOfflineMaster()
+  if (
+    !opts?.force &&
+    cached &&
+    cached.pulledAt > 0 &&
+    Date.now() - cached.pulledAt < OFFLINE_MASTER_TTL_MS
+  ) {
+    return {
+      ok: true,
+      plates: cached.plates.length,
+      regions: cached.regions.length,
+      tariffs: cached.regionTariffs.length,
+    }
+  }
+
   const res = await api.get<Partial<OfflineMasterPack>>('/master/offline').catch(() => null)
   if (!res || !res.ok || !res.data || typeof res.data !== 'object') {
     return {
@@ -180,6 +209,11 @@ export async function pullOfflineMaster(): Promise<{
       plates: cached?.plates.length ?? 0,
       regions: cached?.regions.length ?? 0,
       tariffs: cached?.regionTariffs.length ?? 0,
+      // 404/405 = backend belum ter-deploy versi ini. Bukan kegagalan data,
+      // jadi pemanggil tidak boleh menganggap prefetch whole gagal (bikin
+      // prefetch diulang terus-menerus dan boros kuota). Error jaringan
+      // (code 'NETWORK') BUKAN missing — itu kegagalan sungguhan.
+      missing: res?.error?.code === '404' || res?.error?.code === '405',
     }
   }
 
@@ -205,7 +239,7 @@ export async function pullOfflineMaster(): Promise<{
   const regionTariffs: OfflineRegionTariff[] = Array.isArray(data.regionTariffs)
     ? data.regionTariffs
         .filter((t): t is OfflineRegionTariff => !!t && typeof t === 'object')
-        .map(t => ({
+        .map((t): OfflineRegionTariff => ({
           regionId: String(t.regionId ?? ''),
           regionCode: t.regionCode ? String(t.regionCode) : null,
           tariffType: t.tariffType === 'eksternal' ? 'eksternal' : 'lokal',
@@ -222,6 +256,7 @@ export async function pullOfflineMaster(): Promise<{
       plates: cached?.plates.length ?? 0,
       regions: cached?.regions.length ?? 0,
       tariffs: cached?.regionTariffs.length ?? 0,
+      missing: false,
     }
   }
 

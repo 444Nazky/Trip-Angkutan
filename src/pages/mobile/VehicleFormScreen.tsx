@@ -278,6 +278,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                     : 'text-amber-600'
                   }`}>{check.status}</span>
                   {check.found && <span>(terdaftar di database)</span>}
+                  {check.offline && (
+                    <span className="text-amber-600">(perkiraan offline — data master lokal)</span>
+                  )}
                 </>
               ) : null}
             </div>
