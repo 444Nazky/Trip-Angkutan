@@ -70,7 +70,10 @@ export function getStoredTariffs(): TariffInfo[] {
 export function isPrefetchFresh(): boolean {
   try {
     const last = Number(localStorage.getItem(LAST_PREFETCH_KEY) || 0)
-    return !!last && Date.now() - last < PREFETCH_TTL_MS
+    if (!last || Date.now() - last >= PREFETCH_TTL_MS) return false
+    // Cache bisa terhapus (storage dibersihkan / update aplikasi) sementara
+    // penanda waktu masih ada. Anggap tidak segar bila data inti kosong.
+    return getStoredRoutes().length > 0 && getStoredGeofencePoints().length > 0
   } catch {
     return false
   }
@@ -143,7 +146,10 @@ async function doPrefetch(): Promise<PrefetchResult> {
   if (rosterResult.status === 'rejected') errors.push('Roster: ' + String(rosterResult.reason))
 
   const success = errors.length === 0
-  markPrefetched()
+  // Hanya tandai segar bila SEMUA sumber berhasil. Dulu partial failure tetap
+  // menandai segar → data master yang gagal tidak pernah dicoba ulang sampai
+  // TTL habis, dan petugas offline memakai cache tidak lengkap.
+  if (success) markPrefetched()
 
   console.log('[prefetch] Selesai:', {
     success,

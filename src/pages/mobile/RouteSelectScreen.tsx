@@ -58,8 +58,16 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     return () => { alive = false }
   }, [])
 
+  // ponytail: scope akses dermaga dipakai saat offline. Rute yang dermaganya
+  // tidak termasuk akses petugas tidak boleh muncul. Kalau cache akses kosong
+  // (petugas lama / belum pernah sync), jangan sembunyikan semua rute —
+  // penguncian geofence tetap menjadi pengaman terakhir.
+  const accessIds = new Set(accessibleDermagas.map(d => d.id))
+  const scopedRoutes = accessIds.size === 0
+    ? routes
+    : routes.filter(r => !r.dermagaId || accessIds.has(r.dermagaId))
   const dermagaFiltered = dockId
-    ? routes.filter(r => r.dermagaId === dockId)
+    ? scopedRoutes.filter(r => r.dermagaId === dockId)
     : []
 
   const isEmptyTrip = draft.condition === 'kosong'
@@ -224,7 +232,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   // untuk dock terpilih belum tersinkron, tampilkan seluruh rute tersimpan —
   // kedua arah (mis. SBDZ→SJRE dan SJRE→SBDZ) tetap tampak, dan locking
   // geofence tetap membatasi input ke rute yang sesuai titik GPS aktif.
-  const list = dermagaFiltered.length ? dermagaFiltered : routes
+  const list = dockId ? dermagaFiltered : scopedRoutes
 
   // ponytail: normalisasi kode rute — format "SBDZ-SJRE" vs "SBDZ→SJRE" harus
   // dianggap rute yang sama, jadi locking geofence tidak salah kunci.
@@ -385,6 +393,15 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       )}
 
       <div className="space-y-2.5 mb-5">
+        {!loading && list.length === 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-[13px] font-semibold text-amber-800">Tidak ada rute untuk dermaga ini</p>
+            <p className="mt-1 text-[11px] leading-snug text-amber-700">
+              Data rute yang tersimpan di perangkat tidak memuat rute untuk dermaga terpilih.
+              Sambungkan internet agar data rute terbaru dapat diunduh, lalu coba lagi.
+            </p>
+          </div>
+        )}
         {!loading && list.map(r => {
           const locked = isRouteLocked(r.code)
           const isSelected = validSelected === r.code

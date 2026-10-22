@@ -249,6 +249,14 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 
+/**
+ * ID instance edge function. Dipakai untuk diagnose: kalau dua request
+ * berturut-turut membawa ID yang sama, berarti instance dipakai ulang (state
+ * in-memory seperti cache & rate limiter ikut bertahan). Kalau selalu beda,
+ * state in-memory tidak pernah bertahan antar request.
+ */
+const INSTANCE_ID = crypto.randomUUID();
+
 /** Tambahkan header pada response tanpa mengubah body. */
 function withHeaders(res: Response, extra: Record<string, string>): Response {
   const headers = new Headers(res.headers);
@@ -371,7 +379,11 @@ Deno.serve(async (req: Request) => {
       if (res.status >= 200 && res.status < 300) cacheInvalidate(route);
     }
 
-    return withHeaders(res, { ...rlHeaders, ...(ttl > 0 ? { "X-Cache": "MISS" } : {}) });
+    return withHeaders(res, {
+      ...rlHeaders,
+      "X-Api-Instance": INSTANCE_ID,
+      ...(ttl > 0 ? { "X-Cache": "MISS" } : {}),
+    });
   } catch (error) {
     console.error("[api]", req.method, path, error);
     return json({ error: "Internal error" }, 500);

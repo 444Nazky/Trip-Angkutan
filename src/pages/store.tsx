@@ -675,6 +675,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn('[trip] finishMuatanTrip ditolak: foto bukti trip belum diambil')
       return
     }
+    if (!draft.selfieUrl) {
+      console.warn('[trip] finishMuatanTrip ditolak: swafoto petugas belum diambil')
+      return
+    }
     const now = new Date()
     const id = nextTripId(tripsRef.current)
     const routeCode = draft.routeCode ?? ''
