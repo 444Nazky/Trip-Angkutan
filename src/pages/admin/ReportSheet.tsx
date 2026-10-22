@@ -88,88 +88,6 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
   )
 }
 
-// Komponen untuk menampilkan seluruh foto dokumentasi sebuah trip
-const AllPhotosCell = ({ photos, no_trip, vehicleCount }: { photos?: string[]; no_trip: string; vehicleCount: number }) => {
-  const [open, setOpen] = useState(false)
-  const validPhotos = photos?.filter(Boolean) ?? []
-  if (validPhotos.length === 0) return <span className="text-slate-300 italic text-[11px]">-</span>
-
-  const tripPhoto = validPhotos[0]
-  const vehiclePhotos = validPhotos.slice(1)
-
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-semibold hover:bg-blue-100 transition-colors"
-        title={`Lihat ${validPhotos.length} foto dokumentasi`}
-      >
-        <ImageIcon size={11} />
-        {validPhotos.length} Foto
-      </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setOpen(false)}>
-          <div className="relative max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden my-8" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-800 text-white">
-              <span className="flex items-center gap-2 font-semibold text-sm">
-                <ImageIcon size={14} /> Dokumentasi Lengkap Trip {no_trip}
-              </span>
-              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded">
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Foto bukti trip */}
-            {tripPhoto && (
-              <div className="border-b border-slate-200">
-                <div className="px-4 py-2 bg-amber-50 text-amber-800 text-[11px] font-bold flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  Foto Bukti Trip (Konfirmasi {validPhotos.length > 1 ? `${vehicleCount} Kendaraan` : ''})
-                </div>
-                <div className="bg-slate-900 p-3 flex items-center justify-center">
-                  <img src={fotoUrl(tripPhoto)!} alt="foto bukti trip" className="max-h-[50vh] w-auto object-contain rounded-lg" />
-                </div>
-              </div>
-            )}
-
-            {/* Foto kendaraan */}
-            {vehiclePhotos.length > 0 && (
-              <div>
-                <div className="px-4 py-2 bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-500" />
-                  Foto Dokumentasi Kendaraan ({vehiclePhotos.length} unit)
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-slate-50">
-                  {vehiclePhotos.map((photo, idx) => (
-                    <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-200 bg-white">
-                      <img
-                        src={fotoUrl(photo)!}
-                        alt={`kendaraan ${idx + 1}`}
-                        className="w-full h-32 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => window.open(fotoUrl(photo)!, '_blank')}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
-                        <span className="text-white text-[10px] font-semibold">Kendaraan {idx + 1}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-mono">Total: {validPhotos.length} foto dokumentasi</span>
-              <a href={fotoUrl(validPhotos[0])!} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
-                <ExternalLink size={11} /> Buka Foto Pertama
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-    </span>
-  )
-}
-
 type LoadState = 'loading' | 'ready' | 'offline'
 
 
@@ -434,7 +352,7 @@ export default function ReportSheet() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
 
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
+      <header className="sticky top-0 z-30 bg-white border border-slate-200 shadow-sm">
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
           <span className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
             <Table2 size={17} />
@@ -547,7 +465,7 @@ export default function ReportSheet() {
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
                   {COLUMNS.map(c => (
-                    <th key={c.key} className={`px-3 py-2.5 border-b border-slate-200 bg-slate-100 ${
+                    <th key={c.key} className={`px-3 py-2.5 border border-slate-200 bg-slate-100 ${
                       c.key === 'tarif' ? 'text-right'
                       : c.key === 'foto' ? 'text-center w-28'
                       : 'text-left'
@@ -567,7 +485,7 @@ export default function ReportSheet() {
                 ) : dateGroups.map(group => (
                   <Fragment key={`date-${group.key}`}>
                     <tr className="bg-slate-800 text-white">
-                      <td colSpan={8} className="px-3 py-2.5 border-b border-slate-700">
+                      <td colSpan={8} className="px-3 py-2.5 border border-slate-700">
                         <span className="flex items-center gap-1.5 font-bold text-sm">
                           <Calendar size={13} className="text-slate-400" />
                           {group.label}
@@ -576,34 +494,34 @@ export default function ReportSheet() {
                           {group.tripCount} trip - {group.vehicleCount} unit
                         </span>
                       </td>
-                      <td colSpan={3} className="px-3 py-2.5 border-b border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                      <td colSpan={3} className="px-3 py-2.5 border border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
                         Subtotal
                       </td>
-                      <td className="px-3 py-2.5 border-b border-slate-700 text-right font-black tabular-nums">
+                      <td className="px-3 py-2.5 border border-slate-700 text-right font-black tabular-nums">
                         {fmtRp(group.revenue)}
                       </td>
-                      <td colSpan={2} className="border-b border-slate-700" />
+                      <td colSpan={2} className="border border-slate-700" />
                     </tr>
                     {group.rows.map((r, idx) => {
                       const v = r.vehicle
                       const hasLoad = Number(v.has_load) > 0
                       return (
                         <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : 'bg-slate-50/40'}>
-                          <td className="px-3 py-2 border-b border-slate-100 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">{r.trip.no_trip}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-500 whitespace-nowrap">{r.date}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.time}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportPlace(r.trip)}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportAsal(r.trip)}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportTujuan(r.trip)}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{r.trip.officer_name || '-'}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 font-semibold text-slate-800 whitespace-nowrap">{v.no_polisi}</td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{v.vehicle_type || '-'}</td>
-                          <td className="px-3 py-2 border-b border-slate-100">
+                          <td className="px-3 py-2 border border-slate-200 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">{r.trip.no_trip}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.time}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportPlace(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportAsal(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportTujuan(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{r.trip.officer_name || '-'}</td>
+                          <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800 whitespace-nowrap">{v.no_polisi}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{v.vehicle_type || '-'}</td>
+                          <td className="px-3 py-2 border border-slate-200">
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border border-slate-300 bg-white text-slate-700">
                               {r.category}
                             </span>
                           </td>
-                          <td className="px-3 py-2 border-b border-slate-100">
+                          <td className="px-3 py-2 border border-slate-200">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
                               hasLoad
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -612,19 +530,16 @@ export default function ReportSheet() {
                               {hasLoad ? 'Ada Muatan' : 'Tanpa Muatan'}
                             </span>
                           </td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-right">
+                          <td className="px-3 py-2 border border-slate-200 text-right">
                             <span className="block font-bold text-slate-900 tabular-nums">{fmtRp(r.tarif)}</span>
                             <span className="block text-[10px] text-slate-400">{tarifSourceLabel(v.tarif_source)}</span>
                           </td>
-                          <td className="px-3 py-2 border-b border-slate-100 text-center">
+                          <td className="px-3 py-2 border border-slate-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <ThumbnailCell foto_path={v.foto_path} no_trip={r.trip.no_trip} label={v.no_polisi} />
-                              {r.firstOfTrip && (r.trip.all_photos?.length ?? 0) > 0 && (
-                                <AllPhotosCell photos={r.trip.all_photos} no_trip={r.trip.no_trip} vehicleCount={r.trip.vehicles.length} />
-                              )}
                             </div>
                           </td>
-                          <td className="px-3 py-2 border-b border-slate-100">
+                          <td className="px-3 py-2 border border-slate-200">
                             {r.loc ? (
                               <a
                                 href={r.loc.gmaps}
@@ -649,14 +564,14 @@ export default function ReportSheet() {
               {vehicleRows.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-100 font-bold text-slate-700">
-                    <td colSpan={7} className="px-3 py-3 border-t-2 border-slate-300 text-[12px]">
+                    <td colSpan={7} className="px-3 py-3 border border-slate-300 text-[12px]">
                       TOTAL {totalTrip} trip - {totalUnit} unit
                     </td>
-                    <td colSpan={4} className="border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-right font-black text-slate-900 tabular-nums">
+                    <td colSpan={4} className="border border-slate-300" />
+                    <td className="px-3 py-3 border border-slate-300 text-right font-black text-slate-900 tabular-nums">
                       {fmtRp(totalRevenue)}
                     </td>
-                    <td colSpan={2} className="border-t-2 border-slate-300" />
+                    <td colSpan={2} className="border border-slate-300" />
                   </tr>
                 </tfoot>
               )}
