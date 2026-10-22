@@ -66,6 +66,7 @@ function cacheRouteFor(parts: string[], method: string): string | null {
   if (a === "routes" && !b) return "/routes"; // /routes/mine -> b="mine" -> tidak dicache
   if (a === "tariffs" && !b) return "/tariffs";
   if (a === "master" && b === "tariffs") return "/master/tariffs";
+  if (a === "master" && b === "offline") return "/master/offline";
   if (a === "geofences" && !b) return "/geofences";
   return null;
 }
@@ -93,11 +94,16 @@ function invalidationTargets(parts: string[], method: string): string[] {
     case "routes":
       return ["/routes"];
     case "regions":
-      return ["/regions"];
+      return ["/regions", "/master/offline"];
     case "tariffs":
       // Master tarif dipakai dua endpoint: admin (/tariffs) dan petugas
       // (/master/tariffs).
       return ["/tariffs", "/master/tariffs"];
+    case "plates":
+      // Master plat ikut/compose paket offline → cache paket harus dibuang.
+      return ["/master/offline"];
+    case "region-tariffs":
+      return ["/master/offline"];
     case "master":
       return b === "tariffs" ? ["/tariffs", "/master/tariffs"] : [];
     default:
@@ -184,6 +190,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // ---------------- /master/tariffs (officer) ----------------
   if (a === "master" && b === "tariffs" && req.method === "GET") {
     return await mst.getMasterTariffs(req);
+  }
+
+  // ---------------- /master/offline (officer) ----------------
+  // Paket master untuk mode offline: region + plat + tarif region.
+  if (a === "master" && b === "offline" && req.method === "GET") {
+    return await mst.getOfflineMasterPack(req);
   }
 
   // ---------------- /region-tariffs ----------------

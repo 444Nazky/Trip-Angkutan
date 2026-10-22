@@ -242,6 +242,84 @@ export async function deleteTariff(req: Request, id: string): Promise<Response> 
   }
 }
 
+// ---------- OFFLINE MASTER PACK ----------
+
+/**
+ * Paket master data untuk mode offline (petugas HP).
+ *
+ * Seamula tidak ada endpoint yang bisa dipakai petugas untuk menarik
+ * master plat & region ke perangkat: `GET /plates` requireAdmin, dan
+ * `GET /region-tariffs` juga admin. Akibatnya cek status plat (`/plates/check`)
+ * HANYA bisa jalan online — petugas di lapangan tanpa sinyal tidak tahu
+ * apakah kendaraan itu internal (Rp 0) atau eksternal, dan tarif region
+ * tidak pernah ada di HP.
+ *
+ * Isi paket (satu request, jangan dipecah jadi beberapa supaya kuota
+ * Edge Function tidak naik):
+ * - regions        : id/code/nama (dipakai label region & pencocokan)
+ * - plates         : plat + status + region asal — TANPA nama pemilik,
+ *                    supaya data pribadi tidak ikut ter-cache di HP.
+ * - regionTariffs  : tarif per region (lokal/eksternal) untuk hitung nominal
+ *
+ * Hanya status & region yang dibutuhkan untuk menentukan apakah kendaraan
+ * ditagih; `owner` sengaja tidak ikut agar perangkat petugas tidak menyimpan
+ * data pemilik kendaraan.
+ */
+export async function getOfflineMasterPack(req: Request): Promise<Response> {
+  try {
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "Invalid token" }, 401);
+
+    const [regionsRes, platesRes, tariffsRes] = await Promise.all([
+      db.from("regions").select("id, name, code"),
+      db.from("vehicle_plates").select("plate, status, origin_region_id").eq("is_active", 1),
+      db.from("region_tariffs").select("region_id, tariff_type, nominal_tariff, is_active"),
+    ]);
+    if (regionsRes.error) throw regionsRes.error;
+    if (platesRes.error) throw platesRes.error;
+    if (tariffsRes.error) throw tariffsRes.error;
+
+    const regions = (regionsRes.data ?? []) as any[];
+    const codeById = new Map<string, string>();
+    for (const r of regions) codeById.set(String(r.id), String(r.code ?? ""));
+
+    const plates = ((platesRes.data ?? []) as any[])
+      .map((p) => ({
+        plate: String(p.plate ?? "").trim().toUpperCase(),
+        status: String(p.status ?? ""),
+        originRegionId: p.origin_region_id ? String(p.origin_region_id) : null,
+        originRegionCode: p.origin_region_id
+          ? codeById.get(String(p.origin_region_id)) ?? null
+          : null,
+      }))
+      .filter((p) => p.plate && p.status);
+
+    const regionTariffs = ((tariffsRes.data ?? []) as any[])
+      .map((t) => ({
+        regionId: String(t.region_id ?? ""),
+        regionCode: codeById.get(String(t.region_id ?? "")) ?? null,
+        tariffType: String(t.tariff_type ?? ""),
+        nominalTariff: Number(t.nominal_tariff ?? 0) || 0,
+        isActive: t.is_active === 1 || t.is_active === true,
+      }))
+      .filter((t) => t.regionId && t.tariffType);
+
+    return json({
+      pulledAt: Date.now(),
+      regions: regions.map((r) => ({
+        id: String(r.id),
+        name: String(r.name ?? ""),
+        code: String(r.code ?? ""),
+      })),
+      plates,
+      regionTariffs,
+    });
+  } catch (error) {
+    console.error("Get offline master pack error:", error);
+    return json({ error: "Failed to fetch offline master pack" }, 500);
+  }
+}
+
 // Master tariffs for officers (athlete field: petugas HP caching).
 export async function getMasterTariffs(req: Request): Promise<Response> {
   try {
