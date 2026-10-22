@@ -699,6 +699,11 @@ function scheduleRetry(delayMs = POLL_INTERVAL_MS): void {
 
 
 async function processItem(item: SyncItem, retryAll = false): Promise<void> {
+  // Item yang sudah ditandai butuh perhatian (mis. foto tidak lengkap)
+  // tidak diulang otomatis tanpa perubahan data — cegah churn antrean.
+  // Pengulangan manual (syncNow / setelah foto diambil) memakai retryAll.
+  if (item.needsAttention && !retryAll) return
+
   const last = item.lastAttemptAt ?? 0
   const elapsed = Date.now() - last
   const wait = item.needsAttention ? MAX_BACKOFF_MS : backoffMs(item.attempts)
@@ -774,10 +779,12 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
       return
     }
 
+    let interrupted = false
     for (const item of items) {
-      if (!(await probeServer())) break
+      if (!(await probeServer())) { interrupted = true; break }
       await processItem(item, opts?.retryAll ?? false)
     }
+    if (interrupted) scheduleRetry(POLL_INTERVAL_MS)
   } catch (err) {
     console.warn('[sync] siklus terputus:', err)
   } finally {

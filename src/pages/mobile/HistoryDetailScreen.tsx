@@ -77,6 +77,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           kind: 'vehicle' as const,
           index: i,
         })).filter(p => !!p.url),
+        ...(t.selfieUrl ? [{ url: t.selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
       ]
 
   const missingVehicles = isEmptyTrip
@@ -288,7 +289,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </button>
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <img src={preview.url} alt={preview.label} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
-            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} · {t.id}</p>
+            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
             {preview.kind !== 'selfie' && (
               <button
                 onClick={() => { const p = preview; setPreview(null); p.kind === 'vehicle' ? retakePhoto('vehicle', p.index) : retakePhoto('trip') }}

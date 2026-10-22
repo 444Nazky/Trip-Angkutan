@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus, X } from 'lucide-react'
+import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus, User, X } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
@@ -32,6 +32,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   } = useApp()
 
   const hasTripPhoto = !!draft.photoUrl
+  const hasSelfie = !!draft.selfieUrl
+  const isMuatan = draft.condition !== 'kosong'
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
   const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
@@ -121,8 +123,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const route = activeRoutes().find(r => r.code === draft.routeCode) ?? activeRoutes()[0]
   const vehicles = draft.vehicles
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
-  // Foto bukti wajib untuk SEMUA trip (kosong & muatan).
-  const canSubmit = hasTripPhoto && vehicles.filter(v => !v.photoUrl).length === 0
+  const missingVehiclePhoto = vehicles.filter(v => !v.photoUrl).length
+  // Foto bukti wajib untuk SEMUA trip. Trip muatan juga wajib swafoto petugas
+  // sebelum End Trip lokal dijalankan (validasi sama di store.finishMuatanTrip).
+  const canSubmit = hasTripPhoto && missingVehiclePhoto === 0 && (!isMuatan || hasSelfie)
 
   const handleSubmit = async () => {
     if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
@@ -243,7 +247,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-medium text-slate-800">{v.plate}</p>
                       <p className="text-[10px] text-slate-500">
-                        {v.type} · {v.category} · {v.load === 'empty' ? 'Kosong' : 'Muatan'}
+                        {v.type} - {v.category} - {v.load === 'empty' ? 'Kosong' : 'Muatan'}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -295,6 +299,44 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               <img src={draft.photoUrl} alt="" className="mt-3 h-32 w-full rounded-xl object-cover ring-1 ring-slate-200" />
             )}
           </section>
+
+          {isMuatan && (
+            <section className={`rounded-2xl border bg-white p-4 shadow-sm ${hasSelfie ? 'border-slate-200 ring-1 ring-slate-100' : 'border-amber-300 ring-1 ring-amber-100'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${hasSelfie ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-600'}`}>
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Swafoto Petugas</p>
+                    <p className="text-[10px] text-slate-500">
+                      {hasSelfie ? 'tersimpan' : 'wajib sebelum trip muatan diselesaikan'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'selfie', cameraReturn: 'trip-summary' }); go('camera') }}
+                  className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors ${hasSelfie ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
+                >
+                  {hasSelfie ? 'Ulangi' : 'Ambil'}
+                </button>
+              </div>
+
+              {hasSelfie && draft.selfieUrl && (
+                <img src={draft.selfieUrl} alt="Swafoto petugas" className="mt-3 h-32 w-full rounded-xl object-cover ring-1 ring-slate-200" />
+              )}
+            </section>
+          )}
+
+          {isMuatan && !canSubmit && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800">
+              {!hasTripPhoto
+                ? 'Foto bukti trip belum diambil.'
+                : missingVehiclePhoto > 0
+                  ? `${missingVehiclePhoto} unit kendaraan belum memiliki foto.`
+                  : 'Swafoto petugas belum diambil.'}
+            </p>
+          )}
 
           {geofenceError && (
             <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[11px] ${geofenceBlocked ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
