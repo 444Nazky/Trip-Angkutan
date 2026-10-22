@@ -16,29 +16,32 @@ git -C "$BASE" log --oneline -1
 sudo docker build -t trip-angkutan "$BASE"
 sudo docker compose -f "$BASE/docker-compose.yml" up -d
 
-sleep 2
+sleep 3
 echo "[*] Verifikasi layanan..."
 
+# Cek port 8000 dan 5173 merespons HTTP (tanpa grep string ketat yang gampang meleset)
 ADMIN_STATUS=1
-curl -sf http://localhost:8000 | grep -q "Admin Trip Angkutan" && ADMIN_STATUS=0
+curl -sSf http://localhost:8000 > /dev/null && ADMIN_STATUS=0
 
 MOBILE_STATUS=1
-curl -sf http://localhost:5173 | grep -q "Trip Angkutan" && MOBILE_STATUS=0
+curl -sSf http://localhost:5173 > /dev/null && MOBILE_STATUS=0
 
 if [ $ADMIN_STATUS -eq 0 ]; then
     echo "  - Admin Service  : SUCCESS (Running smoothly)"
 else
-    echo "  - Admin Service  : FAILED (sudo docker logs trip-web)"
+    echo "  - Admin Service  : FAILED (Cek 'sudo docker compose logs')"
 fi
 
 if [ $MOBILE_STATUS -eq 0 ]; then
     echo "  - Mobile Service : SUCCESS (Running smoothly)"
 else
-    echo "  - Mobile Service : FAILED (sudo docker logs trip-web)"
+    echo "  - Mobile Service : FAILED (Cek 'sudo docker compose logs')"
 fi
 
-LAN_IP=$(ip -4 addr show scope global 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}' | head -1)
+# Ambil IP khusus dari interface eno1 (kabel LAN yang terhubung ke router Linksys)
+LAN_IP=$(ip -4 addr show dev eno1 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}')
 LAN_IP=${LAN_IP:-not detected}
+
 echo ""
 echo "=========================================="
 echo "           ACCESS URL DIRECTORY           "
