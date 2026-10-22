@@ -8,8 +8,6 @@
     "src/**/*.tsx"
   ],
   "exclude": [
-    "node_modules",
-    "src/services/api.test.ts",
-    "src/services/geo.test.ts"
+    "node_modules"
   ]
 }

@@ -174,7 +174,12 @@ type LoadState = 'loading' | 'ready' | 'offline'
 
 
 
-const AUTO_REFRESH_MS = 15_000
+// Auto-refresh laporan.
+// 15 detik terlalu agresif: satu query laporan menarik hingga 1.000 trip +
+// kendaraan + tarif, jadi satu tab admin yang terbuka saja bisa menghabiskan
+// kuota egress proyek (sudah lewat 131% di siklus ini). 60 detik masih
+// terasa "live" untuk keperluan operasional.
+const AUTO_REFRESH_MS = 60_000
 
 // Kolom tabel datar: satu baris untuk satu unit kendaraan, tanpa nomor urut dan
 // tanpa kolom Unit (jenis kendaraan dan nomor polisi sudah mewakili unit tersebut).
