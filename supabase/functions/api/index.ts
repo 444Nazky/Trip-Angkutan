@@ -27,6 +27,7 @@ import {
   limitOf,
   buildLimiters,
   loginUserKey,
+  clientIp,
   type RateClass,
   type Limiter,
 } from "./_ratelimit.ts";
