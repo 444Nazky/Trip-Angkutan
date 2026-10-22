@@ -407,22 +407,22 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+        <div className="overflow-x-auto">
+        <table className="w-[980px] border-collapse text-[13px]">
+          <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="text-left p-4"></th>
-              <th className="text-left p-4">DERMAGA</th>
-              <th className="text-left p-4">NAMA RUTE</th>
-              <th className="text-left p-4">ASAL</th>
-              <th className="text-left p-4">TUJUAN</th>
-              <th className="text-left p-4">JARAK</th>
-              <th className="text-left p-4">DURASI</th>
-              <th className="text-right p-4">AKSI</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[100px]">Dermaga</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[260px]">Nama Rute</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Asal</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Tujuan</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Jarak</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Durasi</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-right w-[210px]">Aksi</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {routeRows.length === 0 && (
-              <tr><td colSpan={8} className="p-8 text-center text-slate-400">
+              <tr><td colSpan={7} className="p-8 text-center text-slate-400">
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
@@ -430,14 +430,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
                 <tr className="bg-slate-100">
-                  <td colSpan={8} className="p-3 text-left">
-                    <span className="font-bold text-slate-800 text-sm">{regionName}</span>
+                  <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
+                    <span className="font-bold text-slate-800 text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
                     <tr className="bg-blue-50/50">
-                      <td colSpan={8} className="p-2 text-left">
+                      <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
                         <span className="font-semibold text-slate-700 text-xs flex items-center gap-2">
                           <span className="w-1 h-1 rounded-full bg-blue-500" />
                           {dermagaName}
@@ -446,20 +446,19 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       </td>
                     </tr>
                     {routes.map(r => (
-                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
-                        <td className="p-4"></td>
-                        <td className="p-4 text-slate-500 text-xs font-semibold">{r.dermaga_code || ''}</td>
-                        <td className="p-4 font-semibold text-slate-800 text-sm">{r.name}</td>
-                        <td className="p-4 font-mono text-slate-600 font-bold">{r.route_from}</td>
-                        <td className="p-4 font-mono text-slate-600 font-bold">{r.route_to}</td>
-                        <td className="p-4 text-slate-500 text-xs">{r.distance || '—'}</td>
-                        <td className="p-4 text-slate-500 text-xs">{r.duration || '—'}</td>
-                        <td className="p-4 text-right whitespace-nowrap">
-                          <button onClick={() => startEdit(r)} className="text-blue-600 font-bold text-sm mr-3 hover:underline">Edit</button>
-                          <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-bold text-sm mr-3 hover:underline flex items-center gap-1">
+                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50/60'}`}>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-[11px] font-semibold whitespace-nowrap">{r.dermaga_code || ''}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_to}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.distance || '—'}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.duration || '—'}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">
+                          <button onClick={() => startEdit(r)} className="text-blue-600 font-semibold text-xs mr-3 hover:underline">Edit</button>
+                          <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-semibold text-xs mr-3 hover:underline inline-flex items-center gap-1">
                             <MapPin size={12} /> Geofence
                           </button>
-                          <button onClick={() => void handleDel(r.id)} className="text-red-500 font-bold text-sm hover:underline">Hapus</button>
+                          <button onClick={() => void handleDel(r.id)} className="text-red-500 font-semibold text-xs hover:underline">Hapus</button>
                         </td>
                       </tr>
                     ))}
@@ -469,6 +468,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showGeofencePanel && createPortal((
