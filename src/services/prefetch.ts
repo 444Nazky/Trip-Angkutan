@@ -21,6 +21,7 @@ import { refreshStoredRoutes, getStoredRoutes, cacheDockOfficers } from './auth'
 import { syncGeofencesFromBackend, getStoredGeofencePoints } from './geofence'
 import { pullTariffsToLocal, getStoredTariffs as getStoredTariffRows, TARIFF_UPDATED_EVENT } from './masterTariffs'
 import { syncOfficersToLocal } from './officers'
+import { pullOfflineMaster, getOfflineMasterStatus } from './offlineMaster'
 import type { UiRoute } from './auth'
 import type { GeofencePoint } from './geofence'
 
@@ -96,7 +97,7 @@ async function doPrefetch(): Promise<PrefetchResult> {
   console.log('[prefetch] Memulai prefetch data kritis...')
 
   // Jalankan semua fetch secara paralel
-  const [routesResult, geoResult, tariffResult, accessResult, rosterResult] = await Promise.allSettled([
+  const [routesResult, geoResult, tariffResult, accessResult, rosterResult, masterResult] = await Promise.allSettled([
     // Rute — selalu refresh dari server (murah, 1 request)
     (async () => {
       const fresh = await refreshStoredRoutes({ force: true })
@@ -137,6 +138,31 @@ async function doPrefetch(): Promise<PrefetchResult> {
       console.log('[prefetch] Roster petugas:', roster.length)
       return roster
     })(),
+
+    // Paket master offline: region + master plat + tarif region.
+    // Tanpa ini, cek status plat HANYA bisa jalan online (butuh /plates/check)
+    // dan tarif region tidak pernah ada di perangkat.
+    (async () => {
+      const res = await pullOfflineMaster()
+      const status = getOfflineMasterStatus()
+      console.log(
+        '[prefetch] Master offline:',
+        res.ok ? 'ok' : 'gagal (pakai cache)',
+        'plat=' + status.plates,
+        'region=' + status.regions,
+        'tarif-region=' + status.tariffs,
+      )
+      // Backend belum punya /master/offline (belum ter-deploy). Bukan error:
+      // aplikasi tetap jalan, hanya fitur offline plat yang belum aktif.
+      // Kalau ini dianggap gagal, prefetch tidak pernah ditandai segar →
+      // tiap resume aplikasi mengulang 5-6 request dan memboroskan kuota.
+      if (res.missing) {
+        console.warn('[prefetch] Master offline: endpoint /master/offline belum ada di server')
+        return null
+      }
+      if (!res.ok && !status.hasPack) throw new Error('Master offline belum pernah ditarik')
+      return res
+    })(),
   ])
 
   if (routesResult.status === 'rejected') errors.push('Routes: ' + String(routesResult.reason))
@@ -144,6 +170,7 @@ async function doPrefetch(): Promise<PrefetchResult> {
   if (tariffResult.status === 'rejected') errors.push('Tarif: ' + String(tariffResult.reason))
   if (accessResult.status === 'rejected') errors.push('Dermaga: ' + String(accessResult.reason))
   if (rosterResult.status === 'rejected') errors.push('Roster: ' + String(rosterResult.reason))
+  if (masterResult.status === 'rejected') errors.push('Master offline: ' + String(masterResult.reason))
 
   const success = errors.length === 0
   // Hanya tandai segar bila SEMUA sumber berhasil. Dulu partial failure tetap

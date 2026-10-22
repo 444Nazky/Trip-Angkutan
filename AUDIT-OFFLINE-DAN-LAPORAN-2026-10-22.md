@@ -4,7 +4,10 @@
 > Ruang lingkup: seluruh modul mobile (`src/pages/mobile`, `src/services`), backend
 > Supabase Edge Functions (`supabase/functions/api`), dan Admin Dashboard
 > (`src/pages/admin`).
-> **Status dokumen: HASIL AUDIT — belum ada perbaikan kode yang diterapkan.**
+> **Status dokumen: HASIL AUDIT + CATATAN IMPLEMENTASI.**
+> Temuan di bawah tetap seperti hasil audit (baseline `bf41c03`); perbaikan yang
+> sudah masuk kode dijelaskan di **§8 Status Implementasi P0**. Sisanya masih
+> terbuka (lihat §5 Prioritas).
 > Acuan spesifikasi: `OFFLINE-FIRST-ARCHITECTURE.md` dan `ALUR_APLIKASI.md`.
 
 ---
@@ -191,6 +194,15 @@
 - **Perbaikan**: tambahkan pull `vehicle_plates` + `regions` + `region_tariffs` ke
   `prefetchAllCriticalData()`, dan sediakan `checkPlateOffline()` yang memakai
   cache plat (status internal/lokal/eksternal) saat server tidak terjangkau.
+- **Status (2026-10-22)**: SELESAI. Backend menambah `GET /master/offline`
+  (region + master plat + tarif region dalam satu request, tanpa nama pemilik
+  plat); perangkat menyimpan paketnya di `trip.master.offline.v1` (TTL 2 jam,
+  ditarik lewat `prefetchAllCriticalData()`); `checkPlate()` memakai
+  `checkPlateOffline()` saat server tidak terjangkau dan menandai hasilnya
+  "perkiraan offline" di form kendaraan. Tanpa paket master di perangkat
+  `checkPlateOffline()` mengembalikan null — status plat TIDAK boleh ditebak
+  (kendaraan internal bisa jadi terkenakan tarif kalau salah dikira lokal).
+  Plus: pencocokan plat di server kini mengabaikan spasi (lihat §8).
 
 ### A-09 · TINGGI · Rute trip kosong tidak terkunci sesuai SOP
 - **Lokasi**: `src/pages/mobile/TripConditionScreen.tsx:11` (`EMPTY_ROUTE_CODE = 'SJRE-SBDZ'`);
@@ -443,8 +455,8 @@ grep -rn "selfie" src/                   # → hanya field, tanpa capture (A-01)
 grep -rn "createPortal" src/pages/admin  # → pola modal yang benar (lihat fix 2026-10-22)
 grep -n "cameraMode" src/pages/store.tsx # → 'photo' | 'ocr' (A-01)
 npx tsc --noEmit --skipLibCheck          # → bersih
-npx vitest run                           # → 139 test lulus
-deno check supabase/functions/api/handlers/reports.ts
+npx vitest run                           # → 161 test lulus
+deno check supabase/functions/api/index.ts
 ```
 
 ---
@@ -465,7 +477,11 @@ region = fallback**; **swafoto wajib untuk semua trip** (kosong & muatan);
 | A-01 | Swafoto: mode kamera depan (getUserMedia), gate UI di ringkasan trip, validasi store (`finishEmptyTrip`/`finishMuatanTrip`), pengiriman ke server + kolom `trips.selfie_path` | `src/pages/mobile/CameraScreen.tsx`, `TripSummaryScreen.tsx`, `HistoryDetailScreen.tsx`, `src/pages/store.tsx`, `src/services/sync.ts`, `handlers/trips.ts` |
 | B-02 | Laporan menampilkan sumber tarif (`Master Tarif` / `Tarif Region` / `Internal (Rp 0)` / `Tanpa tarif`) & swafoto | `src/pages/admin/tabs/ReportsTab.tsx` |
 | B-03 | Master tarif offline: nominal 0 ditolak, state lokal tidak diubah saat server menolak | `src/pages/admin/tabs/TariffTab.tsx`, `handlers/master.ts` |
-| Validasi | `deno check supabase/functions/api/index.ts` bersih; `npx tsc --noEmit` bersih; `npx vitest run` 141 test lulus; `npm run build` sukses | — |
+| A-08 | Master offline: endpoint `GET /master/offline` (region + master plat + tarif region, tanpa nama pemilik), paket disimpan di perangkat (`trip.master.offline.v1`, TTL 2 jam), `checkPlate()` jatuh ke `checkPlateOffline()` saat server tidak terjangkau, label "perkiraan offline" di form kendaraan | `supabase/functions/api/handlers/master.ts`, `handlers/index.ts` (router + cache), `src/services/offlineMaster.ts` (baru), `src/services/plates.ts`, `src/services/prefetch.ts`, `src/pages/mobile/VehicleFormScreen.tsx` |
+| A-08 | Pencocokan plat di server tidak lagi bergantung pada spasi: pola ILIKE per kelompok huruf/angka + perbandingan normalisasi ulang (plat "B 1234 XY"dulunya selalu dianggap tidak terdaftar) | `supabase/functions/api/handlers/plates.ts` |
+| A-08 | Backend belum ter-deploy (`/master/offline` balas 404) TIDAK dianggap kegagalan prefetch → cap "fresh" tetap ditulis, prefetch tidak diulang tiap resume (hemat kuota Edge Function) | `src/services/offlineMaster.ts`, `src/services/prefetch.ts` |
+| A-07 | Cap "prefetch fresh" hanya ditulis bila SEMUA pull sukses (sudah ada di baseline `fb398de`) | `src/services/prefetch.ts` |
+| Validasi | `deno check supabase/functions/api/index.ts` bersih; `npx tsc -p tsconfig.json --noEmit` bersih; `npx vitest run` 161 test lulus (14 di `src/services/offlineMaster.test.ts`); `npm run build` sukses + `admin-www` tersinkron | — |
 
 ### Tinggal dijalankan owner (blocked oleh izin akses DB)
 
@@ -485,10 +501,8 @@ region = fallback**; **swafoto wajib untuk semua trip** (kosong & muatan);
    ```bash
    supabase functions deploy api --project-ref bmiruktfruunegtbydyw
    ```
-3. **Build admin** (setelah `npm run build`):
+3. **Build admin** (setelah `npm run build`) — `admin-www` adalah cerminan
+   `www`, hanya `index.html` yang memakai versi admin:
    ```bash
-   rm -rf admin-www && mkdir -p admin-www/assets/js admin-www/assets/css admin-www/Assets
-   cp www/admin/index.html admin-www/
-   cp -r www/assets/* admin-www/assets/
-   cp www/assets/karyamasv.svg admin-www/Assets/
+   rm -rf admin-www && cp -r www admin-www && cp www/admin/index.html admin-www/index.html
    ```

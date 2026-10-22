@@ -5,6 +5,22 @@ function normalizePlate(raw: unknown): string {
   return String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+/**
+ * Pola ILIKE yang cocok dengan nomor plat berapa pun bentuk spasinya.
+ *
+ * Plat bisa tersimpan "B1234XY" maupun "B 1234 XY". `ilike("plate", "B1234XY")`
+ * hanya cocok yang tanpa spasi, sehingga plat yang diinput admin dengan spasi
+ * selalu dianggap "tidak terdaftar" — petugas lalu salah melihat status
+ * kendaraan (internal dikira eksternal). Pola ini menyisipkan wildcard di antara
+ * kelompok huruf dan angka, jadi semua bentuk spasi ikut cocok; hasil akhir
+ * tetap dibandingkan ulang dengan normalisasi di dalam JS.
+ */
+function plateMatchPattern(norm: string): string {
+  const runs = norm.match(/[A-Z]+|[0-9]+/g);
+  if (!runs || runs.length === 0) return `%${norm}%`;
+  return `%${runs.join("%")}%`;
+}
+
 // GET /plates
 export async function getPlates(req: Request, url: URL): Promise<Response> {
   try {
@@ -45,8 +61,13 @@ export async function createPlate(req: Request): Promise<Response> {
     const norm = normalizePlate(plate);
     if (!norm) return json({ error: "Nomor plat wajib diisi" }, 400);
 
-    const { data: existing } = await db.from("vehicle_plates").select("id").ilike("plate", norm).limit(1);
-    if (existing?.length) return json({ error: "Plat sudah terdaftar" }, 409);
+    const { data: dupRows } = await db
+      .from("vehicle_plates")
+      .select("id, plate")
+      .ilike("plate", plateMatchPattern(norm))
+      .limit(10);
+    const existing = (dupRows ?? []).find((p: any) => normalizePlate(p.plate) === norm);
+    if (existing) return json({ error: "Plat sudah terdaftar" }, 409);
 
     const st = ["internal", "lokal", "eksternal"].includes(status) ? status : "internal";
     const { data, error } = await db
@@ -83,13 +104,14 @@ export async function updatePlate(req: Request, id: string): Promise<Response> {
     if (plate != null && !norm) return json({ error: "Nomor plat wajib diisi" }, 400);
 
     if (norm) {
-      const { data: dup } = await db
+      const { data: dupRows } = await db
         .from("vehicle_plates")
-        .select("id")
-        .ilike("plate", norm)
+        .select("id, plate")
+        .ilike("plate", plateMatchPattern(norm))
         .neq("id", id)
-        .limit(1);
-      if (dup?.length) return json({ error: "Plat sudah terdaftar" }, 409);
+        .limit(10);
+      const dup = (dupRows ?? []).find((p: any) => normalizePlate(p.plate) === norm);
+      if (dup) return json({ error: "Plat sudah terdaftar" }, 409);
     }
 
     const updateData: Record<string, unknown> = {};
@@ -137,14 +159,15 @@ export async function checkPlate(req: Request): Promise<Response> {
 
     const checkpointRegionId = ctx.regionId ? String(ctx.regionId) : null;
 
-    // Find registered plate
-    const { data: registered } = await db
+    // Find registered plate (spasi di nomor plat diabaikan).
+    const { data: candidateRows } = await db
       .from("vehicle_plates")
       .select("*")
       .eq("is_active", 1)
-      .ilike("plate", norm)
-      .limit(1)
-      .single();
+      .ilike("plate", plateMatchPattern(norm))
+      .limit(10);
+    const registered =
+      (candidateRows ?? []).find((p: any) => normalizePlate(p.plate) === norm) ?? null;
 
     let status: string;
     let origin: string | null;
