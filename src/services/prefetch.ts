@@ -240,8 +240,15 @@ export async function prefetchTariffs(): Promise<TariffInfo[]> {
  * Tujuannya: perubahan di dashboard admin (PIN baru, petugas baru, akses
  * dermaga baru, rute, geofence, tarif) langsung sampai ke HP tanpa perlu
  * petugas logout/login ulang.
+ *
+ * Interval 30 menit, bukan 5 menit: satu siklus prefetch = 4-5 request
+ * (rute + geofence per dermaga + tarif + daftar petugas). Pada 5 menit itu
+ * ~1.440 request/hari per perangkat — padahal kuota free plan Supabase hanya
+ * 500.000 invocations edge function per bulan untuk SELURUH proyek.
+ * Sebagai jaring pengaman, 30 menit cukup: setiap kali aplikasi dibuka ulang
+ * (appStateChange) master data tetap ditarik paksa.
  */
-const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000
+const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000
 let _autoSyncTimer: ReturnType<typeof setInterval> | null = null
 
 export function startMasterDataAutoSync(): void {
