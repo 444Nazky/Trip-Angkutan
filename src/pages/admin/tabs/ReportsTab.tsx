@@ -21,9 +21,9 @@ function vehiclePhotoCaption(
     locationDistanceText(vehicle, geoRules)
       || (typeof vehicle.latitude === 'number' && typeof vehicle.longitude === 'number'
         ? `${vehicle.latitude.toFixed(5)}, ${vehicle.longitude.toFixed(5)}` : ''),
-  ].filter(Boolean).join(' · ')
+  ].filter(Boolean).join(' - ')
   const unit = vehicleUnitLabel(trip.vehicles, vehicle)
-  return `${trip.no_trip} · ${unit} · ${vehicle.no_polisi} · ${vehicle.vehicle_type} · ${reportGolongan(vehicle)}${metadata ? ` · ${metadata}` : ''}`
+  return `${trip.no_trip} - ${unit} - ${vehicle.no_polisi} - ${vehicle.vehicle_type} - ${reportGolongan(vehicle)}${metadata ? ` - ${metadata}` : ''}`
 }
 
 interface ReportsTabProps {
@@ -98,7 +98,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     const now = new Date()
     const stamped = formatReportDateTime(now.toISOString().slice(0, 19).replace('T', ' '), { withSeconds: true })
     const dateSlug = now.toISOString().slice(0, 10)
-    const header = ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Rute', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)']
+    const header = ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Rute', 'Kendaraan', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)']
     const rentang = reportRentang(reportFilters)
 
     const tripRows: (string | number | null)[][] = [
@@ -113,7 +113,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       ...reportTrips.map(t => {
         const d = formatReportDateTime(t.created_at)
         return [t.no_trip, d.date, d.time, reportPlace(t), reportAsal(t), reportTujuan(t),
-          `${t.route_from || '-'} → ${t.route_to || '-'}`, t.officer_name || '-',
+          `${t.route_from || '-'} → ${t.route_to || '-'}`,
+          t.vehicles.map(v => `${v.no_polisi} (${v.vehicle_type}, ${v.has_load ? 'Ada Muatan' : 'Kosong'})`).join(' | ') || '-',
+          t.officer_name || '-',
           t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
           t.keterangan && t.keterangan !== '-' ? t.keterangan : '-',
           t.vehicle_count || 0, t.trip_revenue || 0]
@@ -317,7 +319,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-slate-50">
-              <th colSpan={9} className="px-4 py-3 border-b border-slate-200">
+              <th colSpan={11} className="px-4 py-3 border-b border-slate-200">
                 <div className="flex justify-end gap-2">
                   <button onClick={onToggleReveal}
                     className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-blue-500 text-blue-600 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
@@ -357,19 +359,21 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Tanggal</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Wilayah</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Kendaraan</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Muatan</th>
               <th className="text-right px-3 py-2.5 border-b border-slate-200">Unit</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Foto</th>
               <th className="text-right px-4 py-2.5 border-b border-slate-200">Pendapatan</th>
               <th className="border-b border-slate-200 w-8" />
             </tr>
           </thead>
           <tbody>
             {reportState === 'offline' ? (
-              <tr><td colSpan={9} className="p-8 text-center text-slate-400">Offline</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-slate-400">Offline</td></tr>
             ) : reportState !== 'ready' ? (
-              <tr><td colSpan={9} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
-              <tr><td colSpan={9} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
             ) : (() => {
               // Group trips by date for cleaner hierarchy
               const groupedByDate = reportTrips.reduce((acc, t) => {
@@ -399,7 +403,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                       </span>
                       <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip · {dayTotal} unit)</span>
                     </td>
-                    <td colSpan={3} className="px-3 py-2.5 text-right">
+                    <td colSpan={5} className="px-3 py-2.5 text-right">
                       <span className="text-slate-300 text-xs">Total:</span>
                     </td>
                     <td colSpan={2} className="px-4 py-2.5 text-right font-black text-sm">
