@@ -408,7 +408,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-[980px] border-collapse text-[13px]">
+        <table className="w-full min-w-[980px] border-collapse text-[13px]">
           <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[100px]">Dermaga</th>
