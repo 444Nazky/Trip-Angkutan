@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { allTrips, officerList, tariffData } from './data'
+import { officerList, tariffData } from './data'
 import { addToSyncQueue, onTripSynced, retrySyncItem, notifyQueueListeners } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
@@ -301,14 +301,6 @@ export function nextTripId(trips: Trip[]): string {
 
 
 
-const seedTrips: Trip[] = (allTrips as Trip[]).map(t => ({
-  ...t,
-  load: t.load as Trip['load'],
-  revenueNum: parseRp(t.revenue),
-}))
-
-
-
 
 export function normalizeCategory(c?: string): string | undefined {
   if (!c) return c
@@ -417,7 +409,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
-  const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, seedTrips)))
+  // ponytail: JANGAN mengisi riwayat dengan data contoh. Riwayat & laporan
+  // harus murni berasal dari trip yang benar-benar dicatat petugas di perangkat.
+  const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, [] as Trip[])))
   // ponytail: tarif bisa di-update runtime oleh prefetch (master tarif server).
   // Dulu state-nya read-only -> hasil prefetch tidak pernah masuk ke UI.
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
@@ -476,7 +470,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const onStorage = () => {
       // Data dari tab lain hanya metadata (foto disimpan di IndexedDB),
       // jadi merge tanpa menimpa foto yang sudah ada di state.
-      setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips)).map(stripTripPhotos)))
+      setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, [] as Trip[])).map(stripTripPhotos)))
       setLoggedIn(load(LS.session, false))
       const so = getStoredOfficer()
       if (so?.id) {
