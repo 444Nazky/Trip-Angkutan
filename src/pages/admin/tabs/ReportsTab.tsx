@@ -358,8 +358,8 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
               <th className="text-left px-3 py-2.5 border-b border-slate-200">No Trip</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Tanggal</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Wilayah</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Kendaraan</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Asal</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Tujuan</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Muatan</th>
               <th className="text-right px-3 py-2.5 border-b border-slate-200">Unit</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Foto</th>
@@ -424,21 +424,8 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{t.no_trip}</td>
                           <td className="px-3 py-2.5 text-slate-500 text-xs">{d.time}</td>
                           <td className="px-3 py-2.5 text-slate-700">{t.region_name || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from} → {t.route_to_name || t.route_to}</td>
-                          <td className="px-3 py-2.5">
-                            {t.vehicles.length === 0 ? (
-                              <span className="text-slate-400">-</span>
-                            ) : (
-                              <div className="space-y-0.5">
-                                {t.vehicles.map((v, vi) => (
-                                  <div key={`${v.no_polisi}-${vi}`} className="text-[11px] leading-tight">
-                                    <span className="font-mono font-semibold text-slate-800">{v.no_polisi}</span>
-                                    <span className="text-slate-500"> - {v.vehicle_type} - {v.has_load ? 'Ada Muatan' : 'Kosong'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
+                          <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-600">{t.route_to_name || t.route_to || '-'}</td>
                           <td className="px-3 py-2.5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
                               {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}

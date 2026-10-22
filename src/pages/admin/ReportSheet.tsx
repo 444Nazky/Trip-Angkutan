@@ -346,7 +346,7 @@ export default function ReportSheet() {
     return [...byDate.entries()]
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([key, list]) => {
-        list.sort((a, b) => a.trip.created_at.localeCompare(b.trip.created_at)
+        list.sort((a, b) => b.trip.created_at.localeCompare(a.trip.created_at)
           || a.vehicle.no_polisi.localeCompare(b.vehicle.no_polisi))
         const parsed = new Date(`${key}T00:00:00`)
         return {

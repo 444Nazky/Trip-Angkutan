@@ -171,12 +171,12 @@ export default function RecapSheet() {
             <table className="w-full border-collapse text-[13px] min-w-[860px]">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50 text-[11px] font-bold text-slate-600">
-                  <th className="px-3 py-2.5 border border-slate-200 w-[120px]">Golongan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Golongan</th>
                   <th className="px-3 py-2.5 border border-slate-200 text-left">Jenis kendaraan</th>
                   <th className="px-3 py-2.5 border border-slate-200 text-center w-[170px]">Kendaraan Tanpa Muatan</th>
                   <th className="px-3 py-2.5 border border-slate-200 text-center w-[170px]">Kendaraan Dengan Muatan</th>
                   <th className="px-3 py-2.5 border border-slate-200 text-center w-[140px]">Total Kendaraan</th>
-                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[180px]">Total Pendapatan (Rp)</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-right w-[180px]">Total Pendapatan (Rp)</th>
                 </tr>
               </thead>
 
@@ -198,7 +198,7 @@ export default function RecapSheet() {
                     <tr key={`${group.golongan}-${row.jenis}`} className="hover:bg-slate-50/60">
                       {idx === 0 && (
                         <td rowSpan={group.rows.length + 1}
-                          className="px-3 py-2 border border-slate-200 align-middle font-semibold text-slate-700">
+                          className="px-3 py-2 border border-slate-200 align-middle text-left font-semibold text-slate-700">
                           {group.golongan}
                         </td>
                       )}

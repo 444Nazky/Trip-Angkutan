@@ -296,36 +296,78 @@ function logQuery(url: URL): string {
 }
 
 /**
- * Satu baris JSON per request supaya bisa difilter di Supabase Logs Explorer.
+ * Log request (diagnostik).
  *
- * Fungsinya: melihat pola traffic yang sebenarnya — endpoint mana yang paling
- * sering dipanggil, dari IP mana, apakah sudah bertoken, dan apakah kena rate
- * limit. Ini data yang dibutuhkan untuk memutuskan di mana request storm
- * harus dihentikan (sisi klien vs gateway vs shared state).
+ *_two mode_:
  *
- * VOLUME: kuota "Log Ingestion" proyek ini sudah lewat (397% di siklus
- * berjalan), jadi log per request tidak boleh jadi sumber lewat baru.
- * Default: HANYA anomali (401/403/429/5xx), dibatasi satu baris per
- * (path|status|ip) per menit. Setel secret `API_LOG=1` untuk log SEMUA
- * request saat sedang menelusuri penyebab lonjakan, lalu kembalikan ke
- * default setelah selesai.
+ *  - `API_LOG=1` → satu baris JSON per request (detail, tapi boros kuota
+ *    "Log Ingestion" yang di proyek ini sudah lewat 400%).
+ *  - `API_LOG=0` (default) → AGREGAT: satu baris ringkasan per 30 detik,
+ *    berisi jumlah request per (path, ip, status, auth). Volume log ~1 baris
+ *    per 30 detik per instance, tapi datanya tetap cukup untuk melihat
+ *    endpoint mana yangștekan dan dari IP mana.
+ *
+ * Agregat lebih berguna untuk diagnosis lonjakan daripada log per request:
+ * yang dicari adalah "siapa yang menembak apa", bukan isi tiap request.
  */
-const API_LOG_ALL = (Deno.env.get("API_LOG") ?? "").toLowerCase() === "1";
-const ANOMALY_COOLDOWN_MS = 60_000;
-const anomalySeen = new Map<string, number>();
+const API_LOG_ALL = (Deno.env.get("API_LOG") ?? "0") === "1";
+
+/** Ringkasan traffic: key = "path|status|ip|auth". */
+const trafficCounts = new Map<string, number>();
+/** Kapan ringkasan terakhir dicetak (epoch ms). */
+let trafficFlushedAt = Date.now();
+/** Jarak waktu antar ringkasan (ms). */
+const TRAFFIC_FLUSH_MS = 30_000;
+
+function flushTraffic(force = false): void {
+  const now = Date.now();
+  if (!force && now - trafficFlushedAt < TRAFFIC_FLUSH_MS) return;
+  trafficFlushedAt = now;
+  if (!trafficCounts.size) return;
+
+  const rows = [...trafficCounts.entries()]
+    .map(([key, n]) => {
+      const [path, status, ip, auth] = key.split("|");
+      return { path, status: Number(status), ip, auth, n };
+    })
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 25);
+  trafficCounts.clear();
+
+  console.log(JSON.stringify({ ev: "api_traffic", window_ms: TRAFFIC_FLUSH_MS, rows }));
+}
 
 function logRequest(fields: Record<string, unknown>): void {
-  if (!API_LOG_ALL) {
-    const status = Number(fields.status);
-    const anomalous = status === 401 || status === 403 || status === 429 || status >= 500;
-    if (!anomalous) return;
-    const key = `${fields.path}|${status}|${fields.ip}`;
-    const now = Date.now();
-    if (now - (anomalySeen.get(key) ?? 0) < ANOMALY_COOLDOWN_MS) return;
-    anomalySeen.set(key, now);
+  if (API_LOG_ALL) {
+    console.log(JSON.stringify({ ev: "api_request", ...fields }));
+    return;
   }
-  console.log(JSON.stringify({ ev: "api_request", ...fields }));
+
+  // Mode agregat: hitung per (path, status, ip, auth).
+  const key = `${fields.path}|${fields.status}|${fields.ip}|${fields.auth}`;
+  trafficCounts.set(key, (trafficCounts.get(key) ?? 0) + 1);
+  flushTraffic();
+
+  // Anomali (401/403/429/5xx) tetap dicatat per kejadian — jumlahnya kecil
+  // dan justru yang paling perlu terlihat cepat (mis. token kadaluarsa
+  // membuat klien retry tanpa henti).
+  const status = Number(fields.status);
+  if (!isAnomaly(status)) return;
+  const anomalyKey = `${fields.path}|${status}|${fields.ip}`;
+  const now = Date.now();
+  if (now - (anomalySeen.get(anomalyKey) ?? 0) < ANOMALY_COOLDOWN_MS) return;
+  anomalySeen.set(anomalyKey, now);
+  console.log(JSON.stringify({ ev: "api_anomaly", ...fields }));
 }
+
+/** Status yang layak memicu satu baris langsung (anomali). */
+function isAnomaly(status: number): boolean {
+  return status === 401 || status === 403 || status === 429 || status >= 500;
+}
+
+/** Anomali yang sama dibatasi satu baris per menit (anti spam log). */
+const ANOMALY_COOLDOWN_MS = 60_000;
+const anomalySeen = new Map<string, number>();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
