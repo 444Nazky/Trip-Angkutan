@@ -9,6 +9,53 @@ const EXT_BY_TYPE: Record<string, string> = {
   "image/webp": ".webp",
 };
 
+// Status muatan memakai daftar putih — bukan string bebas.
+const VALID_STATUS_MUATAN = new Set(["muatan", "kosong"]);
+
+// Batas panjang teks bebas (nomor plat, keterangan, rute).
+const MAX_SHORT_TEXT = 60;
+const MAX_LONG_TEXT = 240;
+
+function shortText(value: unknown): string {
+  return String(value ?? "").trim().slice(0, MAX_SHORT_TEXT);
+}
+
+function longText(value: unknown): string {
+  return String(value ?? "").trim().slice(0, MAX_LONG_TEXT);
+}
+
+/**
+ * Validasi satu kendaraan pada payload trip.
+ * Mengembalikan pesan error (bahasa Indonesia) atau null bila valid.
+ */
+function validateVehiclePayload(vehicle: any, index: number): string | null {
+  const label = `kendaraan ke-${index + 1}`;
+  if (!vehicle || typeof vehicle !== "object") return `${label} tidak valid`;
+
+  const noPolisi = String(vehicle.noPolisi ?? "").trim();
+  if (!noPolisi) return `Nomor plat ${label} wajib diisi`;
+  if (noPolisi.length > MAX_SHORT_TEXT) return `Nomor plat ${label} terlalu panjang`;
+
+  const vehicleType = String(vehicle.vehicleType ?? "").trim();
+  if (!vehicleType) return `Jenis kendaraan ${label} wajib diisi`;
+  if (vehicleType.length > MAX_SHORT_TEXT) return `Jenis kendaraan ${label} terlalu panjang`;
+
+  if (typeof vehicle.hasLoad !== "boolean") {
+    return `Status muatan ${label} harus true (muatan) atau false (kosong)`;
+  }
+
+  // Kategori operasional: boleh kosong (data lawas), tapi kalau diisi harus
+  // salah satu dari tiga kategori yang dikenal — supaya backend dan laporan
+  // tidak pernah memakai kategori yang tidak dikenali.
+  const kategoriRaw = vehicle.kategori ?? vehicle.category;
+  const kategoriText = String(kategoriRaw ?? "").trim();
+  if (kategoriText && !normalizeCategory(kategoriText)) {
+    return `Kategori ${label} harus salah satu dari: Internal, Eksternal, Lokal`;
+  }
+
+  return null;
+}
+
 function numericCoordinate(value: unknown): number | null {
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
@@ -74,7 +121,8 @@ async function insertVehicle(
   // Golongan = gol master tarif (I..V). Keduanya dibedakan supaya tarif dan
   // laporan bisa memakai sumber yang benar.
   const kategori = normalizeCategory(vehicle.kategori ?? vehicle.category);
-  const golongan = vehicle.golongan ? normalizeGolongan(vehicle.golongan) : "";
+  const golonganRaw = String(vehicle.golongan ?? "").trim();
+  const golongan = golonganRaw ? normalizeGolongan(golonganRaw) : "";
 
   const resolved = await resolveTariff({
     vehicleType: vehicle.vehicleType,
@@ -92,9 +140,11 @@ async function insertVehicle(
 
   const row: Record<string, unknown> = {
     id: vehicleId,
-    no_polisi: vehicle.noPolisi,
-    vehicle_type: vehicle.vehicleType,
-    golongan: vehicle.golongan ?? null,
+    no_polisi: shortText(vehicle.noPolisi).toUpperCase(),
+    vehicle_type: shortText(vehicle.vehicleType),
+    // Golongan disimpan dalam bentuk ternormalisasi supaya lookup master tarif
+    // (I..V / 1..5) konsisten antara insert dan laporan.
+    golongan: golongan ? golonganRaw : null,
     trip_id: tripId,
     has_load: vehicle.hasLoad ? 1 : 0,
     tariff_amount: amount,
@@ -132,11 +182,22 @@ export async function completeTrip(req: Request): Promise<Response> {
     const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
     const files = form.getAll("photos").filter((f): f is File => f instanceof File);
 
-    if (!files.length) return json({ error: 'Missing "photos" files' }, 400);
-    if (files.some((f) => !PHOTO_TYPES.has(f.type))) return json({ error: "File yang diizinkan: JPG, PNG, WEBP" }, 400);
-    if (files.some((f) => f.size > 5 * 1024 * 1024)) return json({ error: "File terlalu besar (max 5MB)" }, 400);
+    if (!files.length) return json({ error: 'Field "photos" wajib diisi' }, 400);
+    if (files.some((f) => !PHOTO_TYPES.has(f.type))) return json({ error: "Format file harus JPG, PNG, atau WEBP" }, 400);
+    if (files.some((f) => f.size > 5 * 1024 * 1024)) return json({ error: "Ukuran file maksimal 5MB" }, 400);
 
-    if (!payload.statusMuatan) return json({ error: "statusMuatan wajib diisi" }, 400);
+    // Status muatan: daftar putih (muatan | kosong).
+    const statusMuatan = String(payload.statusMuatan ?? "").trim().toLowerCase();
+    if (!statusMuatan) return json({ error: "Status muatan wajib diisi" }, 400);
+    if (!VALID_STATUS_MUATAN.has(statusMuatan)) {
+      return json({ error: "Status muatan harus 'muatan' atau 'kosong'" }, 400);
+    }
+
+    // Validasi tiap kendaraan sebelum foto diunggah (hemat kuota storage).
+    for (let i = 0; i < vehicles.length; i++) {
+      const problem = validateVehiclePayload(vehicles[i], i);
+      if (problem) return json({ error: problem }, 400);
+    }
 
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
@@ -194,10 +255,10 @@ export async function completeTrip(req: Request): Promise<Response> {
     const noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
 
     const tripDoc: Record<string, unknown> = {
-      status_muatan: payload.statusMuatan,
-      route_from: payload.routeFrom || null,
-      route_to: payload.routeTo || null,
-      keterangan: payload.keterangan || null,
+      status_muatan: statusMuatan,
+      route_from: payload.routeFrom ? shortText(payload.routeFrom) : null,
+      route_to: payload.routeTo ? shortText(payload.routeTo) : null,
+      keterangan: payload.keterangan ? longText(payload.keterangan) : null,
       foto_kosong_path: photoPaths[tripPhotoIndex!],
       foto_captured_at: payload.tripPhotoCapturedAt || null,
       foto_latitude: numericCoordinate(payload.tripPhotoLatitude),
@@ -262,7 +323,10 @@ export async function createTrip(req: Request): Promise<Response> {
     const officerId = ctx.officerId ?? "";
     const regionId = String(ctx.regionId ?? "");
 
-    if (!statusMuatan) return json({ error: "statusMuatan wajib diisi" }, 400);
+    if (!statusMuatan) return json({ error: "Status muatan wajib diisi" }, 400);
+    if (!VALID_STATUS_MUATAN.has(String(statusMuatan).trim().toLowerCase())) {
+      return json({ error: "Status muatan harus 'muatan' atau 'kosong'" }, 400);
+    }
 
     const tripId = crypto.randomUUID();
     const noTrip = generateTripNo();

@@ -759,17 +759,26 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
   acquireLock()
 
   try {
-    const reachable = await probeServer()
-    if (!reachable) {
-      scheduleRetry(POLL_INTERVAL_MS)
-      return
-    }
-
+    // Antrean kosong -> jangan sentuh server sama sekali.
+    //
+    // DULU probeServer() dipanggil paling dulu, sehingga setiap perangkat
+    // yang idle tetap menembak GET /health tiap 20 detik (PING_TTL_MS hanya
+    // 2,5 detik, jadi cache pings-nya selalu kedaluwarsa). Itu 4.320
+    // invocations edge function per hari per perangkat, padahal tidak ada
+    // satu byte pun yang perlu dikirim. Di free plan Supabase (500.000
+    // invocations/bulan) ini dengan sendirinya menghabiskan kuota.
     const items = await readQueue()
     _queueCache = items
     if (items.length === 0) {
       _pendingCount = 0
       notifyQueueListeners()
+      return
+    }
+
+    // Baru setelah dipastikan ada yang mau dikirim, baru cek server.
+    const reachable = await probeServer()
+    if (!reachable) {
+      scheduleRetry(POLL_INTERVAL_MS)
       return
     }
 
@@ -779,12 +788,12 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
       return
     }
 
-    let interrupted = false
     for (const item of items) {
-      if (!(await probeServer())) { interrupted = true; break }
+      // Tidak ada probe per item lagi: kalau server mati di tengah siklus,
+      // processItem sudah menangani error jaringan + backoff sendiri. Probe
+      // per item menambah 1 request untuk setiap antrean entry.
       await processItem(item, opts?.retryAll ?? false)
     }
-    if (interrupted) scheduleRetry(POLL_INTERVAL_MS)
   } catch (err) {
     console.warn('[sync] siklus terputus:', err)
   } finally {

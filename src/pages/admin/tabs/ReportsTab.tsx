@@ -265,7 +265,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             </div>
             <div className="flex items-end gap-1.5 h-40">
               {reportDaily.map((d, i) => (
-                <div key={d.day} title={`${d.day} · ${d.count} trip`}
+                <div key={d.day} title={`${d.day} - ${d.count} trip`}
                   className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-1">
                   <span className="text-[9px] font-bold text-slate-500 tabular-nums">{d.count}</span>
                   <div className="w-full rounded-t-md bg-blue-600 transition-all"
@@ -331,12 +331,12 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                       ...(t.foto_kosong_path ? [{
                         id: `trip-${t.id}`,
                         url: t.foto_kosong_path,
-                        caption: `${t.no_trip} · Bukti trip`,
+                        caption: `${t.no_trip} - Bukti trip`,
                       }] : []),
                       ...(t.selfie_photo ? [{
                         id: `selfie-${t.id}`,
                         url: t.selfie_photo,
-                        caption: `${t.no_trip} · Swafoto petugas`,
+                        caption: `${t.no_trip} - Swafoto petugas`,
                       }] : []),
                       ...t.vehicles.filter(v => v.foto_path).map(v => ({
                         id: `vehicle-${v.id}`,
@@ -401,7 +401,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         <Calendar size={14} className="text-slate-400" />
                         {formattedDate}
                       </span>
-                      <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip · {dayTotal} unit)</span>
+                      <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip - {dayTotal} unit)</span>
                     </td>
                     <td colSpan={5} className="px-3 py-2.5 text-right">
                       <span className="text-slate-300 text-xs">Total:</span>
@@ -426,11 +426,54 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <td className="px-3 py-2.5 text-slate-700">{t.region_name || '-'}</td>
                           <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from} → {t.route_to_name || t.route_to}</td>
                           <td className="px-3 py-2.5">
+                            {t.vehicles.length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {t.vehicles.map((v, vi) => (
+                                  <div key={`${v.no_polisi}-${vi}`} className="text-[11px] leading-tight">
+                                    <span className="font-mono font-semibold text-slate-800">{v.no_polisi}</span>
+                                    <span className="text-slate-500"> - {v.vehicle_type} - {v.has_load ? 'Ada Muatan' : 'Kosong'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
                               {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums">{t.vehicle_count}</td>
+                          <td className="px-3 py-2.5">
+                            {(() => {
+                              const thumbs = [
+                                ...(t.selfie_photo ? [{ id: `selfie-${t.id}`, url: t.selfie_photo, caption: `${t.no_trip} - Swafoto petugas` }] : []),
+                                ...(t.foto_kosong_path ? [{ id: `trip-${t.id}`, url: t.foto_kosong_path, caption: `${t.no_trip} - Bukti trip` }] : []),
+                                ...t.vehicles.filter(v => v.foto_path).map(v => ({ id: `vehicle-${v.id}`, url: v.foto_path as string, caption: vehiclePhotoCaption(t, v, geoRules) })),
+                              ]
+                              if (thumbs.length === 0) return <span className="text-[11px] text-slate-400">-</span>
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); setViewingPhotos(thumbs) }}
+                                  className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-blue-400"
+                                  aria-label={`Lihat ${thumbs.length} foto ${t.no_trip}`}
+                                >
+                                  {thumbs.slice(0, 3).map(p => (
+                                    <img
+                                      key={p.id}
+                                      src={resolvePhotoUrl(p.url, baseUrl)}
+                                      alt=""
+                                      loading="lazy"
+                                      className="h-9 w-9 rounded-md object-cover ring-1 ring-slate-200"
+                                    />
+                                  ))}
+                                  <span className="text-[10px] font-semibold text-slate-500">{thumbs.length}</span>
+                                </button>
+                              )
+                            })()}
+                          </td>
                           <td className="px-4 py-2.5 text-right">
                             <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={t.trip_revenue || 0} />
                           </td>
@@ -438,7 +481,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         </tr>
                         {open && (
                     <tr className="bg-slate-50/80">
-                      <td colSpan={9} className="px-4 py-3">
+                      <td colSpan={11} className="px-4 py-3">
                         <div className="text-[12px] text-slate-600 mb-3">
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
                           <span>Kategori: {t.keterangan || '-'}</span>
@@ -450,7 +493,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                               onClick={() => setViewingPhotos([{
                                 id: `selfie-${t.id}`,
                                 url: t.selfie_photo!,
-                                caption: `${t.no_trip} · Swafoto petugas`,
+                                caption: `${t.no_trip} - Swafoto petugas`,
                               }])}
                               className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
                               aria-label={`Lihat swafoto petugas ${t.no_trip}`}
@@ -467,7 +510,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                               onClick={() => setViewingPhotos([{
                                 id: `trip-${t.id}`,
                                 url: t.foto_kosong_path!,
-                                caption: `${t.no_trip} · Bukti trip`,
+                                caption: `${t.no_trip} - Bukti trip`,
                               }])}
                               className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
                               aria-label={`Lihat foto bukti trip ${t.no_trip}`}
@@ -533,8 +576,8 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 font-bold text-slate-700">
-              <td colSpan={9} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
-                Total {totalTrip} trip · {totalUnit} unit
+              <td colSpan={11} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
+                Total {totalTrip} trip - {totalUnit} unit
                 <span className="ml-4">
                   <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-emerald-700 font-black" />
                 </span>
