@@ -262,7 +262,13 @@ export default function ReportSheet() {
   useEffect(() => {
     alive.current = true
     void load(filters)
-    const id = setInterval(() => { setTick(t => t + 1); void load(filters) }, AUTO_REFRESH_MS)
+    const id = setInterval(() => {
+      // Jangan refresh saat tab tidak terlihat: query laporan itu berat (hingga
+      // 1.000 trip + kendaraan + tarif) dan membanjiri egress tiap 15 detik.
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      setTick(t => t + 1)
+      void load(filters)
+    }, AUTO_REFRESH_MS)
     return () => { alive.current = false; clearInterval(id) }
   }, [filters, load])
 
