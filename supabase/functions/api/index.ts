@@ -290,8 +290,28 @@ function logQuery(url: URL): string {
  * sering dipanggil, dari IP mana, apakah sudah bertoken, dan apakah kena rate
  * limit. Ini data yang dibutuhkan untuk memutuskan di mana request storm
  * harus dihentikan (sisi klien vs gateway vs shared state).
+ *
+ * VOLUME: kuota "Log Ingestion" proyek ini sudah lewat (397% di siklus
+ * berjalan), jadi log per request tidak boleh jadi sumber lewat baru.
+ * Default: HANYA anomali (401/403/429/5xx), dibatasi satu baris per
+ * (path|status|ip) per menit. Setel secret `API_LOG=1` untuk log SEMUA
+ * request saat sedang menelusuri penyebab lonjakan, lalu kembalikan ke
+ * default setelah selesai.
  */
+const API_LOG_ALL = (Deno.env.get("API_LOG") ?? "").toLowerCase() === "1";
+const ANOMALY_COOLDOWN_MS = 60_000;
+const anomalySeen = new Map<string, number>();
+
 function logRequest(fields: Record<string, unknown>): void {
+  if (!API_LOG_ALL) {
+    const status = Number(fields.status);
+    const anomalous = status === 401 || status === 403 || status === 429 || status >= 500;
+    if (!anomalous) return;
+    const key = `${fields.path}|${status}|${fields.ip}`;
+    const now = Date.now();
+    if (now - (anomalySeen.get(key) ?? 0) < ANOMALY_COOLDOWN_MS) return;
+    anomalySeen.set(key, now);
+  }
   console.log(JSON.stringify({ ev: "api_request", ...fields }));
 }
 

@@ -13,14 +13,13 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
-    // Kode admin dashboard yang ikut ter-merge (lihat catatan di tsconfig.json):
-    // test-nya menguji API versi admin, bukan aplikasi mobile, sehingga selalu
-    // gagal bila dijalankan dengan services/api.ts milik mobile.
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // Kode admin dashboard memakai services/api.ts yang sama dengan aplikasi
+    // mobile (api.getOk + ensureAdminSession sudah tersedia), sehingga test
+    // admin (mis. render harness ReportsTab) bisa ikut dijalankan.
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      'src/pages/admin/**',
       'src/services/api.test.ts',
       'src/services/geo.test.ts',
     ],
