@@ -29,6 +29,7 @@ function defaultTtl(): number {
 /** TTL khusus per endpoint (ms). "0" berarti tidak boleh dicache. */
 const ROUTE_TTL: Record<string, number> = {
   "/master/tariffs": 120_000,
+  "/master/offline": 120_000,
   "/tariffs": 60_000,
   "/regions": 120_000,
   "/dermagas": 120_000,
