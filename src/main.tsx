@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import { api } from './services/api'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 
 const root = document.getElementById('root')!
@@ -15,13 +16,17 @@ if (document.documentElement.dataset['admin'] !== undefined) {
   }
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <AdminDashboard onLogout={adminLogout} />
+      <ErrorBoundary label="Admin Dashboard">
+        <AdminDashboard onLogout={adminLogout} />
+      </ErrorBoundary>
     </React.StrictMode>,
   )
 } else {
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <App />
+      <ErrorBoundary label="Aplikasi">
+        <App />
+      </ErrorBoundary>
     </React.StrictMode>,
   )
 }

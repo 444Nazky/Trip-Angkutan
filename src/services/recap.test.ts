@@ -49,7 +49,23 @@ describe('buildRecap', () => {
     expect(eksternal.empty).toBe(1)
     expect(eksternal.total).toBe(3)
     expect(eksternal.revenue).toBe(280000 + 130000 + 450000)
-    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Truck Besar', 'Truck Sedang'])
-    expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 410000 })
+    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang'])
+    expect(eksternal.rows[4]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 410000 })
+    expect(eksternal.rows[0]).toMatchObject({ total: 0, revenue: 0 })
+  })
+
+  it('tetap menampilkan motor bersama jenis lain', () => {
+    const groups = buildRecap([
+      trip({}, [
+        vehicle({ id: 'M1', kategori: 'Eksternal', vehicle_type: 'Motor', golongan: 'I', tariff_amount: 20000 }),
+        vehicle({ id: 'M2', kategori: 'Eksternal', vehicle_type: 'Motor', golongan: 'I', has_load: 0, tariff_amount: 15000 }),
+        vehicle({ id: 'C1', kategori: 'Eksternal', vehicle_type: 'Mobil', golongan: 'I', tariff_amount: 90000 }),
+      ]),
+    ])
+
+    const eksternal = groups.find(g => g.golongan === 'Eksternal')!
+    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang'])
+    expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 35000 })
+    expect(eksternal.total).toBe(3)
   })
 })

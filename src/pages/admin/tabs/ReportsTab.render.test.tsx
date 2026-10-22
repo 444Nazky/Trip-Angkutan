@@ -126,19 +126,26 @@ describe('ReportsTab (render harness)', () => {
     await act(async () => {})
   }
 
-  it('menampilkan kolom Kendaraan dan Foto pada header tabel', async () => {
+  it('menampilkan kolom Unit dan Foto pada header tabel', async () => {
     await renderReports()
 
     const headers = Array.from(container.querySelectorAll('thead th'))
       .map(th => th.textContent?.trim() ?? '')
 
-    expect(headers).toContain('Kendaraan')
-    expect(headers).toContain('Foto')
+    // Kolom "Unit" = jumlah kendaraan per trip; rincian plat dan jenis
+    // kendaraan muncul di baris detail ketika baris trip diklik.
     expect(headers).toContain('Unit')
+    expect(headers).toContain('Foto')
   })
 
-  it('menampilkan plat + jenis kendaraan per unit pada baris trip', async () => {
+  it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {
     await renderReports()
+
+    // Baris trip diklik -> baris detail terbuka (tabel kendaraan per unit).
+    const tripRow = container.querySelector('tbody tr.cursor-pointer')
+    await act(async () => {
+      tripRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
 
     const body = container.textContent ?? ''
     expect(body).toContain('D 1234 AB')

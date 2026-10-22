@@ -2,15 +2,40 @@
 import bcryptjs from "npm:bcryptjs@2.4.3";
 import { db, json, auth, requireAdmin } from "../_shared.ts";
 
-async function officerExtras(officerId: string) {
-  const [{ data: officerRegions }, { data: officerDermagas }] = await Promise.all([
-    db.from("officer_regions").select("regions(id, name, code)").eq("officer_id", officerId),
-    db.from("officer_dermagas").select("dermagas(id, name, code, region_id)").eq("officer_id", officerId),
+/**
+ * Extras untuk BANYAK officer sekaligus — 2 query, bukan 2 per officer.
+ *
+ * Versi lama memanggil `officerExtras` satu per officer di dalam
+ * `Promise.all`, jadi 20 officer = 40 query (N+1) pada satu endpoint
+ * /officers yang dipanggil dashboard admin. Sekarang relasi diambil
+ * sekali dengan filter `.in()` lalu dikelompokkan di memori.
+ */
+async function officerExtrasBulk(officerIds: string[]) {
+  if (officerIds.length === 0) return {} as Record<string, { regions: any[]; dermagas: any[] }>;
+
+  const [{ data: regionRows }, { data: dermagaRows }] = await Promise.all([
+    db
+      .from("officer_regions")
+      .select("officer_id, regions(id, name, code)")
+      .in("officer_id", officerIds),
+    db
+      .from("officer_dermagas")
+      .select("officer_id, dermagas(id, name, code, region_id)")
+      .in("officer_id", officerIds),
   ]);
-  return {
-    regions: (officerRegions ?? []).map((or: any) => or.regions).filter(Boolean),
-    dermagas: (officerDermagas ?? []).map((od: any) => od.dermagas).filter(Boolean),
-  };
+
+  const map: Record<string, { regions: any[]; dermagas: any[] }> = {};
+  for (const id of officerIds) map[id] = { regions: [], dermagas: [] };
+
+  for (const row of (regionRows ?? []) as any[]) {
+    const bucket = map[String(row.officer_id)];
+    if (bucket && row.regions) bucket.regions.push(row.regions);
+  }
+  for (const row of (dermagaRows ?? []) as any[]) {
+    const bucket = map[String(row.officer_id)];
+    if (bucket && row.dermagas) bucket.dermagas.push(row.dermagas);
+  }
+  return map;
 }
 
 function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
@@ -37,10 +62,10 @@ export async function getOfficers(req: Request): Promise<Response> {
     if (error) throw error;
 
     const officers_ = officers ?? [];
-    const extrasList = await Promise.all(officers_.map(o => officerExtras(o.id)));
+    const extrasMap = await officerExtrasBulk(officers_.map(o => String(o.id)));
     const result: any[] = [];
-    for (let i = 0; i < officers_.length; i++) {
-      result.push(shapeOfficer(officers_[i], extrasList[i]));
+    for (const o of officers_) {
+      result.push(shapeOfficer(o, extrasMap[String(o.id)] ?? { regions: [], dermagas: [] }));
     }
     return json(result);
   } catch (error) {
@@ -89,15 +114,14 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
       .select("*, regions!officers_region_id_fkey(name, code)")
       .order("name", { ascending: true });
 
-    // ponytail: extras (regions + dermaga) diambil PARALEL. Dulu satu per
-    // satu dalam loop = 2 query per petugas berurutan -> roster region ini
-    // lambat sekali di HP, padahal ini yang menarik PIN & akses terbaru.
+    // Extras (regions + dermaga) diambil sekaligus untuk semua officer —
+    // 2 query total, bukan 2 per petugas. Endpoint ini dipanggil aplikasi
+    // mobile saat buka roster, jadi N+1 di sini terasa sekali everyone's slow.
     const officers_ = officers ?? [];
-    const extrasList = await Promise.all(officers_.map(o => officerExtras(o.id)));
+    const extrasMap = await officerExtrasBulk(officers_.map(o => String(o.id)));
     const result: any[] = [];
-    for (let i = 0; i < officers_.length; i++) {
-      const o = officers_[i];
-      const extras = extrasList[i];
+    for (const o of officers_) {
+      const extras = extrasMap[String(o.id)] ?? { regions: [], dermagas: [] };
       const sharesRegion =
         extras.regions.some((r: any) => myRegionIds.has(r.id)) || myRegionIds.has(o.region_id);
       if (sharesRegion || String(o.id) === meId) {
