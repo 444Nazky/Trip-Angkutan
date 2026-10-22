@@ -65,7 +65,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
-    if (syncState && syncState.failed === 0) return `${syncState.synced} trip tersinkron ✓`
+    if (syncState && syncState.failed === 0) return `${syncState.synced} trip tersinkron`
     if (syncState && syncState.failed > 0) return `${syncState.failed} belum terkirim — ketuk untuk ulangi`
     if (pendingCount > 0) return `${pendingCount} trip menunggu sinkronisasi`
     return 'Semua data sudah tersinkron'

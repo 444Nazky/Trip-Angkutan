@@ -264,6 +264,36 @@ function withHeaders(res: Response, extra: Record<string, string>): Response {
   return new Response(res.body, { status: res.status, headers });
 }
 
+// ── Log request (diagnostik) ─────────────────────────────────────────────────
+
+/**
+ * Nilai query parameter yang aman dimuat ke log (tidak memuat PII seperti
+ * pencarian nama petugas di laporan).
+ */
+const LOGGED_QUERY_KEYS = new Set(["dermagaId", "scope", "path", "status", "limit", "offset"]);
+
+/** Ringkasan query string: hanya nama parameter + nilai yang aman. */
+function logQuery(url: URL): string {
+  const parts: string[] = [];
+  for (const [k, v] of url.searchParams.entries()) {
+    if (k === "path") continue;
+    parts.push(LOGGED_QUERY_KEYS.has(k) ? `${k}=${v}` : k);
+  }
+  return parts.join(",");
+}
+
+/**
+ * Satu baris JSON per request supaya bisa difilter di Supabase Logs Explorer.
+ *
+ * Fungsinya: melihat pola traffic yang sebenarnya — endpoint mana yang paling
+ * sering dipanggil, dari IP mana, apakah sudah bertoken, dan apakah kena rate
+ * limit. Ini data yang dibutuhkan untuk memutuskan di mana request storm
+ * harus dihentikan (sisi klien vs gateway vs shared state).
+ */
+function logRequest(fields: Record<string, unknown>): void {
+  console.log(JSON.stringify({ ev: "api_request", ...fields }));
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
