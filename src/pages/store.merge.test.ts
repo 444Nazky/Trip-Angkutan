@@ -5,7 +5,7 @@
 // Aturan: updatedAt terbaru menang; bila seri, synced:true tidak ditimpa false.
 
 import { describe, expect, it } from 'vitest'
-import { healDermagaAccess, mergeTrips, type Trip } from './store'
+import { healDermagaAccess, mergeTrips, vehicleTariff, type Trip } from './store'
 import { SEED_OFFICERS } from '../services/seedData'
 
 const base = (over: Partial<Trip>): Trip => ({
@@ -67,5 +67,17 @@ describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => 
   it('petugas non-seed tetap dibiarkan apa adanya (diserahkan ke sync berikutnya)', () => {
     const unknown = { id: 'server-only-1', name: 'X', region: 'X', dermagaAccess: [] } as never
     expect(healDermagaAccess([unknown])[0].dermagaAccess).toEqual([])
+  })
+})
+
+describe('vehicleTariff — harga per kondisi kendaraan', () => {
+  it('memakai loadedNum saat ada muatan dan emptyNum saat kosong', () => {
+    expect(vehicleTariff('Truck Sedang', 'Eksternal', 'loaded')).toBe(280000)
+    expect(vehicleTariff('Truck Sedang', 'Eksternal', 'empty')).toBe(130000)
+  })
+
+  it('kendaraan internal tetap Rp 0 untuk kedua kondisi', () => {
+    expect(vehicleTariff('Truck Sedang', 'Internal', 'loaded')).toBe(0)
+    expect(vehicleTariff('Truck Sedang', 'Internal', 'empty')).toBe(0)
   })
 })

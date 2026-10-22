@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(supabase migration list:*)",
+      "Bash(supabase migration repair:*)",
+      "Bash(supabase migration up:*)",
+      "Bash(supabase migration new:*)",
+      "Bash(supabase migration squash:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase db pull:*)",
+      "Bash(supabase db diff:*)",
+      "Bash(supabase db dump:*)",
+      "Bash(supabase db execute:*)",
+      "Bash(supabase db lint:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase functions list:*)",
+      "Bash(supabase functions logs:*)",
+      "Bash(supabase functions delete:*)",
+      "Bash(supabase projects list:*)",
+      "Bash(supabase secrets list:*)",
+      "Bash(supabase config:*)",
+      "Bash(supabase inspect db:*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "Bash(supabase migration list:*)",
+      "Bash(supabase migration repair:*)",
+      "Bash(supabase migration up:*)",
+      "Bash(supabase migration new:*)",
+      "Bash(supabase migration squash:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase db pull:*)",
+      "Bash(supabase db diff:*)",
+      "Bash(supabase db dump:*)",
+      "Bash(supabase db execute:*)",
+      "Bash(supabase db lint:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase functions list:*)",
+      "Bash(supabase functions logs:*)",
+      "Bash(supabase functions delete:*)",
+      "Bash(supabase projects list:*)",
+      "Bash(supabase secrets list:*)",
+      "Bash(supabase config:*)",
+      "Bash(supabase inspect db:*)"
+    ]
+  }
+}

@@ -19,6 +19,8 @@ export interface VehicleEntry {
   type: string
   category: string
   golongan?: string
+  /** Kondisi kendaraan saat trip ini: bermuatan atau kosong. */
+  load?: 'loaded' | 'empty'
   tariff: number
 
   photoUrl?: string
@@ -74,7 +76,7 @@ export interface Draft {
   routeCode: string | null
   condition: 'kosong' | 'muatan' | null
   vehicles: VehicleEntry[]
-  vehicleForm: { plate: string; type: string; category: string }
+  vehicleForm: { plate: string; type: string; category: string; load: 'loaded' | 'empty' }
   editVehicleIndex?: number | null
   photo: boolean
   photoUrl?: string
@@ -88,14 +90,13 @@ export interface Draft {
   vPhotoLongitude?: number | null
   retakeTarget?: { tripId: string; kind: 'trip' | 'vehicle'; index?: number }
   vehiclePhotoTarget?: number
-  selfieMode?: boolean
   selfieUrl?: string
   selfieCapturedAt?: string
   cameraReturn?: MobileScreen
 
   cameraFrom: MobileScreen
 
-  cameraMode: 'photo' | 'ocr'
+  cameraMode: 'photo' | 'ocr' | 'selfie'
 
   ocrResult?: string
 
@@ -125,6 +126,8 @@ interface StoreValue {
   setOfficerId: (id: string) => void
   refreshOfficers: (force?: boolean) => Promise<void>
   trips: Trip[]
+  /** true setelah riwayat dimuat dari IndexedDB (sumber kebenaran). */
+  tripsLoaded: boolean
   tariffs: TariffRow[]
   officers: Officer[]
   saveOfficers: (rows: Officer[]) => void
@@ -155,7 +158,7 @@ const emptyDraft: Draft = {
   routeCode: null,
   condition: null,
   vehicles: [],
-  vehicleForm: { plate: '', type: '', category: '' },
+  vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
   editVehicleIndex: null,
   photo: false,
   photoUrl: undefined,
@@ -169,7 +172,6 @@ const emptyDraft: Draft = {
   vPhotoLongitude: undefined,
   retakeTarget: undefined,
   vehiclePhotoTarget: undefined,
-  selfieMode: undefined,
   selfieUrl: undefined,
   selfieCapturedAt: undefined,
   cameraReturn: undefined,
@@ -275,6 +277,16 @@ export function golonganFor(vehicleType: string): string {
   return tariffFor(vehicleType).golongan
 }
 
+/**
+ * Tarif satu kendaraan sesuai kondisi muatannya.
+ * Internal tidak ditagih; selain itu pakai loadedNum / emptyNum master tarif.
+ */
+export function vehicleTariff(vehicleType: string, category: string, load: 'loaded' | 'empty'): number {
+  if (category.trim().toLowerCase() === 'internal') return 0
+  const t = tariffFor(vehicleType)
+  return load === 'empty' ? t.emptyNum : t.loadedNum
+}
+
 
 
 export function nextTripId(trips: Trip[]): string {
@@ -335,6 +347,32 @@ function normalizeTrips(list: Trip[]): Trip[] {
 
 
 
+/** Apakah trip masih menyimpan data foto (bukan hasil cache metadata). */
+function hasTripPhoto(trip: Trip): boolean {
+  if (trip.photoUrl) return true
+  if (trip.selfieUrl) return true
+  return !!trip.vehicles?.some(v => !!v.photoUrl)
+}
+
+
+/**
+ * Buang data foto (base64) dari sebuah trip.
+ *
+ * Dipakai untuk cache metadata di localStorage: foto disimpan penuh di
+ * IndexedDB (kuota besar), sedangkan localStorage hanya ~5 MB. Kalau foto
+ * ikut disimpan di localStorage, 3-5 trip sudah menghabiskan kuota dan trip
+ * berikutnya hilang dari riwayat.
+ */
+export function stripTripPhotos(trip: Trip): Trip {
+  return {
+    ...trip,
+    photoUrl: undefined,
+    selfieUrl: undefined,
+    vehicles: trip.vehicles?.map(v => ({ ...v, photoUrl: undefined })),
+  }
+}
+
+
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
@@ -346,10 +384,15 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
     if (prevUpd !== nextUpd) { byId.set(key, prevUpd > nextUpd ? prev : t); continue }
     const prevTs = Date.parse(prev.completedAt ?? '') || 0
     const nextTs = Date.parse(t.completedAt ?? '') || 0
-    const winner =
+    let winner =
       prev.synced === true && t.synced !== true ? prev :
       t.synced === true && prev.synced !== true ? t :
       nextTs >= prevTs ? t : prev
+    // When two versions of the same trip are equally recent, keep the one
+    // that still has photos. The localStorage cache only holds metadata
+    // (photos live in IndexedDB), so blindly picking the newest one would
+    // strip the photos from the history list.
+    if (winner === t && !hasTripPhoto(t) && hasTripPhoto(prev)) winner = prev
     byId.set(key, winner)
   }
   return [...byId.values()]
@@ -385,6 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
+  const [tripsLoaded, setTripsLoaded] = useState(false)
   const [detailTripId, setDetailTripId] = useState<string | null>(null)
   const [pendingOfficerId, setPendingOfficerId] = useState<string | null>(null)
   const [verifyIntent, setVerifyIntent] = useState<VerifyIntent>('security')
@@ -394,30 +438,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void initLocalDb()
+    // Foto (base64) hanya di IndexedDB; localStorage menyimpan metadata saja
+    // supaya kuota localStorage tidak habis dan trip tidak hilang dari riwayat.
     try {
-      localStorage.setItem(LS.trips, JSON.stringify(trips))
+      localStorage.setItem(LS.trips, JSON.stringify(trips.map(stripTripPhotos)))
     } catch (err) {
       console.warn('[store] localStorage penuh — data aman di IndexedDB:', err)
     }
     void dbPutMany<Trip>('trips', trips)
   }, [trips])
 
+  // Sumber kebenaran riwayat = IndexedDB (lengkap dengan foto).
+  // localStorage hanya cache metadata, jadi trip yang masih ada di sana tapi
+  // belum tersimpan ke IndexedDB tetap ditampilkan.
   useEffect(() => {
     let alive = true
     void (async () => {
       const stored = await dbAll<Trip>('trips')
-      if (!alive || !stored.length) return
+      if (!alive) return
+      const full = normalizeTrips(stored)
       setTrips(prev => {
-        const merged = mergeTrips(normalizeTrips(stored), prev)
-        return merged.length === prev.length ? prev : merged
+        const fullIds = new Set(full.map(t => t.id))
+        const onlyLocal = prev.filter(t => !fullIds.has(t.id))
+        const merged = mergeTrips(full, onlyLocal)
+        if (merged.length === prev.length) {
+          const same = merged.every((t, i) => t === prev[i] || t.updatedAt === prev[i]?.updatedAt)
+          if (same) return prev
+        }
+        return merged
       })
+      setTripsLoaded(true)
     })()
     return () => { alive = false }
   }, [])
 
   useEffect(() => {
     const onStorage = () => {
-      setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips))))
+      // Data dari tab lain hanya metadata (foto disimpan di IndexedDB),
+      // jadi merge tanpa menimpa foto yang sudah ada di state.
+      setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, seedTrips)).map(stripTripPhotos)))
       setLoggedIn(load(LS.session, false))
       const so = getStoredOfficer()
       if (so?.id) {
@@ -537,7 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return {
       ...d,
       editVehicleIndex: index,
-      vehicleForm: { plate: v.plate, type: v.type, category: v.category },
+      vehicleForm: { plate: v.plate, type: v.type, category: v.category, load: v.load ?? 'loaded' },
       vPhoto: !!v.photoUrl,
       vPhotoUrl: v.photoUrl,
       vPhotoCapturedAt: v.photoCapturedAt,
@@ -605,6 +664,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completedAt: now.toISOString(),
       vehicles: [],
       synced: false,
+      selfieUrl: draft.selfieUrl,
+      selfieCapturedAt: draft.selfieCapturedAt,
     }
     commitTrip(trip)
   }, [draft, officer.name, commitTrip])
@@ -634,7 +695,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       status: 'Selesai',
       time: fmtClock(now),
       date: fmtDate(now),
-      load: 'Ada Muatan',
+      load: vehicles.length > 0 && vehicles.every(v => v.load === 'empty') ? 'Kosong' : 'Ada Muatan',
       vehicle: vehicles[0]?.plate ?? '-',
       type: vehicles[0]?.type ?? '-',
       category: vehicles[0]?.category ?? '-',
@@ -785,6 +846,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loggedIn, login, logout, userType,
     officer, setOfficerId, refreshOfficers,
     trips,
+    tripsLoaded,
     tariffs,
     officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
@@ -794,7 +856,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga,
     clearAllTrips,
-  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tariffs, officers, saveOfficers,
+  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,

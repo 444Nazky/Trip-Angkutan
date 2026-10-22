@@ -32,10 +32,15 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   const handleAddTar = async () => {
     if (!tarForm.type || !tarForm.golongan) return showToast('Lengkapi form!', 'error')
+    // Nominal 0 membuat semua trip bertipe itu ditagih Rp 0 di laporan.
+    // Tolak lebih dulu daripada menyimpan baris yang tidak berguna.
+    if (tarForm.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
+    if (tarForm.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
     const row: TariffRow = { ...tarForm, loaded: fmtRp(tarForm.loadedNum), empty: fmtRp(tarForm.emptyNum) }
     if (serverState === 'online') {
       const id = await createTariff(row)
-      if (id) row.id = id
+      if (!id) return showToast('Server menolak tarif — data tidak disimpan', 'error')
+      row.id = id
     }
     onSaveTariffs([...tariffs, row])
     setTarForm({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
@@ -44,13 +49,17 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   }
 
   const handleUpdTar = async () => {
+    if (editTar.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
+    if (editTar.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
     const row: TariffRow = { ...editTar, loaded: fmtRp(editTar.loadedNum), empty: fmtRp(editTar.emptyNum) }
-    const ns = [...tariffs]
-    if (editTarIdx !== null) { ns[editTarIdx] = row; onSaveTariffs(ns) }
+    // Update ke server dulu — kalau gagal, jangan mengubah state lokal supaya
+    // angka yang tampil di tabel sama dengan yang berlaku di server.
     if (serverState === 'online' && row.id) {
       const ok = await updateTariff(row)
-      if (!ok) showToast('Server gagal', 'error')
+      if (!ok) return showToast('Server gagal — tarif tidak diubah', 'error')
     }
+    const ns = [...tariffs]
+    if (editTarIdx !== null) { ns[editTarIdx] = row; onSaveTariffs(ns) }
     setEditTarIdx(null)
     showToast('Tarif diupdate')
   }

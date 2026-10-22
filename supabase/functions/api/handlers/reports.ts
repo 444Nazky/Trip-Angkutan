@@ -1,5 +1,11 @@
 // Reports handlers (port of backend/src/routes/reports.js) — admin only.
 import { db, json, requireAdmin } from "../_shared.ts";
+import {
+  resolveTariff,
+  hasColumn,
+  normalizeCategory,
+  type TariffSource,
+} from "./tariffRules.ts";
 
 function dateRange(url: URL): { start?: string; end?: string } {
   const startDate = url.searchParams.get("startDate");
@@ -12,7 +18,8 @@ function dateRange(url: URL): { start?: string; end?: string } {
 const OPERATIONAL_CATEGORIES = ["Internal", "Eksternal", "Lokal"];
 
 // Normalisasi nilai golongan pada tabel vehicles menjadi kategori operasional.
-function normalizeGolongan(raw: unknown): string | null {
+// (Data lawas: kolom `golongan` sempat berisi kategori, bukan gol master I..V.)
+function normalizeLegacyCategory(raw: unknown): string | null {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).trim().toLowerCase();
   if (!s) return null;
@@ -80,55 +87,48 @@ async function fetchPlateCategories(plates: string[]): Promise<Map<string, strin
 function matchesGolongan(raw: unknown, target: string): boolean {
   const t = String(target ?? "").trim().toLowerCase();
   if (!t) return true;
-  const norm = normalizeGolongan(raw);
+  const norm = normalizeLegacyCategory(raw);
   if (norm) return norm.toLowerCase() === t;
   return String(raw ?? "").trim().toLowerCase() === t;
 }
 
-// Fetch all active tariffs for tariff recalculation
-async function getAllActiveTariffs(): Promise<Map<string, { loaded: number; empty: number }>> {
-  const { data, error } = await db
-    .from("tariffs")
-    .select("golongan, vehicle_type, loaded_tariff, empty_tariff")
-    .eq("is_active", 1);
+// ── Perhitungan tarif laporan ────────────────────────────────────────────────
+//
+// Laporan TIDAK lagi memakai peta tarif handmade (yang hanya match persis
+// "vehicle_type|golongan" dan meleset kalau ejaan beda). Semua tarif di
+// laporan dihitung ulang lewat resolver yang SAMA dengan yang dipakai saat
+// insert trip (handlers/tariffRules.ts), sehingga:
+//   - laporan selalu mengikuti Master Tarif terkini,
+//   - tarif terpusat per region tetap terpakai sebagai fallback,
+//   - kategori Internal selalu Rp 0.
+//
+// Bila resolver tidak menemukan sumber harga ("tanpa-tarif"), nominal lama
+// yang tersimpan di vehicles.tariff_amount dipakai — supaya laporan tidak
+// ikut jadi Rp 0 hanya karena master tarif belum diisi.
 
-  if (error || !data) return new Map();
-
-  const tariffMap = new Map<string, { loaded: number; empty: number }>();
-  for (const t of data) {
-    // Key format: "vehicle_type|golongan" for precise matching
-    const key1 = `${t.vehicle_type}|${t.golongan}`;
-    const key2 = `${t.vehicle_type}|`; // fallback without golongan
-    tariffMap.set(key1, { loaded: t.loaded_tariff, empty: t.empty_tariff });
-    if (!tariffMap.has(key2)) {
-      tariffMap.set(key2, { loaded: t.loaded_tariff, empty: t.empty_tariff });
-    }
-  }
-  return tariffMap;
+interface EffectiveTariff {
+  amount: number;
+  source: TariffSource;
 }
 
-// Calculate tariff amount for a vehicle based on vehicle_type, golongan, and has_load
-function calculateTariffAmount(
-  vehicleType: string,
-  golongan: string | null,
-  hasLoad: number,
-  tariffMap: Map<string, { loaded: number; empty: number }>,
-): number {
-  // Try precise match first (vehicle_type + golongan)
-  const key1 = `${vehicleType}|${golongan || ''}`;
-  const tariff1 = tariffMap.get(key1);
-  if (tariff1) {
-    return hasLoad ? tariff1.loaded : tariff1.empty;
-  }
-
-  // Fallback: vehicle_type only
-  const key2 = `${vehicleType}|`;
-  const tariff2 = tariffMap.get(key2);
-  if (tariff2) {
-    return hasLoad ? tariff2.loaded : tariff2.empty;
-  }
-
-  return 0;
+/**
+ * Hitung tarif efektif untuk satu baris kendaraan.
+ * Mengembalikan null bila tidak ada sumber harga (pemanggil pakai nilai lama).
+ */
+async function effectiveTariff(
+  vehicle: any,
+  regionId: string | null,
+  kategori: string | null,
+): Promise<EffectiveTariff | null> {
+  const resolved = await resolveTariff({
+    vehicleType: vehicle.vehicle_type,
+    hasLoad: Number(vehicle.has_load) > 0,
+    golongan: vehicle.golongan,
+    kategori,
+    regionId,
+  });
+  if (resolved.source === "tanpa-tarif") return null;
+  return { amount: resolved.amount, source: resolved.source };
 }
 
 // GET /reports/summary
@@ -178,9 +178,6 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     const muatan = url.searchParams.get("muatan"); // ada | tanpa (status muatan kendaraan)
     const q = (url.searchParams.get("q") || "").trim().toLowerCase();
 
-    // Fetch active tariffs for recalculation
-    const tariffMap = await getAllActiveTariffs();
-
     let query = db
       .from("trips")
       .select("*, officers(name), regions(name, code)")
@@ -205,30 +202,46 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       vehicles = (tvData ?? []).map((tv: any) => ({ ...tv.vehicles, trip_id: tv.trip_id }));
     }
 
-    // Recalculate tariff_amount for vehicles that have 0 or null tariff_amount
+    // Kategori operasional kendaraan (Internal / Eksternal / Lokal).
+    // Urutan sumber:
+    //   1. kolom vehicles.kategori  -> yang dipilih petugas di aplikasi
+    //   2. pindaian plat terbaru    -> workaround untuk trip lama
+    //   3. kolom vehicles.golongan  -> data lawas
+    const hasKategoriCol = await hasColumn("vehicles", "kategori");
+    const plateCategories = hasKategoriCol
+      ? new Map<string, string>()
+      : await fetchPlateCategories(vehicles.map((v: any) => v.no_polisi));
+
     vehicles = vehicles.map((v) => {
-      if (!v.tariff_amount || v.tariff_amount === 0) {
-        const calculatedAmount = calculateTariffAmount(
-          v.vehicle_type,
-          v.golongan,
-          v.has_load,
-          tariffMap,
-        );
-        return { ...v, tariff_amount: calculatedAmount };
-      }
-      return v;
+      const fromColumn = hasKategoriCol ? normalizeCategory(v.kategori) : null;
+      const fromScan = plateCategories.get(plateKey(v.no_polisi)) ?? null;
+      const stored = normalizeLegacyCategory(v.golongan);
+      return { ...v, kategori: fromColumn ?? fromScan ?? stored };
     });
 
-    // Kategori operasional kendaraan (Internal / Eksternal / Lokal) diambil dari
-    // pindaian plat terbaru; nilai lama pada kolom vehicles dipakai sebagai cadangan.
-    const plateCategories = await fetchPlateCategories(
-      vehicles.map((v: any) => v.no_polisi),
+    // Tarif dihitung ulang untuk SEMUA kendaraan (bukan hanya yang 0) memakai
+    // resolver yang sama dengan saat insert -> laporan selalu mengikuti
+    // Master Tarif terkini. Region diambil dari trip induknya supaya tarif
+    // terpusat per region bisa dipakai sebagai fallback.
+    const regionByTrip = new Map<string, string>(
+      (trips ?? []).map((t: any) => [t.id, String(t.region_id ?? "")]),
     );
-    vehicles = vehicles.map((v: any) => {
-      const fromScan = plateCategories.get(plateKey(v.no_polisi)) ?? null;
-      const stored = normalizeGolongan(v.golongan);
-      return { ...v, kategori: fromScan ?? stored };
-    });
+
+    vehicles = await Promise.all(vehicles.map(async (v) => {
+      const calc = await effectiveTariff(v, regionByTrip.get(v.trip_id) ?? null, v.kategori);
+      if (!calc) {
+        // Tidak ada sumber harga -> pertahankan nominal lama (bukan 0).
+        return { ...v, tarif_source: "tanpa-tarif" };
+      }
+      return {
+        ...v,
+        tariff_amount: calc.amount,
+        tarif_source: calc.source,
+        // Nilai master saat trip dicatat (audit trail).
+        tariff_amount_saved: v.tariff_amount ?? null,
+      };
+    }));
+
 
     let filtered = vehicles;
     if (golongan) filtered = filtered.filter((v) => matchesGolongan(v.kategori, golongan));
@@ -269,10 +282,11 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
 
     let result = (trips ?? []).map((t: any) => {
       const tv = vehiclesByTrip.get(t.id) ?? [];
-      // Collect all vehicle photos plus trip proof photo
+      // Semua foto: bukti trip + swafoto petugas + foto tiap kendaraan
       const allPhotos = [
         ...tv.map((v: any) => v.foto_path).filter(Boolean),
         t.foto_kosong_path,
+        t.selfie_path,
       ].filter(Boolean);
 
       return {
@@ -285,6 +299,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
         trip_revenue: tv.reduce((s: number, v: any) => s + (v.tariff_amount || 0), 0),
         all_photos: allPhotos,
         trip_photo: t.foto_kosong_path,
+        selfie_photo: t.selfie_path ?? null,
       };
     });
 

@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ClipboardCopy, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Search, Table2, X } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Calendar, Check, ClipboardCopy, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Search, Table2, X } from 'lucide-react'
 import { ensureAdminSession } from '../../services/auth'
 import {
   fetchTripReports,
   fetchReportFilters,
   formatReportDateTime,
-  vehicleUnitLabel,
+  dayKeyWib,
   reportPlace,
   reportAsal,
   reportTujuan,
   reportRentang,
   reportGolongan,
+  tarifSourceLabel,
   OPERATIONAL_CATEGORIES,
   type ReportTrip,
   type ReportVehicle,
@@ -175,9 +176,9 @@ type LoadState = 'loading' | 'ready' | 'offline'
 
 const AUTO_REFRESH_MS = 15_000
 
-// Kolom tabel gabungan: rekap trip dan rincian kendaraan dalam satu tabel.
+// Kolom tabel datar: satu baris untuk satu unit kendaraan, tanpa nomor urut dan
+// tanpa kolom Unit (jenis kendaraan dan nomor polisi sudah mewakili unit tersebut).
 const COLUMNS = [
-  { key: 'no', label: '#' },
   { key: 'noTrip', label: 'No Trip' },
   { key: 'tanggal', label: 'Tanggal' },
   { key: 'jam', label: 'Jam (WIB)' },
@@ -186,7 +187,6 @@ const COLUMNS = [
   { key: 'tujuan', label: 'Rute Tujuan' },
   { key: 'petugas', label: 'Petugas' },
   { key: 'polisi', label: 'No. Polisi' },
-  { key: 'unit', label: 'Unit' },
   { key: 'jenis', label: 'Jenis Kendaraan' },
   { key: 'golongan', label: 'Golongan' },
   { key: 'muatan', label: 'Status Muatan' },
@@ -201,32 +201,29 @@ const STATUS_MUATAN = [
   { value: 'tanpa', label: 'Tanpa Muatan' },
 ]
 
-// Baris trip: rekap satu perjalanan beserta rincian kategori dan totalannya.
-type TripRow = {
-  kind: 'trip'
-  trip: ReportTrip
-  date: string
-  time: string
-  unitCount: number
-  revenue: number
-  categorySummary: string
-  typeSummary: string
-  photos: string[]
-}
-
-// Baris kendaraan: rincian satu unit di dalam sebuah trip.
+// Baris kendaraan: rincian satu unit di dalam sebuah trip (tampilan datar/itemized).
 type VehicleRow = {
-  kind: 'vehicle'
-  no: number
   trip: ReportTrip
   vehicle: ReportVehicle
-  unit: string
+  dateKey: string
+  date: string
+  time: string
   category: string
   tarif: number
   loc: LocCell | null
+  /** Baris pertama dari trip ini, dipakai untuk menampilkan bukti foto trip. */
+  firstOfTrip: boolean
 }
 
-type TableRow = TripRow | VehicleRow
+// Pengelompokan baris berdasarkan tanggal, bukan per trip.
+type DateGroup = {
+  key: string
+  label: string
+  rows: VehicleRow[]
+  tripCount: number
+  vehicleCount: number
+  revenue: number
+}
 
 export default function ReportSheet() {
   const [rows, setRows] = useState<ReportTrip[]>([])
@@ -283,77 +280,71 @@ export default function ReportSheet() {
 
   const golonganOptions = options.golongan.length > 0 ? options.golongan : OPERATIONAL_CATEGORIES
 
-  // Trip yang tetap punya kendaraan setelah filter, beserta rinciannya.
-  const tripGroups = useMemo(() => {
-    return rows
-      .filter(t => (t.vehicles?.length ?? 0) > 0)
-      .map(t => {
-        const d = formatReportDateTime(t.created_at)
-        const vehicles = t.vehicles ?? []
-        const categoryCount = new Map<string, number>()
-        const typeSet = new Set<string>()
-        let revenue = 0
-        for (const v of vehicles) {
-          const cat = reportGolongan(v)
-          categoryCount.set(cat, (categoryCount.get(cat) ?? 0) + 1)
-          if (v.vehicle_type) typeSet.add(v.vehicle_type)
-          revenue += Number(v.tariff_amount || 0)
-        }
-        const categorySummary = [...categoryCount.entries()]
-          .map(([cat, n]) => `${n} ${cat}`)
-          .join(', ') || '-'
-        const typeSummary = typeSet.size === 0
-          ? '-'
-          : typeSet.size === 1
-            ? [...typeSet][0]
-            : `${typeSet.size} jenis`
-        return { trip: t, date: d.date, time: d.time, vehicles, revenue, categorySummary, typeSummary }
-      })
-  }, [rows])
+  // Seluruh unit kendaraan dijadikan baris datar (itemized row), lalu dikelompokkan per tanggal.
+  const dateGroups = useMemo<DateGroup[]>(() => {
+    const byDate = new Map<string, VehicleRow[]>()
+    const tripsByDate = new Map<string, Set<string>>()
 
-  const tableRows = useMemo<TableRow[]>(() => {
-    const out: TableRow[] = []
-    let no = 0
-    for (const g of tripGroups) {
-      out.push({
-        kind: 'trip',
-        trip: g.trip,
-        date: g.date,
-        time: g.time,
-        unitCount: g.vehicles.length,
-        revenue: g.revenue,
-        categorySummary: g.categorySummary,
-        typeSummary: g.typeSummary,
-        photos: g.trip.all_photos ?? [],
-      })
-      for (const v of g.vehicles) {
-        const base = fmtCoords(v.latitude, v.longitude)
-        const nd = nearestGeofence({ latitude: v.latitude, longitude: v.longitude }, geoRules)
-        const loc: LocCell | null = base && {
-          dist: locationDistanceText({ latitude: v.latitude, longitude: v.longitude }, geoRules),
-          lat: base.lat,
-          lng: base.lng,
-          gmaps: base.gmaps,
-          tooltip: nd ? `${base.lat}, ${base.lng} - titik: ${nd.pointName} (${nd.pointLat}, ${nd.pointLng})` : `${base.lat}, ${base.lng}`,
-        }
-        out.push({
-          kind: 'vehicle',
-          no: ++no,
-          trip: g.trip,
-          vehicle: v,
-          unit: vehicleUnitLabel(g.vehicles, v),
-          category: reportGolongan(v),
-          tarif: Number(v.tariff_amount || 0),
-          loc,
+    for (const trip of rows) {
+      const vehicles = trip.vehicles ?? []
+      if (vehicles.length === 0) continue
+
+      const stamp = formatReportDateTime(trip.created_at)
+      const key = dayKeyWib(trip.created_at)
+      const bucket = byDate.get(key) ?? []
+      const tripIds = tripsByDate.get(key) ?? new Set<string>()
+      tripIds.add(trip.id)
+      tripsByDate.set(key, tripIds)
+
+      vehicles.forEach((vehicle, index) => {
+        const base = fmtCoords(vehicle.latitude, vehicle.longitude)
+        const nearest = nearestGeofence({ latitude: vehicle.latitude, longitude: vehicle.longitude }, geoRules)
+        bucket.push({
+          trip,
+          vehicle,
+          dateKey: key,
+          date: stamp.date,
+          time: stamp.time,
+          category: reportGolongan(vehicle),
+          tarif: Number(vehicle.tariff_amount || 0),
+          loc: base && {
+            dist: locationDistanceText({ latitude: vehicle.latitude, longitude: vehicle.longitude }, geoRules),
+            lat: base.lat,
+            lng: base.lng,
+            gmaps: base.gmaps,
+            tooltip: nearest
+              ? `${base.lat}, ${base.lng} - titik: ${nearest.pointName} (${nearest.pointLat}, ${nearest.pointLng})`
+              : `${base.lat}, ${base.lng}`,
+          },
+          firstOfTrip: index === 0,
         })
-      }
+      })
+
+      byDate.set(key, bucket)
     }
-    return out
-  }, [tripGroups, geoRules])
 
-  const vehicleRows = useMemo(() => tableRows.filter((r): r is VehicleRow => r.kind === 'vehicle'), [tableRows])
+    return [...byDate.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, list]) => {
+        list.sort((a, b) => a.trip.created_at.localeCompare(b.trip.created_at)
+          || a.vehicle.no_polisi.localeCompare(b.vehicle.no_polisi))
+        const parsed = new Date(`${key}T00:00:00`)
+        return {
+          key,
+          label: Number.isNaN(parsed.getTime())
+            ? key
+            : parsed.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
+          rows: list,
+          tripCount: tripsByDate.get(key)?.size ?? 0,
+          vehicleCount: list.length,
+          revenue: list.reduce((sum, row) => sum + row.tarif, 0),
+        }
+      })
+  }, [rows, geoRules])
 
-  const totalTrip = tripGroups.length
+  const vehicleRows = useMemo(() => dateGroups.flatMap(g => g.rows), [dateGroups])
+
+  const totalTrip = dateGroups.reduce((n, g) => n + g.tripCount, 0)
   const totalUnit = vehicleRows.length
   const totalRevenue = vehicleRows.reduce((s, r) => s + r.tarif, 0)
 
@@ -374,25 +365,23 @@ export default function ReportSheet() {
       [],
     ]
 
-    const body: (string | number | null)[][] = []
-    for (const g of tripGroups) {
-      body.push([
-        '', g.trip.no_trip, g.date, g.time, reportPlace(g.trip), reportAsal(g.trip), reportTujuan(g.trip),
-        g.trip.officer_name || '-', '', `${g.vehicles.length} unit`, g.typeSummary, g.categorySummary,
-        g.trip.status_muatan === 'muatan' ? 'Ada Muatan' : 'Tanpa Muatan', g.revenue,
-        g.trip.all_photos?.length ? `${g.trip.all_photos.length} foto` : null, '',
-      ])
-      for (const v of g.vehicles) {
-        const row = vehicleRows.find(r => r.kind === 'vehicle' && r.trip.id === g.trip.id && r.vehicle.id === v.id)
-        body.push([
-          row ? row.no : '', g.trip.no_trip, g.date, g.time, reportPlace(g.trip), reportAsal(g.trip), reportTujuan(g.trip),
-          g.trip.officer_name || '-', v.no_polisi, row ? row.unit : '-', v.vehicle_type || '-',
-          reportGolongan(v), Number(v.has_load) > 0 ? 'Ada Muatan' : 'Tanpa Muatan',
-          Number(v.tariff_amount || 0), fotoUrl(v.foto_path) || null,
-          row?.loc ? (row.loc.dist || `${row.loc.lat}, ${row.loc.lng}`) : null,
-        ])
-      }
-    }
+    // Satu baris untuk satu unit kendaraan, urut per tanggal seperti tampilan tabel.
+    const body: (string | number | null)[][] = vehicleRows.map(r => [
+      r.trip.no_trip,
+      r.date,
+      r.time,
+      reportPlace(r.trip),
+      reportAsal(r.trip),
+      reportTujuan(r.trip),
+      r.trip.officer_name || '-',
+      r.vehicle.no_polisi,
+      r.vehicle.vehicle_type || '-',
+      r.category,
+      Number(r.vehicle.has_load) > 0 ? 'Ada Muatan' : 'Tanpa Muatan',
+      r.tarif,
+      fotoUrl(r.vehicle.foto_path) || null,
+      r.loc ? (r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`) : null,
+    ])
 
     const header = COLUMNS.map(c => c.label)
     return [
@@ -403,39 +392,33 @@ export default function ReportSheet() {
           header,
           ...body,
           [],
-          ['TOTAL', `${totalTrip} trip`, '', '', '', '', '', '', '', `${totalUnit} unit`, '', '', '', totalRevenue, '', ''],
+          ['TOTAL', `${totalTrip} trip - ${totalUnit} unit`, '', '', '', '', '', '', '', '', '', totalRevenue, '', ''],
         ],
       },
     ]
   }
 
   const copyTsv = async () => {
-    const tsvRows = vehicleRows.map(r => {
-      const t = r.trip
-      const d = formatReportDateTime(t.created_at)
-      return [
-        r.no,
-        t.no_trip,
-        d.date,
-        d.time,
-        reportPlace(t),
-        reportAsal(t),
-        reportTujuan(t),
-        t.officer_name || '-',
-        r.vehicle.no_polisi,
-        r.unit,
-        r.vehicle.vehicle_type || '-',
-        r.category,
-        Number(r.vehicle.has_load) > 0 ? 'Ada Muatan' : 'Tanpa Muatan',
-        r.tarif,
-        fotoUrl(r.vehicle.foto_path) || '-',
-        r.loc ? (r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`) : '-',
-      ].map(c => String(c ?? '')).join('\t')
-    })
+    const tsvRows = vehicleRows.map(r => [
+      r.trip.no_trip,
+      r.date,
+      r.time,
+      reportPlace(r.trip),
+      reportAsal(r.trip),
+      reportTujuan(r.trip),
+      r.trip.officer_name || '-',
+      r.vehicle.no_polisi,
+      r.vehicle.vehicle_type || '-',
+      r.category,
+      Number(r.vehicle.has_load) > 0 ? 'Ada Muatan' : 'Tanpa Muatan',
+      r.tarif,
+      fotoUrl(r.vehicle.foto_path) || '-',
+      r.loc ? (r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`) : '-',
+    ].map(c => String(c ?? '')).join('\t'))
     const tsv = [
       COLUMNS.map(c => c.label).join('\t'),
       ...tsvRows,
-      ['', 'TOTAL', '', '', '', '', '', '', '', `${totalUnit} unit`, '', '', '', totalRevenue, '', ''].join('\t'),
+      ['TOTAL', `${totalTrip} trip - ${totalUnit} unit`, '', '', '', '', '', '', '', '', '', totalRevenue, '', ''].join('\t'),
     ].join('\n')
     try {
       await navigator.clipboard.writeText(tsv)
@@ -477,7 +460,7 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Rekap trip dan rincian kendaraan dalam satu tabel - refresh otomatis tiap 15 detik
+              Satu baris untuk satu unit kendaraan, dikelompokkan per tanggal - refresh otomatis tiap 15 detik
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
           </div>
@@ -578,14 +561,13 @@ export default function ReportSheet() {
       <main className="p-5">
         <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="overflow-auto max-h-[calc(100vh-220px)]">
-            <table className="w-full border-collapse text-[13px] min-w-[1700px]">
+            <table className="w-full border-collapse text-[13px] min-w-[1500px]">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
-                  {COLUMNS.map((c, i) => (
+                  {COLUMNS.map(c => (
                     <th key={c.key} className={`px-3 py-2.5 border-b border-slate-200 bg-slate-100 ${
-                      i === 0 ? 'w-10 text-left'
-                      : /Unit|Tarif/.test(c.label) ? 'text-right'
-                      : c.key === 'foto' ? 'text-center w-24'
+                      c.key === 'tarif' ? 'text-right'
+                      : c.key === 'foto' ? 'text-center w-28'
                       : 'text-left'
                     }`}>
                       {c.label}
@@ -598,112 +580,101 @@ export default function ReportSheet() {
                   <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400">Tidak tersambung ke server</td></tr>
                 ) : state === 'loading' && rows.length === 0 ? (
                   <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400 animate-pulse">Memuat laporan...</td></tr>
-                ) : tableRows.length === 0 ? (
+                ) : dateGroups.length === 0 ? (
                   <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400">Tidak ada data pada filter ini</td></tr>
-                ) : tableRows.map((r, idx) => {
-                  if (r.kind === 'trip') {
-                    const t = r.trip
-                    return (
-                      <tr key={`trip-${t.id}`} className="bg-slate-100/70 border-y border-slate-200">
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-300" />
-                        <td className="px-3 py-2 border-b border-slate-200 font-mono font-bold text-slate-800">{t.no_trip}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 font-semibold text-slate-700">{r.date}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 font-semibold text-slate-700">{r.time}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-700">{reportPlace(t)}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-700">{reportAsal(t)}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-700">{reportTujuan(t)}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-700">{t.officer_name || '-'}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-300 italic text-[11px]">-</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-right font-bold text-slate-700">{r.unitCount} unit</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-600 text-[11px]">{r.typeSummary}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-600 text-[11px]">{r.categorySummary}</td>
-                        <td className="px-3 py-2 border-b border-slate-200">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            t.status_muatan === 'muatan'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-slate-200 bg-white text-slate-500'
-                          }`}>
-                            {t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Tanpa Muatan'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-right font-black text-slate-900">{fmtRp(r.revenue)}</td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-center">
-                          <AllPhotosCell photos={r.photos} no_trip={t.no_trip} vehicleCount={r.unitCount} />
-                        </td>
-                        <td className="px-3 py-2 border-b border-slate-200 text-slate-300 italic text-[11px]">-</td>
-                      </tr>
-                    )
-                  }
-
-                  const v = r.vehicle
-                  const hasLoad = Number(v.has_load) > 0
-                  return (
-                    <tr key={`veh-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : 'bg-slate-50/40'}>
-                      <td className="px-3 py-2 border-b border-slate-100 text-slate-400 tabular-nums">{r.no}</td>
-                      <td className="px-3 py-2 border-b border-slate-100 font-mono text-[11px] text-slate-400">{r.trip.no_trip}</td>
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100" />
-                      <td className="px-3 py-2 border-b border-slate-100 font-semibold text-slate-800">{v.no_polisi}</td>
-                      <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{r.unit}</td>
-                      <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{v.vehicle_type || '-'}</td>
-                      <td className="px-3 py-2 border-b border-slate-100">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border border-slate-300 bg-white text-slate-700">
-                          {r.category}
+                ) : dateGroups.map(group => (
+                  <Fragment key={`date-${group.key}`}>
+                    <tr className="bg-slate-800 text-white">
+                      <td colSpan={8} className="px-3 py-2.5 border-b border-slate-700">
+                        <span className="flex items-center gap-1.5 font-bold text-sm">
+                          <Calendar size={13} className="text-slate-400" />
+                          {group.label}
+                        </span>
+                        <span className="ml-3 text-[11px] font-normal text-slate-300">
+                          {group.tripCount} trip - {group.vehicleCount} unit
                         </span>
                       </td>
-                      <td className="px-3 py-2 border-b border-slate-100">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
-                          hasLoad
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-slate-200 bg-white text-slate-500'
-                        }`}>
-                          {hasLoad ? 'Ada Muatan' : 'Tanpa Muatan'}
-                        </span>
+                      <td colSpan={3} className="px-3 py-2.5 border-b border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                        Subtotal
                       </td>
-                      <td className="px-3 py-2 border-b border-slate-100 text-right font-bold text-slate-900 tabular-nums">{fmtRp(r.tarif)}</td>
-                      <td className="px-3 py-2 border-b border-slate-100 text-center">
-                        <ThumbnailCell foto_path={v.foto_path} no_trip={r.trip.no_trip} label={r.unit} />
+                      <td className="px-3 py-2.5 border-b border-slate-700 text-right font-black tabular-nums">
+                        {fmtRp(group.revenue)}
                       </td>
-                      <td className="px-3 py-2 border-b border-slate-100">
-                        {r.loc ? (
-                          <a
-                            href={r.loc.gmaps}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-blue-500 hover:text-blue-700 hover:underline"
-                            title={r.loc.tooltip || `${r.loc.lat}, ${r.loc.lng}`}
-                          >
-                            <MapPin size={11} />
-                            {r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`}
-                          </a>
-                        ) : (
-                          <span className="text-slate-300 italic text-[11px]">-</span>
-                        )}
-                      </td>
+                      <td colSpan={2} className="border-b border-slate-700" />
                     </tr>
-                  )
-                })}
+                    {group.rows.map((r, idx) => {
+                      const v = r.vehicle
+                      const hasLoad = Number(v.has_load) > 0
+                      return (
+                        <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : 'bg-slate-50/40'}>
+                          <td className="px-3 py-2 border-b border-slate-100 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">{r.trip.no_trip}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-500 whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.time}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportPlace(r.trip)}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportAsal(r.trip)}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{reportTujuan(r.trip)}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{r.trip.officer_name || '-'}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 font-semibold text-slate-800 whitespace-nowrap">{v.no_polisi}</td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-slate-700">{v.vehicle_type || '-'}</td>
+                          <td className="px-3 py-2 border-b border-slate-100">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border border-slate-300 bg-white text-slate-700">
+                              {r.category}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 border-b border-slate-100">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              hasLoad
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 bg-white text-slate-500'
+                            }`}>
+                              {hasLoad ? 'Ada Muatan' : 'Tanpa Muatan'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-right">
+                            <span className="block font-bold text-slate-900 tabular-nums">{fmtRp(r.tarif)}</span>
+                            <span className="block text-[10px] text-slate-400">{tarifSourceLabel(v.tarif_source)}</span>
+                          </td>
+                          <td className="px-3 py-2 border-b border-slate-100 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <ThumbnailCell foto_path={v.foto_path} no_trip={r.trip.no_trip} label={v.no_polisi} />
+                              {r.firstOfTrip && (r.trip.all_photos?.length ?? 0) > 0 && (
+                                <AllPhotosCell photos={r.trip.all_photos} no_trip={r.trip.no_trip} vehicleCount={r.trip.vehicles.length} />
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 border-b border-slate-100">
+                            {r.loc ? (
+                              <a
+                                href={r.loc.gmaps}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-blue-500 hover:text-blue-700 hover:underline"
+                                title={r.loc.tooltip || `${r.loc.lat}, ${r.loc.lng}`}
+                              >
+                                <MapPin size={11} />
+                                {r.loc.dist || `${r.loc.lat}, ${r.loc.lng}`}
+                              </a>
+                            ) : (
+                              <span className="text-slate-300 italic text-[11px]">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
-              {tableRows.length > 0 && (
+              {vehicleRows.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-100 font-bold text-slate-700">
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-[12px]">TOTAL</td>
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-[12px] text-slate-400" colSpan={8}>
-                      {totalTrip} trip - {totalUnit} unit
+                    <td colSpan={7} className="px-3 py-3 border-t-2 border-slate-300 text-[12px]">
+                      TOTAL {totalTrip} trip - {totalUnit} unit
                     </td>
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300 text-right font-black text-slate-900">
+                    <td colSpan={4} className="border-t-2 border-slate-300" />
+                    <td className="px-3 py-3 border-t-2 border-slate-300 text-right font-black text-slate-900 tabular-nums">
                       {fmtRp(totalRevenue)}
                     </td>
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
-                    <td className="px-3 py-3 border-t-2 border-slate-300" />
+                    <td colSpan={2} className="border-t-2 border-slate-300" />
                   </tr>
                 </tfoot>
               )}

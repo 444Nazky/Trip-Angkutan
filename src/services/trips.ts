@@ -39,6 +39,10 @@ export interface ReportVehicle {
   master_golongan?: string | null
   has_load: number
   tariff_amount: number
+  /** Sumber harga yang dipakai: master | master-jenis | region | internal | tanpa-tarif. */
+  tarif_source?: string | null
+  /** Nominal master saat trip dicatat (audit trail). */
+  tariff_amount_saved?: number | null
   foto_path: string | null
   foto_captured_at?: string | null
   latitude?: number | null
@@ -74,6 +78,8 @@ export interface ReportTrip {
   vehicles: ReportVehicle[]
   all_photos?: string[]
   trip_photo?: string | null
+  /** Swafoto petugas (kalau trip punya). */
+  selfie_photo?: string | null
 }
 
 
@@ -85,6 +91,19 @@ export const OPERATIONAL_CATEGORIES = ['Internal', 'Eksternal', 'Lokal']
 // Bacai kategori operasional kendaraan (Internal / Eksternal / Lokal).
 // Backend sudah resolves kategori dari pindaian plat terbaru; nilai pada
 // tabel vehicles dipakai sebagai cadangan untuk data lama.
+/** Label sumber tarif yang dipakai di laporan. */
+export function tarifSourceLabel(source: string | null | undefined): string {
+  switch (String(source ?? '')) {
+    case 'internal': return 'Internal (Rp 0)'
+    case 'master': return 'Master Tarif'
+    case 'master-jenis': return 'Master Tarif (per jenis)'
+    case 'region': return 'Tarif Region'
+    case 'tanpa-tarif': return 'Tanpa tarif'
+    default: return '-'
+  }
+}
+
+
 export function reportGolongan(vehicle: ReportVehicle | undefined | null): string {
   const resolved = String(vehicle?.kategori ?? '').trim()
   if (resolved) return resolved

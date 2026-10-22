@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
+import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -331,6 +331,11 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         url: t.foto_kosong_path,
                         caption: `${t.no_trip} · Bukti trip`,
                       }] : []),
+                      ...(t.selfie_photo ? [{
+                        id: `selfie-${t.id}`,
+                        url: t.selfie_photo,
+                        caption: `${t.no_trip} · Swafoto petugas`,
+                      }] : []),
                       ...t.vehicles.filter(v => v.foto_path).map(v => ({
                         id: `vehicle-${v.id}`,
                         url: v.foto_path as string,
@@ -341,7 +346,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                   }}
                     disabled={reportState !== 'ready'}
                     className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
-                    <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
+                    <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
                 </div>
               </th>
@@ -434,6 +439,23 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
                           <span>Kategori: {t.keterangan || '-'}</span>
                         </div>
+                        {t.selfie_photo && (
+                          <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-200 bg-white max-w-xl">
+                            <button
+                              type="button"
+                              onClick={() => setViewingPhotos([{
+                                id: `selfie-${t.id}`,
+                                url: t.selfie_photo!,
+                                caption: `${t.no_trip} · Swafoto petugas`,
+                              }])}
+                              className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
+                              aria-label={`Lihat swafoto petugas ${t.no_trip}`}
+                            >
+                              <img src={resolvePhotoUrl(t.selfie_photo, baseUrl)} alt="" className="w-full h-full object-cover" />
+                            </button>
+                            <span className="text-[12px] font-semibold text-slate-700">Swafoto petugas</span>
+                          </div>
+                        )}
                         {t.foto_kosong_path && (
                           <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-200 bg-white max-w-xl">
                             <button
@@ -485,7 +507,10 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                                   <td className="p-3">{v.vehicle_type}</td>
                                   <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-semibold border ${reportGolongan(v) === 'Internal' ? 'border-slate-800 text-slate-800' : reportGolongan(v) === 'Eksternal' ? 'border-slate-400 text-slate-600' : 'border-slate-200 text-slate-500'}`}>{reportGolongan(v)}</span></td>
                                   <td className="p-3">{v.has_load ? 'Ada Muatan' : 'Kosong'}</td>
-                                  <td className="p-3 text-right font-bold"><CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={v.tariff_amount || 0} /></td>
+                                  <td className="p-3 text-right">
+                                    <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={v.tariff_amount || 0} />
+                                    <span className="block text-[9px] font-normal text-slate-400 mt-0.5">{tarifSourceLabel(v.tarif_source)}</span>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
