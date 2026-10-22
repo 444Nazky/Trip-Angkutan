@@ -13,6 +13,7 @@ import type { Officer } from './components/types'
 import { loadTheme, applyTheme } from '../../services/theme'
 import { environment } from '../../environments/environment'
 import ReportSheet from './ReportSheet'
+import RecapSheet from './RecapSheet'
 
 import { TariffTab } from './tabs/TariffTab'
 import { PlatesTab } from './tabs/PlatesTab'
@@ -34,9 +35,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [plates, setPlates] = useState<PlateRecord[]>([])
 
 
-  const [sheetMode, setSheetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#/sheet')
+  const [sheetMode, setSheetMode] = useState<'sheet' | 'rekap' | ''>(() => {
+    if (typeof window === 'undefined') return ''
+    return window.location.hash === '#/sheet/rekap' ? 'rekap' : window.location.hash === '#/sheet' ? 'sheet' : ''
+  })
   useEffect(() => {
-    const onHash = () => setSheetMode(window.location.hash === '#/sheet')
+    const onHash = () => setSheetMode(
+      window.location.hash === '#/sheet/rekap' ? 'rekap' : window.location.hash === '#/sheet' ? 'sheet' : '',
+    )
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -97,7 +103,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
 
-  return sheetMode ? <ReportSheet /> : (
+  return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
     <div className="flex bg-slate-900 min-h-screen">
         <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
   <div className="p-6 border-b border-slate-800">
