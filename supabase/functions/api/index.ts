@@ -303,6 +303,8 @@ Deno.serve(async (req: Request) => {
   let p = url.searchParams.get("path") ?? url.pathname.replace(/^\/functions\/v1\/api\/?/, "");
   const path = (p.startsWith("/") ? p : `/${p}`).replace(/^\/api(?=\/|$)/, "") || "/";
   const parts = path.replace(/^\//, "").split("/").filter(Boolean);
+  const startedAt = Date.now();
+  const ip = clientIp(req);
 
   try {
     if (++sinceSweep >= SWEEP_EVERY) {
@@ -340,6 +342,19 @@ Deno.serve(async (req: Request) => {
       }
     }
     if (tightest) {
+      logRequest({
+        t: startedAt,
+        method: req.method,
+        path,
+        q: logQuery(url),
+        ip,
+        status: 429,
+        ms: Date.now() - startedAt,
+        rl_class: cls,
+        rl_blocked: true,
+        auth: ctx?.role ?? "anon",
+        instance: INSTANCE_ID,
+      });
       return new Response(
         JSON.stringify({
           error: "Rate limit exceeded. Slow down and retry shortly.",
@@ -378,6 +393,20 @@ Deno.serve(async (req: Request) => {
     if (ttl > 0) {
       const hit = cacheGet(key);
       if (hit !== null) {
+        logRequest({
+          t: startedAt,
+          method: req.method,
+          path,
+          q: logQuery(url),
+          ip,
+          status: 200,
+          ms: Date.now() - startedAt,
+          rl_class: cls,
+          rl_remaining: Number(rlHeaders["X-RateLimit-Remaining"] ?? -1),
+          cache: "HIT",
+          auth: ctx?.role ?? "anon",
+          instance: INSTANCE_ID,
+        });
         return new Response(JSON.stringify(hit), {
           status: 200,
           headers: {
@@ -408,6 +437,22 @@ Deno.serve(async (req: Request) => {
     for (const route of invalidationTargets(parts, req.method)) {
       if (res.status >= 200 && res.status < 300) cacheInvalidate(route);
     }
+
+    logRequest({
+      t: startedAt,
+      method: req.method,
+      path,
+      q: logQuery(url),
+      ip,
+      status: res.status,
+      ms: Date.now() - startedAt,
+      rl_class: cls,
+      rl_remaining: Number(rlHeaders["X-RateLimit-Remaining"] ?? -1),
+      cache: ttl > 0 ? "MISS" : "n/a",
+      auth: ctx?.role ?? "anon",
+      subject: subject ?? undefined,
+      instance: INSTANCE_ID,
+    });
 
     return withHeaders(res, {
       ...rlHeaders,
