@@ -71,6 +71,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { applyTheme(loadTheme()) }, [])
 
+  // Dependency array WAJIB ada di sini. Tanpa itu, efek ini jalan ulang
+  // setiap render -> setiap setState memicu render -> efek jalan lagi:
+  // request storm tak terbatas ke /tariffs, /trips, dan /officers.
+  // `officers` sengaja TIDAK jadi dependency; state lama dipakai lewat
+  // functional update supaya tidak memicu loop.
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -86,12 +91,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (tri !== null) setServerTrips(tri)
 
       const offs = await api.getOk<BackendOfficerRow[]>('/officers')
-      if (alive && offs) setOfficers(mergeBackendOfficers(offs, officers))
+      if (alive && offs) setOfficers(prev => mergeBackendOfficers(offs, prev))
 
       setServerState('online')
     })()
     return () => { alive = false }
-  })
+  }, [])
 
   // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [

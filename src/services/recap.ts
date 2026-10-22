@@ -18,6 +18,7 @@ export interface RecapGroup {
 }
 
 const GOLONGAN_ORDER = ['Internal', 'Eksternal', 'Lokal']
+const JENIS_URUT = ['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang']
 
 export function recapRouteKey(trip: ReportTrip): string {
   const from = (trip.route_from_name || trip.route_from || '').trim()
@@ -51,6 +52,10 @@ export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
 
   return [...groups.entries()]
     .map(([golongan, jenisMap]) => {
+      // semua jenis selalu tampil, yang kosong diisi nol
+      for (const jenis of JENIS_URUT) {
+        if (!jenisMap.has(jenis)) jenisMap.set(jenis, { jenis, loaded: 0, empty: 0, total: 0, revenue: 0 })
+      }
       const rows = [...jenisMap.values()].sort((a, b) => a.jenis.localeCompare(b.jenis))
       return {
         golongan,

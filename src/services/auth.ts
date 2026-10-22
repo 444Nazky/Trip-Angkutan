@@ -825,7 +825,7 @@ export async function ensureAdminSession(): Promise<AdminSessionResult> {
   const probeWith = async () => {
     const probe = await api.get('/tariffs')
     if (probe.ok) return { ok: true, authDenied: false }
-    if (probe.error?.code === '401') {
+    if (probe.error?.code === '401' || probe.error?.code === '403') {
       api.setToken(null)
       return null
     }
