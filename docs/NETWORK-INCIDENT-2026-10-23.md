@@ -433,3 +433,64 @@ nmcli -f BSSID,SSID,FREQ,SIGNAL device wifi list --rescan yes
 # 6) Firewall
 sudo ufw status verbose && sudo iptables -L -n -v
 ```
+
+---
+
+## 11. Status Deploy (09:44 WIB)
+
+Kode sudah **ter-deploy ke PC kantor** dan `restart-all-ubuntu.sh` berjalan
+lancar end-to-end.
+
+| Item | Status |
+|------|--------|
+| `origin/main` | `3a49aad` (dual endpoint + backend :3000 + perbaikan jaringan) |
+| Folder deploy `~/Trip-Angkutan` | `3a49aad` (sudah `git pull --ff-only`) |
+| `trip-web` | **Up** — `0.0.0.0:8000` (Admin) + `0.0.0.0:5173` (Mobile) |
+| `trip-api` | **Exited (1)** — `SUPABASE_SERVICE_ROLE_KEY` belum diisi |
+| `http://192.168.1.123:8000` | `200` — `<title>Admin Trip Angkutan</title>` |
+| `http://192.168.1.123:5173` | `200` — `<title>Trip Angkutan</title>` |
+| `http://192.168.1.123:3000` | `000` — menunggu secret |
+| Bundle terdeploy | berisi `192.168.1.123:3000` + label `Intranet Kantor (LAN)` |
+| Unit test | **181/181 lolos** (20 file), termasuk 10 test dual endpoint |
+
+Dua perbaikan pada `restart-all-ubuntu.sh` supaya "berjalan lancar tanpa
+kendala":
+
+1. **Coba `docker` polos dulu sebelum `sudo`.** User PC kantor sudah ada di
+   group `docker`, jadi script sebelumnya memunculkan prompt password yang
+   tidak perlu dan membuat restart tidak bisa dipanggil otomatis (cron/CI).
+2. **Tanyakan secret yang belum diisi.** Kalau `.env.local` belum punya
+   `SUPABASE_SERVICE_ROLE_KEY` / `JWT_SECRET`, script menanyakannya langsung
+   (`read -s`, input tidak tampil) dan menulisnya ke `.env.local` dengan
+   `chmod 600`. Lewat otomatis kalau dijalankan tanpa TTY.
+
+### Langkah terakhir (manual)
+
+```bash
+cd /home/nazky/Trip-Angkutan
+./restart-all-ubuntu.sh
+# lalu isi dua secret saat ditanya:
+#   SUPABASE_SERVICE_ROLE_KEY  -> Supabase Dashboard > Project Settings > API
+#   JWT_SECRET                 -> WAJIB sama dengan Edge Function di Supabase
+```
+
+Setelah itu port `3000` hidup dan petugas bisa memilih endpoint
+"Intranet Kantor (LAN)" dari "Pengaturan Server" di aplikasi mobile.
+
+> Dua secret itu **tidak ada di mesin ini** (sudah dicek: hanya token admin
+> lama di log chat, bukan `service_role`). Harus diambil dari Dashboard.
+
+### Yang MASIH tidak terselesaikan oleh kode
+
+Keterbatasan HP membuka `http://192.168.1.123:8000` tetap ada di sisi
+router/HP — bukan di server. Lihat bagian 4 dan 5:
+
+- Router Linksys `192.168.1.1` → matikan **Wireless Isolation / AP Isolation**.
+- HP → matikan **data seluler**, connect ke SSID **`esteh bakar`**, cek IP
+  harus `192.168.1.x`.
+
+Bukti pembeda (tanpa root):
+
+```bash
+./scripts/diagnose-lan-connectivity.sh --live
+```

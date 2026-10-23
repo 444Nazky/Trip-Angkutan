@@ -72,47 +72,102 @@ if [ ! -f "$ENV_LOCAL" ]; then
 fi
 # env_file wajib ada agar `docker compose up` tidak gagal dengan error cryptic.
 
+# ── Resolusi secret API intranet ─────────────────────────────────────────────
+#
+# Urutan sumber untuk SUPABASE_SERVICE_ROLE_KEY & JWT_SECRET:
+#   1. Sudah ada (non-kosong) di .env.local            -> pakai apa adanya
+#   2. Environment variable saat script dipanggil       -> simpan ke .env.local
+#      contoh: SUPABASE_SERVICE_ROLE_KEY=... ./restart-all-ubuntu.sh
+#   3. File .env.secrets di folder yang sama            -> gabung ke .env.local
+#   4. Terminal interaktif                               -> tanya (read -s)
+#   5. Tidak ada sumber sama sekali                      -> hanya warning
+#
+# Dengan 1-3, restart berjalan TANPA input manual sama sekali - penting
+# supaya script bisa dipanggil otomatis dari cron/CI.
+#
+# Semua sumber sudah masuk .gitignore dan file hasilnya selalu chmod 600.
+
+SECRETS_FILE="$BASE/supabase/functions/api/.env.secrets"
+
+# Tulis (atau ganti) satu key di file env.
+set_env_value() {
+    local file="$1" key="$2" value="$3" tmp
+    [ -n "$value" ] || return 0
+    if grep -qE "^${key}=" "$file" 2>/dev/null; then
+        tmp="$(mktemp)"
+        awk -v k="$key" -v v="$value" '
+            $0 ~ "^"k"=" { print k"="v; next }
+            { print }
+        ' "$file" > "$tmp" && mv "$tmp" "$file"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+    chmod 600 "$file"
+}
+
+# Nilai non-kosong untuk sebuah key di file env.
+env_value() {
+    local file="$1" key="$2" v=""
+    [ -f "$file" ] || return 0
+    v="$(awk -v k="$key" '$0 ~ "^"k"=" { sub(/^[^=]*=/, "", $0); print $0; exit }' "$file" 2>/dev/null)"
+    printf '%s' "$v"
+}
+
+resolve_secret() {
+    local key="$1" label="$2" from_env="" from_file="" value=""
+
+    # 1. Sudah ada di .env.local?
+    [ -n "$(env_value "$ENV_LOCAL" "$key")" ] && return 0
+
+    # 2. Environment variable?
+    from_env="${!key:-}"
+    if [ -n "$from_env" ]; then
+        set_env_value "$ENV_LOCAL" "$key" "$from_env"
+        ok "$key diambil dari environment variable"
+        return 0
+    fi
+
+    # 3. File .env.secrets?
+    if [ -f "$SECRETS_FILE" ]; then
+        from_file="$(env_value "$SECRETS_FILE" "$key")"
+        if [ -n "$from_file" ]; then
+            set_env_value "$ENV_LOCAL" "$key" "$from_file"
+            ok "$key diambil dari $(basename "$SECRETS_FILE")"
+            return 0
+        fi
+    fi
+
+    # 4. Terminal interaktif -> tanya.
+    if [ -t 0 ]; then
+        echo
+        echo "    $label belum diisi di .env.local."
+        echo "    Ambil dari: Supabase Dashboard > Project Settings > API"
+        echo "    (input tidak ditampilkan; tekan Enter untuk lewati)"
+        printf "    %s: " "$key"
+        IFS= read -r -s value || value=""
+        echo
+        if [ -n "$value" ]; then
+            set_env_value "$ENV_LOCAL" "$key" "$value"
+            ok "$key tersimpan di .env.local"
+            return 0
+        fi
+    fi
+
+    # 5. Tidak ada sumber -> biarkan kosong, container akan menolak start
+    #    dengan pesan yang jelas (lihat blok verifikasi di bawah).
+    return 1
+}
+
+resolve_secret "SUPABASE_SERVICE_ROLE_KEY" "service_role key"
+resolve_secret "JWT_SECRET" "JWT secret"
+
 if ! grep -qE '^SUPABASE_SERVICE_ROLE_KEY=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "SUPABASE_SERVICE_ROLE_KEY kosong di .env.local - container API intranet akan exit saat start."
+    warn "  Cara mengisinya tanpa edit manual: taruh di supabase/functions/api/.env.secrets,"
+    warn "  atau jalankan: SUPABASE_SERVICE_ROLE_KEY=... ./restart-all-ubuntu.sh"
 fi
 if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "JWT_SECRET kosong di .env.local - login intranet tetap jalan, tetapi token cloud/intranet tidak kompatibel (harus login ulang saat pindah endpoint)."
-fi
-
-# Tanya secret yang belum ada (hanya kalau jalan dari terminal interaktif).
-# Jadi tidak perlu edit file .env.local secara manual sebelum restart.
-ask_secret() {
-    local key="$1" label="$2" value=""
-    [ -t 0 ] || return 0
-    echo
-    echo "    $label belum diisi di .env.local."
-    echo "    Ambil dari: Supabase Dashboard > Project Settings > API"
-    echo "    (input tidak ditampilkan; tekan Enter untuk lewati)"
-    printf "    %s: " "$key"
-    IFS= read -r -s value || value=""
-    echo
-    if [ -n "$value" ]; then
-        if grep -qE "^${key}=" "$ENV_LOCAL" 2>/dev/null; then
-            # Ganti nilai yang sudah ada (pakai awk supaya nilai lama hilang).
-            local tmp
-            tmp="$(mktemp)"
-            awk -v k="$key" -v v="$value" '
-                $0 ~ "^"k"=" { print k"="v; next }
-                { print }
-            ' "$ENV_LOCAL" > "$tmp" && mv "$tmp" "$ENV_LOCAL"
-        else
-            printf '%s=%s\n' "$key" "$value" >> "$ENV_LOCAL"
-        fi
-        chmod 600 "$ENV_LOCAL"
-        ok "$key tersimpan di .env.local"
-    fi
-}
-
-if ! grep -qE '^SUPABASE_SERVICE_ROLE_KEY=.+' "$ENV_LOCAL" 2>/dev/null; then
-    ask_secret "SUPABASE_SERVICE_ROLE_KEY" "service_role key"
-fi
-if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
-    ask_secret "JWT_SECRET" "JWT secret"
 fi
 
 # ── Ambil kode terbaru ───────────────────────────────────────────────────────
