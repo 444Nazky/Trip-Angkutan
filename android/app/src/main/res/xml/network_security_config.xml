@@ -13,10 +13,12 @@
         mungkin mengizinkan 192.168.0.0/16 secara selektif di sini. Karena itu
         cleartext diizinkan di level platform, TETAPI kebijakan https-only untuk
         host publik tetap ditegakkan di kode aplikasi:
-          - src/services/api.ts → normalizeBaseUrl() memaksa https untuk host publik
-          - src/services/api.ts → probeServerHealth() menolak http:// host publik
-            dengan pesan jelas (cleartextBlocked) sebelum request dikirim
-          - ServerSettingsModal hanya menyimpan URL publik bila https
+          - src/services/api.ts → normalizeUrl() memaksa https untuk host publik
+            (host privat/LAN dibiarkan http)
+          - src/components/ServerSettingsModal.tsx → menolak menyimpan http://
+            untuk host publik, dan menolak mixed content (halaman https -> http://)
+          - src/services/api.ts → isPrivateHostUrl() menandai LAN/privat sebagai
+            host yang boleh memakai http://
 
         Sisa permukaan: aplikasi/webview yang dikompromikan masih bisa membuka
         http:// ke host publik. Mitigasi terjadwal: tinjau ulang saat server kantor

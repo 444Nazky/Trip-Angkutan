@@ -5,5 +5,25 @@ services:
     container_name: trip-web
     restart: unless-stopped
     ports:
-      - "8000:8000"
-      - "5173:5173"
+      # Bind EKSPLISIT ke 0.0.0.0 (bukan 127.0.0.1) supaya perangkat mobile
+      # di WiFi Linksys bisa menjangkau lewat http://192.168.1.123:8000
+      - "0.0.0.0:8000:8000"
+      - "0.0.0.0:5173:5173"
+
+  # API INTRANET (port 3000) - Edge Function yang sama dengan produksi,
+  # dijawab dari jaringan lokal kantor (192.168.1.123).
+  #
+  # Env diambil dari supabase/functions/api/.env.local.
+  # File itu WAJIB ADA (boleh berisi nilai kosong) - restart-all-ubuntu.sh
+  # membuatnya otomatis dari .env.example kalau belum ada.
+  api-intranet:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: trip-angkutan-api
+    container_name: trip-api
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3000:3000"
+    env_file:
+      - supabase/functions/api/.env.local

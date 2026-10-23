@@ -1,7 +1,7 @@
 import { CapacitorHttp, Capacitor } from '@capacitor/core';
 import { Device } from '@capacitor/device';
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { api } from './api';
+import { api, supabaseProjectOrigin } from './api';
 import { isNativeAndroid, openApkInstaller } from './apkInstaller';
 
 
@@ -201,7 +201,10 @@ export function resolveDownloadUrl(downloadUrl: string): string {
   const url = String(downloadUrl ?? '').trim();
   if (/^https?:\/\//i.test(url)) return url;
   if (!url) return url;
-  const base = api.baseUrl.replace(/\/?$/, '');
+  // Path relatif selalu milik host project Supabase (tempat APK/bundel OTA
+  // disimpan), BUKAN host endpoint yang sedang aktif. Kalau endpoint aktif
+  // intranet, menempelkan path relatif ke host itu menghasilkan 404.
+  const base = supabaseProjectOrigin().replace(/\/?$/, '');
   return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
