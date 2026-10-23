@@ -58,12 +58,15 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
   }, [])
 
+  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh
+  // objek `confirmDialog` yang berubah setiap detik saat hitungan mundur jalan.
+  const pendingAction = confirmDialog.pendingAction
   const executeConfirm = useCallback(() => {
-    if (confirmDialog.pendingAction) {
-      confirmDialog.pendingAction()
+    if (pendingAction) {
+      pendingAction()
     }
     closeConfirmDialog()
-  }, [confirmDialog.pendingAction, closeConfirmDialog])
+  }, [pendingAction, closeConfirmDialog])
 
   useEffect(() => {
     if (!draft.routeCode) return
@@ -137,7 +140,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       return
     }
     startTrip()
-    draft.condition === 'kosong' ? finishEmptyTrip() : finishMuatanTrip()
+    if (draft.condition === 'kosong') finishEmptyTrip()
+    else finishMuatanTrip()
     go('trip-complete')
   }
 
@@ -283,8 +287,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                   <Camera size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Foto Bukti</p>
-                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'ambil foto bukti trip sebelum submit'}</p>
+                  <p className="text-sm font-semibold text-slate-800">{draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip'}</p>
+                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'ambil foto bukti sebelum submit'}</p>
                 </div>
               </div>
               <button

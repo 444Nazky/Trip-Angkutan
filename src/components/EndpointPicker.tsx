@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Cloud, RefreshCw, Server } from 'lucide-react'
 import {
+  applyEndpointInput,
   apiBaseCandidateLabel,
   apiBaseCandidates,
   isIntranetBaseUrl,
-  isPrivateHostUrl,
-  normalizeApiBaseInput,
   probeServerHealth,
   resolveApiBaseUrl,
   setApiBaseUrlOverride,
+  validateEndpointInput,
 } from '../services/api'
 
 interface Props {
@@ -21,7 +21,11 @@ interface Props {
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
 
 function messageFor(r: Awaited<ReturnType<typeof probeServerHealth>>): Status {
-  if (r.reachable && r.blockedByCors) {
+  // `blockedByCors` hanya diisi saat probe opaque membuktikan host benar-benar
+  // menjawab. Dulu syaratnya `r.reachable && r.blockedByCors`, kombinasi yang
+  // tidak pernah terjadi karena jalur CORS selalu reachable=false — pesan ini
+  // jadi dead code dan URL yang benar ikut dibuang.
+  if (r.blockedByCors) {
     return { kind: 'warn', msg: `Server hidup (${r.ms} ms), tetapi browser memblokir CORS. URL tetap disimpan — minta admin menambahkan origin ini ke CORS_ORIGIN.` }
   }
   if (r.reachable) {
@@ -43,51 +47,52 @@ export default function EndpointPicker({ onApplied, withHeader = true }: Props) 
   const candidates = apiBaseCandidates()
 
   function apply(next: string) {
-    setApiBaseUrlOverride(normalizeApiBaseInput(next))
-    const applied = resolveApiBaseUrl()
-    setUrl(applied)
-    onApplied?.(applied)
-    return applied
+    const res = applyEndpointInput(next)
+    if (res.ok) {
+      setUrl(res.url)
+      onApplied?.(res.url)
+    }
+    return res
   }
 
   async function handleTestAndApply() {
-    const v = url.trim()
-    if (!v) {
-      setStatus({ kind: 'fail', msg: 'URL kosong.' })
-      return
-    }
-    if (/^http:\/\//i.test(v) && !isPrivateHostUrl(v)) {
-      setStatus({ kind: 'fail', msg: 'Pakai https untuk host publik. http:// hanya untuk alamat LAN/privat.' })
+    const check = validateEndpointInput(url)
+    if (!check.ok) {
+      setStatus({ kind: 'fail', msg: check.msg })
       return
     }
     setBusy(true)
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
-    const r = await probeServerHealth(normalizeApiBaseInput(v))
+    const r = await probeServerHealth(check.url)
     setBusy(false)
-    if (r.reachable) {
-      apply(v)
-      setStatus(messageFor(r))
-      return
+    // Host yang hidup tetap disimpan walau browser memblokir bacaannya (CORS):
+    // URL-nya benar, yang kurang hanya origin ini di CORS_ORIGIN server.
+    if (r.reachable || r.hostAlive) {
+      apply(check.url)
     }
     setStatus(messageFor(r))
   }
 
   async function handleTestOnly() {
+    const check = validateEndpointInput(url)
+    if (!check.ok) {
+      setStatus({ kind: 'fail', msg: check.msg })
+      return
+    }
     setBusy(true)
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
-    const r = await probeServerHealth(normalizeApiBaseInput(url))
+    const r = await probeServerHealth(check.url)
     setBusy(false)
     setStatus(messageFor(r))
   }
 
   function handleSaveForce() {
-    const v = url.trim()
-    if (!v) {
-      setStatus({ kind: 'fail', msg: 'URL kosong.' })
+    const res = apply(url)
+    if (!res.ok) {
+      setStatus({ kind: 'fail', msg: res.msg })
       return
     }
-    const applied = apply(v)
-    setStatus({ kind: 'warn', msg: `URL disimpan tanpa tes: ${applied}` })
+    setStatus({ kind: 'warn', msg: `URL disimpan tanpa tes: ${res.url}` })
   }
 
   async function handleReset() {
