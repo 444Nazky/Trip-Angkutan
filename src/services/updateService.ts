@@ -201,6 +201,9 @@ export function resolveDownloadUrl(downloadUrl: string): string {
   const url = String(downloadUrl ?? '').trim();
   if (/^https?:\/\//i.test(url)) return url;
   if (!url) return url;
+  // Path relatif = route API (mis. /app-download/<versi>), jadi ditempel ke
+  // endpoint yang sedang aktif. Server intranet menjalankan router yang sama
+  // dengan cloud, jadi path relatif tetap bekerja di kedua endpoint.
   const base = api.baseUrl.replace(/\/?$/, '');
   return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 }
