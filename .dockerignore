@@ -22,6 +22,7 @@ ota
 # "COPY failed: file not found in build context".
 # Yang dikecualikan hanya file secret lokal (dikirim lewat env_file saat runtime).
 supabase/functions/api/.env.local
+supabase/functions/api/.env.secrets
 resources
 data
 *.apk

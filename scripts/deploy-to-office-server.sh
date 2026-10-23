@@ -81,6 +81,8 @@ RSYNC_ARGS=(-a --delete
   --exclude 'graphify-out/'
   --exclude '.env.local'
   --exclude 'supabase/functions/api/.env.local'
+  --exclude '.env.secrets'
+  --exclude 'supabase/functions/api/.env.secrets'
   --exclude '*.apk'
 )
 if [ "$DRY" -eq 1 ]; then
