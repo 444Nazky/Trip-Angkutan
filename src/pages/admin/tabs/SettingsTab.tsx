@@ -3,8 +3,9 @@ import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, appl
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { environment } from '../../../environments/environment'
-import { ChangePasswordSection } from '../ChangePassword'
 import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
+import { ServerStatsCard } from './ServerStatsCard'
+import { SystemMonitorCard } from './SystemMonitorCard'
 
 
 
@@ -113,7 +114,8 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
         </div>
       </div>
 
-      <ChangePasswordSection onLogout={onLogout} showToast={showToast} />
+      <ServerStatsCard />
+      <SystemMonitorCard />
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Lainnya</h3>
         <p className="text-xs text-slate-500 mb-6">Status koneksi dan data lokal</p>

@@ -24,7 +24,15 @@ Kalau jawabannya `connection refused` -> API intranet belum jalan di sana.
 |----------|----------------------|------------------|
 | Web admin `:8000` | ✅ bundle terbaru (fitur endpoint ada) | ✅ |
 | Mobile `:5173` | ✅ | ✅ |
+<<<<<<< Updated upstream
 | API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ⏸️ duplikat — harus dimatikan |
+=======
+<<<<<<< HEAD
+| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ✅ (cadangan) |
+=======
+| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ⏸️ duplikat — harus dimatikan |
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
+>>>>>>> Stashed changes
 | SSH masuk | ❌ port 22 tertutup | ✅ |
 
 **Selesai (23 Okt 2026 03:53 GMT).** Secret dikirim dari `blackarch` lewat
@@ -39,6 +47,13 @@ dari `blackarch`:
 - Tanpa token rute terproteksi balas `403/401` (bukan `500`) → bug
   `JWT_SECRET=""` yang dulu bikin 500 sudah tertangani.
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+Cadangan manual ke `http://192.168.1.2:3000/api` tetap berlaku bila `.123`
+turun; HP petugas harus di WiFi `192.168.1.x`.
+=======
+>>>>>>> Stashed changes
 HP petugas harus di WiFi `192.168.1.x`. Alamat `.2` **bukan** cadangan lagi —
 lihat bagian Otoritas port di bawah.
 
@@ -69,6 +84,10 @@ Aturan:
 - Untuk uji lokal di `.2`, pakai port lain (mis. `PORT=3996`), jangan 3000.
 - Kalau `.123` benar-benar mati dan `.2` harus menggantikan sementara, ubah
   dulu preset endpoint di aplikasi — jangan biarkan dua-duanya hidup bersamaan.
+<<<<<<< Updated upstream
+=======
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
+>>>>>>> Stashed changes
 
 ## Langkah (jalankan di `ubuntu.local`)
 
