@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Check, CheckCircle2, CloudOff, Clock, RefreshCw } from 'lucide-react'
+import { Check, CheckCircle2, CloudOff, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
-import { getSyncQueue, onSyncQueueChange, processSyncQueue } from '../../services/sync'
+import { classifyTripSync, getSyncQueue, onSyncQueueChange, processSyncQueue } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 interface TripCompleteScreenProps {
@@ -32,20 +32,24 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   if (!t) return null
 
-  const queueItem = getSyncQueue().find(q => q.trip.id === t.id)
-  const failed = !!queueItem?.needsAttention
-  const pending = !!queueItem && !failed
-  const synced = !queueItem && t.synced === true
-  const offline = !queueItem && t.synced !== true
+  // SATU sumber kebenaran: antrean sync. `t.synced` saja tidak cukup —
+  // trip yang ditolak server (4xx) tetap `synced === false` tapi harus
+  // ditampilkan sebagai GAGAL, bukan "menunggu".
+  const status = classifyTripSync(t.id, t.synced, getSyncQueue())
+  const failed = status.state === 'failed'
+  const pending = status.state === 'pending'
+  const synced = status.state === 'synced'
 
-  const status = failed
+  const view = failed
     ? {
         tone: 'border-red-200 bg-red-50',
         icon: 'text-red-500',
         text: 'text-red-700',
-        title: 'Belum Terkirim ke Server',
-        detail: queueItem?.lastError || 'Server menolak data. Periksa lalu coba lagi.',
-        Icon: CloudOff,
+        title: 'Gagal Terkirim ke Server',
+        detail: status.error
+          ? `${status.error}${status.attempts > 1 ? ` (percobaan ${status.attempts})` : ''}`
+          : 'Server menolak data. Periksa lalu coba lagi.',
+        Icon: AlertTriangle,
       }
     : pending
       ? {
@@ -70,9 +74,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
             icon: 'text-slate-400',
             text: 'text-slate-600',
             title: 'Tersimpan di Perangkat',
-            detail: offline
-              ? 'Belum masuk antrean sinkronisasi. Coba kirim ulang.'
-              : 'Sinkronisasi berjalan di background.',
+            detail: 'Belum masuk antrean sinkronisasi. Coba kirim ulang.',
             Icon: Clock,
           }
 
