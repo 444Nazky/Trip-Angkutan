@@ -1,0 +1,27 @@
+# Server API INTRANET (port 3000) — menjalankan Edge Function yang sama
+# dengan yang di-deploy ke Supabase, tapi dijawab dari jaringan lokal kantor.
+#
+# Build : sudo docker build -f Dockerfile.backend -t trip-angkutan-api .
+# Run   : sudo docker compose up -d api-intranet
+#
+# Env dibaca dari supabase/functions/api/.env.local (lihat .env.example).
+FROM denoland/deno:alpine-2.5.6
+
+WORKDIR /srv/api
+
+# Hanya file yang dibutuhkan server API (bukan seluruh repo).
+COPY supabase/functions/api/ ./api/
+
+ENV PORT=3000 \
+    HOST=0.0.0.0 \
+    DENO_NO_UPDATE_CHECK=1 \
+    DENO_DIR=/deno-dir
+
+# Cache dependency di layer terpisah supaya rebuild cepat.
+RUN deno cache --allow-net --allow-env --allow-net=esm.sh api/local_server.ts || true
+
+EXPOSE 3000
+
+# Deno butuh: --allow-net (fetch ke Supabase + serve), --allow-env (baca env),
+# --allow-run (tidak dipakai, tapi aman untuk dependency).
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "api/local_server.ts"]
