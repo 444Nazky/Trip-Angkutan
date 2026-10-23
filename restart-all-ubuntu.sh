@@ -79,6 +79,42 @@ if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "JWT_SECRET kosong di .env.local - login intranet tetap jalan, tetapi token cloud/intranet tidak kompatibel (harus login ulang saat pindah endpoint)."
 fi
 
+# Tanya secret yang belum ada (hanya kalau jalan dari terminal interaktif).
+# Jadi tidak perlu edit file .env.local secara manual sebelum restart.
+ask_secret() {
+    local key="$1" label="$2" value=""
+    [ -t 0 ] || return 0
+    echo
+    echo "    $label belum diisi di .env.local."
+    echo "    Ambil dari: Supabase Dashboard > Project Settings > API"
+    echo "    (input tidak ditampilkan; tekan Enter untuk lewati)"
+    printf "    %s: " "$key"
+    IFS= read -r -s value || value=""
+    echo
+    if [ -n "$value" ]; then
+        if grep -qE "^${key}=" "$ENV_LOCAL" 2>/dev/null; then
+            # Ganti nilai yang sudah ada (pakai awk supaya nilai lama hilang).
+            local tmp
+            tmp="$(mktemp)"
+            awk -v k="$key" -v v="$value" '
+                $0 ~ "^"k"=" { print k"="v; next }
+                { print }
+            ' "$ENV_LOCAL" > "$tmp" && mv "$tmp" "$ENV_LOCAL"
+        else
+            printf '%s=%s\n' "$key" "$value" >> "$ENV_LOCAL"
+        fi
+        chmod 600 "$ENV_LOCAL"
+        ok "$key tersimpan di .env.local"
+    fi
+}
+
+if ! grep -qE '^SUPABASE_SERVICE_ROLE_KEY=.+' "$ENV_LOCAL" 2>/dev/null; then
+    ask_secret "SUPABASE_SERVICE_ROLE_KEY" "service_role key"
+fi
+if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
+    ask_secret "JWT_SECRET" "JWT secret"
+fi
+
 # ── Ambil kode terbaru ───────────────────────────────────────────────────────
 
 echo "[*] Menarik kode terbaru dari repo..."
