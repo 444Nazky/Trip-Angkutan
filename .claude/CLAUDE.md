@@ -39,15 +39,48 @@ File terkait:
 cp supabase/functions/api/.env.example supabase/functions/api/.env.local
 # isi SUPABASE_SERVICE_ROLE_KEY + JWT_SECRET (WAJIB, jangan di-commit)
 ```
+Alternatif tanpa edit file: taruh dua secret itu di
+`supabase/functions/api/.env.secrets` (chmod 600) - `restart-all-ubuntu.sh`
+membacanya otomatis. `JWT_SECRET` harus **identik** dengan yang dipakai
+Supabase Edge Function.
 
 ### Restart semua layanan (PC kantor)
 ```bash
 ./restart-all-ubuntu.sh
 ```
-Script ini: pull kode -> build image web + image API -> `docker compose up -d`
--> health check port 8000/5173/3000 -> cetak URL lokal + LAN.
+Script ini: pull kode -> build image web + build image API -> bersihkan
+container lama -> `docker compose up -d` -> health check port 8000/5173/3000
+-> cetak URL lokal + LAN.
 Script sengaja TIDAK memakai `set -e`: satu langkah gagal tidak boleh
 menghentikan langkah lain.
+
+### TOPOLOGI: DUA MESIN BERBEDA (penting!)
+
+Di LAN kantor ada **dua** mesin Ubuntu yang sama-sama menjalankan repo ini.
+Jangan sampai tertukar:
+
+| Mesin | IP | Peran | Port |
+|-------|----|-------|------|
+| `ubuntu.local` | `192.168.1.123` | **SERVER PUSAT KANTOR** - kabel LAN ke router Linksys `192.168.1.1`, port forwarding 8000/5173/3000. Preset "Intranet Kantor" di aplikasi mengarah ke sini. | 8000, 5173, 3000 |
+| `blackarch` | `192.168.1.2` (+ `192.168.100.10`) | Host 개발 / build (repo coord + checkout deploy). | 8000, 5173, 3000 |
+
+- Preset aplikasi `http://192.168.1.123:3000/api` -> **harus** hidup di
+  `ubuntu.local`, bukan di `blackarch`.
+- `192.168.1.123` **sudah dipakai mesin lain** -> jangan pernah menambah
+  alias IP `.123` di `blackarch` (duplikat IP -> ARP konflik, `.123` jadi
+  tidak bisa dijangkau).
+- `ubuntu.local` tidak membuka SSH (port 22 tertutup) -> deploy ke sana
+  harus dijalankan **orang yang berada di depan mesin itu**. Lihat
+  `docs/DEPLOY-UBUNTU-LOCAL.md`.
+- Di `blackarch`, alamat `192.168.1.2` dibuat manual; sekarang sudah
+  disimpan permanen di profil NM `LAN-Direct`
+  (`ipv4.addresses "192.168.100.10/24,192.168.1.2/24"`, gateway TIDAK diubah
+  supaya default route tetap lewat wlan0).
+- `scripts/setup-static-ip-eno1.sh` **TIDAK** bisa dipakai apa adanya di
+  `blackarch`: default `DEV=eno1` (iface sebenarnya `enp12s0`) dan profil
+  `netplan-${DEV}` (profil NM asli bernama `LAN-Direct`). Pakai
+  `DEV=enp12s0 CONN=LAN-Direct` kalau memang perlu.
+
 
 ---
 
