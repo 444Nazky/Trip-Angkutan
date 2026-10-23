@@ -22,6 +22,7 @@ import {
   resetOtaStorage,
   isNewer,
   activateBundle,
+  otaAssetsBase,
   versionCacheName,
   type UpdateState,
 } from './ota'
