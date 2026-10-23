@@ -29,5 +29,11 @@ services:
     restart: on-failure:5
     ports:
       - "0.0.0.0:3000:3000"
+    environment:
+      # IP LAN host untuk banner log server intranet. Di dalam container,
+      # networkInterfaces() cuma melihat IP container (172.18.x.x), jadi IP
+      # host yang diketik petugas perlu diberikan eksplisit.
+      # Override lewat env: LAN_IP=192.168.1.50 docker compose up -d
+      - "LAN_IP=${LAN_IP:-192.168.1.123}"
     env_file:
       - supabase/functions/api/.env.local
