@@ -44,6 +44,25 @@ export interface GeofenceScopeDiagnosis {
   hasUnassigned: boolean
 }
 
+/**
+ * Normalisasi kode rute agar data admin dan data petugas selalu bisa
+ * dibandingkan: "SBDZ→SJRE", "SBDZ - SJRE", "sbdz-sjre" => "SBDZ-SJRE".
+ *
+ * Dulu perbandingan memakai string mentah, sehingga titik geofence yang
+ * di-set admin dengan format panah/tanpa spasi tidak pernah cocok dengan rute
+ * petugas — akibatnya aplikasi menganggap "tidak ada titik lokasi" walau
+ * konfigurasinya benar (terutama pada endpoint intranet yang datanya lebih
+ * baru). Normalisasi ini dipakai di SEMUA jalur (sync, scope, validasi).
+ */
+export function normalizeRouteCode(code: string): string {
+  return String(code ?? '')
+    .toUpperCase()
+    .trim()
+    .replace(/→|->|>|–|—/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, '')
+}
+
 // ─── Storage keys ───────────────────────────────────────────────────────────────
 
 const GEOFENCE_KEY = 'trip.geofence.points'
