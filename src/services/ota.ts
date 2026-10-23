@@ -30,8 +30,13 @@ function manifestUrl(): string {
 }
 
 function assetsBase(): string {
-  // Berkas bundel disimpan di Supabase Storage bucket publik "ota"
-  const supabaseUrl = new URL(api.baseUrl).origin
+  // Berkas bundel disimpan di Supabase Storage bucket publik "ota".
+  //
+  // Hostnya SELALU project Supabase cloud, bukan endpoint API yang sedang
+  // aktif. Kalau origin diambil dari `api.baseUrl`, begitu petugas memakai
+  // server intranet (port 3000) unduhan bundel akan diarahkan ke server
+  // yang tidak punya /storage -> 404.
+  const supabaseUrl = supabaseProjectOrigin()
   return `${supabaseUrl}/storage/v1/object/public/ota/`
 }
 
