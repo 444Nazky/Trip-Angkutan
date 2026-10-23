@@ -25,15 +25,16 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     localStorage.clear()
   })
 
-  it('menawarkan dua kandidat endpoint: Supabase dan intranet LAN', () => {
+  it('menawarkan dua kandidat endpoint: intranet LAN lebih dulu, lalu Supabase', () => {
     const urls = apiBaseCandidates().map(c => c.url)
+    expect(urls[0]).toBe(intranetApiBaseUrl())
     expect(urls).toContain('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
-    expect(urls).toContain(intranetApiBaseUrl())
     expect(urls.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('default tanpa override adalah Supabase cloud', () => {
-    expect(resolveApiBaseUrl()).toBe('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
+  it('default tanpa override adalah server intranet port 3000', () => {
+    expect(resolveApiBaseUrl()).toBe(intranetApiBaseUrl())
+    expect(isIntranetBaseUrl(resolveApiBaseUrl())).toBe(true)
   })
 
   it('override intranet dipakai dan di-normalisasi ke /api', () => {
@@ -42,11 +43,11 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     expect(isIntranetBaseUrl(resolveApiBaseUrl())).toBe(true)
   })
 
-  it('reset mengembalikan ke Supabase cloud', () => {
-    setApiBaseUrlOverride('http://192.168.1.123:3000/api')
+  it('reset mengembalikan ke endpoint default intranet', () => {
+    setApiBaseUrlOverride('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
     setApiBaseUrlOverride(null)
     expect(localStorage.getItem(OVERRIDE_KEY)).toBeNull()
-    expect(resolveApiBaseUrl()).toBe('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
+    expect(resolveApiBaseUrl()).toBe(intranetApiBaseUrl())
   })
 
   it('host privat tanpa skema dinormalisasi ke http, bukan https', () => {
