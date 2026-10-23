@@ -7,15 +7,21 @@
 |------|----------|-----------|
 | **5173** | Mobile App | Aplikasi petugas lapangan (login dengan ID + PIN) |
 | **8000** | Admin Dashboard | Dashboard admin (auto-login, tanpa input kredensial) |
+| **3000** | API Intranet | Server API lokal di PC kantor (opsional, dual endpoint) |
 
 **PERINGATAN KRITIS**: Port 8000 HARUS serving dari direktori `admin-www/`, BUKAN direktori root www/. Direktori www/ berisi aplikasi mobile, bukan admin dashboard.
 
-### Backend
-- **REST API**: 100% Supabase Edge Functions
-- **URL**: `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api`
-- **Database**: Supabase PostgreSQL
+### Backend - Dual Endpoint
+- **REST API**: Supabase Edge Functions (kode identik untuk cloud dan intranet)
+- **URL cloud**: `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api`
+- **URL intranet**: `http://192.168.1.123:3000/api` (PC kantor, port 3000)
+- **Database**: Supabase PostgreSQL (dari kedua endpoint)
 - **Storage**: Supabase Storage buckets (`apks`, `ota`)
-- **TIDAK ADA port tambahan untuk backend** - semuanya via Supabase
+- Mobile memilih endpoint lewat "Pengaturan Server" (Profil / Login)
+- Admin dashboard tetap memakai Supabase cloud
+
+Router, rate limit, cache, dan CORS SAMA untuk keduanya - `index.ts` mengekspor
+`handleRequest`, dipakai oleh Edge Runtime (cloud) dan `local_server.ts` (intranet).
 
 ---
 
