@@ -4,6 +4,7 @@ export type AdminTab =
   | 'plates'
   | 'routes'
   | 'officers'
+  | 'endpoint'
   | 'settings'
 
 
