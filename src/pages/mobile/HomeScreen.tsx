@@ -1,6 +1,6 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync'
+import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
@@ -24,13 +24,14 @@ type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: b
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const { officer, trips, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
+  const [queue, setQueue] = useState<SyncItem[]>([])
   const [syncState, setSyncState] = useState<SyncState>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     const h = () => setPendingCount(getPendingCount())
     window.addEventListener('focus', h)
-    const unsub = onSyncQueueChange(setPendingCount)
+    const unsub = onSyncQueueChange((n, q) => { setPendingCount(n); setQueue(q) })
     setPendingCount(getPendingCount())
     return () => { window.removeEventListener('focus', h); unsub() }
   }, [])
@@ -68,6 +69,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
+    if (failedCount > 0) return `${failedCount} trip GAGAL terkirim — ketuk untuk ulangi`
     if (syncState && syncState.failed === 0) return `${syncState.synced} trip tersinkron`
     if (syncState && syncState.failed > 0) return `${syncState.failed} belum terkirim — ketuk untuk ulangi`
     if (pendingCount > 0) return `${pendingCount} trip menunggu sinkronisasi`
@@ -76,6 +78,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
 
   const syncTone = (() => {
     if (syncState && syncState.reachable === false) return 'amber'
+    if (failedCount > 0) return 'red'
     if (syncState && syncState.failed === 0) return 'green'
     if (syncState && syncState.failed > 0) return 'red'
     if (busy || pendingCount > 0) return 'amber'
@@ -85,7 +88,11 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
-  const queuedCount = myTrips.filter(t => t.synced !== true).length
+  // Status kirim per trip (antrean = sumber kebenaran, bukan `trip.synced`).
+  const stateOf = (id: string, synced: boolean | undefined) =>
+    classifyTripSync(id, synced, queue).state
+  const queuedCount = myTrips.filter(t => stateOf(t.id, t.synced) !== 'synced').length
+  const failedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   const units = new Set(
     myTrips
