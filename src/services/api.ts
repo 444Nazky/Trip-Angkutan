@@ -64,7 +64,9 @@ function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
   if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
   if (!/^https?:\/\//i.test(url)) {
-    url = `${url.startsWith('localhost') ? 'http' : 'https'}://${url}`
+    // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
+    // Host publik dipaksa https.
+    url = `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
   }
   if (!/\/api$/i.test(url)) url = `${url}/api`
   return url
@@ -75,7 +77,6 @@ export function setApiBaseUrl(url: string | null) {
     if (url?.trim()) localStorage.setItem(API_URL_OVERRIDE_KEY, url.trim())
     else localStorage.removeItem(API_URL_OVERRIDE_KEY)
   } catch {}
-  window.location.reload()
 }
 
 export function resolveApiBaseUrl(): string {
