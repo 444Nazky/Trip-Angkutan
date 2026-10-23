@@ -802,45 +802,89 @@ export async function verifyPinOffline(
 export interface AdminSessionResult {
   ok: boolean
   authDenied: boolean
+  /** Alasan kegagalan (aman ditampilkan ke pengguna). */
+  error?: string
 }
 
-async function mintAdminToken(): Promise<boolean> {
+// Kredensial admin. Default tetap dipakai supaya dashboard tetap bisa
+// terbuka di komputer yang belum pernah menyimpan kredensial, TAPI begitu
+// admin mengganti password lewat dashboard, kredensial baru bisa disimpan
+// di sini — tanpa itu, auto-login selalu gagal dan dashboard terlihat
+// "Offline" padahal server sehat.
+const ADMIN_CREDENTIALS_KEY = 'trip.admin.credentials.v1'
+const DEFAULT_ADMIN_USERNAME = 'admin'
+const DEFAULT_ADMIN_PASSWORD = 'admin123456'
+
+export interface AdminCredentials {
+  username: string
+  password: string
+}
+
+export function getAdminCredentials(): AdminCredentials {
+  try {
+    const raw = localStorage.getItem(ADMIN_CREDENTIALS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<AdminCredentials>
+      if (parsed?.username && parsed?.password) {
+        return { username: String(parsed.username), password: String(parsed.password) }
+      }
+    }
+  } catch { /* storage tidak tersedia */ }
+  return { username: DEFAULT_ADMIN_USERNAME, password: DEFAULT_ADMIN_PASSWORD }
+}
+
+export function setAdminCredentials(cred: AdminCredentials | null): void {
+  try {
+    if (cred?.username && cred?.password) {
+      localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ username: cred.username, password: cred.password }))
+    } else {
+      localStorage.removeItem(ADMIN_CREDENTIALS_KEY)
+    }
+  } catch { /* storage penuh */ }
+}
+
+async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
+  const cred = getAdminCredentials()
   try {
     const res = await fetch(`${api.baseUrl}/auth/admin-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'admin123456' }),
+      body: JSON.stringify({ username: cred.username, password: cred.password }),
     })
     const data = await res.json().catch(() => null)
     if (res.ok && data?.token) {
       api.setToken(String(data.token))
-      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: 'admin', role: 'admin' })) } catch { /* quota */ }
-      return true
+      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: cred.username, role: 'admin' })) } catch { /* quota */ }
+      return { ok: true }
     }
-  } catch { /* offline */ }
-  return false
+    return { ok: false, error: data?.error ? String(data.error) : `Login admin ditolak (HTTP ${res.status})` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Server tidak bisa dihubungi' }
+  }
 }
 
 export async function ensureAdminSession(): Promise<AdminSessionResult> {
-  const probeWith = async () => {
+  const probeWith = async (): Promise<AdminSessionResult | null> => {
     const probe = await api.get('/tariffs')
     if (probe.ok) return { ok: true, authDenied: false }
     if (probe.error?.code === '401' || probe.error?.code === '403') {
       api.setToken(null)
       return null
     }
-    return { ok: false, authDenied: false }
+    return { ok: false, authDenied: false, error: probe.error?.message ?? 'Server tidak merespons' }
   }
 
-  if (!api.token) await mintAdminToken()
-  if (!api.token) return { ok: false, authDenied: false }
+  if (!api.token) {
+    const minted = await mintAdminToken()
+    if (!minted.ok) return { ok: false, authDenied: true, error: minted.error ?? 'Login admin gagal' }
+  }
 
   const first = await probeWith()
   if (first) return first
 
-  if (await mintAdminToken()) {
-    const second = await probeWith()
-    if (second) return second
-  }
-  return { ok: false, authDenied: false }
+  const minted = await mintAdminToken()
+  if (!minted.ok) return { ok: false, authDenied: true, error: minted.error ?? 'Login admin gagal' }
+  const second = await probeWith()
+  if (second) return second
+  return { ok: false, authDenied: false, error: 'Sesi admin tidak bisa diverifikasi' }
 }
