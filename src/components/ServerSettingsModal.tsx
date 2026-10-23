@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Cloud, Server, X } from 'lucide-react'
 import {
+  applyEndpointInput,
   apiBaseCandidateLabel,
   apiBaseCandidates,
   isIntranetBaseUrl,
-  isPrivateHostUrl,
-  normalizeApiBaseInput,
   probeServerHealth,
   resolveApiBaseUrl,
   setApiBaseUrlOverride,
+  validateEndpointInput,
 } from '../services/api'
 import { environment } from '../environments/environment'
 
@@ -29,7 +29,11 @@ function statusFromProbe(
   cleartextBlocked?: boolean,
   detail?: string,
 ): Status {
-  if (reachable && blockedByCors) {
+  // `blockedByCors` kini hanya diisi setelah probe opaque membuktikan host
+  // benar-benar menjawab. Syarat lama `reachable && blockedByCors` tidak pernah
+  // terpenuhi (jalur CORS selalu reachable=false) sehingga cabang ini mati dan
+  // URL yang sebenarnya benar ikut dibuang.
+  if (blockedByCors) {
     return {
       kind: 'warn',
       msg: `Server hidup (${ms} ms) tetapi browser memblokir CORS. URL disimpan. Minta admin menambahkan origin ini ke CORS_ORIGIN server.`,
@@ -70,31 +74,19 @@ export default function ServerSettingsModal({ onClose }: Props) {
   const candidates = apiBaseCandidates()
 
   async function handleSave() {
-    const v = url.trim()
-    if (!v) {
-      setStatus({ kind: 'fail', msg: 'URL kosong.' })
-      return
-    }
-    if (/^http:\/\//i.test(v) && !isPrivateHostUrl(v)) {
-      setStatus({ kind: 'fail', msg: 'Pakai https untuk host publik, kecuali alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost).' })
-      return
-    }
-    // Halaman https tidak boleh memanggil backend http:// (mixed content),
-    // kecuali ke host privat — itu tetap ditolak browser.
-    const pageIsHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
-    if (pageIsHttps && /^http:\/\//i.test(v)) {
-      setStatus({
-        kind: 'fail',
-        msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Buka aplikasi lewat http:// atau pakai endpoint Supabase.',
-      })
+    // Validasi dipusatkan di api.ts (validateEndpointInput) supaya layar ini dan
+    // EndpointPicker tidak pernah berbeda aturan soal http/https & mixed content.
+    const check = validateEndpointInput(url)
+    if (!check.ok) {
+      setStatus({ kind: 'fail', msg: check.msg })
       return
     }
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
-    const r = await probeServerHealth(v)
-    // URL yang bisa dijangkau tetap disimpan walau browser memblokir bacaannya
-    // atau server menjawab HTTP error (host tetap hidup).
-    if (r.reachable) {
-      setApiBaseUrlOverride(normalizeApiBaseInput(v))
+    const r = await probeServerHealth(check.url)
+    // URL yang host-nya hidup tetap disimpan walau browser memblokir bacaannya
+    // (CORS) atau server menjawab HTTP error.
+    if (r.reachable || r.hostAlive) {
+      applyEndpointInput(check.url)
       setUrl(resolveApiBaseUrl())
     }
     setStatus(statusFromProbe(r.ms ?? 0, r.reachable, r.blockedByCors ?? false, r.status, r.timedOut ?? false, r.cleartextBlocked ?? false, r.detail))
@@ -103,17 +95,15 @@ export default function ServerSettingsModal({ onClose }: Props) {
   // Jalur darurat: tes bisa gagal karena sebab di luar URL (CORS, mixed content,
   // jaringan uji) — petugas/admin tetap harus bisa menyimpan URL yang dipilihnya.
   function handleSaveForce() {
-    const v = url.trim()
-    if (!v) {
-      setStatus({ kind: 'fail', msg: 'URL kosong.' })
+    const res = applyEndpointInput(url)
+    if (!res.ok) {
+      setStatus({ kind: 'fail', msg: res.msg })
       return
     }
-    setApiBaseUrlOverride(normalizeApiBaseInput(v))
-    const applied = resolveApiBaseUrl()
-    setUrl(applied)
+    setUrl(res.url)
     setStatus({
       kind: 'warn',
-      msg: `URL disimpan tanpa tes: ${applied}. Kalau sinkron tetap gagal, periksa server/CORS di alamat ini.`,
+      msg: `URL disimpan tanpa tes: ${res.url}. Kalau sinkron tetap gagal, periksa server/CORS di alamat ini.`,
     })
   }
 
