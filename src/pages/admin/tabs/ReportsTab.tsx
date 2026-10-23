@@ -40,6 +40,7 @@ interface ReportsTabProps {
 export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleReveal, baseUrl = '' }: ReportsTabProps) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const [reportError, setReportError] = useState<string | null>(null)
   const [openTripId, setOpenTripId] = useState<string | null>(null)
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
   const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[] }>({ golongan: [], vehicleTypes: [] })
@@ -47,24 +48,50 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
 
+  /**
+   * Muat laporan dari server.
+   *
+   * Dua[jumlah] jebakan yang dulu membuat trip "hilang" dari dashboard:
+   *   1. Tab Laporan bisa mount SEBELUM sesi admin siap -> 403 -> state
+   *      'offline' dan tidak pernah dicoba lagi. Sekarang: pastikan sesi,
+   *      lalu ulangi; kalau tetap gagal, tampilkan alasannya (bukan cuma
+   *      kata "Offline") supaya bisa Seen实际问题排查。
+   *   2. Server sempat menjawab 5xx/timeout sesaat -> satu percobaan langsung
+   *      dianggap gagal permanen. Sekarang ada beberapa percobaan berjeda.
+   */
   const loadReports = useCallback(async (filters?: ReportFilters) => {
     setReportState('loading')
+    setReportError(null)
     const f = filters ?? reportFilters
 
-    // Tab Laporan bisa mount SEBELUM AdminDashboard selesai membuat sesi
-    // admin. Dulu hasilnya 403 -> state 'offline' dan tidak pernah dicoba
-    // lagi sampai halaman di-reload (data trip terlihat "hilang"). Sekarang:
-    // pastikan sesi, lalu ulangi sekali. Kalau tetap gagal baru 'offline'.
     let rows = await fetchTripReports(f)
     if (rows === null) {
+      // Sesi admin belum siap (atau basi) -> siapkan lalu ulangi.
       const sess = await ensureAdminSession()
       if (sess.ok) rows = await fetchTripReports(f)
+      else {
+        setReportState('offline')
+        setReportError(sess.error ?? 'Sesi admin tidak bisa dibuat')
+        return
+      }
     }
-    if (rows === null) { setReportState('offline'); return }
+
+    if (rows === null) {
+      // Beberapa percobaan lagi dengan jeda pendek (server sesaat bermasalah).
+      for (let attempt = 0; attempt < 2 && rows === null; attempt++) {
+        await new Promise(r => setTimeout(r, 1200))
+        rows = await fetchTripReports(f)
+      }
+    }
+
+    if (rows === null) {
+      setReportState('offline')
+      setReportError('Server tidak menjawab permintaan laporan.')
+      return
+    }
     setReportTrips(rows)
     setReportState('ready')
   }, [reportFilters])
-<<<<<<< HEAD
 
   // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
   // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
@@ -73,8 +100,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     window.addEventListener(SESSION_READY_EVENT, onReady)
     return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
   }, [loadReports])
-=======
->>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
 
   useEffect(() => {
     if (reportState === 'idle') {
