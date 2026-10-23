@@ -1,22 +1,22 @@
 import { useState } from 'react'
-import { Server, X } from 'lucide-react'
-import { api, apiBaseCandidateLabel, apiBaseCandidates, isPrivateHostUrl, normalizeApiBaseInput, probeServerHealth, resolveApiBaseUrl, setApiBaseUrlOverride } from '../services/api'
+import { Cloud, Server, X } from 'lucide-react'
+import {
+  apiBaseCandidateLabel,
+  apiBaseCandidates,
+  isIntranetBaseUrl,
+  isPrivateHostUrl,
+  normalizeApiBaseInput,
+  probeServerHealth,
+  resolveApiBaseUrl,
+  setApiBaseUrlOverride,
+} from '../services/api'
 import { environment } from '../environments/environment'
-
-
-
 
 interface Props {
   onClose: () => void
 }
 
-
-
-
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
-
-
-
 
 // Terjemahkan hasil probe jadi pesan yang benar: server hidup tapi diblokir CORS
 // BUKAN "server tidak merespon" — dulu pesan itu yang membuat URL benar ikut dibuang.
@@ -62,15 +62,12 @@ function statusFromProbe(
   }
 }
 
-
-
-
 export default function ServerSettingsModal({ onClose }: Props) {
-  const [url, setUrl] = useState(api.baseUrl)
+  const [url, setUrl] = useState(resolveApiBaseUrl())
   const [status, setStatus] = useState<Status>({ kind: 'idle', msg: '' })
 
-
-
+  const activeUrl = resolveApiBaseUrl()
+  const candidates = apiBaseCandidates()
 
   async function handleSave() {
     const v = url.trim()
@@ -80,6 +77,16 @@ export default function ServerSettingsModal({ onClose }: Props) {
     }
     if (/^http:\/\//i.test(v) && !isPrivateHostUrl(v)) {
       setStatus({ kind: 'fail', msg: 'Pakai https untuk host publik, kecuali alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost).' })
+      return
+    }
+    // Halaman https tidak boleh memanggil backend http:// (mixed content),
+    // kecuali ke host privat — itu tetap ditolak browser.
+    const pageIsHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
+    if (pageIsHttps && /^http:\/\//i.test(v)) {
+      setStatus({
+        kind: 'fail',
+        msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Buka aplikasi lewat http:// atau pakai endpoint Supabase.',
+      })
       return
     }
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
@@ -92,9 +99,6 @@ export default function ServerSettingsModal({ onClose }: Props) {
     }
     setStatus(statusFromProbe(r.ms ?? 0, r.reachable, r.blockedByCors ?? false, r.status, r.timedOut ?? false, r.cleartextBlocked ?? false, r.detail))
   }
-
-
-
 
   // Jalur darurat: tes bisa gagal karena sebab di luar URL (CORS, mixed content,
   // jaringan uji) — petugas/admin tetap harus bisa menyimpan URL yang dipilihnya.
@@ -113,9 +117,6 @@ export default function ServerSettingsModal({ onClose }: Props) {
     })
   }
 
-
-
-
   async function handleReset() {
     setApiBaseUrlOverride(null)
     setUrl(resolveApiBaseUrl())
@@ -126,90 +127,117 @@ export default function ServerSettingsModal({ onClose }: Props) {
       : { kind: 'fail', msg: `Default tidak merespon (${r.ms} ms). Periksa koneksi internet atau isi URL server.` })
   }
 
-
-
+  // Pilih salah satu preset (Supabase cloud / Intranet kantor).
+  function pickPreset(candidateUrl: string) {
+    setStatus({ kind: 'idle', msg: '' })
+    setUrl(candidateUrl)
+  }
 
   return (
     <div className="mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-            <Server size={14} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-semibold text-slate-800">Pengaturan Server</p>
-            <p className="truncate text-[10px] text-slate-400">
-              Aktif: {resolveApiBaseUrl()}
-              {apiBaseCandidateLabel(resolveApiBaseUrl()) ? ` (${apiBaseCandidateLabel(resolveApiBaseUrl())})` : ''}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Tutup">
-            <X size={18} />
-          </button>
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          <Server size={14} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-slate-800">Pengaturan Server</p>
+          <p className="truncate text-[10px] text-slate-400">
+            Aktif: {activeUrl}
+            {apiBaseCandidateLabel(activeUrl) ? ` (${apiBaseCandidateLabel(activeUrl)})` : ''}
+          </p>
         </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Tutup">
+          <X size={18} />
+        </button>
+      </div>
 
-        <div className="mt-3">
-          <input
-            type="url"
-            value={url}
-            onChange={e => { setStatus({ kind: 'idle', msg: '' }); setUrl(e.target.value) }}
-            placeholder="https://xxxx.trycloudflare.com"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
-          />
-          <p className="mt-1 text-[10px] text-slate-400">Default: {environment.apiBaseUrl}</p>
+      {/* Pilihan endpoint: Supabase (cloud) atau Intranet kantor (LAN). */}
+      <div className="mt-3 grid grid-cols-1 gap-2">
+        {candidates.map((c) => {
+          const selected = c.url === activeUrl
+          const isCloud = !isIntranetBaseUrl(c.url)
+          return (
+            <button
+              key={c.url}
+              type="button"
+              onClick={() => pickPreset(c.url)}
+              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+                selected
+                  ? 'border-[#1B3D6D] bg-[#1B3D6D]/5'
+                  : 'border-slate-200 bg-white hover:bg-slate-50'
+              }`}
+            >
+              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isCloud ? 'bg-sky-50 text-sky-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                {isCloud ? <Cloud size={13} /> : <Server size={13} />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-semibold text-slate-800">
+                  {c.label}
+                  {selected && <span className="ml-1.5 text-[10px] font-medium text-[#1B3D6D]">- dipakai</span>}
+                </span>
+                <span className="block truncate text-[10px] text-slate-400">{c.url}</span>
+                {c.hint && <span className="block text-[10px] text-slate-400">{c.hint}</span>}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mt-3">
+        <input
+          type="url"
+          value={url}
+          onChange={e => { setStatus({ kind: 'idle', msg: '' }); setUrl(e.target.value) }}
+          placeholder="http://192.168.1.123:3000/api"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
+        />
+        <p className="mt-1 text-[10px] text-slate-400">
+          Default (Supabase): {environment.apiBaseUrl}
+        </p>
+      </div>
+
+      {status.msg !== '' && (
+        <div className={`mt-2 rounded-lg px-3 py-2 ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
+          <p className={`text-[11px] ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'warn' ? 'text-amber-700' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
+            {status.msg}
+          </p>
         </div>
+      )}
 
-        {status.msg !== '' && (
-          <div className={`mt-2 rounded-lg px-3 py-2 ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
-            <p className={`text-[11px] ${status.kind === 'ok' ? 'text-emerald-600' : status.kind === 'warn' ? 'text-amber-700' : status.kind === 'fail' ? 'text-red-500' : 'text-slate-500'}`}>
-              {status.msg}
-            </p>
-          </div>
-        )}
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => void handleSave()}
+          disabled={status.kind === 'checking'}
+          className="flex-1 rounded-lg bg-[#1B3D6D] py-2 font-medium text-xs text-white hover:bg-[#0f2847] disabled:opacity-50 transition-colors"
+        >
+          Simpan & Terapkan
+        </button>
+        <button
+          onClick={() => void handleReset()}
+          disabled={status.kind === 'checking'}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+        >
+          Reset
+        </button>
+      </div>
 
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={() => void handleSave()}
-            disabled={status.kind === 'checking'}
-            className="flex-1 rounded-lg bg-[#1B3D6D] py-2 font-medium text-xs text-white hover:bg-[#0f2847] disabled:opacity-50 transition-colors"
-          >
-            Simpan & Terapkan
-          </button>
-          <button
-            onClick={() => void handleReset()}
-            disabled={status.kind === 'checking'}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-          >
-            Reset
-          </button>
-        </div>
+      <div className="mt-2">
+        <button
+          onClick={handleSaveForce}
+          disabled={status.kind === 'checking'}
+          className="w-full rounded-lg border border-slate-200 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+        >
+          Simpan tanpa tes
+        </button>
+      </div>
 
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={handleSaveForce}
-            disabled={status.kind === 'checking'}
-            className="flex-1 rounded-lg border border-slate-200 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-          >
-            Simpan tanpa tes
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <select
-            aria-label="Pilih endpoint server"
-            value={apiBaseCandidates().find(c => c.url === normalizeApiBaseInput(url))?.url ?? ''}
-            onChange={e => {
-              const candidate = apiBaseCandidates().find(c => c.url === e.target.value)
-              if (candidate) { setStatus({ kind: 'idle', msg: '' }); setUrl(candidate.url) }
-            }}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 focus:outline-none focus:border-[#1B3D6D]"
-          >
-            <option value="">Pilih endpoint cepat…</option>
-            {apiBaseCandidates().map(c => <option key={c.url} value={c.url}>{c.label}</option>)}
-          </select>
-        </div>
+      <p className="mt-3 text-[10px] leading-relaxed text-slate-400">
+        Ganti endpoint anytime. Antrian data offline tetap tersimpan dan dikirim ke server yang sedang aktif.
+        Kalau server intranet tidak bisa dihubungi, pindah ke Supabase (Cloud).
+      </p>
     </div>
   )
 }
