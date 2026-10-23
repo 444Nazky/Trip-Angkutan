@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Home, List, User, X } from 'lucide-react'
+import { Home, List, Server, User, X } from 'lucide-react'
 import type { ElementType } from 'react'
 
 
@@ -22,6 +22,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'home', label: 'Beranda', icon: Home },
   { id: 'history', label: 'Riwayat', icon: List },
+  { id: 'endpoint', label: 'Server', icon: Server },
   { id: 'profile', label: 'Profil', icon: User },
 ]
 
@@ -82,7 +83,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
 
   const handleNavClick = (id: string) => {
     if (activeScreen === 'trip-summary') {
-      const label = id === 'home' ? 'Beranda' : id === 'history' ? 'Riwayat' : 'Profil'
+      const label = id === 'home' ? 'Beranda' : id === 'history' ? 'Riwayat' : id === 'endpoint' ? 'Server' : 'Profil'
       openConfirmDialog(`Apakah Anda yakin ingin ke ${label}? Data trip belum disimpan.`, () => onNavigate(id))
     } else {
       onNavigate(id)
@@ -99,7 +100,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
               <button
                 key={id}
                 onClick={() => handleNavClick(id)}
-                className={`flex flex-col items-center gap-1 px-6 py-1.5 rounded-2xl transition-all active:scale-95 ${
+                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl transition-all active:scale-95 ${
                   isActive ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
