@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
@@ -46,14 +46,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
 
-  const loadReports = async (filters?: ReportFilters) => {
+  const loadReports = useCallback(async (filters?: ReportFilters) => {
     setReportState('loading')
     const f = filters ?? reportFilters
     const rows = await fetchTripReports(f)
     if (rows === null) { setReportState('offline'); return }
     setReportTrips(rows)
     setReportState('ready')
-  }
+  }, [reportFilters])
 
   useEffect(() => {
     if (reportState === 'idle') {
@@ -65,7 +65,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
     }
-  }, [reportState])
+    // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
+    // penambahan dependency tidak memicu fetch ulang saat filter berubah.
+  }, [reportState, loadReports, onServerTripsChange])
 
   const applyReportFilter = (patch: Partial<ReportFilters>) => {
     let next = { ...reportFilters, ...patch }

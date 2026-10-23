@@ -64,6 +64,13 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
+  // `setField` menutup `draft.vehicleForm`, jadi identitasnya berubah setiap
+  // render. Effect OCR di bawah hanya boleh dipicu oleh `draft.ocrResult`;
+  // versi terbaru disimpan di ref supaya dependency array tetap sempit dan
+  // effect tidak jalan ulang tiap kali form berubah.
+  const setFieldRef = useRef(setField)
+  useEffect(() => { setFieldRef.current = setField })
+
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value
     const oldValue = lastValueRef.current
@@ -101,13 +108,13 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       const sanitized = sanitizePlateInput(draft.ocrResult)
       const formattedPlate = formatPlateNumber(sanitized)
       if (formattedPlate.length >= 3) {
-        setField({ plate: formattedPlate })
+        setFieldRef.current({ plate: formattedPlate })
         lastValueRef.current = formattedPlate
         void runCheck(formattedPlate)
       }
       patchDraft({ ocrResult: undefined })
     }
-  }, [draft.ocrResult])
+  }, [draft.ocrResult, patchDraft])
 
   const openCamera = (mode: 'photo' | 'ocr') => {
     patchDraft({ cameraFrom: 'vehicle-form', cameraMode: mode })
