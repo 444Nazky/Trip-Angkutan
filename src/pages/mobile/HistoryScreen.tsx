@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2 } from 'lucide-react'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
+import { classifyTripSync, onSyncQueueChange, type SyncItem, type TripSyncState } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 
 
 
-function SyncBadge({ isSynced }: { isSynced: boolean }) {
-  if (isSynced) {
+function SyncBadge({ state }: { state: TripSyncState }) {
+  if (state === 'synced') {
     return (
       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
         <Cloud size={10} /> Terkirim
@@ -15,9 +16,17 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
     )
   }
 
+  if (state === 'failed') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+        <AlertTriangle size={10} /> Gagal
+      </span>
+    )
+  }
+
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-      <CloudOff size={10} /> Tersimpan di lokal
+      <CloudOff size={10} /> {state === 'pending' ? 'Menunggu' : 'Tersimpan di lokal'}
     </span>
   )
 }
@@ -66,6 +75,13 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
+  // supaya trip yang ditolak server tampil "Gagal", bukan "Terkirim".
+  const [queue, setQueue] = useState<SyncItem[]>([])
+  useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
+  const stateOf = (id: string, synced: boolean | undefined) =>
+    classifyTripSync(id, synced, queue).state
+
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
     // Urutkan kronologis terbaru lebih dulu; sumbernya tetap data lokal.
@@ -78,8 +94,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
-  const syncedCount = myTrips.filter(t => t.synced).length
-  const localCount = myTrips.filter(t => !t.synced).length
+  const syncedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'synced').length
+  const failedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
+  const localCount = myTrips.filter(t => {
+    const s = stateOf(t.id, t.synced)
+    return s === 'pending' || s === 'local'
+  }).length
 
   return (
     <div className="px-4 pt-2 pb-4 space-y-4">
@@ -94,6 +114,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           <Cloud size={10} />
           <span>{syncedCount} terkirim</span>
         </div>
+        {failedCount > 0 && (
+          <div className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold">
+            <AlertTriangle size={10} />
+            <span>{failedCount} gagal kirim</span>
+          </div>
+        )}
         <div className="flex items-center gap-1 bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-semibold">
           <CloudOff size={10} />
           <span>{localCount} lokal</span>
@@ -147,7 +173,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
-                <SyncBadge isSynced={t.synced ?? false} />
+                <SyncBadge state={stateOf(t.id, t.synced)} />
               </div>
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
               <div className="flex items-center gap-3 mt-2">
