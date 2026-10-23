@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 // ─── OTA Service Worker — v4 (versi-aktif saja) ───────────────────────────────
 //
 // Prinsip:

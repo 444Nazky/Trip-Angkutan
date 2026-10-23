@@ -662,7 +662,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selfieCapturedAt: draft.selfieCapturedAt,
     }
     commitTrip(trip)
-  }, [draft, officer.name, commitTrip])
+  }, [draft, officer.name, officer.id, commitTrip])
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
     if (!draft.photoUrl) {
@@ -715,7 +715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selfieCapturedAt: draft.selfieCapturedAt,
     }
     commitTrip(trip)
-  }, [draft, officer.name, commitTrip])
+  }, [draft, officer.name, officer.id, commitTrip])
   const markTripSynced = useCallback((id: string) => {
     setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
   }, [])
@@ -791,7 +791,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshOfficers(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshOfficers])
 
   useEffect(() => {
