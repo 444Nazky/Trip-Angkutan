@@ -455,7 +455,11 @@ export function isPrivateHostUrl(url: string): boolean {
  */
 export function normalizeApiBaseInput(raw: string): string {
   const url = String(raw ?? '').trim()
+<<<<<<< HEAD
   if (!url) return normalizeUrl(defaultApiBaseUrl())
+=======
+  if (!url) return normalizeUrl(environment.apiBaseUrl)
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
   const withScheme = /^https?:\/\//i.test(url)
     ? url
     : `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
