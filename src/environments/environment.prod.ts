@@ -1,13 +1,27 @@
+// ─── Sumber tunggal alamat backend (PRODUKSI) ────────────────────────────────
+//
+// Endpoint DEFAULT adalah server INTRANET kantor (port 3000). Supabase cloud
+// hanya cadangan untuk perangkat yang berada di luar jaringan kantor dan untuk
+// artefak Storage (foto, OTA, APK).
+const SUPABASE_CLOUD_URL = 'https://bmiruktfruunegtbydyw.supabase.co'
+const INTRANET_API_BASE_URL = 'http://192.168.1.123:3000/api'
+
 export const environment = {
   production: true,
 
-  // Supabase Edge Functions API (single endpoint: supabase/functions/api)
-  apiBaseUrl: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
+  // Origin project Supabase (cloud) - dipakai untuk Storage: foto trip, OTA, APK.
+  supabaseUrl: SUPABASE_CLOUD_URL,
+
+  // Nilai tersamar untuk ditampilkan di UI/konfigurasi. BUKAN URL yang bisa
+  // dipanggil; jangan pernah dipakai sebagai base URL request.
+  supabaseUrlMask: '192.168/tunnelnanas/qhkc8uqw3n2.5',
+
+  // Supabase Edge Functions API (endpoint cloud/cadangan).
+  apiBaseUrl: `${SUPABASE_CLOUD_URL}/functions/v1/api`,
   supabaseAnonKey: '',
 
-  // Backend INTRANET (server lokal di PC kantor, port 3000).
-  // Dipakai sebagai pilihan kedua di "Pengaturan Server" aplikasi mobile.
-  intranetApiBaseUrl: 'http://192.168.1.123:3000/api',
+  // Backend INTRANET (PC kantor, port 3000) = endpoint default sistem.
+  intranetApiBaseUrl: INTRANET_API_BASE_URL,
 
   geolocation: {
     rute1: 'https://www.google.com/maps?q=-6.2389899548617285,106.97475839406252',
