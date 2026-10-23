@@ -20,7 +20,8 @@ import * as rprt from "./handlers/reports.ts";
 import * as ofc from "./handlers/officers.ts";
 import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
-import { corsHeaders, json, auth } from "./_shared.ts";
+import { corsHeaders, json, auth, requireAdmin } from "./_shared.ts";
+import { recordRequest, statsSnapshot } from "./_stats.ts";
 import {
   take,
   remaining,
@@ -127,6 +128,13 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     // kantor (keduanya menjawab /health dengan status yang sama).
     const mode = Deno.env.get("API_DISABLE_EMBEDDED_SERVER") === "1" ? "intranet" : "cloud";
     return json({ status: "ok", version: "3.0.0-supabase-only", mode, instance: INSTANCE_ID });
+  }
+
+  // ---------------- /stats (admin only) ----------------
+  if (a === "stats" && req.method === "GET") {
+    const admin = await requireAdmin(req);
+    if (!admin) return json({ error: "Admin access required" }, 403);
+    return json(statsSnapshot(INSTANCE_ID));
   }
 
   // ---------------- /auth ----------------
@@ -341,6 +349,10 @@ function flushTraffic(force = false): void {
 }
 
 function logRequest(fields: Record<string, unknown>): void {
+  // Metrik /stats dihitung dari SATU tempat ini supaya semua response
+  // (termasuk 429) ikut terhitung. Error 500 dicatat di catch handleRequest.
+  recordRequest(String(fields.path ?? "/"), Number(fields.status ?? 0), Number(fields.ms ?? 0));
+
   if (API_LOG_ALL) {
     console.log(JSON.stringify({ ev: "api_request", ...fields }));
     return;
@@ -549,6 +561,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     });
   } catch (error) {
     console.error("[api]", req.method, path, error);
+    recordRequest(path, 500, Date.now() - startedAt);
     return json({ error: "Internal error" }, 500);
   }
 }
