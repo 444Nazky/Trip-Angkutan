@@ -3,8 +3,7 @@ import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, appl
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { environment } from '../../../environments/environment'
-import { ChangePasswordSection } from '../ChangePassword'
-import { apiBaseCandidateLabel, apiBaseCandidates, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride } from '../../../services/api'
+import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
 
 
 
@@ -166,13 +165,10 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
               <button
                 disabled={testing}
                 onClick={async () => {
-                  const v = serverUrl.trim()
-                  if (!v) { showToast('URL kosong', 'error'); return }
-                  if (/^http:\/\//i.test(v) && !/localhost|127\.0\.0\.1|192\.168\.|10\./.test(v)) {
-                    showToast('Pakai https, kecuali localhost/LAN', 'error'); return
-                  }
+                  const check = validateEndpointInput(serverUrl)
+                  if (!check.ok) { showToast(check.msg, 'error'); return }
                   setTesting(true)
-                  const r = await pingBaseUrl(v)
+                  const r = await pingBaseUrl(check.url)
                   setTesting(false)
                   // URL yang bisa dijangkau tetap disimpan walau browser memblokir
                   // bacaannya (origin dashboard belum terdaftar di CORS_ORIGIN server).
@@ -184,8 +180,8 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
                         : `Server tidak merespon (${r.ms} ms) — URL lama tetap dipakai`, 'error')
                     return
                   }
-                  setApiBaseUrlOverride(v)
-                  setServerUrl(normalizeBaseUrl(v))
+                  applyEndpointInput(check.url)
+                  setServerUrl(resolveApiBaseUrl())
                   showToast(r.blockedByCors
                     ? `Server hidup (${r.ms} ms) tapi browser memblokir CORS. URL disimpan — minta admin server menambahkan origin ini ke CORS_ORIGIN`
                     : `Tersambung (${r.ms} ms), URL diterapkan`, r.blockedByCors ? 'error' : 'success')
@@ -249,12 +245,10 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
               <button
                 disabled={testing}
                 onClick={() => {
-                  const v = serverUrl.trim()
-                  if (!v) { showToast('URL kosong', 'error'); return }
-                  setApiBaseUrlOverride(v)
-                  const applied = resolveApiBaseUrl()
-                  setServerUrl(applied)
-                  showToast(`URL disimpan tanpa tes: ${applied}`, 'success')
+                  const res = applyEndpointInput(serverUrl)
+                  if (!res.ok) { showToast(res.msg, 'error'); return }
+                  setServerUrl(res.url)
+                  showToast(`URL disimpan tanpa tes: ${res.url}`, 'success')
                 }}
                 className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 font-bold text-xs hover:bg-amber-100 disabled:opacity-50"
               >

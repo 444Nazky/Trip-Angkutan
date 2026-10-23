@@ -87,6 +87,20 @@ async function lanAddresses(): Promise<string[]> {
 // tidak ikut tercetak tepat waktu (banner LAN pernah kosong).
 const LAN_IPS = await lanAddresses();
 
+// IP LAN HOST opsional, mis. "192.168.1.123".
+//
+// Di dalam container Docker, `Deno.networkInterfaces()` hanya melihat
+// interface container (172.18.x.x) - bukan IP host yang diketik petugas di
+// HP. Jadi IP host boleh diberikan lewat env `LAN_IP` supaya banner
+// menampilkan URL yang benar-benar bisa dibuka perangkat di jaringan.
+const EXTRA_LAN_IPS = (Deno.env.get("LAN_IP") ?? "")
+  .split(/[,\s]+/)
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0 && !s.startsWith("127."));
+for (const ip of EXTRA_LAN_IPS) {
+  if (!LAN_IPS.includes(ip)) LAN_IPS.push(ip);
+}
+
 Deno.serve(
   { port: PORT, hostname: HOST, onListen: ({ hostname, port }) => {
     console.log(`[api-intranet] API lokal siap di http://${hostname}:${port}/api`);

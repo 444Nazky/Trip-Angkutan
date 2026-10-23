@@ -1,6 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
   api,
+  applyEndpointInput,
   apiBaseCandidates,
   apiBaseCandidateLabel,
   intranetApiBaseUrl,
@@ -8,9 +9,12 @@ import {
   isPrivateHostUrl,
   normalizeApiBaseInput,
   normalizeBaseUrl,
+  pingBaseUrl,
+  probeServerHealth,
   resolveApiBaseUrl,
   setApiBaseUrlOverride,
   supabaseProjectOrigin,
+  validateEndpointInput,
 } from './api'
 import { otaAssetsBase } from './ota'
 
@@ -21,15 +25,16 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     localStorage.clear()
   })
 
-  it('menawarkan dua kandidat endpoint: Supabase dan intranet LAN', () => {
+  it('menawarkan dua kandidat endpoint: intranet LAN lebih dulu, lalu Supabase', () => {
     const urls = apiBaseCandidates().map(c => c.url)
+    expect(urls[0]).toBe(intranetApiBaseUrl())
     expect(urls).toContain('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
-    expect(urls).toContain(intranetApiBaseUrl())
     expect(urls.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('default tanpa override adalah Supabase cloud', () => {
-    expect(resolveApiBaseUrl()).toBe('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
+  it('default tanpa override adalah server intranet port 3000', () => {
+    expect(resolveApiBaseUrl()).toBe(intranetApiBaseUrl())
+    expect(isIntranetBaseUrl(resolveApiBaseUrl())).toBe(true)
   })
 
   it('override intranet dipakai dan di-normalisasi ke /api', () => {
@@ -38,11 +43,11 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     expect(isIntranetBaseUrl(resolveApiBaseUrl())).toBe(true)
   })
 
-  it('reset mengembalikan ke Supabase cloud', () => {
-    setApiBaseUrlOverride('http://192.168.1.123:3000/api')
+  it('reset mengembalikan ke endpoint default intranet', () => {
+    setApiBaseUrlOverride('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
     setApiBaseUrlOverride(null)
     expect(localStorage.getItem(OVERRIDE_KEY)).toBeNull()
-    expect(resolveApiBaseUrl()).toBe('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
+    expect(resolveApiBaseUrl()).toBe(intranetApiBaseUrl())
   })
 
   it('host privat tanpa skema dinormalisasi ke http, bukan https', () => {
@@ -78,5 +83,148 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     setApiBaseUrlOverride('http://192.168.1.123:3000/api')
     expect(otaAssetsBase()).toBe(`${supabaseProjectOrigin()}/storage/v1/object/public/ota/`)
     expect(otaAssetsBase()).not.toContain('192.168.1.123')
+  })
+})
+
+describe('normalisasi http/https hanya punya satu aturan', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('host publik tanpa skema tidak lagi menjadi http', () => {
+    // Regresi: dulu normalizeApiBaseInput() selalu menambah http:// saat skema
+    // tidak diketik, sehingga host publik tersimpan sebagai http dan mati
+    // sebagai mixed content di halaman https.
+    expect(normalizeApiBaseInput('contoh.example.com')).toBe('https://contoh.example.com/api')
+    expect(normalizeApiBaseInput('contoh.example.com')).toBe(normalizeBaseUrl('contoh.example.com'))
+  })
+
+  it('host LAN/privat tetap boleh http tanpa skema', () => {
+    expect(normalizeApiBaseInput('192.168.1.123:3000')).toBe('http://192.168.1.123:3000/api')
+    expect(normalizeApiBaseInput('10.0.0.5:3000')).toBe('http://10.0.0.5:3000/api')
+    expect(normalizeApiBaseInput('172.16.4.9:3000')).toBe('http://172.16.4.9:3000/api')
+  })
+})
+
+describe('validateEndpointInput: aturan tunggal untuk semua layar pengaturan server', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('menormalkan host publik ke https + /api', () => {
+    expect(validateEndpointInput('https://contoh.example.com', 'http:')).toEqual({
+      ok: true,
+      url: 'https://contoh.example.com/api',
+    })
+  })
+
+  it('menolak http:// eksplisit untuk host publik', () => {
+    const r = validateEndpointInput('http://contoh.example.com', 'http:')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.msg).toMatch(/https/i)
+  })
+
+  it('menolak URL kosong', () => {
+    expect(validateEndpointInput('   ', 'http:').ok).toBe(false)
+  })
+
+  it('menerima intranet http dari halaman http, menolak dari halaman https (mixed content)', () => {
+    expect(validateEndpointInput('http://192.168.1.123:3000', 'http:')).toEqual({
+      ok: true,
+      url: 'http://192.168.1.123:3000/api',
+    })
+    const blocked = validateEndpointInput('http://192.168.1.123:3000', 'https:')
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) expect(blocked.msg).toMatch(/mixed content/i)
+  })
+
+  it('host publik tanpa skema dari halaman https dinormalkan ke https, bukan ditolak', () => {
+    expect(validateEndpointInput('contoh.example.com', 'https:')).toEqual({
+      ok: true,
+      url: 'https://contoh.example.com/api',
+    })
+  })
+
+  it('applyEndpointInput menyimpan URL ternormalisasi dan tidak mengubah endpoint aktif saat input ditolak', () => {
+    const applied = applyEndpointInput('192.168.1.123:3000')
+    expect(applied.ok).toBe(true)
+    expect(resolveApiBaseUrl()).toBe('http://192.168.1.123:3000/api')
+    expect(localStorage.getItem(OVERRIDE_KEY)).toBe('http://192.168.1.123:3000/api')
+
+    const rejected = applyEndpointInput('http://contoh.example.com', 'http:')
+    expect(rejected.ok).toBe(false)
+    expect(resolveApiBaseUrl()).toBe('http://192.168.1.123:3000/api')
+  })
+})
+
+describe('probeServerHealth: membedakan host mati dari CORS', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('host hidup tetapi CORS memblokir → hostAlive true, blockedByCors true', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      init?.mode === 'no-cors'
+        ? Promise.resolve(new Response(null, { status: 200 }))
+        : Promise.reject(new TypeError('Failed to fetch')),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await probeServerHealth('http://192.168.1.123:3000/api')
+
+    expect(r.reachable).toBe(false)
+    expect(r.hostAlive).toBe(true)
+    expect(r.blockedByCors).toBe(true)
+    // Probe opaque dijalankan sekali sebagai pembeda.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ mode: 'no-cors' })
+  })
+
+  it('host benar-benar mati → hostAlive false dan tanpa blockedByCors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    const r = await probeServerHealth('http://192.168.1.123:3000/api')
+
+    expect(r.reachable).toBe(false)
+    expect(r.hostAlive).toBe(false)
+    expect(r.blockedByCors).toBeUndefined()
+  })
+
+  it('timeout tidak menambah request kedua', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await probeServerHealth('http://192.168.1.123:3000/api', 50)
+
+    expect(r.timedOut).toBe(true)
+    expect(r.hostAlive).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('server menjawab HTTP 500 tetap counted sebagai host hidup', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    const r = await probeServerHealth('http://192.168.1.123:3000/api')
+
+    expect(r.reachable).toBe(true)
+    expect(r.hostAlive).toBe(true)
+    expect(r.status).toBe(500)
+  })
+
+  it('pingBaseUrl menganggap host CORS-blocked sebagai ok (dipakai dashboard admin)', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) =>
+      init?.mode === 'no-cors'
+        ? Promise.resolve(new Response(null, { status: 200 }))
+        : Promise.reject(new TypeError('Failed to fetch')),
+    ))
+
+    const r = await pingBaseUrl('http://192.168.1.123:3000/api')
+
+    expect(r.ok).toBe(true)
+    expect(r.blockedByCors).toBe(true)
+    expect(r.hostAlive).toBe(true)
   })
 })
