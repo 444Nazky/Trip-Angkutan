@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
-import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
+import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 
@@ -34,7 +34,11 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
 
   const queue = getSyncQueue()
-  const queueItem = t ? queue.find(q => q.trip.id === t.id) : undefined
+  // Status jujur: 'failed' = server menolak (merah), bukan sekadar "menunggu".
+  const syncStatus = t ? classifyTripSync(t.id, t.synced, queue) : undefined
+  const isSynced = syncStatus?.state === 'synced'
+  const sendFailed = syncStatus?.state === 'failed'
+  const queueItem = syncStatus?.item
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
 
@@ -313,24 +317,44 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       )}
 
       {/* Sync Status */}
-      <div className={`rounded-2xl p-4 flex items-center gap-3 border ${isSynced ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isSynced ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-          {isSynced
-            ? <Cloud size={16} className="text-emerald-500" strokeWidth={2.5} />
-            : <CloudOff size={16} className="text-amber-500" strokeWidth={2.5} />}
+      <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
+        sendFailed
+          ? 'bg-red-50 border-red-200'
+          : isSynced
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-amber-50 border-amber-200'
+      }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+          sendFailed ? 'bg-red-100' : isSynced ? 'bg-emerald-100' : 'bg-amber-100'
+        }`}>
+          {sendFailed
+            ? <AlertTriangle size={16} className="text-red-500" strokeWidth={2.5} />
+            : isSynced
+              ? <Cloud size={16} className="text-emerald-500" strokeWidth={2.5} />
+              : <CloudOff size={16} className="text-amber-500" strokeWidth={2.5} />}
         </div>
         <div className="flex-1">
-          <p className={`text-[12px] font-bold ${isSynced ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {isSynced ? 'Data trip berhasil terkirim' : 'Masih menunggu koneksi, tersimpan di lokal'}
+          <p className={`text-[12px] font-bold ${
+            sendFailed ? 'text-red-700' : isSynced ? 'text-emerald-700' : 'text-amber-700'
+          }`}>
+            {sendFailed
+              ? 'Gagal terkirim ke server'
+              : isSynced
+                ? 'Data trip berhasil terkirim'
+                : 'Masih menunggu koneksi, tersimpan di lokal'}
           </p>
-          <p className={`text-[10px] ${isSynced ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {isSynced
-              ? `Data berhasil dikirim ke server · ${t.date}`
-              : photoStuck
-                ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
-                : inQueue
-                  ? 'Menunggu koneksi untuk mengirim...'
-                  : 'Data aman tersimpan di perangkat'}
+          <p className={`text-[10px] ${
+            sendFailed ? 'text-red-600' : isSynced ? 'text-emerald-600' : 'text-amber-600'
+          }`}>
+            {sendFailed
+              ? `${syncStatus?.error ?? 'Server menolak data trip'}${syncStatus?.attempts ? ` · percobaan ${syncStatus.attempts}` : ''} — data BELUM masuk dashboard admin`
+              : isSynced
+                ? `Data berhasil dikirim ke server · ${t.date}`
+                : photoStuck
+                  ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
+                  : inQueue
+                    ? 'Menunggu koneksi untuk mengirim...'
+                    : 'Data aman tersimpan di perangkat'}
           </p>
         </div>
       </div>
