@@ -57,12 +57,33 @@ function getBaseUrl(): string {
     const override = localStorage.getItem(API_URL_OVERRIDE_KEY)
     if (override?.trim()) return normalizeUrl(override)
   } catch {}
-  return normalizeUrl(environment.apiBaseUrl)
+  return normalizeUrl(defaultApiBaseUrl())
+}
+
+/**
+ * Endpoint default sistem = backend INTRANET kantor (port 3000).
+ *
+ * Cloud hanya dipakai bila `intranetApiBaseUrl` dikosongkan di environment.
+ * Jangan mengembalikan `apiBaseUrl` lebih dulu: aplikasi mobile kantor harus
+ * tetap bisa login/geofence walau tidak ada internet.
+ */
+export function defaultApiBaseUrl(): string {
+  const intranet = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
+  return (intranet && intranet.trim()) || environment.apiBaseUrl
+}
+
+/** True kalau endpoint default/aktif adalah server intranet. */
+export function isDefaultIntranet(): boolean {
+  return isIntranetBaseUrl(defaultApiBaseUrl())
+}
+
+function cloudApiBaseUrl(): string {
+  return environment.apiBaseUrl
 }
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
-  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
+  if (!url) return defaultApiBaseUrl()
   if (!/^https?:\/\//i.test(url)) {
     // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
     // Host publik dipaksa https.
@@ -93,11 +114,26 @@ export function resolveApiBaseUrl(): string {
  * diarahkan ke port 3000 yang tidak melayani /storage -> 404.
  */
 export function supabaseProjectOrigin(): string {
+  const explicit = (environment as { supabaseUrl?: string }).supabaseUrl
   try {
-    return new URL(environment.apiBaseUrl).origin
+    return new URL(explicit || environment.apiBaseUrl).origin
   } catch {
-    return 'https://bmiruktfruunegtbydyw.supabase.co'
+    try {
+      return new URL(environment.apiBaseUrl).origin
+    } catch {
+      return 'https://bmiruktfruunegtbydyw.supabase.co'
+    }
   }
+}
+
+/**
+ * Alamat Supabase yang aman ditampilkan (disamarkan sesuai audit).
+ * Hanya untuk UI/konfigurasi — JANGAN dipakai untuk request.
+ */
+export function maskedSupabaseUrl(): string {
+  return (environment as { supabaseUrlMask?: string }).supabaseUrlMask
+    || (environment as { supabaseUrl?: string }).supabaseUrl
+    || environment.apiBaseUrl
 }
 
 export function getApiBaseUrl(): string {
@@ -382,21 +418,21 @@ export function isIntranetBaseUrl(url: string): boolean {
 }
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
-  const candidates: ApiBaseCandidate[] = [
-    {
-      url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
-      label: 'Supabase (Cloud)',
-      hint: 'Butuh koneksi internet. Endpoint default produksi.',
-    },
-  ]
+  // Intranet lebih dulu karena ia endpoint DEFAULT sistem.
+  const candidates: ApiBaseCandidate[] = []
   const intranet = intranetApiBaseUrl()
   if (intranet) {
     candidates.push({
       url: intranet,
       label: 'Intranet Kantor (LAN)',
-      hint: 'Server lokal di PC kantor. Tidak butuh internet.',
+      hint: 'Default sistem. Server lokal di PC kantor (port 3000), tidak butuh internet.',
     })
   }
+  candidates.push({
+    url: cloudApiBaseUrl(),
+    label: 'Supabase (Cloud)',
+    hint: 'Cadangan untuk luar jaringan kantor. Butuh internet.',
+  })
   return candidates
 }
 
@@ -419,7 +455,11 @@ export function isPrivateHostUrl(url: string): boolean {
  */
 export function normalizeApiBaseInput(raw: string): string {
   const url = String(raw ?? '').trim()
+<<<<<<< HEAD
+  if (!url) return normalizeUrl(defaultApiBaseUrl())
+=======
   if (!url) return normalizeUrl(environment.apiBaseUrl)
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
   const withScheme = /^https?:\/\//i.test(url)
     ? url
     : `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
@@ -568,18 +608,15 @@ export function setApiBaseUrlOverride(url: string | null): void {
   setApiBaseUrl(url)
 }
 
-// Default URL (synchronous) - PRODUKSI ONLY
+// Default URL (synchronous) - tanpa override memakai endpoint intranet.
 export async function autoDetectApiBaseUrl(_timeoutMs?: number): Promise<string | null> {
-  console.log('[API] Production mode: URL dikunci ke Supabase')
-  return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
+  console.log('[API] Menggunakan endpoint default:', defaultApiBaseUrl())
+  return defaultApiBaseUrl()
 }
 
-// PRODUCTION: URL backend DIKUNCI ke Supabase - tidak ada auto-detect atau fallback ke localhost
-const PRODUCTION_API_URL = 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
-
-// Async version for chained calls - PRODUKSI ONLY, tidak pernah ke localhost
+// Async version for chained calls. Tidak ada auto-detect ke localhost acak:
+// default tetap server intranet kantor (port 3000) yang sudah dikonfigurasi.
 export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
-  // SELALU kembalikan URL produksi - tidak ada deteksi
-  console.log('[API] Production mode: menggunakan Supabase API')
-  return PRODUCTION_API_URL
+  console.log('[API] Menggunakan endpoint default:', defaultApiBaseUrl())
+  return defaultApiBaseUrl()
 }
