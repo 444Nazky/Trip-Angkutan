@@ -369,7 +369,17 @@ function isAnomaly(status: number): boolean {
 const ANOMALY_COOLDOWN_MS = 60_000;
 const anomalySeen = new Map<string, number>();
 
-Deno.serve(async (req: Request) => {
+/**
+ * Handler utama API.
+ *
+ * Dipisah dari `Deno.serve` supaya handler yang sama bisa dipakai dua tempat:
+ *   1. Supabase Edge Runtime (deploy)  -> `Deno.serve(handleRequest)`
+ *   2. Server intranet lokal (port 3000) -> `local_server.ts`
+ *
+ * Logika, rate limit, cache, dan CORS persis sama untuk keduanya, jadi
+ * perilaku endpoint intranet == endpoint cloud.
+ */
+export async function handleRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
