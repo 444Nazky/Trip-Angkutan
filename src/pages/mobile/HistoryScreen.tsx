@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2 } from 'lucide-react'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
+import { classifyTripSync, getSyncQueue, onSyncQueueChange, type TripSyncState } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 
 
 
-function SyncBadge({ isSynced }: { isSynced: boolean }) {
-  if (isSynced) {
+function SyncBadge({ state }: { state: TripSyncState }) {
+  if (state === 'synced') {
     return (
       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
         <Cloud size={10} /> Terkirim
@@ -15,9 +16,17 @@ function SyncBadge({ isSynced }: { isSynced: boolean }) {
     )
   }
 
+  if (state === 'failed') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+        <AlertTriangle size={10} /> Gagal
+      </span>
+    )
+  }
+
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-      <CloudOff size={10} /> Tersimpan di lokal
+      <CloudOff size={10} /> {state === 'pending' ? 'Menunggu' : 'Tersimpan di lokal'}
     </span>
   )
 }
