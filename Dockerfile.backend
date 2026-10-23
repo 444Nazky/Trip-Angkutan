@@ -1,0 +1,43 @@
+# Server API INTRANET (port 3000) — menjalankan Edge Function yang sama
+# dengan yang di-deploy ke Supabase, tapi dijawab dari jaringan lokal kantor.
+#
+# Build : sudo docker build -f Dockerfile.backend -t trip-angkutan-api .
+# Run   : sudo docker compose up -d api-intranet
+#
+# Env dibaca dari supabase/functions/api/.env.local (lihat .env.example).
+# File .env.local SENGAJA tidak ikut ke dalam image (lihat
+# Dockerfile.backend.dockerignore) — env disuntikkan saat runtime.
+FROM denoland/deno:alpine-2.9.8
+
+WORKDIR /srv/api
+
+ENV PORT=3000 \
+    HOST=0.0.0.0 \
+    DENO_NO_UPDATE_CHECK=1 \
+    DENO_DIR=/deno-dir
+
+COPY supabase/functions/api/ ./api/
+
+# Cache dependency saat build: @supabase/supabase-js dari esm.sh + npm:bcryptjs.
+# Setelah ini server start TANPA perlu internet (cache sudah baked ke image).
+#
+# PENTING: `deno cache` TIDAK menerima flag izin (--allow-net dkk). Kalau diberi,
+# perintah gagal dan cache tetap kosong -> server baru bisa start setelah
+# mengunduh dependency dari internet saat runtime.
+#
+# --node-modules-dir=none: memaksa Deno memakai cache globalnya sendiri.
+# Tanpa flag ini Deno mencari package.json di folder induk dan mencoba
+# menyelesaikan `npm:bcryptjs@2.4.3` dari node_modules repo (yang berisi
+# bcryptjs ^3) -> server gagal start.
+RUN deno cache --node-modules-dir=none api/local_server.ts
+
+# Jalankan sebagai user non-root.
+RUN mkdir -p /deno-dir && chown -R deno:deno /deno-dir /srv/api
+USER deno
+
+EXPOSE 3000
+
+# --allow-net  : fetch ke Supabase + serve request lokal
+# --allow-env  : baca SUPABASE_URL / JWT_SECRET / dll
+# --allow-read : baca file handler
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--node-modules-dir=none", "api/local_server.ts"]
