@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import MobileShell from './MobileShell'
-import HomeScreen from './HomeScreen'
-import RouteSelectScreen from './RouteSelectScreen'
+import HomeScreen from './HomeScreen'import RouteSelectScreen from './RouteSelectScreen'
 import TripConditionScreen from './TripConditionScreen'
 import VehicleFormScreen from './VehicleFormScreen'
 import CameraScreen from './CameraScreen'
