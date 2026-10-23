@@ -47,6 +47,14 @@ describe('mergeTrips — edit pasca-kirim tidak hilang', () => {
     const merged = mergeTrips([base({ updatedAt: 1 })], [base({ updatedAt: 2 })])
     expect(merged).toHaveLength(1)
   })
+
+  it('metadata localStorage (tanpa foto) tidak menimpa trip berfoto', () => {
+    const withPhoto = base({ updatedAt: 5000, photoUrl: 'data:image/jpeg;base64,AAA' })
+    const metadataOnly = base({ updatedAt: 5000 })
+    const merged = mergeTrips([withPhoto], [metadataOnly])
+    expect(merged).toHaveLength(1)
+    expect(merged[0].photoUrl).toBe(withPhoto.photoUrl)
+  })
 })
 
 describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => {
