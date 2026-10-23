@@ -64,7 +64,9 @@ function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
   if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
   if (!/^https?:\/\//i.test(url)) {
-    url = `${url.startsWith('localhost') ? 'http' : 'https'}://${url}`
+    // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
+    // Host publik dipaksa https.
+    url = `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
   }
   if (!/\/api$/i.test(url)) url = `${url}/api`
   return url
@@ -75,7 +77,6 @@ export function setApiBaseUrl(url: string | null) {
     if (url?.trim()) localStorage.setItem(API_URL_OVERRIDE_KEY, url.trim())
     else localStorage.removeItem(API_URL_OVERRIDE_KEY)
   } catch {}
-  window.location.reload()
 }
 
 export function resolveApiBaseUrl(): string {
@@ -136,7 +137,7 @@ async function request<T>(
   const anon = (environment as { supabaseAnonKey?: string }).supabaseAnonKey
   if (anon) headers['apikey'] = anon
 
-  const url = `${baseUrl}${path}`
+  const url = `${currentBaseUrl()}${path}`
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
 
@@ -165,7 +166,16 @@ async function request<T>(
   }
 }
 
-const baseUrl = getBaseUrl()
+/**
+ * Base URL aktif.
+ *
+ * Sengaja TIDAK di-cache di level modul: endpoint bisa diganti saat runtime
+ * lewat "Pengaturan Server" (pindah Supabase <-> Intranet). Kalau di-cache,
+ * `api.baseUrl` masih menunjuk ke server lama sampai aplikasi di-reload.
+ */
+function currentBaseUrl(): string {
+  return getBaseUrl()
+}
 
 export const api = {
   get: async <T>(path: string, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('GET', path, undefined, timeoutMs),
@@ -174,8 +184,8 @@ export const api = {
   delete: async <T>(path: string, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('DELETE', path, undefined, timeoutMs),
   setToken: (token: string | null) => saveToken(token),
   get token() { return loadToken() },
-  get baseUrl() { return baseUrl },
-  get url() { return baseUrl },
+  get baseUrl() { return currentBaseUrl() },
+  get url() { return currentBaseUrl() },
   get isAuthenticated() { return !!loadToken() },
   getOk: async <T>(path: string, timeoutMs = 12000): Promise<T | null> => {
     const r = await request<T>('GET', path, undefined, timeoutMs)
@@ -186,7 +196,7 @@ export const api = {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
       try {
-        const res = await fetch(`${baseUrl}/health?_t=${Date.now()}`, {
+        const res = await fetch(`${currentBaseUrl()}/health?_t=${Date.now()}`, {
           method: 'GET',
           cache: 'no-store',
           headers: { Accept: 'application/json' },
@@ -211,7 +221,7 @@ export const api = {
       const timer = setTimeout(() => controller.abort(), 60000)
       let res: Response
       try {
-        res = await fetch(`${baseUrl}${path}`, {
+        res = await fetch(`${currentBaseUrl()}${path}`, {
           method: 'POST',
           headers,
           body,
@@ -312,19 +322,50 @@ export function clearCredentials() {
 
 export function apiBaseCandidateLabel(candidate: string): string {
   if (/\.supabase\.co/i.test(candidate)) return 'Supabase'
-  return new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`).hostname
+  try {
+    const u = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`)
+    return isIntranetBaseUrl(candidate) ? `Intranet (${u.hostname})` : u.hostname
+  } catch {
+    return candidate
+  }
 }
 
 export interface ApiBaseCandidate {
   url: string
   label: string
+  hint?: string
+}
+
+/** URL backend intranet (PC kantor, port 3000). */
+export function intranetApiBaseUrl(): string {
+  const url = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
+  return (url ?? '').trim()
+}
+
+/** True kalau URL tersebut mengarah ke backend intranet (bukan Supabase cloud). */
+export function isIntranetBaseUrl(url: string): boolean {
+  if (!url) return false
+  if (/\.supabase\.co/i.test(url)) return false
+  return isPrivateHostUrl(url)
 }
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
-  return [
-    { url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', label: 'Produksi (Supabase)' },
-    // Localhost DIHAPUS dari kandidat - URL produksi selalu digunakan
+  const candidates: ApiBaseCandidate[] = [
+    {
+      url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
+      label: 'Supabase (Cloud)',
+      hint: 'Butuh koneksi internet. 默认 endpoint produksi.',
+    },
   ]
+  const intranet = intranetApiBaseUrl()
+  if (intranet) {
+    candidates.push({
+      url: intranet,
+      label: 'Intranet Kantor (LAN)',
+      hint: 'Server lokal di PC kantor. Tidak butuh internet.',
+    })
+  }
+  return candidates
 }
 
 export function isPrivateHostUrl(url: string): boolean {
