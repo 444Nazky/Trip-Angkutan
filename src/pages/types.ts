@@ -15,6 +15,7 @@ export type MobileScreen =
   | 'officer-switch'
   | 'pin-verify'
   | 'profile'
+  | 'endpoint'
   | 'geofence-config'
 
 
