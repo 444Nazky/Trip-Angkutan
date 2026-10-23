@@ -54,6 +54,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
       }
     } catch (err) {
+      // Jangan telan penyebabnya: tanpa log, error non-jaringan (bug) tampil
+      // identik dengan "offline" di UI.
+      console.warn('[sync] gagal menyinkronkan:', err)
       setSyncState({ synced: 0, failed: getPendingCount(), reachable: false })
     } finally {
       setBusy(false)

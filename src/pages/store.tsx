@@ -3,7 +3,7 @@ import { officerList, tariffData } from './data'
 import { addToSyncQueue, onTripSynced, retrySyncItem, notifyQueueListeners } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
-import { dbAll, dbClear, dbPutMany, initLocalDb } from '../services/localDb'
+import { dbAll, dbClear, dbPutMany, initLocalDb, metaGet, metaSet } from '../services/localDb'
 import { syncOfficersToLocal, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
@@ -153,6 +153,8 @@ interface StoreValue {
   setActiveDermaga: (id: string | null) => void
   clearAllTrips: () => void
 }
+
+const DRAFT_STORAGE_KEY = 'trip.draft.v1'
 
 const emptyDraft: Draft = {
   routeCode: null,
@@ -420,6 +422,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
+  // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh /
+  // aplikasi ditutup. Sebelumnya draft hanya di useState → semua foto hilang.
+  const draftHydratedRef = useRef(false)
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        await initLocalDb()
+        const saved = await metaGet(DRAFT_STORAGE_KEY)
+        if (!alive) return
+        if (saved && typeof saved === 'object') {
+          // Jangan timpa draft yang sudah mulai diisi pengguna sebelum restore.
+          setDraft(cur => (cur === emptyDraft ? saved as Draft : cur))
+        }
+      } catch (err) {
+        console.warn('[store] gagal memulihkan draft:', err)
+      } finally {
+        if (alive) draftHydratedRef.current = true
+      }
+    })()
+    return () => { alive = false }
+  }, [])
+
+  // Simpan draft (debounce) supaya foto yang baru diambil tidak hilang saat
+  // layar di-refresh atau aplikasi ditutup paksa.
+  useEffect(() => {
+    if (!draftHydratedRef.current) return
+    const timer = setTimeout(() => {
+      void metaSet(DRAFT_STORAGE_KEY, draft === emptyDraft ? null : draft)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [draft])
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [tripsLoaded, setTripsLoaded] = useState(false)
@@ -662,7 +696,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selfieCapturedAt: draft.selfieCapturedAt,
     }
     commitTrip(trip)
-  }, [draft, officer.name, commitTrip])
+  }, [draft, officer.name, officer.id, commitTrip])
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
     if (!draft.photoUrl) {
@@ -693,7 +727,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       status: 'Selesai',
       time: fmtClock(now),
       date: fmtDate(now),
-      load: vehicles.length > 0 && vehicles.every(v => v.load === 'empty') ? 'Kosong' : 'Ada Muatan',
+      // `load` = kondisi TRIP, bukan kondisi muatan tiap kendaraan. Trip dengan
+      // kendaraan tetap 'Ada Muatan' walau semua unitnya mengangkut kosong;
+      // status muatan per-unit tetap disimpan di vehicle.load dan payload sync.
+      load: vehicles.length > 0 ? 'Ada Muatan' : 'Kosong',
       vehicle: vehicles[0]?.plate ?? '-',
       type: vehicles[0]?.type ?? '-',
       category: vehicles[0]?.category ?? '-',
@@ -715,7 +752,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selfieCapturedAt: draft.selfieCapturedAt,
     }
     commitTrip(trip)
-  }, [draft, officer.name, commitTrip])
+  }, [draft, officer.name, officer.id, commitTrip])
   const markTripSynced = useCallback((id: string) => {
     setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
   }, [])
@@ -791,7 +828,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshOfficers(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshOfficers])
 
   useEffect(() => {
