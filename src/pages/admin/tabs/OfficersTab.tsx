@@ -104,6 +104,12 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
 
+  // Fetch ini sengaja hanya sekali saat mount: menambahkan `officers` ke
+  // dependency array akan memicu siklus fetch -> onSaveOfficers -> parent
+  // berubah -> fetch lagi. Nilai terbaru dibaca lewat ref.
+  const officersRef = useRef(officers)
+  useEffect(() => { officersRef.current = officers })
+
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -119,14 +125,14 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         if (dms) setRouteDermagas(dms as RouteDermaga[])
         if (offs) {
           setBackendOfficers(offs)
-          const merged = mergeBackendOfficers(offs, officers)
+          const merged = mergeBackendOfficers(offs, officersRef.current)
           setLocalOfficers(merged)
           onSaveOfficers(merged)
         }
         setLoading(false)
       })
     return () => { alive = false }
-  }, [])
+  }, [onSaveOfficers])
 
   const regionCodes = regions.map(r => r.code).filter(c => !HIDDEN_REGION_CODES.includes(c))
   const officerRegionCodes = (o: Officer) =>
