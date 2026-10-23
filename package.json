@@ -54,6 +54,7 @@
     "angular-eslint": "22.0.0",
     "autoprefixer": "^10.6.1",
     "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.0.0",
     "postcss": "^8.5.28",
