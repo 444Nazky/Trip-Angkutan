@@ -84,3 +84,4 @@ data/*.db
 
 # Secret server API intranet (JANGAN di-commit)
 supabase/functions/api/.env.local
+supabase/functions/api/.env.secrets
