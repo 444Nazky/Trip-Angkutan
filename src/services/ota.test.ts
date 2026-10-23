@@ -22,6 +22,7 @@ import {
   resetOtaStorage,
   isNewer,
   activateBundle,
+  otaAssetsBase,
   versionCacheName,
   type UpdateState,
 } from './ota'
@@ -32,10 +33,11 @@ if (!globalThis.crypto?.subtle) {
   throw new Error('[ota.test] WebCrypto SubtleCrypto tidak tersedia — verifikasi integritas tidak bisa diuji')
 }
 
-/** Harus sama dengan URL yang dipakai ota.ts: manifest dari Edge Function, aset dari bucket publik. */
-const SUPA_ORIGIN = new URL(resolveApiBaseUrl()).origin
+/** Harus sama dengan URL yang dipakai ota.ts: manifest dari endpoint aktif, aset dari bucket publik. */
 const MANIFEST_URL = `${resolveApiBaseUrl()}/ota-manifest`
-const ASSETS_BASE = `${SUPA_ORIGIN}/storage/v1/object/public/ota/`
+/** Basis aset diambil dari ota.ts sendiri: SELALU origin Supabase cloud, bukan endpoint aktif
+ *  (dengan default intranet :3000, origin endpoint ≠ origin storage → aset 404 di tes). */
+const ASSETS_BASE = otaAssetsBase()
 
 const h = vi.hoisted(() => ({
   native: true,
