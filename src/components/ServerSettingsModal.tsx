@@ -4,13 +4,14 @@ import {
   applyEndpointInput,
   apiBaseCandidateLabel,
   apiBaseCandidates,
+  defaultApiBaseUrl,
   isIntranetBaseUrl,
+  maskedSupabaseUrl,
   probeServerHealth,
   resolveApiBaseUrl,
   setApiBaseUrlOverride,
   validateEndpointInput,
 } from '../services/api'
-import { environment } from '../environments/environment'
 
 interface Props {
   onClose: () => void
@@ -185,7 +186,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
         />
         <p className="mt-1 text-[10px] text-slate-400">
-          Default (Supabase): {environment.apiBaseUrl}
+          Default: {defaultApiBaseUrl()} · Supabase (disamarkan): {maskedSupabaseUrl()}
         </p>
       </div>
 
