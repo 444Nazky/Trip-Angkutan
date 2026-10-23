@@ -27,6 +27,13 @@ Kalau jawabannya `connection refused` -> API intranet belum jalan di sana.
 | API intranet `:3000` | ❌ **mati** (belum di-deploy) | ✅ (cadangan) |
 | SSH masuk | ❌ port 22 tertutup | ✅ |
 
+> **Sambil menunggu deploy di `ubuntu.local`:** server API di `blackarch`
+> sudah hidup di `http://192.168.1.2:3000/api` dan **token dari cloud
+> valid di sana**. Petugas bisa memilih "Intranet Kantor" lalu mengganti
+> URL-nya manual ke `http://192.168.1.2:3000/api` (kolom input manual ada
+> di layar Endpoint). Pastikan HP petugas terhubung ke WiFi `192.168.1.x`
+> (bukan data seluler / AP isolation).
+
 Jadi satu-satunya yang kurang adalah **container API di `ubuntu.local`**.
 
 ## Langkah (jalankan di `ubuntu.local`)
