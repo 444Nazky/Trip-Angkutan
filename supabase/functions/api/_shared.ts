@@ -18,11 +18,16 @@ export function json(body: unknown, status = 200): Response {
 
 export const db: SupabaseClient = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "",
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") ?? "trip-angkut-secret-key";
+// PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG
+// (mis. baris `JWT_SECRET=` di .env.local), `??` tidak menangkapnya karena
+// "" bukan null/undefined -> kunci HMAC jadi 0 byte -> SubtleCrypto melempar
+// "Key length is zero" -> setiap request auth gagal dengan 500, bukan 401.
+// String kosong diperlakukan sama dengan tidak di-set -> memakai default.
+const JWT_SECRET = Deno.env.get("JWT_SECRET") || "trip-angkut-secret-key";
 // Token TTL: 90 hari - cukup untuk sesi aktif, tidak terlalu panjang jika browser compromise
 const OFFICER_TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
 
