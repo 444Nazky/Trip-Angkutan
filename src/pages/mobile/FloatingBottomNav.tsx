@@ -60,12 +60,15 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
     setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
   }, [])
 
+  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh
+  // objek `confirmDialog` yang berubah setiap detik saat hitungan mundur jalan.
+  const pendingAction = confirmDialog.pendingAction
   const executeConfirm = useCallback(() => {
-    if (confirmDialog.pendingAction) {
-      confirmDialog.pendingAction()
+    if (pendingAction) {
+      pendingAction()
     }
     closeConfirmDialog()
-  }, [confirmDialog.pendingAction, closeConfirmDialog])
+  }, [pendingAction, closeConfirmDialog])
 
   useEffect(() => {
     if (!confirmDialog.isOpen || confirmDialog.countdown <= 0) return

@@ -59,15 +59,20 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
-  const isEmptyTrip = t.load === 'Kosong'
-
+  // Klasifikasi HARUS dari ada/tidaknya kendaraan, bukan `t.load`.
+  // Dulu trip ber-kendaraan yang semua muatannya "empty" tersimpan
+  // load='Kosong' → foto kendaraan tidak pernah ditampilkan dan labelnya
+  // tertukar menjadi "Foto Bukti Kapal Kosong".
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
+  const isEmptyTrip = !realVehicles
+
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
   const photos: DocPhoto[] = isEmptyTrip
     ? [
         ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+        ...(t.selfieUrl ? [{ url: t.selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
       ]
     : [
         ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
@@ -292,7 +297,12 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
             {preview.kind !== 'selfie' && (
               <button
-                onClick={() => { const p = preview; setPreview(null); p.kind === 'vehicle' ? retakePhoto('vehicle', p.index) : retakePhoto('trip') }}
+                onClick={() => {
+                  const p = preview
+                  setPreview(null)
+                  if (p.kind === 'vehicle') retakePhoto('vehicle', p.index)
+                  else retakePhoto('trip')
+                }}
                 className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
               >
                 <RefreshCcw size={12} /> Ambil Ulang

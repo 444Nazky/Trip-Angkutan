@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
@@ -6,6 +6,7 @@ import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
+import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
 import { locationDistanceText } from '../../../services/locationDistance'
 
 
@@ -46,14 +47,31 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
 
-  const loadReports = async (filters?: ReportFilters) => {
+  const loadReports = useCallback(async (filters?: ReportFilters) => {
     setReportState('loading')
     const f = filters ?? reportFilters
-    const rows = await fetchTripReports(f)
+
+    // Tab Laporan bisa mount SEBELUM AdminDashboard selesai membuat sesi
+    // admin. Dulu hasilnya 403 -> state 'offline' dan tidak pernah dicoba
+    // lagi sampai halaman di-reload (data trip terlihat "hilang"). Sekarang:
+    // pastikan sesi, lalu ulangi sekali. Kalau tetap gagal baru 'offline'.
+    let rows = await fetchTripReports(f)
+    if (rows === null) {
+      const sess = await ensureAdminSession()
+      if (sess.ok) rows = await fetchTripReports(f)
+    }
     if (rows === null) { setReportState('offline'); return }
     setReportTrips(rows)
     setReportState('ready')
-  }
+  }, [reportFilters])
+
+  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
+  // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
+  useEffect(() => {
+    const onReady = () => { void loadReports() }
+    window.addEventListener(SESSION_READY_EVENT, onReady)
+    return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
+  }, [loadReports])
 
   useEffect(() => {
     if (reportState === 'idle') {
@@ -65,7 +83,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
     }
-  }, [reportState])
+    // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
+    // penambahan dependency tidak memicu fetch ulang saat filter berubah.
+  }, [reportState, loadReports, onServerTripsChange])
 
   const applyReportFilter = (patch: Partial<ReportFilters>) => {
     let next = { ...reportFilters, ...patch }
