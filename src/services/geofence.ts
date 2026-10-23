@@ -44,6 +44,25 @@ export interface GeofenceScopeDiagnosis {
   hasUnassigned: boolean
 }
 
+/**
+ * Normalisasi kode rute agar data admin dan data petugas selalu bisa
+ * dibandingkan: "SBDZ→SJRE", "SBDZ - SJRE", "sbdz-sjre" => "SBDZ-SJRE".
+ *
+ * Dulu perbandingan memakai string mentah, sehingga titik geofence yang
+ * di-set admin dengan format panah/tanpa spasi tidak pernah cocok dengan rute
+ * petugas — akibatnya aplikasi menganggap "tidak ada titik lokasi" walau
+ * konfigurasinya benar (terutama pada endpoint intranet yang datanya lebih
+ * baru). Normalisasi ini dipakai di SEMUA jalur (sync, scope, validasi).
+ */
+export function normalizeRouteCode(code: string): string {
+  return String(code ?? '')
+    .toUpperCase()
+    .trim()
+    .replace(/→|->|>|–|—/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, '')
+}
+
 // ─── Storage keys ───────────────────────────────────────────────────────────────
 
 const GEOFENCE_KEY = 'trip.geofence.points'
@@ -140,7 +159,7 @@ export function belongsTo(point: GeofencePoint, dockId: string | null): boolean 
  */
 export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   const routes = getStoredRoutes()
-  const routeCodes = new Set(routes.map(r => r.code))
+  const routeCodes = new Set(routes.map(r => normalizeRouteCode(r.code)))
   const assignedDockIds = new Set(routes.map(r => r.dermagaId).filter((id): id is string => !!id))
   const routeCount = routes.length
 
@@ -163,7 +182,7 @@ export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
     if (!p.enabled) return false
     return !assignedDockIds.size || !p.dermagaId || !isUuid(p.dermagaId) || assignedDockIds.has(p.dermagaId)
   })
-  const matching = active.filter(p => p.allowedRoutes.length === 0 || p.allowedRoutes.some(r => routeCodes.has(r)))
+  const matching = active.filter(p => p.allowedRoutes.length === 0 || p.allowedRoutes.some(r => routeCodes.has(normalizeRouteCode(r))))
   // Jika route assignment dan kode dari master berbeda, jangan membuat layar
   // geofence kosong total. Validasi trip tetap membatasi rute saat dipilih.
   const filtered = matching.length ? matching : active
@@ -344,7 +363,7 @@ async function fetchGeofenceRows(): Promise<FetchRowsResult> {
 
 function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResult {
   const routes = getStoredRoutes()
-  const routeCodes = new Set(routes.map(route => route.code))
+  const routeCodes = new Set(routes.map(route => normalizeRouteCode(route.code)))
   const accessibleIds = new Set<string>([
     ...(getStoredOfficer()?.dermagaAccess ?? []).map(d => d.id).filter(Boolean),
     ...routes.map(route => route.dermagaId).filter((id): id is string => !!id),
@@ -359,7 +378,7 @@ function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResul
       const dermagaId = point.dermagaId || source?.dermaga_id || source?.dermagaId
       return !accessibleIds.size || !dermagaId || accessibleIds.has(dermagaId) || /^[A-Z]+-D\d+$/i.test(dermagaId)
     })
-  const routeMatched = points.filter(point => point.allowedRoutes.length === 0 || point.allowedRoutes.some(code => routeCodes.has(code)))
+  const routeMatched = points.filter(point => point.allowedRoutes.length === 0 || point.allowedRoutes.some(code => routeCodes.has(normalizeRouteCode(code))))
   const scoped = routeMatched.length ? routeMatched : points
 
   if (!scoped.length) {
@@ -446,10 +465,10 @@ function mapGeofence(g: GeofenceRaw): GeofencePoint | null {
 
 function buildDiagnosis(points: GeofencePoint[]): GeofenceScopeDiagnosis {
   const routes = getStoredRoutes()
-  const routeCodes = new Set(routes.map(r => r.code))
+  const routeCodes = new Set(routes.map(r => normalizeRouteCode(r.code)))
 
   const scoped = points.filter(p =>
-    p.enabled && (p.allowedRoutes.length === 0 || p.allowedRoutes.some(r => routeCodes.has(r)))
+    p.enabled && (p.allowedRoutes.length === 0 || p.allowedRoutes.some(r => routeCodes.has(normalizeRouteCode(r))))
   )
 
   return {
@@ -563,15 +582,9 @@ export async function validateRouteForCurrentLocation(
 
   const point = snap.activePoint
 
-  // Normalize route codes for comparison - support both hyphen and arrow formats
-  const normalizeCode = (code: string): string => {
-    const upper = code.toUpperCase().trim()
-    // Support both formats: "SBDZ-SJRE", "SJRE-SBDZ", "SBDZ→SJRE", "SJRE→SBDZ"
-    return upper.replace(/→|->|>/g, '-')
-  }
-
-  const normalizedRouteCode = normalizeCode(routeCode)
-  const normalizedAllowed = point.allowedRoutes.map(normalizeCode)
+  // Normalisasi kode rute (hyphen/arrow/spasi) — satu aturan untuk semua jalur.
+  const normalizedRouteCode = normalizeRouteCode(routeCode)
+  const normalizedAllowed = point.allowedRoutes.map(normalizeRouteCode)
 
   // Check direct match
   const directMatch = normalizedAllowed.includes(normalizedRouteCode)
