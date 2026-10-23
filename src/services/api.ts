@@ -57,12 +57,33 @@ function getBaseUrl(): string {
     const override = localStorage.getItem(API_URL_OVERRIDE_KEY)
     if (override?.trim()) return normalizeUrl(override)
   } catch {}
-  return normalizeUrl(environment.apiBaseUrl)
+  return normalizeUrl(defaultApiBaseUrl())
+}
+
+/**
+ * Endpoint default sistem = backend INTRANET kantor (port 3000).
+ *
+ * Cloud hanya dipakai bila `intranetApiBaseUrl` dikosongkan di environment.
+ * Jangan mengembalikan `apiBaseUrl` lebih dulu: aplikasi mobile kantor harus
+ * tetap bisa login/geofence walau tidak ada internet.
+ */
+export function defaultApiBaseUrl(): string {
+  const intranet = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
+  return (intranet && intranet.trim()) || environment.apiBaseUrl
+}
+
+/** True kalau endpoint default/aktif adalah server intranet. */
+export function isDefaultIntranet(): boolean {
+  return isIntranetBaseUrl(defaultApiBaseUrl())
+}
+
+function cloudApiBaseUrl(): string {
+  return environment.apiBaseUrl
 }
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
-  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
+  if (!url) return defaultApiBaseUrl()
   if (!/^https?:\/\//i.test(url)) {
     // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
     // Host publik dipaksa https.
@@ -93,11 +114,26 @@ export function resolveApiBaseUrl(): string {
  * diarahkan ke port 3000 yang tidak melayani /storage -> 404.
  */
 export function supabaseProjectOrigin(): string {
+  const explicit = (environment as { supabaseUrl?: string }).supabaseUrl
   try {
-    return new URL(environment.apiBaseUrl).origin
+    return new URL(explicit || environment.apiBaseUrl).origin
   } catch {
-    return 'https://bmiruktfruunegtbydyw.supabase.co'
+    try {
+      return new URL(environment.apiBaseUrl).origin
+    } catch {
+      return 'https://bmiruktfruunegtbydyw.supabase.co'
+    }
   }
+}
+
+/**
+ * Alamat Supabase yang aman ditampilkan (disamarkan sesuai audit).
+ * Hanya untuk UI/konfigurasi — JANGAN dipakai untuk request.
+ */
+export function maskedSupabaseUrl(): string {
+  return (environment as { supabaseUrlMask?: string }).supabaseUrlMask
+    || (environment as { supabaseUrl?: string }).supabaseUrl
+    || environment.apiBaseUrl
 }
 
 export function getApiBaseUrl(): string {
