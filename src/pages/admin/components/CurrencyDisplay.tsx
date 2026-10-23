@@ -1,3 +1,4 @@
+
 interface CurrencyDisplayProps {
   amount: number
   revealed: boolean
