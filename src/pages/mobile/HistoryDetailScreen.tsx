@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
-import { getSyncQueue, onSyncQueueChange } from '../../services/sync'
+import { classifyTripSync, getSyncQueue, onSyncQueueChange } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 
