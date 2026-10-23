@@ -24,7 +24,15 @@ Kalau jawabannya `connection refused` -> API intranet belum jalan di sana.
 |----------|----------------------|------------------|
 | Web admin `:8000` | ✅ bundle terbaru (fitur endpoint ada) | ✅ |
 | Mobile `:5173` | ✅ | ✅ |
+<<<<<<< Updated upstream
+| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ⏸️ duplikat — harus dimatikan |
+=======
+<<<<<<< HEAD
 | API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ✅ (cadangan) |
+=======
+| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ⏸️ duplikat — harus dimatikan |
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
+>>>>>>> Stashed changes
 | SSH masuk | ❌ port 22 tertutup | ✅ |
 
 **Selesai (23 Okt 2026 03:53 GMT).** Secret dikirim dari `blackarch` lewat
@@ -39,8 +47,47 @@ dari `blackarch`:
 - Tanpa token rute terproteksi balas `403/401` (bukan `500`) → bug
   `JWT_SECRET=""` yang dulu bikin 500 sudah tertangani.
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
 Cadangan manual ke `http://192.168.1.2:3000/api` tetap berlaku bila `.123`
 turun; HP petugas harus di WiFi `192.168.1.x`.
+=======
+>>>>>>> Stashed changes
+HP petugas harus di WiFi `192.168.1.x`. Alamat `.2` **bukan** cadangan lagi —
+lihat bagian Otoritas port di bawah.
+
+## Otoritas port — hanya `.123`
+
+Sampai 23 Okt 2026, stack Docker di `blackarch` (`.2`) **juga** membuka
+`0.0.0.0:8000`, `0.0.0.0:5173`, dan `0.0.0.0:3000` lewat `docker-proxy`. Dua
+mesin melayani port yang sama -> "server intranet" punya dua sumber data dan
+hasil uji bisa menyesatkan (curl ke `.2` tampak sukses, padahal petugas
+memakai `.123`).
+
+Bukti keduanya host berbeda, diukur dari `.2` (23 Okt 2026):
+
+| | `.123` (Ubuntu) | `.2` (blackarch) |
+|---|---|---|
+| MAC | `8c:ec:4b:c3:eb:a2` (ARP) | `a8:2b:dd:e6:eb:fb` (NIC) |
+| `instance` di `/api/health` | `010dd5e4-…` | `4942d7b7-…` |
+
+Aturan:
+
+- Hanya `.123` yang boleh bind 8000/5173/3000.
+- Di `.2`, matikan stack duplikat (butuh sudo, bukan akses docker biasa).
+  `restart: unless-stopped` membuat container tetap mati setelah `docker stop`:
+  ```bash
+  sudo docker stop trip-web trip-api
+  sudo ss -tlnH | grep -E ':(8000|5173|3000)\b'   # harus kosong
+  ```
+- Untuk uji lokal di `.2`, pakai port lain (mis. `PORT=3996`), jangan 3000.
+- Kalau `.123` benar-benar mati dan `.2` harus menggantikan sementara, ubah
+  dulu preset endpoint di aplikasi — jangan biarkan dua-duanya hidup bersamaan.
+<<<<<<< Updated upstream
+=======
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
+>>>>>>> Stashed changes
 
 ## Langkah (jalankan di `ubuntu.local`)
 
