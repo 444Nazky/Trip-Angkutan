@@ -494,3 +494,70 @@ Bukti pembeda (tanpa root):
 ```bash
 ./scripts/diagnose-lan-connectivity.sh --live
 ```
+
+---
+
+## 12. Verifikasi Akhir (2026-10-23 14:46 WIB)
+
+Pemeriksaan ulang penuh di host `ubuntu` setelah deploy + restart:
+
+| Butir | Hasil | Bukti |
+|-------|-------|-------|
+| (1) Binding docker `0.0.0.0` | **LOLOS** | `docker ps` → `trip-web 0.0.0.0:8000 + 0.0.0.0:5173`, `trip-api 0.0.0.0:3000`; `ss -tln` → `LISTEN 0.0.0.0:8000/5173/3000` |
+| (2) IP statis | **LOLOS** | `nmcli` `netplan-eno1` → `ipv4.method: manual`; `ip -4 addr eno1` → `192.168.1.123/24`; `/etc/netplan/99-trip-REQ-eno1.yaml` ada |
+| (3) AP/Client Isolation | **BELUM TERBUKTI dari server** | ARP `eno1`: hanya router `.1` + `192.168.1.2`; **belum ada HP di LAN** → tetap butuh uji dari HP (bagian 4) |
+| (4) SSID / data seluler | **Perlu cek di HP** | Scan: `esteh bakar` (Linksys, ch 5) aktif; tidak ada SSID Guest; server online via WiFi lain `mister tuan p` |
+| Firewall | **NONAKTIF** | `/etc/ufw/ufw.conf` → `ENABLED=no` (iptables perlu `pkexec` bila ingin ulang) |
+| Port 3000 | **HIDUP & SEHAT** | `GET /api/health` → `200 {"status":"ok","mode":"intranet"}`; CORS preflight `OPTIONS /api/auth/login` → `200` |
+| Port 8000 / 5173 dari IP LAN | **HIDUP** | `curl http://192.168.1.123:8000/` → `200`; `:5173/` → `200` |
+
+### `restart-all-ubuntu.sh` — uji live LOLOS
+
+Dijalankan dari folder deploy (`/home/nazky/Trip-Angkutan`, tempat stack
+kompose berjalan), **exit 0**, tanpa prompt password dan tanpa kendala:
+
+```
+[*] Build image web (admin + mobile)...        OK
+[*] Build image API intranet...                OK
+[*] Membersihkan container lama...             (trip-web & trip-api dibuang)
+[*] Menyalakan container...                    OK
+  - Admin Service   : SUCCESS (port 8000)
+  - Mobile Service  : SUCCESS (port 5173)
+  - API Intranet    : SUCCESS (port 3000)
+[OK] Semua layanan berjalan.
+```
+
+Resolusi secret otomatis (commit `e90f228`) bekerja: `SUPABASE_SERVICE_ROLE_KEY`
++ `JWT_SECRET` sudah terisi di `.env.local` (chmod 600) sehingga script berjalan
+**tanpa input manual** — aman untuk cron/CI.
+
+> Penting: jalankan script dari `/home/nazky/Trip-Angkutan` (folder deploy),
+> **bukan** dari repo workspace — stack kompose yang hidup memakai
+> `working_dir=/home/nazky/Trip-Angkutan`.
+
+### Dual endpoint — terverifikasi di bundle berjalan
+
+* `http://192.168.1.123:5173/` menyajikan `assets/js/main-OXHCBSYJ.js` yang
+  **memuat `192.168.1.123:3000`** (preset Intranet).
+* `src/environments/environment.ts` / `environment.prod.ts`:
+  `intranetApiBaseUrl = http://192.168.1.123:3000/api` = **endpoint default**;
+  cloud Supabase tetap tersedia sebagai pilihan kedua lewat
+  **Pengaturan Server** (`ServerSettingsModal` → `EndpointPicker`).
+* Unit test endpoint: **23/23 lolos** (`src/services/api.endpoint.test.ts`).
+
+### Perbaikan test OTA (regresi dual endpoint)
+
+`src/services/ota.test.ts` menghitung `ASSETS_BASE` dari `resolveApiBaseUrl()`
+— sejak endpoint default menjadi intranet (`:3000`), origin tes ikut
+`http://192.168.1.123:3000` sedangkan `ota.ts` mengunduh aset dari origin
+Supabase **cloud** → 13 tes OTA gagal (404 "tidak dikenal").
+Diperbaiki: `ASSETS_BASE = otaAssetsBase()` (mengikuti `ota.ts` persis).
+Hasil akhir: **195/195 lolos (20 file)**.
+
+### Sisa pekerjaan (tidak bisa diselesaikan dari server)
+
+1. **Router Linksys** `192.168.1.1` → matikan *Wireless Isolation / AP
+   Isolation* (bagian 4).
+2. **HP**: matikan data seluler, connect ke `esteh bakar`, cek IP `192.168.1.x`,
+   lalu uji `http://192.168.1.123:8000` — sambil
+   `./scripts/diagnose-lan-connectivity.sh --live` (bagian 7).
