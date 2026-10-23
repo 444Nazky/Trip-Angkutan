@@ -292,7 +292,12 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
             {preview.kind !== 'selfie' && (
               <button
-                onClick={() => { const p = preview; setPreview(null); p.kind === 'vehicle' ? retakePhoto('vehicle', p.index) : retakePhoto('trip') }}
+                onClick={() => {
+                  const p = preview
+                  setPreview(null)
+                  if (p.kind === 'vehicle') retakePhoto('vehicle', p.index)
+                  else retakePhoto('trip')
+                }}
                 className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
               >
                 <RefreshCcw size={12} /> Ambil Ulang
