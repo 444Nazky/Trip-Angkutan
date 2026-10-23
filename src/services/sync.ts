@@ -68,7 +68,7 @@ interface SyncResult {
 
 
 
-type QueueListener = (count: number) => void
+type QueueListener = (count: number, queue: SyncItem[]) => void
 
 
 
@@ -165,11 +165,19 @@ async function removeItem(syncId: string): Promise<void> {
 
 
 export function notifyQueueListeners() {
-  void dbCount('pending').then(n => {
-    _pendingCount = n
-    for (const l of [...queueListeners]) { try { l(n) } catch { /* ignore */ } }
+  // Antrean ikut dikirim ke listener: UI memakai ISI antrean (bukan hanya
+  // jumlahnya) untuk menentukan status kirim tiap trip. Kalau UI membaca
+  // cache modul, ia bisa masih melihat antrean LAMA saat render pertama.
+  void readQueue().then(q => {
+    _queueCache = q
+    _pendingCount = q.length
+    for (const l of [...queueListeners]) { try { l(q.length, q) } catch { /* ignore */ } }
+  }).catch(() => {
+    void dbCount('pending').then(n => {
+      _pendingCount = n
+      for (const l of [...queueListeners]) { try { l(n, _queueCache) } catch { /* ignore */ } }
+    })
   })
-  void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 }
 
 
@@ -325,9 +333,10 @@ void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 
 export function onSyncQueueChange(cb: QueueListener): () => void {
   queueListeners.push(cb)
-  void dbCount('pending').then(n => {
-    _pendingCount = n
-    try { cb(n) } catch { /* ignore */ }
+  void readQueue().then(q => {
+    _queueCache = q
+    _pendingCount = q.length
+    try { cb(q.length, q) } catch { /* ignore */ }
   })
   return () => { queueListeners = queueListeners.filter(x => x !== cb) }
 }
@@ -338,6 +347,103 @@ export function onSyncQueueChange(cb: QueueListener): () => void {
 export function onTripSynced(cb: SyncedListener): () => void {
   syncedListeners.push(cb)
   return () => { syncedListeners = syncedListeners.filter(x => x !== cb) }
+}
+
+
+
+// ─── Notifikasi kegagalan kirim ───────────────────────────────────────────────
+
+/**
+ * Event global + listener untuk memberitahu UI bahwa sebuah trip GAGAL dikirim.
+ *
+ * Dulu kegagalan upload hanya terlihat dari state antrean di layar "Trip
+ * Tercatat" / "Riwayat". Petugas yang menutup layar atau berada di tab lain
+ * bisa saja mengira trip sudah masuk ke server — persis keluhan "tapi
+ * aplikasi bilang berhasil terkirim". Sekarang setiap kegagalan memunculkan
+ * notifikasi eksplisit berisi alasannya.
+ */
+export const SYNC_FAILURE_EVENT = 'trip:sync-failure'
+
+export interface SyncFailureDetail {
+  /** ID trip lokal (client_trip_id) yang gagal dikirim. */
+  tripId: string
+  /** Alasan yang layak ditampilkan ke petugas. */
+  error: string
+  /** Kode/status HTTP bila ada (mis. "400", "NETWORK"). */
+  code?: string
+  /** true = kegagalan permanen (percobaan ulang tanpa perubahan data tak akan menolong). */
+  permanent: boolean
+  /** Jumlah percobaan kirim yang sudah dilakukan. */
+  attempts: number
+}
+
+type SyncFailureListener = (detail: SyncFailureDetail) => void
+
+const failureListeners: SyncFailureListener[] = []
+
+/** Daftar listener kegagalan kirim. Return: fungsi unsubscribe. */
+export function onSyncFailure(cb: SyncFailureListener): () => void {
+  failureListeners.push(cb)
+  return () => {
+    const i = failureListeners.indexOf(cb)
+    if (i >= 0) failureListeners.splice(i, 1)
+  }
+}
+
+function notifySyncFailure(detail: SyncFailureDetail): void {
+  for (const l of [...failureListeners]) {
+    try { l(detail) } catch { /* listener yang error tidak boleh mengganggu antrean */ }
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(SYNC_FAILURE_EVENT, { detail }))
+  } catch { /* lingkungan tanpa DOM */ }
+}
+
+
+
+// ─── Status sinkronisasi satu trip ─────────────────────────────────────────────
+
+export type TripSyncState = 'synced' | 'pending' | 'failed' | 'local'
+
+export interface TripSyncStatus {
+  state: TripSyncState
+  item?: SyncItem
+  /** Alasan kegagalan (hanya untuk state 'failed'). */
+  error?: string
+  /** Jumlah percobaan kirim. */
+  attempts: number
+}
+
+/**
+ * Status sinkronisasi satu trip — SATU sumber kebenaran untuk semua layar.
+ *
+ * previously tiap layar menebak sendiri dari `trip.synced`, sehingga trip yang
+ * GAGAL kirim tetap terbaca "menunggu" (kuning) bahkan setelah server
+ * menolaknya dengan 4xx. Fungsi ini memakai antrean sebagai sumber utama:
+ *   - ada di antrean + needsAttention -> 'failed' (merah, GAGAL TERKIRIM)
+ *   - ada di antrean                 -> 'pending' (kuning, menunggu)
+ *   - tidak ada di antrean + synced  -> 'synced' (hijau, benar-benar terkirim)
+ *   - tidak ada di antrean + belum   -> 'local' (abu, perlu kirim ulang manual)
+ */
+export function classifyTripSync(
+  tripId: string,
+  synced: boolean | undefined,
+  queue: SyncItem[],
+): TripSyncStatus {
+  const item = queue.find(q => q?.trip?.id === tripId)
+  if (item) {
+    if (item.needsAttention) {
+      return {
+        state: 'failed',
+        item,
+        error: item.lastError ?? 'Server menolak data trip',
+        attempts: item.attempts ?? 0,
+      }
+    }
+    return { state: 'pending', item, error: item.lastError, attempts: item.attempts ?? 0 }
+  }
+  if (synced === true) return { state: 'synced', attempts: 0 }
+  return { state: 'local', attempts: 0 }
 }
 
 
@@ -734,6 +840,16 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
     needsAttention: result.permanent ? true : item.needsAttention,
   }
   await writeItem(updated)
+
+  // Beri tahu UI: trip ini GAGAL dikirim. Tanpa notifikasi ini petugas bisa
+  // saja melihat "berhasil terkirim" di tempat lain aplikasi.
+  notifySyncFailure({
+    tripId: item.trip.id,
+    error: updated.lastError ?? 'Gagal mengirim trip ke server',
+    code: result.code,
+    permanent: updated.needsAttention === true,
+    attempts: updated.attempts,
+  })
 
   const fastRetry = isNetworkError(updated.lastError) && updated.attempts < 4
   scheduleRetry(fastRetry ? FAST_RETRY_NETWORK_MS : backoffMs(updated.attempts))
