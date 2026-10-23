@@ -15,7 +15,14 @@ www
 android
 ios
 ota
-supabase
+supabase/*
+!supabase/functions
+supabase/functions/*
+!supabase/functions/api
+!supabase/functions/api/**
+
+# Secret server API intranet - JANGAN PERNAH ikut ke image manapun.
+supabase/functions/api/.env.local
 resources
 data
 *.apk
