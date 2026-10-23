@@ -693,7 +693,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       status: 'Selesai',
       time: fmtClock(now),
       date: fmtDate(now),
-      load: vehicles.length > 0 && vehicles.every(v => v.load === 'empty') ? 'Kosong' : 'Ada Muatan',
+      // `load` = kondisi TRIP, bukan kondisi muatan tiap kendaraan. Trip dengan
+      // kendaraan tetap 'Ada Muatan' walau semua unitnya mengangkut kosong;
+      // status muatan per-unit tetap disimpan di vehicle.load dan payload sync.
+      load: vehicles.length > 0 ? 'Ada Muatan' : 'Kosong',
       vehicle: vehicles[0]?.plate ?? '-',
       type: vehicles[0]?.type ?? '-',
       category: vehicles[0]?.category ?? '-',
