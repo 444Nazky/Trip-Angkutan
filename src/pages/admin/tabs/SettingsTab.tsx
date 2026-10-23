@@ -2,10 +2,8 @@ import { Sun, Moon } from 'lucide-react'
 import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, applyTheme, type AdminTheme } from '../../../services/theme'
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import { environment } from '../../../environments/environment'
-import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
-import { ServerStatsCard } from './ServerStatsCard'
-import { SystemMonitorCard } from './SystemMonitorCard'
+import { ChangePasswordSection } from '../ChangePassword'
+import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, defaultApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
 
 
 
@@ -114,8 +112,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
         </div>
       </div>
 
-      <ServerStatsCard />
-      <SystemMonitorCard />
+      <ChangePasswordSection onLogout={onLogout} showToast={showToast} />
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-800 mb-1">Pengaturan Lainnya</h3>
         <p className="text-xs text-slate-500 mb-6">Status koneksi dan data lokal</p>
@@ -143,7 +140,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
             <p className="text-[11px] text-slate-400 break-all">
               Aktif: {resolveApiBaseUrl()}
               {apiBaseCandidateLabel(resolveApiBaseUrl()) ? ` (${apiBaseCandidateLabel(resolveApiBaseUrl())})` : ''}
-              <br />Default: {environment.apiBaseUrl}
+              <br />Default: {defaultApiBaseUrl()}
             </p>
 
             <div className="flex flex-wrap gap-1.5">
