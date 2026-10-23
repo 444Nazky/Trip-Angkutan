@@ -32,6 +32,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [tab, setTab] = useState<AdminTab>('reports')
   const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline'>('connecting')
+  const [serverError, setServerError] = useState<string | null>(null)
   const [, setServerTrips] = useState<BackendTrip[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
 
@@ -83,8 +84,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const sess = await ensureAdminSession()
       if (!alive) return
       if (!sess.ok) {
-        setServerState('offline'); return
+        setServerState('offline')
+        setServerError(sess.error ?? 'Sesi admin tidak bisa dibuat')
+        return
       }
+      setServerError(null)
 
       const [tarr, tri] = await Promise.all([fetchTariffs(), fetchTrips()])
       if (!alive) return
@@ -146,6 +150,23 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
         <div className="p-8 max-w-[1400px] admin-tab-content">
+          {serverState === 'offline' && serverError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-red-700">Tidak bisa terhubung ke server</p>
+                <p className="text-[12px] text-red-600 mt-0.5">{serverError}</p>
+                <p className="text-[11px] text-red-500 mt-1">
+                  Bila password admin baru saja diganti, buka lagi dashboard di tab baru dan masukkan kredensial baru.
+                </p>
+              </div>
+              <button
+                onClick={() => { setServerState('connecting'); setServerError(null); window.location.reload() }}
+                className="shrink-0 rounded-lg bg-white border border-red-200 px-3 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-100"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          )}
           {tab === 'reports' && (
             <ReportsTab
               onServerTripsChange={setServerTrips}
