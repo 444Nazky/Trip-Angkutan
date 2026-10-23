@@ -369,7 +369,17 @@ function isAnomaly(status: number): boolean {
 const ANOMALY_COOLDOWN_MS = 60_000;
 const anomalySeen = new Map<string, number>();
 
-Deno.serve(async (req: Request) => {
+/**
+ * Handler utama API.
+ *
+ * Dipisah dari `Deno.serve` supaya handler yang sama bisa dipakai dua tempat:
+ *   1. Supabase Edge Runtime (deploy)  -> `Deno.serve(handleRequest)`
+ *   2. Server intranet lokal (port 3000) -> `local_server.ts`
+ *
+ * Logika, rate limit, cache, dan CORS persis sama untuk keduanya, jadi
+ * perilaku endpoint intranet == endpoint cloud.
+ */
+export async function handleRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -538,4 +548,20 @@ Deno.serve(async (req: Request) => {
     console.error("[api]", req.method, path, error);
     return json({ error: "Internal error" }, 500);
   }
-});
+}
+
+// Hanya jalankan server bawaan bila modul ini dipakai sebagai entrypoint.
+//
+// Di Supabase Edge Runtime (deploy) env ini tidak di-set, jadi `Deno.serve`
+// aktif persis seperti sebelumnya.
+//
+// `local_server.ts` (server intranet port 3000) men-set
+// API_DISABLE_EMBEDDED_SERVER=1 SEBELUM meng-import modul ini, sehingga tidak
+// ada dua server yang berebut port di proses yang sama.
+//
+// Catatan: `import.meta.main` sengaja TIDAK dipakai. Edge Runtime tidak
+// menjamin entrypoint adalah "main module", dan kalau salahevaluate backend
+// produksi akan berhenti melayani request.
+if (Deno.env.get("API_DISABLE_EMBEDDED_SERVER") !== "1") {
+  Deno.serve(handleRequest);
+}
