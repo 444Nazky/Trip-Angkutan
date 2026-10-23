@@ -59,15 +59,20 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
-  const isEmptyTrip = t.load === 'Kosong'
-
+  // Klasifikasi HARUS dari ada/tidaknya kendaraan, bukan `t.load`.
+  // Dulu trip ber-kendaraan yang semua muatannya "empty" tersimpan
+  // load='Kosong' → foto kendaraan tidak pernah ditampilkan dan labelnya
+  // tertukar menjadi "Foto Bukti Kapal Kosong".
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
+  const isEmptyTrip = !realVehicles
+
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
   const photos: DocPhoto[] = isEmptyTrip
     ? [
         ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+        ...(t.selfieUrl ? [{ url: t.selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
       ]
     : [
         ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
