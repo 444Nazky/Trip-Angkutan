@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import MobileShell from './MobileShell'
-import HomeScreen from './HomeScreen'
-import RouteSelectScreen from './RouteSelectScreen'
+import HomeScreen from './HomeScreen'import RouteSelectScreen from './RouteSelectScreen'
 import TripConditionScreen from './TripConditionScreen'
 import VehicleFormScreen from './VehicleFormScreen'
 import CameraScreen from './CameraScreen'
@@ -15,6 +14,7 @@ import ProfileScreen from './ProfileScreen'
 import EndpointScreen from './EndpointScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
 import GeofenceConfigScreen from './GeofenceConfigScreen'
+import SyncFailureToast from '../../components/SyncFailureToast'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
@@ -129,29 +129,40 @@ export default function MobileApp() {
   const framed = (content: React.ReactNode) => <div className="app-frame">{content}</div>
 
   if (pendingDermagas && pendingDermagas.length > 1) {
-    return framed(
-      <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
-        <DermagaSelectScreen
-          dermagas={pendingDermagas}
-          onSelected={handleDermagaSelected}
-          onCancel={handleDermagaCancel}
-          go={go}
-        />
-      </div>,
+    return (
+      <>
+        {framed(
+          <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
+            <DermagaSelectScreen
+              dermagas={pendingDermagas}
+              onSelected={handleDermagaSelected}
+              onCancel={handleDermagaCancel}
+              go={go}
+            />
+          </div>,
+        )}
+        <SyncFailureToast />
+      </>
     )
   }
 
   if (fullscreenScreens.includes(screen)) {
-    return framed(
-      <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
-        {screenMap[screen]}
-      </div>,
+    return (
+      <>
+        {framed(
+          <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar screen-scroll">
+            {screenMap[screen]}
+          </div>,
+        )}
+        <SyncFailureToast />
+      </>
     )
   }
 
   return (
     <MobileShell activeNav={activeNav} onNav={goTab}>
       <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
+      <SyncFailureToast />
     </MobileShell>
   )
 }
