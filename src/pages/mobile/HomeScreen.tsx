@@ -1,6 +1,6 @@
 import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
-import { getPendingCount, onSyncQueueChange, syncNow } from '../../services/sync'
+import { classifyTripSync, getPendingCount, getSyncQueue, onSyncQueueChange, syncNow } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
