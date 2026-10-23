@@ -81,3 +81,6 @@ android/keystore.properties
 # Runtime databases (local/dev only, never commit)
 data/*.db
 *.db
+
+# Secret server API intranet (JANGAN di-commit)
+supabase/functions/api/.env.local
