@@ -107,6 +107,7 @@ export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: 
           disabled={!selected || loading}
           className="flex-1 py-3.5 rounded-xl bg-blue-600 text-white font-bold text-[13px] disabled:opacity-50"
         >
+
           {loading ? 'Memilih...' : 'Pilih Dermaga'}
         </button>
       </div>

@@ -85,7 +85,9 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       ? 'Swafoto Petugas'
       : retake
         ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
-        : (returnTo === 'trip-summary' || returnTo === 'route-select' ? 'Foto Bukti Trip' : 'Foto Bukti Muatan')
+        : (returnTo === 'trip-summary' || returnTo === 'route-select'
+          ? (draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip')
+          : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
 
