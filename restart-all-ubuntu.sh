@@ -31,8 +31,15 @@ warn() { echo "    PERHATIAN: $*"; WARNINGS=$((WARNINGS + 1)); }
 bad()  { echo "    GAGAL: $*"; FAILURES=$((FAILURES + 1)); }
 
 # ── Deteksi docker (dengan atau tanpa sudo) ───────────────────────────────────
+#
+# Urutan penting: coba `docker` polos DULU. Kalau user sudah masuk group
+# `docker` (umum di PC kantor), script bisa jalan tanpa prompt password sama
+# sekali - itu yang membuat restart bisa dipanggil otomatis dari cron/CI.
+# `sudo` hanya jadi cadangan kalau user memang tidak punya akses docker.
 
 if [ "$(id -u)" -eq 0 ]; then
+    DOCKER="docker"
+elif docker info > /dev/null 2>&1; then
     DOCKER="docker"
 elif sudo -n true 2>/dev/null; then
     DOCKER="sudo -n docker"
