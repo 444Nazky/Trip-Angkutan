@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server } from 'lucide-react'
 import { fetchTariffs } from '../../services/tariffs'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
@@ -21,6 +21,7 @@ import { RoutesTab } from './tabs/RoutesTab'
 import { OfficersTab } from './tabs/OfficersTab'
 import { ReportsTab } from './tabs/ReportsTab'
 import { SettingsTab } from './tabs/SettingsTab'
+import { EndpointTab } from './tabs/EndpointTab'
 
 
 
@@ -105,6 +106,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'officers', label: 'Petugas', Icon: Users },
+    { key: 'endpoint', label: 'Endpoint', Icon: Server },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },
   ]
 
@@ -181,6 +183,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               onSaveOfficers={setOfficers}
               showToast={showToast}
             />
+          )}
+
+          {tab === 'endpoint' && (
+            <EndpointTab showToast={showToast} />
           )}
 
           {tab === 'settings' && (
