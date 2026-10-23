@@ -57,12 +57,33 @@ function getBaseUrl(): string {
     const override = localStorage.getItem(API_URL_OVERRIDE_KEY)
     if (override?.trim()) return normalizeUrl(override)
   } catch {}
-  return normalizeUrl(environment.apiBaseUrl)
+  return normalizeUrl(defaultApiBaseUrl())
+}
+
+/**
+ * Endpoint default sistem = backend INTRANET kantor (port 3000).
+ *
+ * Cloud hanya dipakai bila `intranetApiBaseUrl` dikosongkan di environment.
+ * Jangan mengembalikan `apiBaseUrl` lebih dulu: aplikasi mobile kantor harus
+ * tetap bisa login/geofence walau tidak ada internet.
+ */
+export function defaultApiBaseUrl(): string {
+  const intranet = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
+  return (intranet && intranet.trim()) || environment.apiBaseUrl
+}
+
+/** True kalau endpoint default/aktif adalah server intranet. */
+export function isDefaultIntranet(): boolean {
+  return isIntranetBaseUrl(defaultApiBaseUrl())
+}
+
+function cloudApiBaseUrl(): string {
+  return environment.apiBaseUrl
 }
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
-  if (!url) return 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api'
+  if (!url) return defaultApiBaseUrl()
   if (!/^https?:\/\//i.test(url)) {
     // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
     // Host publik dipaksa https.
@@ -93,11 +114,26 @@ export function resolveApiBaseUrl(): string {
  * diarahkan ke port 3000 yang tidak melayani /storage -> 404.
  */
 export function supabaseProjectOrigin(): string {
+  const explicit = (environment as { supabaseUrl?: string }).supabaseUrl
   try {
-    return new URL(environment.apiBaseUrl).origin
+    return new URL(explicit || environment.apiBaseUrl).origin
   } catch {
-    return 'https://bmiruktfruunegtbydyw.supabase.co'
+    try {
+      return new URL(environment.apiBaseUrl).origin
+    } catch {
+      return 'https://bmiruktfruunegtbydyw.supabase.co'
+    }
   }
+}
+
+/**
+ * Alamat Supabase yang aman ditampilkan (disamarkan sesuai audit).
+ * Hanya untuk UI/konfigurasi — JANGAN dipakai untuk request.
+ */
+export function maskedSupabaseUrl(): string {
+  return (environment as { supabaseUrlMask?: string }).supabaseUrlMask
+    || (environment as { supabaseUrl?: string }).supabaseUrl
+    || environment.apiBaseUrl
 }
 
 export function getApiBaseUrl(): string {
@@ -109,9 +145,14 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 export interface PingResult {
+  /**
+   * true = host menjawab (HTTP apa pun), termasuk saat browser memblokir
+   * pembacaan respons karena CORS. Lihat `blockedByCors` untuk membedakannya.
+   */
   ok: boolean
   ms: number
   blockedByCors?: boolean
+  hostAlive?: boolean
   timedOut?: boolean
   status?: number
   mixedContent?: boolean
@@ -125,7 +166,17 @@ export async function pingBaseUrl(url: string, timeoutMs = 5000): Promise<PingRe
     return { ok: false, ms: 0, mixedContent: true, detail: 'http:// diblokir dari halaman https (mixed content)' }
   }
   const r = await probeServerHealth(url, timeoutMs)
-  return { ok: r.reachable, ms: r.ms ?? 0, blockedByCors: r.blockedByCors, timedOut: r.timedOut, status: r.status, detail: r.detail }
+  // Host yang hidup tetap dianggap ok walau browser memblokir bacaannya (CORS):
+  // URL-nya benar, hanya origin pemanggil belum terdaftar di CORS_ORIGIN.
+  return {
+    ok: r.reachable || r.hostAlive === true,
+    ms: r.ms ?? 0,
+    blockedByCors: r.blockedByCors,
+    hostAlive: r.hostAlive,
+    timedOut: r.timedOut,
+    status: r.status,
+    detail: r.detail,
+  }
 }
 
 // ─── Token storage ───────────────────────────────────────────────────────────────
@@ -367,21 +418,21 @@ export function isIntranetBaseUrl(url: string): boolean {
 }
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
-  const candidates: ApiBaseCandidate[] = [
-    {
-      url: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api',
-      label: 'Supabase (Cloud)',
-      hint: 'Butuh koneksi internet. Endpoint default produksi.',
-    },
-  ]
+  // Intranet lebih dulu karena ia endpoint DEFAULT sistem.
+  const candidates: ApiBaseCandidate[] = []
   const intranet = intranetApiBaseUrl()
   if (intranet) {
     candidates.push({
       url: intranet,
       label: 'Intranet Kantor (LAN)',
-      hint: 'Server lokal di PC kantor. Tidak butuh internet.',
+      hint: 'Default sistem. Server lokal di PC kantor (port 3000), tidak butuh internet.',
     })
   }
+  candidates.push({
+    url: cloudApiBaseUrl(),
+    label: 'Supabase (Cloud)',
+    hint: 'Cadangan untuk luar jaringan kantor. Butuh internet.',
+  })
   return candidates
 }
 
@@ -392,19 +443,85 @@ export function isPrivateHostUrl(url: string): boolean {
   } catch { return false }
 }
 
+/**
+ * Normalisasi input URL dari layar pengaturan server.
+ *
+ * Sengaja mendelegasikan aturan http/https ke `normalizeUrl()` supaya hanya ada
+ * SATU aturan: host privat/LAN boleh http, host publik wajib https. Versi lama
+ * fungsi ini selalu menambahkan `http://` saat skema tidak diketik, sehingga
+ * `contoh.example.com` tersimpan sebagai `http://contoh.example.com/api` —
+ * lolos dari guard di UI (yang hanya memeriksa `http://` eksplisit) dan langsung
+ * mati sebagai mixed content di halaman https.
+ */
 export function normalizeApiBaseInput(raw: string): string {
-  let url = raw.trim().replace(/\/+$/, '')
-  if (!/^https?:\/\//i.test(url)) {
-    url = `http://${url}`
+  const url = String(raw ?? '').trim()
+  if (!url) return normalizeUrl(defaultApiBaseUrl())
+  const withScheme = /^https?:\/\//i.test(url)
+    ? url
+    : `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
+  return normalizeUrl(withScheme)
+}
+
+export type EndpointValidation =
+  | { ok: true; url: string }
+  | { ok: false; msg: string }
+
+/**
+ * Aturan validasi endpoint TUNGGAL.
+ *
+ * Semua layar pengaturan server (EndpointPicker di mobile & admin,
+ * ServerSettingsModal di login/profil, SettingsTab di dashboard) memakai fungsi
+ * ini supaya URL yang sama tidak diterima di satu layar dan ditolak di layar
+ * lain. `pageProtocol` bisa dioper eksplisit agar bisa diuji tanpa bergantung
+ * pada protokol halaman yang sedang berjalan.
+ */
+export function validateEndpointInput(raw: string, pageProtocol?: string): EndpointValidation {
+  const value = String(raw ?? '').trim()
+  if (!value) return { ok: false, msg: 'URL kosong.' }
+
+  if (/^http:\/\//i.test(value) && !isPrivateHostUrl(value)) {
+    return {
+      ok: false,
+      msg: 'Pakai https untuk host publik, kecuali alamat LAN/privat (192.168.x, 10.x, 172.16-31.x, localhost).',
+    }
   }
-  if (!/\/api$/i.test(url)) {
-    url = `${url}/api`
+
+  const url = normalizeApiBaseInput(value)
+  const page = pageProtocol
+    ?? (typeof window !== 'undefined' ? window.location?.protocol : undefined)
+
+  // Halaman https tidak boleh memanggil http:// (mixed content): browser
+  // memblokir sebelum request keluar, sehingga server yang hidup akan tampak
+  // "tidak merespon".
+  if (page === 'https:' && /^http:\/\//i.test(url)) {
+    return {
+      ok: false,
+      msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Pakai endpoint Supabase atau buka aplikasi lewat http://.',
+    }
   }
-  return url
+
+  return { ok: true, url }
+}
+
+/**
+ * Validasi lalu terapkan endpoint aktif. Mengembalikan hasil validasi supaya
+ * pemanggil bisa menampilkan pesan yang sama tanpa menduplikasi aturannya.
+ */
+export function applyEndpointInput(raw: string, pageProtocol?: string): EndpointValidation {
+  const result = validateEndpointInput(raw, pageProtocol)
+  if (result.ok) setApiBaseUrl(result.url)
+  return result
 }
 
 export interface ServerProbeResult {
+  /** true = respons berhasil dibaca (status HTTP apa pun). */
   reachable: boolean
+  /**
+   * true = host benar-benar menjawab, walau isi responsnya tidak bisa dibaca
+   * karena CORS. Ini pembeda antara "server mati" dan "server hidup tapi
+   * origin kita belum diizinkan".
+   */
+  hostAlive?: boolean
   ms?: number
   blockedByCors?: boolean
   status?: number
@@ -413,25 +530,73 @@ export interface ServerProbeResult {
   detail?: string
 }
 
+/**
+ * Probe tanpa CORS (`mode: 'no-cors'`).
+ *
+ * Respons opaque tidak bisa dibaca, tetapi promise HANYA resolve kalau host
+ * benar-benar menjawab. Jadi resolve = host hidup, reject = host tidak
+ * terjangkau. Inilah satu-satunya cara andal membedakan kegagalan jaringan
+ * biasa dari pemblokiran CORS: pesan `TypeError: Failed to fetch` dipakai
+ * browser untuk keduanya.
+ */
+async function probeHostAlive(url: string, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    await fetch(`${url}/health`, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function probeServerHealth(url: string, timeoutMs = 5000): Promise<ServerProbeResult> {
   const start = Date.now()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(`${url}/health`, { method: 'GET', signal: controller.signal })
-    clearTimeout(timer)
-    const ms = Date.now() - start
-    return { reachable: true, ms, status: res.status }
+    return { reachable: true, hostAlive: true, ms: Date.now() - start, status: res.status }
   } catch (e) {
-    const ms = Date.now() - start
     const err = e as Error
+
+    // Timeout sudah menghabiskan jatah waktu; probe opaque hanya akan timeout lagi.
     if (err.name === 'AbortError') {
-      return { reachable: false, ms: ms || 0, timedOut: true, detail: 'Request timed out' }
+      return {
+        reachable: false,
+        hostAlive: false,
+        ms: Date.now() - start,
+        timedOut: true,
+        detail: 'Request timed out',
+      }
     }
-    if (err.message.includes('fetch') || err.message.includes('CORS')) {
-      return { reachable: false, ms: ms || 0, blockedByCors: true, detail: err.message }
+
+    const hostAlive = await probeHostAlive(url, timeoutMs)
+    const ms = Date.now() - start
+
+    if (hostAlive) {
+      return {
+        reachable: false,
+        hostAlive: true,
+        blockedByCors: true,
+        ms,
+        detail: err.message,
+      }
     }
-    return { reachable: false, ms: ms || 0, detail: err.message }
+
+    return { reachable: false, hostAlive: false, ms, detail: err.message }
+  } finally {
+    // Dulu timer hanya dibersihkan di jalur sukses, sehingga setiap probe gagal
+    // meninggalkan timer yang tetap hidup sampai timeoutMs.
+    clearTimeout(timer)
   }
 }
 
