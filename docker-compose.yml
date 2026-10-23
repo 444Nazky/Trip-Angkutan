@@ -7,3 +7,21 @@ services:
     ports:
       - "8000:8000"
       - "5173:5173"
+
+  # API INTRANET (port 3000) - Edge Function yang sama dengan produksi,
+  # dijawab dari jaringan lokal kantor (192.168.1.123).
+  #
+  # Env diambil dari supabase/functions/api/.env.local.
+  # File itu WAJIB ADA (boleh berisi nilai kosong) - restart-all-ubuntu.sh
+  # membuatnya otomatis dari .env.example kalau belum ada.
+  api-intranet:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: trip-angkutan-api
+    container_name: trip-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - supabase/functions/api/.env.local
