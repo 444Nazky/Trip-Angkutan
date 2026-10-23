@@ -28,7 +28,9 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
       if (regs) setRegions(regs)
       setPlateState('ready')
     })
-  }, [plateState])
+    // `onPlatesChange` identik dengan setter state parent (stabil), jadi
+    // menambahkannya tidak memicu fetch ulang; guard `plateState` tetap penentu.
+  }, [plateState, onPlatesChange])
 
   const resetForm = () => {
     setPlateForm({ plate: '', owner: '', originRegionId: '', status: 'internal' })
