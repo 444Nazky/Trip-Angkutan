@@ -24,17 +24,23 @@ Kalau jawabannya `connection refused` -> API intranet belum jalan di sana.
 |----------|----------------------|------------------|
 | Web admin `:8000` | ✅ bundle terbaru (fitur endpoint ada) | ✅ |
 | Mobile `:5173` | ✅ | ✅ |
-| API intranet `:3000` | ❌ **mati** (belum di-deploy) | ✅ (cadangan) |
+| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ✅ (cadangan) |
 | SSH masuk | ❌ port 22 tertutup | ✅ |
 
-> **Sambil menunggu deploy di `ubuntu.local`:** server API di `blackarch`
-> sudah hidup di `http://192.168.1.2:3000/api` dan **token dari cloud
-> valid di sana**. Petugas bisa memilih "Intranet Kantor" lalu mengganti
-> URL-nya manual ke `http://192.168.1.2:3000/api` (kolom input manual ada
-> di layar Endpoint). Pastikan HP petugas terhubung ke WiFi `192.168.1.x`
-> (bukan data seluler / AP isolation).
+**Selesai (23 Okt 2026 03:53 GMT).** Secret dikirim dari `blackarch` lewat
+receiver HTTP satu-kali milik agent `ubuntu.local` (port `:8787`,
+path berubah tiap sesi — minta lewat papan/chat, jangan hardcode). Bukti
+dari `blackarch`:
 
-Jadi satu-satunya yang kurang adalah **container API di `ubuntu.local`**.
+- `curl -s http://192.168.1.123:3000/api/health` → `200 {"mode":"intranet"}`
+- `POST /api/auth/admin-login` → token, lalu token itu → `GET /api/routes` = `200`
+- **Token cloud valid di `.123`** (token dari Edge Function Supabase →
+  `GET :3000/api/routes` = `200`) → `JWT_SECRET` sudah sama persis.
+- Tanpa token rute terproteksi balas `403/401` (bukan `500`) → bug
+  `JWT_SECRET=""` yang dulu bikin 500 sudah tertangani.
+
+Cadangan manual ke `http://192.168.1.2:3000/api` tetap berlaku bila `.123`
+turun; HP petugas harus di WiFi `192.168.1.x`.
 
 ## Langkah (jalankan di `ubuntu.local`)
 
