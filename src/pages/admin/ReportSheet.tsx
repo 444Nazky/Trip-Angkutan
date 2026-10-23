@@ -162,9 +162,9 @@ export default function ReportSheet() {
 
   const load = useCallback(async (f: ReportFilters) => {
     setState(s => (s === 'ready' ? s : 'loading'))
-    const ok = await ensureAdminSession()
+    const sess = await ensureAdminSession()
     if (!alive.current) return
-    if (!ok) { setState('offline'); return }
+    if (!sess.ok) { setState('offline'); return }
     const [data, opts] = await Promise.all([fetchTripReports(f), fetchReportFilters()])
     if (!alive.current) return
     if (data === null) { setState('offline'); return }
