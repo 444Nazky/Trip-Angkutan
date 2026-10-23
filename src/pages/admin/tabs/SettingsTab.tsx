@@ -3,9 +3,14 @@ import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, appl
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { environment } from '../../../environments/environment'
+<<<<<<< HEAD
 import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
 import { ServerStatsCard } from './ServerStatsCard'
 import { SystemMonitorCard } from './SystemMonitorCard'
+=======
+import { ChangePasswordSection } from '../ChangePassword'
+import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
 
 
 
