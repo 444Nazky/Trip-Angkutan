@@ -6,7 +6,8 @@
 #  Layanan:
 #    - 8000  Admin Dashboard   (nginx, build www/admin)
 #    - 5173  Mobile App        (nginx, build www)
-#    - 3000  API INTRANET      (Deno, Edge Function yang sama dengan produksi)
+#    - 3000  API INTRANET      (Deno)
+#    - 3001  PostgREST          (internal, hanya dipakai server API)
 #
 #  Semua bind ke 0.0.0.0 supaya bisa diakses dari router Linksys lewat
 #  port forwarding (8000 / 5173 / 3000).
@@ -63,21 +64,21 @@ if [ ! -f "$ENV_LOCAL" ]; then
     if [ -f "$ENV_EXAMPLE" ]; then
         cp "$ENV_EXAMPLE" "$ENV_LOCAL"
         warn "supabase/functions/api/.env.local belum ada - dibuat dari .env.example (nilainya masih kosong)."
-        warn "SUPABASE_SERVICE_ROLE_KEY wajib diisi agar server intranet bisa melayani request."
+        warn "JWT_SECRET wajib diisi agar server intranet bisa start."
     else
         mkdir -p "$(dirname "$ENV_LOCAL")"
         : > "$ENV_LOCAL"
-        warn "supabase/functions/api/.env.local dibuat kosong - server intranet akan menolak start."
+        warn "supabase/functions/api/.env.local dibuat kosong - server intranet akan menolak start tanpa JWT_SECRET."
     fi
 fi
 # env_file wajib ada agar `docker compose up` tidak gagal dengan error cryptic.
 
 # ── Resolusi secret API intranet ─────────────────────────────────────────────
 #
-# Urutan sumber untuk SUPABASE_SERVICE_ROLE_KEY & JWT_SECRET:
+# Urutan sumber untuk JWT_SECRET:
 #   1. Sudah ada (non-kosong) di .env.local            -> pakai apa adanya
 #   2. Environment variable saat script dipanggil       -> simpan ke .env.local
-#      contoh: SUPABASE_SERVICE_ROLE_KEY=... ./restart-all-ubuntu.sh
+#      contoh: JWT_SECRET=... ./restart-all-ubuntu.sh
 #   3. File .env.secrets di folder yang sama            -> gabung ke .env.local
 #   4. Terminal interaktif                               -> tanya (read -s)
 #   5. Tidak ada sumber sama sekali                      -> hanya warning
@@ -141,7 +142,7 @@ resolve_secret() {
     if [ -t 0 ]; then
         echo
         echo "    $label belum diisi di .env.local."
-        echo "    Ambil dari: Supabase Dashboard > Project Settings > API"
+        echo "    Buat nilai acak dengan: openssl rand -hex 32"
         echo "    (input tidak ditampilkan; tekan Enter untuk lewati)"
         printf "    %s: " "$key"
         IFS= read -r -s value || value=""
@@ -158,16 +159,12 @@ resolve_secret() {
     return 1
 }
 
-resolve_secret "SUPABASE_SERVICE_ROLE_KEY" "service_role key"
 resolve_secret "JWT_SECRET" "JWT secret"
 
-if ! grep -qE '^SUPABASE_SERVICE_ROLE_KEY=.+' "$ENV_LOCAL" 2>/dev/null; then
-    warn "SUPABASE_SERVICE_ROLE_KEY kosong di .env.local - container API intranet akan exit saat start."
-    warn "  Cara mengisinya tanpa edit manual: taruh di supabase/functions/api/.env.secrets,"
-    warn "  atau jalankan: SUPABASE_SERVICE_ROLE_KEY=... ./restart-all-ubuntu.sh"
-fi
 if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
-    warn "JWT_SECRET kosong di .env.local - login intranet tetap jalan, tetapi token cloud/intranet tidak kompatibel (harus login ulang saat pindah endpoint)."
+    warn "JWT_SECRET kosong di .env.local - container API intranet akan exit saat start."
+    warn "  Cara mengisinya tanpa edit manual: taruh di supabase/functions/api/.env.secrets,"
+    warn "  atau jalankan: JWT_SECRET=... ./restart-all-ubuntu.sh"
 fi
 
 # ── Ambil kode terbaru ───────────────────────────────────────────────────────
@@ -282,11 +279,12 @@ else
     echo "  - API Intranet    : FAILED (port 3000) - cek '$DOCKER compose -f $COMPOSE_FILE logs api-intranet'"
     # Pesan paling sering: secret belum diisi -> container langsung exit.
     if $DOCKER logs trip-api 2>&1 | tail -5 | grep -q "GAGAL START"; then
-        echo "                     Penyebab: SUPABASE_SERVICE_ROLE_KEY belum diisi di"
+        echo "                     Penyebab: JWT_SECRET belum diisi di"
         echo "                     supabase/functions/api/.env.local. Isi dulu, lalu jalankan script lagi."
     else
-        echo "                     (server menolak start kalau SUPABASE_SERVICE_ROLE_KEY kosong;"
-        echo "                      JWT_SECRET kosong hanya membuat token cloud/intranet tidak kompatibel)"
+        echo "                     (server menolak start kalau JWT_SECRET kosong;"
+        echo "                      cek juga status container db dan rest)"
+        echo "                     $DOCKER compose -f $COMPOSE_FILE logs db rest"
     fi
     FAILURES=$((FAILURES + 1))
 fi
@@ -320,8 +318,8 @@ echo " Mobile  (LAN)   : http://${LAN_IP}:5173"
 echo " API     (Local) : http://localhost:3000/api"
 echo " API     (LAN)   : http://${LAN_IP}:3000/api"
 echo "=========================================="
-echo " Endpoint mobile : Supabase (cloud) ATAU Intranet (LAN di atas)"
-echo "                  - pilih lewat 'Pengaturan Server' di aplikasi mobile"
+echo " Endpoint mobile : Intranet (LAN di atas) - satu-satunya endpoint"
+echo "                  - atur di 'Pengaturan Server' bila IP kantor berubah"
 echo "=========================================="
 echo " Stop  : $DOCKER compose -f $COMPOSE_FILE down"
 echo " Log   : $DOCKER compose -f $COMPOSE_FILE logs -f"

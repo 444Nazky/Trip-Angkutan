@@ -27,14 +27,29 @@ services:
     # dan log jadi spam terus; on-failure:5 berhenti setelah 5 percobaan dan
     # container terlihat "Exited (1)" - jelas bahwa ini soal konfigurasi.
     restart: on-failure:5
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
     ports:
       - "0.0.0.0:3000:3000"
+    volumes:
+      # Berkas (foto trip, APK, bundel OTA) disimpan di disk host supaya
+      # tetap ada setelah container di-rebuild.
+      - ./data/storage:/data/storage
     environment:
       # IP LAN host untuk banner log server intranet. Di dalam container,
       # networkInterfaces() cuma melihat IP container (172.18.x.x), jadi IP
       # host yang diketik petugas perlu diberikan eksplisit.
       # Override lewat env: LAN_IP=192.168.1.50 docker compose up -d
       - "LAN_IP=${LAN_IP:-192.168.1.123}"
+      # Alamat internal compose. Nilai di `.env.local` sengaja ditimpa:
+      # `127.0.0.1` hanya benar kalau server dijalankan di host, bukan di
+      # dalam container.
+      - "POSTGREST_URL=http://rest:3000"
+      - "STORAGE_DIR=/data/storage"
+      - "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://192.168.1.123:3000}"
     env_file:
       - supabase/functions/api/.env.local
     # OPSIONAL: sertifikat TLS untuk server intranet.
@@ -47,3 +62,54 @@ services:
     #
     # volumes:
     #   - ./supabase/functions/api/tls:/etc/trip-tls:ro
+
+  # DATABASE LOKAL (PostgreSQL 16).
+  #
+  # Tidak ada port yang dibuka ke host/LAN - hanya container `rest` dan
+  # `api-intranet` di jaringan compose yang bisa menjangkaunya.
+  #
+  # ponytail: auth `trust` di dalam jaringan compose, tanpa password. DB tidak
+  # pernah listen di luar docker network, jadi tidak ada permukaan serang.
+  # Kalau nanti DB harus diakses dari host, tambahkan password + port
+  # 127.0.0.1:5432.
+  db:
+    image: postgres:16-alpine
+    container_name: trip-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trip}
+      POSTGRES_USER: ${POSTGRES_USER:-trip}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Dijalankan otomatis HANYA saat volume database masih kosong
+      # (instalasi pertama).
+      - ./supabase/local/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trip} -d ${POSTGRES_DB:-trip}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # POSTGREST - menerjemahkan query REST dari server API menjadi SQL.
+  #
+  # Hanya diakses server API lewat jaringan compose (http://rest:3000).
+  # Port 3001 dibuka ke localhost saja, untuk keperluan debugging
+  # (`curl http://127.0.0.1:3001/trips?limit=1`).
+  rest:
+    image: postgrest/postgrest:v12.2.12
+    container_name: trip-rest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-trip}@db:5432/${POSTGRES_DB:-trip}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: ${POSTGRES_USER:-trip}
+      PGRST_SERVER_PORT: "3000"
+    ports:
+      - "127.0.0.1:3001:3000"
+
+volumes:
+  pgdata:
