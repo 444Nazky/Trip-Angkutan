@@ -120,7 +120,7 @@ for (const ip of EXTRA_LAN_IPS) {
 // Rate limiter (_ratelimit.ts) menentukan IP klien dari header
 // `x-forwarded-for` -> `x-real-ip` -> `cf-connecting-ip`, fallback "unknown".
 //
-// Di Supabase Edge Runtime, `x-forwarded-for` diisi oleh platform -> benar.
+// Di belakang reverse proxy, `x-forwarded-for` diisi oleh proxy -> benar.
 // Di server intranet TIDAK ADA reverse proxy di depan Deno, jadi header itu
 // datang langsung dari klien dan bisa DIPALSUKAN. Akibatnya:
 //   - rate limit per-IP jadi tidak berguna (klien putar header => bucket baru

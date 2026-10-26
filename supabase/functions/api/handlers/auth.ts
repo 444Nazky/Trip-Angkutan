@@ -17,10 +17,10 @@ const OFFICER_TOKEN_TTL = 90 * 24 * 60 * 60;
 
 // Pembatas percobaan login.
 //
-// CATATAN: state ini hidup di memori instance Edge Function. Supabase Edge
-// Functions bisa menyelesaikan tiap request di instance yang berbeda, jadi
-// bucket ini TIDAK selalu 공유 antar request — jadi perlakukan sebagai
-// jaring pengaman pertama, bukan pengganti rate limiter di gateway.
+// CATATAN: state ini hidup di memori proses. Server intranet berjalan satu
+// proses, jadi bucket ini berlaku untuk semua request, tetapi tetap
+// diperlakukan sebagai jaring pengaman pertama (bukan pengganti rate limiter
+// di _ratelimit.ts).
 //
 // Versi lama memakai satu kunci "global": satu instance menahan login untuk
 // SEMUA pengguna sekaligus, sehingga(admin yang sah ikut terkunci). Sekarang
