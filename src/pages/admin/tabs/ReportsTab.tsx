@@ -96,6 +96,17 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     setReportState('ready')
     setReportError(null)
   }, [reportFilters])
+<<<<<<< HEAD
+
+  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
+  // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
+  useEffect(() => {
+    const onReady = () => { void loadReports() }
+    window.addEventListener(SESSION_READY_EVENT, onReady)
+    return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
+  }, [loadReports])
+=======
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
 
   // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
   // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
