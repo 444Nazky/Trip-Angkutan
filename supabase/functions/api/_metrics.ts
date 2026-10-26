@@ -1,16 +1,13 @@
 /**
- * Registry metrik runtime untuk API (dipakai bersama oleh Edge Function cloud
- * dan server intranet port 3000).
+ * Registry metrik runtime untuk server API intranet (port 3000).
  *
  * Tujuannya: dashboard admin bisa menampilkan statistik server yang serupa
- * panel metrik Supabase / btop - Total Requests, Success Rate, latensi,
- * penggunaan memori, dan grafik request per menit.
+ * panel btop - Total Requests, Success Rate, latensi, penggunaan memori, dan
+ * grafik request per menit.
  *
- * PENTING: semua state di sini hanya hidup di memori instance. Untuk Edge
- * Function Supabase tiap request bisa dilayani instance berbeda, jadi angka
- * di cloud hanyalah indikasi sesaat. Untuk server intranet (proses Deno
- * panjang di port 3000) angkanya AKURAT dan kumulatif - itulah sebabnya panel
- * ini diarahkan ke endpoint intranet.
+ * PENTING: semua state di sini hanya hidup di memori proses. Server intranet
+ * adalah proses Deno panjang di port 3000, jadi angkanya akurat dan kumulatif
+ * sejak proses start; restart container akan mengosongkannya.
  */
 
 export type MetricsBucket = {
@@ -120,8 +117,8 @@ export type RecordInput = {
 /**
  * Catat satu request yang sudah selesai diproses.
  *
- * Dipanggil dari `handleRequest` (index.ts) supaya cloud dan intranet punya
- * hitungan yang sama. Path statistik (`server-stats`) sengaja DIKECUALIKAN:
+ * Dipanggil dari `handleRequest` (index.ts). Path statistik (`server-stats`)
+ * sengaja DIKECUALIKAN:
  * polling dashboard setiap 5 detik akan membuat server terlihat sangat
  * sibuk padahal tidak ada pekerjaan nyata.
  */

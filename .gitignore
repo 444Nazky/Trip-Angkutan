@@ -89,6 +89,9 @@ android/keystore.properties
 data/*.db
 *.db
 
+# Berkas unggahan runtime (foto trip, APK, bundel OTA) - volume docker
+data/storage/
+
 # Secret server API intranet (JANGAN di-commit)
 supabase/functions/api/.env.local
 supabase/functions/api/.env.secrets

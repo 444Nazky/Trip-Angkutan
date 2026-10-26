@@ -1,12 +1,12 @@
 // Klien database lokal: pengganti @supabase/supabase-js.
 //
-// Semua query dari handler memakai API builder yang sama dengan Supabase
+// Semua query dari handler memakai API builder yang sama seperti sebelumnya
 // (`db.from(...).select(...).eq(...)`), tetapi diterjemahkan menjadi HTTP ke
 // PostgREST lokal (container `rest` di docker-compose). Penyimpanan file
-// memakai direktori lokal, bukan Supabase Storage.
+// memakai direktori lokal, bukan layanan penyimpanan daring.
 //
 // ponytail: hanya method yang benar-benar dipakai handler yang diimplementasi.
-// Kalau nanti ada method baru, tambahkan di sini — jangan bawa lagi SDK cloud.
+// Kalau nanti ada method baru, tambahkan di sini.
 
 import { join, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
@@ -56,8 +56,8 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
   private headers: Record<string, string> = {};
   private body: unknown = undefined;
   private returning = false;
-  private single = false;
-  private maybeSingle = false;
+  private wantSingle = false;
+  private wantMaybeSingle = false;
   private wantsCount = false;
   private prefer: string[] = [];
 
@@ -65,7 +65,7 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     this.table = table;
   }
 
-  select(columns = "*", options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): this {
+  select(columns = "*", options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): QueryBuilder<any> {
     if (this.method === "GET" || this.method === "HEAD") {
       this.params.set("select", columns);
     } else {
@@ -78,7 +78,9 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
       this.prefer.push(`count=${options.count}`);
       if (options.head) this.method = "HEAD";
     }
-    return this;
+    // Hasil select selalu berupa array baris; `single()` di bawah yang
+    // mengubahnya jadi satu objek.
+    return this as unknown as QueryBuilder<any>;
   }
 
   insert(values: Row | Row[]): this {
@@ -196,14 +198,14 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     return this;
   }
 
-  single(): this {
-    this.single = true;
-    return this;
+  single(): QueryBuilder<any> {
+    this.wantSingle = true;
+    return this as unknown as QueryBuilder<any>;
   }
 
-  maybeSingle(): this {
-    this.maybeSingle = true;
-    return this;
+  maybeSingle(): QueryBuilder<any> {
+    this.wantMaybeSingle = true;
+    return this as unknown as QueryBuilder<any>;
   }
 
   private async execute(): Promise<DbResult<T>> {
@@ -216,7 +218,7 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     if (this.returning) prefer.push("return=representation");
     else if (this.method !== "GET" && this.method !== "HEAD") prefer.push("return=minimal");
     if (prefer.length) headers["Prefer"] = prefer.join(",");
-    if (this.single || this.maybeSingle) headers["Accept"] = "application/vnd.pgrst.object+json";
+    if (this.wantSingle || this.wantMaybeSingle) headers["Accept"] = "application/vnd.pgrst.object+json";
 
     let response: Response;
     try {
@@ -243,7 +245,7 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     }
 
     if (!response.ok) {
-      if (this.maybeSingle && response.status === 406) {
+      if (this.wantMaybeSingle && response.status === 406) {
         return { data: null, error: null, status: response.status, statusText: response.statusText };
       }
       return {

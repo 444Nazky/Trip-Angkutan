@@ -127,8 +127,9 @@ TripActiveScreen → TripCompleteScreen → Selesai + Sync
 ### 2.2 Master Tarif (`AdminDashboard.tsx` tab 'tariff')
 | Sub-modul | Fitur |
 |-----------|-------|
-| **Golongan (I–V)** | CRUD: Golongan, Jenis, Tarif Muatan, Tarif Kosong, Deskripsi |
-| **Tarif Region** | Per region: Tarif Lokal (nominal + aktif), Tarif Eksternal (nominal + aktif) |
+| **Tabel spreadsheet BADAU** | Master tarif trip asli: Jenis, internal (Rp 0 terkunci), lokal (tarif wilayah Badau), external muatan/kosong per golongan. Edit: klik angka -> autosave, tanpa tombol simpan |
+| **Tabel spreadsheet REGION** | Nominal lokal per wilayah (region selectable); kolom external menampilkan placeholder "tarif muatan"/"tarif kosong" yang mengacu master tarif BADAU |
+| **Tambah/Hapus baris** | Ikon + pada header BADAU (form inline: golongan, jenis, muatan, kosong); hapus via ikon trash saat hover baris |
 | **Sync** | Local-first: simpan lokal → push ke server best-effort; gagal → status offline |
 
 > **Data Structure**: `tariffData` (data.ts:19-25) + `RegionTariffRow` (tariffs.ts)
@@ -138,7 +139,6 @@ TripActiveScreen → TripCompleteScreen → Selesai + Sync
 |-------|-----------|
 | **Registrasi Plat** | No. Plat, Pemilik (opsional), Region Asal, Status (internal/lokal/eksternal) |
 | **Status Plat** | `internal` = Rp 0 (dikunci), `lokal` = tarif cadangan, `eksternal` = tarif region |
-| **Konfigurasi Tarif Terpusat** | Tabel per region: Internal (Rp 0 dikunci), Lokal (editable + toggle aktif), Eksternal (editable + toggle aktif) |
 | **Sync** | Create/Update/Delete → server; localStorage sebagai fallback |
 
 ### 2.4 Master Petugas (`AdminDashboard.tsx` tab 'officers')

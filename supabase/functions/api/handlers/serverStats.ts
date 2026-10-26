@@ -30,16 +30,12 @@ type Component = {
 type ServerStatsResponse = {
   ok: true;
   generatedAt: number;
-  mode: "intranet" | "cloud";
+  mode: "intranet";
   instance: string;
   version: string;
   metrics: MetricsSnapshot;
   components: Component[];
 };
-
-function mode(): "intranet" | "cloud" {
-  return Deno.env.get("API_DISABLE_EMBEDDED_SERVER") === "1" ? "intranet" : "cloud";
-}
 
 async function checkDatabase(): Promise<Component> {
   const started = Date.now();
@@ -146,7 +142,7 @@ export async function serverStats(req: Request): Promise<Response> {
       id: "api",
       label: "Proses API",
       status: "ok",
-      detail: `Server ${mode()} aktif, sudah jalan ${formatUptime(metrics.uptimeMs)}`,
+      detail: `Server intranet aktif, sudah jalan ${formatUptime(metrics.uptimeMs)}`,
       ms: 0,
     },
     await checkDatabase(),
@@ -157,9 +153,9 @@ export async function serverStats(req: Request): Promise<Response> {
   const body: ServerStatsResponse = {
     ok: true,
     generatedAt: Date.now(),
-    mode: mode(),
+    mode: "intranet",
     instance: Deno.env.get("API_INSTANCE_LABEL") ?? "api-intranet",
-    version: "3.0.0",
+    version: "3.0.0-local",
     metrics,
     components,
   };

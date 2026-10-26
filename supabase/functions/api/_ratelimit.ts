@@ -20,8 +20,8 @@
 //      per-IP tidak boleh terlalu sempit. Batas ketat untuk traffic sah
 //      ditambahkan per-subjek (officer/token), bukan per-IP.
 //
-// Semua angka batas bisa diubah lewat environment variable (tanpa redeploy
-// kode) melalui `supabase secrets set`.
+// Semua angka batas bisa diubah lewat environment variable di `.env.local`
+// (tanpa mengubah kode).
 
 /** Kelas endpoint, tiap kelas punya bucket dan refill sendiri. */
 export type RateClass = "health" | "read" | "report" | "write" | "auth";
@@ -152,8 +152,8 @@ export function limitOf(limiter: Limiter): number {
 }
 
 /**
- * Ambil IP klien. Edge Function dijalankan di belakang reverse proxy
- * Supabase, jadi IP asli ada di x-forwarded-for.
+ * Ambil IP klien. Server API intranet dijalankan di belakang reverse proxy
+ * (nginx port 8000/5173), jadi IP asli ada di x-forwarded-for.
  */
 export function clientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");

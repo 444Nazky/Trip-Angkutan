@@ -52,7 +52,7 @@ export async function getOfficers(req: Request): Promise<Response> {
     if (error) throw error;
 
     const officers_ = officers ?? [];
-    const extrasMap = await officerExtrasBulk(officers_.map(o => String(o.id)));
+    const extrasMap = await officerExtrasBulk(officers_.map((o: any) => String(o.id)));
     const result: any[] = [];
     for (const o of officers_) {
       result.push(shapeOfficer(o, extrasMap[String(o.id)] ?? { regions: [], dermagas: [] }));
@@ -108,7 +108,7 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
     // 2 query total, bukan 2 per petugas. Endpoint ini dipanggil aplikasi
     // mobile saat buka roster, jadi N+1 di sini terasa sekali everyone's slow.
     const officers_ = officers ?? [];
-    const extrasMap = await officerExtrasBulk(officers_.map(o => String(o.id)));
+    const extrasMap = await officerExtrasBulk(officers_.map((o: any) => String(o.id)));
     const result: any[] = [];
     for (const o of officers_) {
       const extras = extrasMap[String(o.id)] ?? { regions: [], dermagas: [] };
