@@ -16,9 +16,9 @@ describe('panel statistik server intranet', () => {
     vi.unstubAllGlobals()
   })
 
-  it('sumber data adalah server intranet port 3000, bukan Supabase', () => {
+  it('sumber data adalah server intranet port 3000', () => {
     expect(intranetStatsBaseUrl()).toBe('http://192.168.1.123:3000/api')
-    expect(intranetStatsBaseUrl()).not.toContain('supabase.co')
+    expect(intranetStatsBaseUrl()).not.toContain('://contoh.example.com')
   })
 
   it('mengambil statistik dari /server-stats di server intranet', async () => {

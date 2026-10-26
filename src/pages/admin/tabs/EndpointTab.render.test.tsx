@@ -1,9 +1,14 @@
 /**
- * Render harness — tab "Endpoint" (admin dashboard).
+ * Render harness — tab "Endpoint" + tab "Pengaturan" (admin dashboard).
  *
- * Yang diuji: tab Endpoint menampilkan panel statistik server port 3000
- * (dengan URL sumber `http://192.168.1.123:3000/api/server-stats`) - BUKAN
- * server lain di internet.
+ * Yang diuji:
+ *  1. Tab Endpoint menampilkan pemilih endpoint (Pilih Endpoint) dan TIDAK
+ *     lagi menampilkan panel statistik — statistik dipindah ke tab Pengaturan
+ *     (layar penuh) sejak commit 43ab45f.
+ *  2. Tab Pengaturan menampilkan panel statistik server port 3000 dengan
+ *     URL sumber `http://192.168.1.123:3000/api/server-stats` — BUKAN
+ *     Supabase cloud.
+ *  3. Angka statistik dari server tampil di panel Pengaturan.
  *
  * Semua sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
  */
@@ -12,6 +17,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { EndpointTab } from './EndpointTab'
+import { SettingsTab } from './SettingsTab'
 
 let container: HTMLDivElement
 let root: Root
@@ -43,7 +49,7 @@ const statsPayload = {
   },
   components: [
     { id: 'api', label: 'Proses API', status: 'ok', detail: 'Server intranet aktif', ms: 0 },
-    { id: 'database', label: 'Database (PostgreSQL)', status: 'ok', detail: 'PostgreSQL terjangkau', ms: 30 },
+    { id: 'database', label: 'Database (Supabase)', status: 'ok', detail: 'PostgreSQL terjangkau', ms: 30 },
   ],
 }
 
@@ -66,10 +72,25 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('tab Endpoint — panel statistik server port 3000', () => {
-  it('menampilkan panel statistik dengan URL sumber server intranet', async () => {
+describe('tab Endpoint — pemilih endpoint', () => {
+  it('menampilkan pemilih endpoint dan bukan panel statistik', async () => {
     await act(async () => {
       root.render(<EndpointTab showToast={() => {}} />)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(container.textContent).toContain('Pilih Endpoint')
+    expect(container.textContent).toContain('Simpan & Terapkan')
+    expect(container.textContent).not.toContain('Statistik Server Port 3000')
+  })
+})
+
+describe('tab Pengaturan — panel statistik server port 3000', () => {
+  it('menampilkan panel statistik dengan URL sumber server intranet', async () => {
+    await act(async () => {
+      root.render(<SettingsTab />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
@@ -82,9 +103,9 @@ describe('tab Endpoint — panel statistik server port 3000', () => {
     expect(container.textContent).toContain('Grafik Request per Menit')
   })
 
-  it('meminta data ke server intranet, bukan ke host internet', async () => {
+  it('meminta data ke server intranet, bukan ke Supabase', async () => {
     await act(async () => {
-      root.render(<EndpointTab showToast={() => {}} />)
+      root.render(<SettingsTab />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
@@ -99,7 +120,7 @@ describe('tab Endpoint — panel statistik server port 3000', () => {
 
   it('menampilkan angka statistik dari server', async () => {
     await act(async () => {
-      root.render(<EndpointTab showToast={() => {}} />)
+      root.render(<SettingsTab />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
