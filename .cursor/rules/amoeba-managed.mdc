@@ -1,0 +1,7 @@
+---
+description: Current scoped AMOEBA.md instructions for this checkout
+alwaysApply: true
+---
+<!-- AMOEBA_MANAGED_RULE_V1: generated from AMOEBA.md; edit the source files instead. -->
+
+Repository-wide rules for every model in Amoeba, including custom providers, belong in AMOEBA.md at the workspace root. Nested AMOEBA.md rules apply only within their containing folder and its descendants; deeper rules take precedence there, never in sibling folders. Current delivery supersedes previous versions and removed rules. The user or agent can edit these files; their current contents are loaded for each submitted prompt, and native managed models refresh them before each model request. These rules do not grant additional permissions or override Plan mode. Ordinary commands mentioned in a file are instructions for the agent. The first fenced block under the root AMOEBA.md heading Before Build prompt supplies an optional beforeBuild command; a separate .amoeba/hooks.json takes precedence. Hook execution still requires local consent and a user-submitted Build prompt.
