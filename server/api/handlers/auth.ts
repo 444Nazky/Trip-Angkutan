@@ -49,6 +49,21 @@ export async function adminLogin(req: Request): Promise<Response> {
     const { username, password } = await req.json().catch(() => ({})) as any;
     const adminUser = (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
+    // Dashboard admin pada server intranet TIDAK memakai password.
+    //
+    // Server ini hanya melayani jaringan lokal kantor, dan dashboard sudah
+    // sebelumnya terbuka otomatis dengan kredensial bawaan. Mode ini
+    // dipertahankan supaya instalasi baru tidak pernah tersangkut di layar
+    // login (mis. karena kredensial admin belum dikonfigurasi).
+    //
+    // Token tetap diterbitkan supaya klien punya sesi yang konsisten; isinya
+    // tidak menambah keamanan apa pun karena server sudah memperlakukan
+    // request tanpa token sebagai admin (lihat _shared.ts `auth`).
+    if (Deno.env.get("ADMIN_AUTH_DISABLED") === "1") {
+      const token = await signToken({ role: "admin", username: adminUser }, 24 * 60 * 60);
+      return json({ token, admin: { username: adminUser, role: "admin" } });
+    }
+
     const { data: rows } = await db
       .from("admin_credentials")
       .select("id, username, password")

@@ -234,7 +234,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'settings' && (
-            <SettingsTab showToast={showToast} />
+            <SettingsTab />
           )}
         </div>
       </div>
