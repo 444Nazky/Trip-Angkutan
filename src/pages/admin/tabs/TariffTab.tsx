@@ -1,14 +1,12 @@
 import { useState } from 'react'
-import { Plus, Edit2, Trash2, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import {
-  createTariff,
-  updateTariff,
-  deleteTariff,
   fetchRegionTariffs,
   upsertRegionTariff,
   type RegionTariffRow,
 } from '../../../services/tariffs'
+import { BADAU_TARIFF, REGION_TARIFF_PLACEHOLDERS } from '../../../pages/data'
 
 interface TariffTabProps {
   tariffs: TariffRow[]
@@ -22,6 +20,14 @@ type VehicleType = (typeof VEHICLE_TYPES)[number]
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
+const VEHICLE_ORDER: VehicleType[] = [
+  'motor',
+  'mobil',
+  'truk kecil',
+  'truk sedang',
+  'truk besar',
+]
+
 function ChevronRight({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -30,88 +36,38 @@ function ChevronRight({ size = 14 }: { size?: number }) {
   )
 }
 
+interface RegionMatrixRow {
+  vt: VehicleType
+  internal: string
+  lokal: string
+  externalMuatan: string
+  externalKosong: string
+}
+
+function buildRegionMatrix(baseValues?: { loaded: number; empty: number }[]): RegionMatrixRow[] {
+  return VEHICLE_ORDER.map((vt) => {
+    const idx = VEHICLE_ORDER.indexOf(vt)
+    const tv = baseValues?.[idx] ?? { loaded: 0, empty: 0 }
+    const isRegionTable = baseValues === undefined
+    return {
+      vt,
+      internal: isRegionTable ? 'Rp 0' : 'Rp 0',
+      lokal: isRegionTable ? '0' : fmtRp(tv.loaded),
+      externalMuatan: isRegionTable ? REGION_TARIFF_PLACEHOLDERS.muatan : fmtRp(tv.empty),
+      externalKosong: isRegionTable ? REGION_TARIFF_PLACEHOLDERS.kosong : fmtRp(Math.round(tv.empty * 0.6)),
+    }
+  })
+}
+
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regionTariffs, setRegionTariffs] = useState<RegionTariffRow[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [addTar, setAddTar] = useState(false)
-  const [editTarIdx, setEditTarIdx] = useState<number | null>(null)
-  const [tarForm, setTarForm] = useState({
-    golongan: '',
-    type: '',
-    loaded: '',
-    loadedNum: 0,
-    empty: '',
-    emptyNum: 0,
-    desc: '',
-  })
-  const [editTar, setEditTar] = useState({
-    golongan: '',
-    type: '',
-    loaded: '',
-    loadedNum: 0,
-    empty: '',
-    emptyNum: 0,
-    desc: '',
-  })
 
   if (!loaded) {
     fetchRegionTariffs().then((rt) => {
       if (rt) setRegionTariffs(rt)
     })
     setLoaded(true)
-  }
-
-  // ---------- helpers CRUD tarif umum ----------
-  const handleAddTar = async () => {
-    if (!tarForm.type || !tarForm.golongan) return showToast('Lengkapi form!', 'error')
-    if (tarForm.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
-    if (tarForm.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
-    const row: TariffRow = {
-      ...tarForm,
-      loaded: fmtRp(tarForm.loadedNum),
-      empty: fmtRp(tarForm.emptyNum),
-    }
-    if (serverState === 'online') {
-      const id = await createTariff(row)
-      if (!id) return showToast('Server menolak tarif — data tidak disimpan', 'error')
-      row.id = id
-    }
-    onSaveTariffs([...tariffs, row])
-    setTarForm({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
-    setAddTar(false)
-    showToast('Tarif ditambahkan')
-  }
-
-  const handleUpdTar = async () => {
-    if (editTar.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
-    if (editTar.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
-    const row: TariffRow = {
-      ...editTar,
-      loaded: fmtRp(editTar.loadedNum),
-      empty: fmtRp(editTar.emptyNum),
-    }
-    if (serverState === 'online' && row.id) {
-      const ok = await updateTariff(row)
-      if (!ok) return showToast('Server gagal — tarif tidak diubah', 'error')
-    }
-    const ns = [...tariffs]
-    if (editTarIdx !== null) {
-      ns[editTarIdx] = row
-      onSaveTariffs(ns)
-    }
-    setEditTarIdx(null)
-    showToast('Tarif diupdate')
-  }
-
-  const handleDelTar = async (i: number) => {
-    if (!confirm('Hapus?')) return
-    const row = tariffs[i]
-    const ns = tariffs.filter((_, idx) => idx !== i)
-    onSaveTariffs(ns)
-    if (editTarIdx === i) setEditTarIdx(null)
-    else if (editTarIdx !== null && editTarIdx > i) setEditTarIdx(editTarIdx - 1)
-    if (serverState === 'online' && row?.id) await deleteTariff(row)
-    showToast('Tarif dihapus')
   }
 
   const handleSaveRegionTariff = async (rt: RegionTariffRow) => {
@@ -135,21 +91,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     showToast(`Tarif region ${rt.code} diupdate`)
   }
 
-  // ---------- matriks tarif regional (BADAU / REGION) ----------
-  const renderRegionMatrixTable = (
-    regionName: string,
-    baseValues?: { loaded: number; empty: number }[],
-  ) => {
-    const rows = baseValues
-      ? VEHICLE_TYPES.map((vt, idx) => {
-          const tv = baseValues[idx] ?? { loaded: 0, empty: 0 }
-          return { vt, loaded: tv.loaded, empty: tv.empty }
-        })
-      : VEHICLE_TYPES.map((vt) => ({ vt, loaded: 0, empty: 0 }))
-
+  const renderRegionMatrixTable = (regionName: string, rows: RegionMatrixRow[], isRegionTable: boolean) => {
     return (
       <table className="w-full border-collapse border border-slate-300 text-sm">
-        {/* Header wilayah */}
         <thead>
           <tr className="bg-slate-100">
             <th
@@ -167,7 +111,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               GOLONGAN
             </th>
           </tr>
-          {/* sub-header kolom */}
           <tr className="bg-slate-50">
             <th className="text-left text-[11px] font-bold uppercase text-slate-600 border-r border-slate-200 border-b border-slate-200 px-3 py-2 whitespace-nowrap">
               Jenis
@@ -197,28 +140,23 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
             </th>
           </tr>
         </thead>
-        {/* Badan data */}
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} className="hover:bg-slate-50/70">
               <td className="text-left font-medium text-slate-800 border-r border-slate-200 border-b border-slate-200 px-3 py-2.5 align-left truncate">
                 {row.vt}
               </td>
-              {/* kolom internal: filled light gray (dikunci Rp 0) */}
               <td className="bg-slate-100 text-center text-[11px] font-bold text-slate-500 border-b border-slate-200 border-r border-slate-200 px-2 py-2.5">
-                Rp 0
+                {row.internal}
               </td>
-              {/* kolom lokal:angka akurat jika baseValues ada, jika tidak (REGION) placeholder */}
               <td className="text-center border-b border-slate-200 px-2 py-2.5">
-                {baseValues ? fmtRp(row.loaded) : 'tarif muatan'}
+                {row.lokal}
               </td>
-              {/* external muatan */}
               <td className="text-center border-r border-slate-200 border-b border-slate-200 px-2 py-2.5">
-                {baseValues ? fmtRp(row.empty) : 'tarif muatan'}
+                {row.externalMuatan}
               </td>
-              {/* external kosong */}
               <td className="text-center border-b border-slate-200 px-2 py-2.5">
-                {baseValues ? fmtRp(Math.round(row.empty * 0.6)): 'tarif kosong'}
+                {row.externalKosong}
               </td>
             </tr>
           ))}
@@ -249,150 +187,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         </button>
       </div>
 
-      {/* Form tambah golongan */}
-      {addTar && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
-          <h3 className="font-bold mb-4">Tambah Golongan</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Golongan</label>
-              <input
-                value={tarForm.golongan}
-                onChange={(e) => setTarForm({ ...tarForm, golongan: e.target.value })}
-                placeholder="I, II, III"
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Jenis</label>
-              <input
-                value={tarForm.type}
-                onChange={(e) => setTarForm({ ...tarForm, type: e.target.value })}
-                placeholder="Truck Besar"
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <div className="mb-4">
-            <label className="text-[11px] text-slate-500 block mb-1">Deskripsi</label>
-            <input
-              value={tarForm.desc}
-              onChange={(e) => setTarForm({ ...tarForm, desc: e.target.value })}
-              className="w-full border rounded-xl px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Muatan (Rp)</label>
-              <input
-                type="number"
-                value={tarForm.loadedNum || ''}
-                onChange={(e) =>
-                  setTarForm({ ...tarForm, loadedNum: parseInt(e.target.value) || 0 })
-                }
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Kosong (Rp)</label>
-              <input
-                type="number"
-                value={tarForm.emptyNum || ''}
-                onChange={(e) =>
-                  setTarForm({ ...tarForm, emptyNum: parseInt(e.target.value) || 0 })
-                }
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setAddTar(false)}
-              className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold"
-            >
-              Batal
-            </button>
-            <button
-              onClick={handleAddTar}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
-            >
-              Simpan
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal edit */}
-      {editTarIdx !== null && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
-          <h3 className="font-bold mb-4">Edit Golongan</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Golongan</label>
-              <input
-                value={editTar.golongan}
-                onChange={(e) => setEditTar({ ...editTar, golongan: e.target.value })}
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Jenis</label>
-              <input
-                value={editTar.type}
-                onChange={(e) => setEditTar({ ...editTar, type: e.target.value })}
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <div className="mb-4">
-            <label className="text-[11px] text-slate-500 block mb-1">Deskripsi</label>
-            <input
-              value={editTar.desc}
-              onChange={(e) => setEditTar({ ...editTar, desc: e.target.value })}
-              className="w-full border rounded-xl px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Muatan</label>
-              <input
-                type="number"
-                value={editTar.loadedNum || ''}
-                onChange={(e) =>
-                  setEditTar({ ...editTar, loadedNum: parseInt(e.target.value) || 0 })
-                }
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Kosong</label>
-              <input
-                type="number"
-                value={editTar.emptyNum || ''}
-                onChange={(e) =>
-                  setEditTar({ ...editTar, emptyNum: parseInt(e.target.value) || 0 })
-                }
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setEditTarIdx(null)}
-              className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold"
-            >
-              Batal
-            </button>
-            <button
-              onClick={handleUpdTar}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
-            >
-              Update
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Tabel tarif umum (CRUD) — tersembunyi di layar tapi tetap dijaga fungsi CRUD-nya
           (bisa dikembangkan nanti). Untuk fokus UI sekarang, kita masukkan dua tabel matriks. */}
 
@@ -403,28 +197,16 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           <ChevronRight />
           <span className="text-sm font-black text-slate-800">BADAU</span>
         </div>
-        {renderRegionMatrixTable('BADAU', tariffs.length ? [
-          {
-            loaded: tariffs.find((t) => t.type?.toLowerCase() === 'motor')?.loadedNum ?? 0,
-            empty: tariffs.find((t) => t.type?.toLowerCase() === 'motor')?.emptyNum ?? 0,
-          },
-          {
-            loaded: tariffs.find((t) => t.type?.toLowerCase() === 'mobil')?.loadedNum ?? 0,
-            empty: tariffs.find((t) => t.type?.toLowerCase() === 'mobil')?.emptyNum ?? 0,
-          },
-          {
-            loaded: tariffs.find((t) => t.type?.toLowerCase() === 'truk kecil')?.loadedNum ?? 0,
-            empty: tariffs.find((t) => t.type?.toLowerCase() === 'truk kecil')?.emptyNum ?? 0,
-          },
-          {
-            loaded: tariffs.find((t) => t.type?.toLowerCase() === 'truk sedang')?.loadedNum ?? 0,
-            empty: tariffs.find((t) => t.type?.toLowerCase() === 'truk sedang')?.emptyNum ?? 0,
-          },
-          {
-            loaded: tariffs.find((t) => t.type?.toLowerCase() === 'truk besar')?.loadedNum ?? 0,
-            empty: tariffs.find((t) => t.type?.toLowerCase() === 'truk besar')?.emptyNum ?? 0,
-          },
-        ] : undefined)}
+        {renderRegionMatrixTable(
+          'BADAU',
+          buildRegionMatrix(
+            VEHICLE_ORDER.map((vt) => ({
+              loaded: BADAU_TARIFF[vt]?.loadedNum ?? 0,
+              empty: BADAU_TARIFF[vt]?.emptyNum ?? 0,
+            })),
+          ),
+          false,
+        )}
       </div>
 
       {/* --- Tabel matriks REGION (placeholder) --- */}
@@ -434,7 +216,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           <ChevronRight />
           <span className="text-sm font-black text-slate-800">REGION</span>
         </div>
-        {renderRegionMatrixTable('REGION')}
+        {renderRegionMatrixTable('REGION', buildRegionMatrix(), true)}
       </div>
 
       {/* Tabel konfigurasi tarif terpusat (penarifan plat) - tetap ada */}

@@ -27,8 +27,12 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.0.3"
+        // versionCode 11: APK 1.0.3 yang sudah terbit di storage punya
+        // versionCode 10. Android HANYA menerima upgrade kalau versionCode
+        // yang baru LEBIH BESAR - dengan code <= 10 APK ini tidak bisa
+        // di-install di perangkat yang sudah pakai 1.0.3.
+        versionCode 11
+        versionName "1.0.2"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
