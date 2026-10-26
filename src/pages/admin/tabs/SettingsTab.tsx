@@ -2,9 +2,8 @@ import { Sun, Moon } from 'lucide-react'
 import { ZOOM_OPTIONS, ACCENT_OPTIONS, DEFAULT_THEME, loadTheme, saveTheme, applyTheme, type AdminTheme } from '../../../services/theme'
 import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import { environment } from '../../../environments/environment'
 import { ChangePasswordSection } from '../ChangePassword'
-import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
+import { apiBaseCandidateLabel, apiBaseCandidates, applyEndpointInput, autoDetectApiBaseUrl, defaultApiBaseUrl, normalizeBaseUrl, pingBaseUrl, resolveApiBaseUrl, setApiBaseUrlOverride, validateEndpointInput } from '../../../services/api'
 
 
 
@@ -141,7 +140,7 @@ export function SettingsTab({ onLogout, serverState, tariffs, officers, showToas
             <p className="text-[11px] text-slate-400 break-all">
               Aktif: {resolveApiBaseUrl()}
               {apiBaseCandidateLabel(resolveApiBaseUrl()) ? ` (${apiBaseCandidateLabel(resolveApiBaseUrl())})` : ''}
-              <br />Default: {environment.apiBaseUrl}
+              <br />Default: {defaultApiBaseUrl()}
             </p>
 
             <div className="flex flex-wrap gap-1.5">
