@@ -1,13 +1,11 @@
-// App update/OTA handlers — Supabase-native: release metadata in `app_versions`
-// table, OTA manifests in `ota_bundles`, file bytes in public buckets `apks` and `ota`.
+// Handler update aplikasi/OTA: metadata rilis di tabel `app_versions`, manifest
+// OTA di `ota_bundles`, berkas di direktori lokal `apks` dan `ota`.
 import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
 const APK_BUCKET = "apks";
 const OTA_BUCKET = "ota";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-
 function storagePublicUrl(bucket: string, path: string): string {
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  return db.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
 function parse(v: string): [number, number, number, number] {

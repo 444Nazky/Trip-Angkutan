@@ -2,17 +2,15 @@
  * Endpoint `GET /server-stats` - panel statistik server untuk Admin Dashboard.
  *
  * Dipakai oleh tab "Endpoint" di admin dashboard untuk memantau server
- * intranet port 3000 (atau cloud) dengan gaya panel metrik Supabase/btop:
- * Total Requests, Success Rate, latensi, memori proses, grafik request per
- * menit, dan status tiap komponen server.
+ * intranet port 3000: total request, success rate, latensi, memori proses,
+ * grafik request per menit, dan status tiap komponen server.
  *
  * Akses:
  *   - Wajib punya token admin (sama seperti endpoint master data lain),
  *     KECUALI server dijalankan dengan `ADMIN_AUTH_DISABLED=1` (mode intranet
  *     tanpa auth, untuk mesin yang benar-benar tertutup di LAN).
- *   - Komponen yang dicek: proses API, database Supabase, JWT/auth, cache,
- *     dan konektivitas ke cloud (Supabase host) - itu yang membedakan
- *     "server hidup tapi tidak bisa ke internet" dari "server hidup normal".
+ *   - Komponen yang dicek: proses API, database lokal, JWT/auth, dan
+ *     direktori penyimpanan file. Tidak ada pengecekan ke internet.
  */
 
 import { db, json, requireAdmin } from "../_shared.ts";
@@ -50,12 +48,10 @@ async function checkDatabase(): Promise<Component> {
     const ms = Date.now() - started;
     if (error) {
       const msg = error.message;
-      // "Invalid API key" = host hidup, hanya kredensial yang salah ->
-      // status "terbatas", bukan "gangguan".
-      const keyProblem = /api key|jwt|unauthorized|auth/i.test(msg);
+      const keyProblem = /kredensial|unauthorized|auth/i.test(msg);
       return {
         id: "database",
-        label: "Database (Supabase)",
+        label: "Database Lokal",
         status: keyProblem ? "degraded" : "down",
         detail: keyProblem ? `Host database hidup tapi kredensial salah: ${msg}` : msg,
         ms,
@@ -63,7 +59,7 @@ async function checkDatabase(): Promise<Component> {
     }
     return {
       id: "database",
-      label: "Database (Supabase)",
+      label: "Database Lokal",
       status: "ok",
       detail: "PostgreSQL terjangkau, query SELECT berhasil",
       ms,
@@ -71,7 +67,7 @@ async function checkDatabase(): Promise<Component> {
   } catch (e) {
     return {
       id: "database",
-      label: "Database (Supabase)",
+      label: "Database Lokal",
       status: "down",
       detail: e instanceof Error ? e.message : "gagal cek database",
       ms: Date.now() - started,
@@ -79,55 +75,29 @@ async function checkDatabase(): Promise<Component> {
   }
 }
 
-async function checkCloud(): Promise<Component> {
+async function checkStorage(): Promise<Component> {
   const started = Date.now();
-  const url = Deno.env.get("SUPABASE_URL");
-  if (!url) {
-    return {
-      id: "cloud",
-      label: "Konektivitas Cloud",
-      status: "unknown",
-      detail: "SUPABASE_URL belum diisi di environment server",
-      ms: 0,
-    };
-  }
+  const dir = Deno.env.get("STORAGE_DIR") || "/data/storage";
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 4000);
-    try {
-      const headers: Record<string, string> = { Accept: "application/json" };
-      const anon = Deno.env.get("SUPABASE_ANON_KEY");
-      const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      const key = anon || service;
-      if (key) headers['apikey'] = key;
-      if (service) headers['Authorization'] = `Bearer ${service}`;
-
-      const res = await fetch(`${url.replace(/\/+$/, "")}/auth/v1/health`, {
-        method: "GET",
-        headers,
-        signal: ctrl.signal,
-      });
-      const ms = Date.now() - started;
-      return {
-        id: "cloud",
-        label: "Konektivitas Cloud",
-        // 401 di /auth/v1/health artinya host hidup tapi key tidak cocok -
-        // itu tetap "terhubung", hanya autentikasinya yang belum beres.
-        status: res.ok ? "ok" : "degraded",
-        detail: res.ok
-          ? "Host Supabase cloud terjangkau"
-          : `Host menjawab HTTP ${res.status}${res.status === 401 ? " (api key tidak cocok)" : ""}`,
-        ms,
-      };
-    } finally {
-      clearTimeout(timer);
+    let files = 0;
+    for await (const entry of Deno.readDir(dir)) {
+      if (entry.isDirectory) {
+        for await (const _ of Deno.readDir(`${dir}/${entry.name}`)) files++;
+      }
     }
+    return {
+      id: "storage",
+      label: "Penyimpanan File",
+      status: "ok",
+      detail: `${dir} terjangkau (${files} berkas)`,
+      ms: Date.now() - started,
+    };
   } catch (e) {
     return {
-      id: "cloud",
-      label: "Konektivitas Cloud",
+      id: "storage",
+      label: "Penyimpanan File",
       status: "down",
-      detail: e instanceof Error ? e.message : "tidak bisa menghubungi host cloud",
+      detail: e instanceof Error ? e.message : "direktori penyimpanan tidak terbaca",
       ms: Date.now() - started,
     };
   }
@@ -140,7 +110,7 @@ function checkAuth(): Component {
       id: "auth",
       label: "Autentikasi (JWT)",
       status: "down",
-      detail: "JWT_SECRET kosong - token cloud tidak valid di server ini",
+      detail: "JWT_SECRET kosong - token tidak dapat diverifikasi",
       ms: 0,
     };
   }
@@ -181,7 +151,7 @@ export async function serverStats(req: Request): Promise<Response> {
     },
     await checkDatabase(),
     checkAuth(),
-    await checkCloud(),
+    await checkStorage(),
   ];
 
   const body: ServerStatsResponse = {

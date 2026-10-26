@@ -1,23 +1,23 @@
 /**
  * Server API INTRANET (port 3000).
  *
- * Menjalankan API Edge Function yang PERSIS SAMA dengan yang di-deploy ke
- * Supabase, tapi di dalam jaringan lokal kantor (PC Ubuntu 192.168.1.123).
+ * Menjalankan router API di dalam jaringan lokal kantor (PC Ubuntu
+ * 192.168.1.123). Aplikasi mobile dan dashboard admin hanya memanggil
+ * endpoint ini: http://192.168.1.123:3000/api
  *
- * Aplikasi mobile punya dua pilihan endpoint:
- *   - Cloud   : https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api
- *   - Intranet: http://192.168.1.123:3000/api
- *
- * Router, rate limit, cache, CORS, dan handler-nya identik — yang berbeda
- * hanya alamat jemputannya dan cara database-nya diakses (Tetap Supabase
- * PostgreSQL lewat service role key; tidak ada database lokal).
+ * Tidak ada koneksi ke internet:
+ *   - Database : PostgreSQL lokal di container `db` (diakses lewat PostgREST
+ *                container `rest`, lihat `_db.ts`).
+ *   - File     : direktori lokal `STORAGE_DIR` (default /data/storage),
+ *                dilayani di /files/<bucket>/<path>.
  *
  * Syarat environment (lihat supabase/functions/api/.env.example):
- *   SUPABASE_URL             - URL project Supabase
- *   SUPABASE_SERVICE_ROLE_KEY - service role key (wajib)
- *   JWT_SECRET               - HARUS SAMA dengan secret di Supabase, kalau tidak
- *                             token yang issued cloud tidak valid di intranet
- *   ADMIN_USERNAME/PASSWORD  - kredensial admin dashboard (opsional)
+ *   JWT_SECRET     - WAJIB. Dipakai menandatangani token admin/petugas.
+ *   POSTGREST_URL  - opsional, default http://127.0.0.1:3001 (docker: http://rest:3000)
+ *   STORAGE_DIR    - opsional, default /data/storage
+ *   PUBLIC_BASE_URL- opsional, default http://<LAN_IP atau 192.168.1.123>:3000
+ *   ADMIN_USERNAME / ADMIN_PASSWORD - opsional, kredensial dashboard
+ *   LAN_IP, PORT, HOST, TLS_CERT_FILE, TLS_KEY_FILE - opsional
  */
 
 const PORT = Number(Deno.env.get("PORT") ?? "3000");
@@ -41,12 +41,8 @@ Deno.env.set("API_DISABLE_EMBEDDED_SERVER", "1");
 //   Plus CORS API intranet mengizinkan origin `*` (_shared.ts), jadi halaman
 //   web yang dibuka petugas di browser pun bisa menembak API intranet.
 //
-//   Perhatikan: pre-flight ini HANYA jalan di server intranet (file ini).
-//   Edge Function di Supabase tidak pernah lewat file ini, jadi perubahan
-//   ini tidak memengaruhi deployment cloud.
+//   Pre-flight ini hanya jalan di server intranet (file ini).
 const REQUIRED = [
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
   "JWT_SECRET",
 ] as const;
 const missing = REQUIRED.filter((k) => !Deno.env.get(k));
@@ -64,7 +60,7 @@ if (missing.length > 0) {
         ` default yang tertulis di source, dan token admin bisa dipalsukan.`,
     );
     console.error(
-      `[api-intranet] Ambil dari: Supabase Dashboard > Project Settings > API > JWT Secret.`,
+      `[api-intranet] Isi dengan string acak panjang, mis.: openssl rand -hex 32`,
     );
   }
   Deno.exit(1);
@@ -207,4 +203,4 @@ Deno.serve(
   },
 );
 
-console.log("[api-intranet] Service key dipakai: service_role (akses penuh DB)");
+console.log(`[api-intranet] Database: ${Deno.env.get("POSTGREST_URL") ?? "http://127.0.0.1:3001"} | File: ${Deno.env.get("STORAGE_DIR") ?? "/data/storage"}`);

@@ -1,4 +1,4 @@
-// API Edge Function - replaces the Express backend, fully on Supabase.
+// API intranet - pengganti backend Express, berjalan penuh di jaringan lokal.
 //
 // Ada dua middleware yang membungkus router:
 //
@@ -21,7 +21,7 @@ import * as ofc from "./handlers/officers.ts";
 import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
-import { corsHeaders, json, auth } from "./_shared.ts";
+import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
   take,
@@ -128,10 +128,10 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
 
   // ---------------- /health ----------------
   if (a === "health" && req.method === "GET") {
-    // `mode` membantu petitioner membedakan server cloud dari server intranet
-    // kantor (keduanya menjawab /health dengan status yang sama).
-    const mode = Deno.env.get("API_DISABLE_EMBEDDED_SERVER") === "1" ? "intranet" : "cloud";
-    return json({ status: "ok", version: "3.0.0-supabase-only", mode, instance: INSTANCE_ID });
+    // `mode` membedakan server intranet kantor dari proses Deno yang
+    // dijalankan mandiri (mis. saat uji lokal).
+    const mode = Deno.env.get("API_DISABLE_EMBEDDED_SERVER") === "1" ? "intranet" : "standalone";
+    return json({ status: "ok", version: "3.0.0-local", mode, instance: INSTANCE_ID });
   }
 
   // ---------------- /auth ----------------
@@ -391,13 +391,18 @@ const anomalySeen = new Map<string, number>();
  * Handler utama API.
  *
  * Dipisah dari `Deno.serve` supaya handler yang sama bisa dipakai dua tempat:
- *   1. Supabase Edge Runtime (deploy)  -> `Deno.serve(handleRequest)`
- *   2. Server intranet lokal (port 3000) -> `local_server.ts`
+ *   1. Server intranet lokal (port 3000) -> `local_server.ts`
+ *   2. Proses Deno mandiri (uji lokal)  -> `Deno.serve(handleRequest)`
  *
- * Logika, rate limit, cache, dan CORS persis sama untuk keduanya, jadi
- * perilaku endpoint intranet == endpoint cloud.
+ * Database: PostgreSQL lokal lewat PostgREST (`_db.ts`).
+ * File: direktori lokal, dilayani di `/files/<bucket>/<path>`.
  */
 export async function handleRequest(req: Request): Promise<Response> {
+  // File lokal (foto trip, APK, bundle OTA) dilayani langsung dari disk,
+  // tanpa lewat database maupun rate limiter API.
+  const asset = await serveStoredFile(new URL(req.url).pathname);
+  if (asset) return asset;
+
   const started = Date.now();
   let path = "";
   let ip = "";
@@ -461,8 +466,8 @@ const ALWAYS_ALLOWED_ORIGINS = new Set([
  * ber-credentials (cookie) kalau origin-nya wildcard.
  *
  * Admin dashboard (port 8000) memanggil API intranet (port 3000) - itu
- * lintas origin, jadi header CORS menentukan boleh/tidaknya. Supaya kedua
- * endpoint (Supabase cloud dan intranet) sama-sama bebas hambatan:
+ * lintas origin, jadi header CORS menentukan boleh/tidaknya. Supaya dashboard
+ * dan aplikasi mobile sama-sama bebas hambatan:
  *
  *   - Kalau `CORS_ORIGIN` diisi (daftar origin, dipisah koma), origin yang
  *     terdaftar ditiru + Allow-Credentials ikut diaktifkan. Origin aplikasi
@@ -688,9 +693,6 @@ async function handleRequestCore(req: Request): Promise<Response> {
 }
 
 // Hanya jalankan server bawaan bila modul ini dipakai sebagai entrypoint.
-//
-// Di Supabase Edge Runtime (deploy) env ini tidak di-set, jadi `Deno.serve`
-// aktif persis seperti sebelumnya.
 //
 // `local_server.ts` (server intranet port 3000) men-set
 // API_DISABLE_EMBEDDED_SERVER=1 SEBELUM meng-import modul ini, sehingga tidak

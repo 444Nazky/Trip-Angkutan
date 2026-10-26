@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS regions (
 
 CREATE TABLE IF NOT EXISTS dermagas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  region_id uuid REFERENCES regions(id) ON DELETE SET NULL CONSTRAINT dermagas_region_id_fkey,
+  region_id uuid CONSTRAINT dermagas_region_id_fkey REFERENCES regions(id) ON DELETE SET NULL,
   name text,
   code text,
   username text,
@@ -109,9 +109,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
   no_polisi text,
   vehicle_type text,
   golongan text,
-  trip_id uuid REFERENCES trips(id) ON DELETE CASCADE,
+  trip_id uuid CONSTRAINT vehicles_trip_id_fkey REFERENCES trips(id) ON DELETE CASCADE,
   has_load integer DEFAULT 0,
-  tariff_id uuid REFERENCES tariffs(id) ON DELETE SET NULL,
+  tariff_id uuid CONSTRAINT vehicles_tariff_id_fkey REFERENCES tariffs(id) ON DELETE SET NULL,
   tariff_amount integer DEFAULT 0,
   foto_path text,
   foto_captured_at text,
@@ -218,5 +218,9 @@ CREATE INDEX IF NOT EXISTS routes_dermaga_id_idx ON routes (dermaga_id);
 CREATE INDEX IF NOT EXISTS dermagas_region_id_idx ON dermagas (region_id);
 CREATE INDEX IF NOT EXISTS geofences_dermaga_id_idx ON geofences (dermaga_id);
 CREATE INDEX IF NOT EXISTS ota_bundles_published_at_idx ON ota_bundles (published_at DESC);
+CREATE INDEX IF NOT EXISTS officer_regions_region_id_idx ON officer_regions (region_id);
+CREATE INDEX IF NOT EXISTS officer_dermagas_dermaga_id_idx ON officer_dermagas (dermaga_id);
+CREATE INDEX IF NOT EXISTS plate_scans_plate_idx ON plate_scans (plate);
+CREATE INDEX IF NOT EXISTS app_versions_version_idx ON app_versions (version);
 
 COMMIT;

@@ -1,5 +1,7 @@
-// Shared Edge Function helpers for the api function.
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Shared helper API. Database lokal (PostgREST) dan penyimpanan file lokal.
+import { db } from "./_db.ts";
+
+export { db, serveStoredFile } from "./_db.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,12 +17,6 @@ export function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-
-export const db: SupabaseClient = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "",
-  { auth: { persistSession: false, autoRefreshToken: false } },
-);
 
 // PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG
 // (mis. baris `JWT_SECRET=` di .env.local), `??` tidak menangkapnya karena
