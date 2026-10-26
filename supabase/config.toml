@@ -1,7 +1,0 @@
-project_id = "bmiruktfruunegtbydyw"
-
-# API punya autentikasi sendiri (custom JWT HS256 di _shared.ts), jadi verifikasi
-# JWT bawaan gateway Supabase harus dimatikan — gateway tidak bisa memverifikasi
-# token non-Supabase dan membalas 401 UNAUTHORIZED_NO_AUTH_HEADER sebelum handler.
-[functions.api]
-verify_jwt = false
