@@ -559,7 +559,7 @@ public class MainActivity extends BridgeActivity {
 export function SideloadingHelper(): JSX.Element {
   return (
     <div className="sideloading-helper">
-      <h4>📱 Panduan Instalasi APK</h4>
+      <h4>Mobile Panduan Instalasi APK</h4>
       
       <details>
         <summary>Apa yang harus saya lakukan jika muncul peringatan keamanan?</summary>
@@ -580,7 +580,7 @@ export function SideloadingHelper(): JSX.Element {
         </ol>
         
         <p className="note">
-          💡 <strong>Catatan:</strong> Aplikasi Trip Angkutan memerlukan izin ini 
+          Catatan <strong>Catatan:</strong> Aplikasi Trip Angkutan memerlukan izin ini 
           untuk dapat memperbarui dirinya sendiri di luar Google Play Store. 
           Data Anda tetap aman.
         </p>

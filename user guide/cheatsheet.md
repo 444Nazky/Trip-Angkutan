@@ -69,7 +69,7 @@ curl -I "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/
 
 ### 2.3 Opsi C — skrip publish (upload + metadata sekaligus)
 
-> ⚠️ **Hanya untuk APK kecil.** Skrip ini mengirim APK sebagai base64 di body JSON. Untuk `1.0.3` (15,6 MiB → base64 20,8 MiB) payload **melewati batas body Edge Function 20 MiB** dan request ditolak. Untuk `1.0.3` gunakan Opsi A + Opsi D (2.4). Opsi C tetap berguna untuk paket di bawah ~14 MiB.
+> Perhatian **Hanya untuk APK kecil.** Skrip ini mengirim APK sebagai base64 di body JSON. Untuk `1.0.3` (15,6 MiB → base64 20,8 MiB) payload **melewati batas body Edge Function 20 MiB** dan request ditolak. Untuk `1.0.3` gunakan Opsi A + Opsi D (2.4). Opsi C tetap berguna untuk paket di bawah ~14 MiB.
 
 ```bash
 node scripts/publish-apk.mjs \
@@ -227,9 +227,9 @@ Accept: application/json
 
 | Izin | Status di repo | Alasan |
 |---|---|---|
-| `INTERNET` | ✅ ada | Wajib untuk request API & unduhan APK |
-| `REQUEST_INSTALL_PACKAGES` | ✅ ada | Wajib agar `Intent ACTION_VIEW` ke installer diizinkan |
-| `WRITE_EXTERNAL_STORAGE` | ❌ tidak ada, **dan tidak perlu** | APK diunduh ke `Directory.Data` = `getFilesDir()` (storage privat aplikasi). Tidak butuh izin storage pada Android modern. Menambahnya hanya memperbesar permintaan izin. |
+| `INTERNET` | OK ada | Wajib untuk request API & unduhan APK |
+| `REQUEST_INSTALL_PACKAGES` | OK ada | Wajib agar `Intent ACTION_VIEW` ke installer diizinkan |
+| `WRITE_EXTERNAL_STORAGE` | Tidak tidak ada, **dan tidak perlu** | APK diunduh ke `Directory.Data` = `getFilesDir()` (storage privat aplikasi). Tidak butuh izin storage pada Android modern. Menambahnya hanya memperbesar permintaan izin. |
 
 > Catatan: `WRITE_EXTERNAL_STORAGE` bahkan sudah deprecated sejak Android 10 (API 29). Pada Android 13+ (API 33+) digantikan `READ_MEDIA_*` yang juga tidak relevan di sini.
 
@@ -295,7 +295,7 @@ node scripts/sync-version.mjs 1.0.3 --code=6
 
 > `sync-version.mjs` menaikkan `versionCode` **dengan syarat naik**; ia menolak nilai yang tidak naik. Opsi `--code=` memaksa nilai tertentu.
 >
-> ⚠️ **Perhatikan `version.json`.** Skrip ini juga menulis `version.json` menjadi `1.0.3+<timestamp>`. Berkas itu adalah manifest **kanal modul web** (saat ini `1.0.4+1792650248914`), bukan versi paket APK — menuliskannya dengan `1.0.3` akan **menurunkan** versi modul dan membuat kanal cadangan tidak pernah menawarkan pembaruan. Untuk rilis full-package, ubah `package.json` dan `android/app/build.gradle` **secara manual** (versi APK tidak bergantung pada `version.json`), atau kembalikan `version.json` ke nilainya semula setelah menjalankan skrip.
+> Perhatian **Perhatikan `version.json`.** Skrip ini juga menulis `version.json` menjadi `1.0.3+<timestamp>`. Berkas itu adalah manifest **kanal modul web** (saat ini `1.0.4+1792650248914`), bukan versi paket APK — menuliskannya dengan `1.0.3` akan **menurunkan** versi modul dan membuat kanal cadangan tidak pernah menawarkan pembaruan. Untuk rilis full-package, ubah `package.json` dan `android/app/build.gradle` **secara manual** (versi APK tidak bergantung pada `version.json`), atau kembalikan `version.json` ke nilainya semula setelah menjalankan skrip.
 
 ### 5.2 Build
 
@@ -341,7 +341,7 @@ node scripts/verify-apks.mjs
 
 Menghasilkan `SEMUA APK & METADATA KONSISTEN` bila nama berkas, `versionName` di dalam APK, dan metadata rilis saling cocok. Exit code 1 bila ada ketidakcocokan.
 
-> ⚠️ **Keterbatasan skrip di repo ini.** `verify-apks.mjs` memindai direktori `backend/apks` dan `backend/metadata/versions.json` — keduanya **tidak ada** di repositori ini (metadata rilis kini berada di Supabase: tabel `app_versions` + bucket `apks`). Karena targetnya tidak ditemukan, skrip keluar dengan kode 0 tanpa memeriksa apa pun. Untuk rilis `1.0.3` lakukan verifikasi manual memakai perintah di bagian 5.3 (aapt badging + apksigner + sha256) dan cocokkan dengan baris `app_versions` di server.
+> Perhatian **Keterbatasan skrip di repo ini.** `verify-apks.mjs` memindai direktori `backend/apks` dan `backend/metadata/versions.json` — keduanya **tidak ada** di repositori ini (metadata rilis kini berada di Supabase: tabel `app_versions` + bucket `apks`). Karena targetnya tidak ditemukan, skrip keluar dengan kode 0 tanpa memeriksa apa pun. Untuk rilis `1.0.3` lakukan verifikasi manual memakai perintah di bagian 5.3 (aapt badging + apksigner + sha256) dan cocokkan dengan baris `app_versions` di server.
 
 ---
 

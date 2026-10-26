@@ -22,10 +22,10 @@ Kalau jawabannya `connection refused` -> API intranet belum jalan di sana.
 
 | Komponen | `ubuntu.local` (.123) | `blackarch` (.2) |
 |----------|----------------------|------------------|
-| Web admin `:8000` | ✅ bundle terbaru (fitur endpoint ada) | ✅ |
-| Mobile `:5173` | ✅ | ✅ |
-| API intranet `:3000` | ✅ **hidup** (`mode":"intranet"`) | ⏸️ duplikat — harus dimatikan |
-| SSH masuk | ❌ port 22 tertutup | ✅ |
+| Web admin `:8000` | OK bundle terbaru (fitur endpoint ada) | OK |
+| Mobile `:5173` | OK | OK |
+| API intranet `:3000` | OK **hidup** (`mode":"intranet"`) | Ditunda duplikat — harus dimatikan |
+| SSH masuk | Tidak (port 22 tertutup) | OK |
 
 **Selesai (23 Okt 2026 03:53 GMT).** Secret dikirim dari `blackarch` lewat
 receiver HTTP satu-kali milik agent `ubuntu.local` (port `:8787`,

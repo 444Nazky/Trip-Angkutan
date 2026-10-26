@@ -305,11 +305,11 @@ mobile-trip/src/pages/
 
 | Metode | Endpoint | Offline-Capable |
 |--------|----------|-----------------|
-| GET | /dermagas | ✅ |
-| GET | /officers | ✅ |
-| GET | /tariffs | ✅ |
-| GET | /plates | ✅ |
-| GET | /trips | ✅ |
-| POST | /trips | ✅ |
-| POST | /auth/login | ✅ |
-| POST | /auth/refresh | ✅ |
+| GET | /dermagas | OK |
+| GET | /officers | OK |
+| GET | /tariffs | OK |
+| GET | /plates | OK |
+| GET | /trips | OK |
+| POST | /trips | OK |
+| POST | /auth/login | OK |
+| POST | /auth/refresh | OK |

@@ -75,7 +75,7 @@ VehicleFormScreen
     │   │   │       └─ Jika !found & bukan internal → dropdown "Region asal" (dari fetchRegions)
     │   │   └─ Pesan error/plateMsg jika server offline
     │   ├─ Jenis Kendaraan: grid 3 kolom dari Master Tarif (tariffs.map(t=>t.type))
-    │   │   └─ Emoji: 🏍️ Motor, 🚗 Mobil, 🚛 Truck
+    │   │   └─ Ikon kendaraan memakai komponen Lucide (tanpa emoji)
     │   └─ Validasi: vehicleInputDone = !!plate && !!vehicleType
     │
     ├─ **Step 2: Detail Informasi Tambahan** (muncul setelah vehicleInputDone)

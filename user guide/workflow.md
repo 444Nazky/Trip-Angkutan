@@ -248,9 +248,9 @@ Android mengganti paket lama dengan yang baru. Syarat: `versionCode` baru harus 
 
 | Dari | Ke | versionCode | Hasil |
 |---|---|---|---|
-| 1.0.2 (code 4) | 1.0.3 (code 6) | naik | ✅ terpasang |
-| 1.0.2 (code 4) | 1.0.3 (code 4) | sama | ❌ ditolak (`INSTALL_FAILED_VERSION_DOWNGRADE`) |
-| 1.0.3 (code 6) | 1.0.3 (code 6) | sama | ⚠️ reinstall, `versionCode` tidak boleh turun |
+| 1.0.2 (code 4) | 1.0.3 (code 6) | naik | OK terpasang |
+| 1.0.2 (code 4) | 1.0.3 (code 4) | sama | Tidak ditolak (`INSTALL_FAILED_VERSION_DOWNGRADE`) |
+| 1.0.3 (code 6) | 1.0.3 (code 6) | sama | Perhatian reinstall, `versionCode` tidak boleh turun |
 
 Aplikasi tidak melakukan verifikasi ulang pada saat itu — status `installing` tetap menggantung di keputusan pengguna sampai aplikasi hidup lagi.
 

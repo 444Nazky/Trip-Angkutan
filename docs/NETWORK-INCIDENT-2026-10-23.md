@@ -14,8 +14,8 @@ tidak masuk ke server.
 
 | Peran | Path | Commit | Isi |
 |-------|------|--------|-----|
-| Repo workspace (tempat kita bekerja) | `/home/nazky/.coord/repos/<id>/Trip-Angkutan` | `0bbe6d2` + perubahan belum di-commit | ✅ dual-endpoint, `Dockerfile.backend`, `api-intranet`, perbaikan `.dockerignore` |
-| **Folder deploy server** | **`/home/nazky/Trip-Angkutan`** | `0bbe6d2` | ❌ `docker-compose.yml` lama (tanpa `api-intranet`, port implisit), **tidak ada** `Dockerfile.backend`, **tidak ada** `local_server.ts`, **tidak ada** `.env.example` |
+| Repo workspace (tempat kita bekerja) | `/home/nazky/.coord/repos/<id>/Trip-Angkutan` | `0bbe6d2` + perubahan belum di-commit | OK dual-endpoint, `Dockerfile.backend`, `api-intranet`, perbaikan `.dockerignore` |
+| **Folder deploy server** | **`/home/nazky/Trip-Angkutan`** | `0bbe6d2` | Tidak ada `docker-compose.yml` lama (tanpa `api-intranet`, port implisit), **tidak ada** `Dockerfile.backend`, **tidak ada** `local_server.ts`, **tidak ada** `.env.example` |
 
 Keduanya clone dari GitHub yang sama (`github.com/444Nazky/Trip-Angkutan.git`),
 tetapi **perubahan kita belum di-push ke `origin/main`**, jadi
@@ -63,10 +63,10 @@ Selain itu ditemukan **dua cacat nyata di server** yang harus diperbaiki
 
 | # | Temuan | Severity | Status |
 |---|--------|----------|--------|
-| A | IP `192.168.1.123` berstatus **DHCP (dynamic)** → bisa bergeser | Tinggi | ✅ Script siap (butuh sudo) |
+| A | IP `192.168.1.123` berstatus **DHCP (dynamic)** → bisa bergeser | Tinggi | OK Script siap (butuh sudo) |
 | B | **Tidak ada listener di port 3000** — backend intranet belum pernah jalan | Tinggi | ⏳ Dikerjakan sesi paralel |
-| C | `docker compose up` **gagal total** karena `env_file` `.env.local` hilang | Tinggi | ✅ Diperbaiki |
-| D | Port `8000/5173/3000` ditulis tanpa prefix `0.0.0.0` (implisit, mudah keliru) | Rendah | ✅ Diperbaiki |
+| C | `docker compose up` **gagal total** karena `env_file` `.env.local` hilang | Tinggi | OK Diperbaiki |
+| D | Port `8000/5173/3000` ditulis tanpa prefix `0.0.0.0` (implisit, mudah keliru) | Rendah | OK Diperbaiki |
 
 ---
 

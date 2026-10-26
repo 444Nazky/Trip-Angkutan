@@ -28,7 +28,7 @@ yang mengabaikan berkas publikasi:
 ```
 
 Akibatnya `git add -A` di publisher **tidak pernah men-stage `version.json`**. Skrip tetap
-mencetak `✅ OTA assets + version.json pushed`, commit tetap dibuat (karena folder `ota/`
+mencetak `OK OTA assets + version.json pushed`, commit tetap dibuat (karena folder `ota/`
 berubah), tetapi `version.json` **tidak ada** di cabang `mobile`:
 
 ```
@@ -112,7 +112,7 @@ jadi: yang ada di cache hanya versi yang sudah lulus verifikasi penuh.
 
 ---
 
-## 4. ⚠️ Batasan penting: Service Worker ikut dibundel di APK
+## 4. Perhatian Batasan penting: Service Worker ikut dibundel di APK
 
 Permintaan skrip Service Worker **tidak** melewati Service Worker itu sendiri (per spec),
 sehingga `sw.js` selalu diambil dari **origin aplikasi** (isi APK), bukan dari bundle OTA.
