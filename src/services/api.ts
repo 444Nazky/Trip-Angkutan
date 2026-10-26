@@ -181,6 +181,11 @@ export async function pingBaseUrl(url: string, timeoutMs = 5000): Promise<PingRe
 
 // ─── Token storage ───────────────────────────────────────────────────────────────
 
+/** Token admin/petugas yang tersimpan (atau null). */
+export function getAuthToken(): string | null {
+  return loadToken()
+}
+
 function loadToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
 }
