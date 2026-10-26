@@ -31,22 +31,6 @@ export const tariffData = [
   { golongan: 'V', type: 'Truck Besar', loaded: 'Rp 450.000', loadedNum: 450000, empty: 'Rp 200.000', emptyNum: 200000, desc: 'Truck besar / trailer di atas 8 ton' },
 ]
 
-export const BADAU_TARIFF: Record<string, { loadedNum: number; emptyNum: number }> = {
-  motor: { loadedNum: 0, emptyNum: 0 },
-  mobil: { loadedNum: 20000, emptyNum: 10000 },
-  'truk kecil': { loadedNum: 50000, emptyNum: 25000 },
-  'truk sedang': { loadedNum: 75000, emptyNum: 50000 },
-  'truk besar': { loadedNum: 125000, emptyNum: 90000 },
-}
-
-export const REGION_TARIFF_PLACEHOLDERS = {
-  muatan: 'tarif muatan',
-  kosong: 'tarif kosong',
-} as const
-
-
-
-
 export interface DermagaAccess {
   id: string
   code?: string
