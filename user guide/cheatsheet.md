@@ -250,6 +250,24 @@ Accept: application/json
 </provider>
 ```
 
+### 4.5 Cleartext ke server LAN kantor (WAJIB untuk kirim data)
+
+Aplikasi native (Capacitor/Android WebView) memuat halaman dari origin lokal
+`https://localhost`. Dua hal WAJIB supaya request `http://192.168.1.123:3000`
+(server intranet) tidak diblokir:
+
+1. `capacitor.config.ts` → `android.allowMixedContent: true`
+2. salin juga ke `android/app/src/main/assets/capacitor.config.json` (file ini
+   yang dibaca runtime; `npx cap copy` menulis ulang isinya)
+
+Dikombinasikan dengan `res/xml/network_security_config.xml`
+(`cleartextTrafficPermitted="true"` untuk `192.168.1.123`).
+
+Tanpa ini: petugas tidak bisa kirim data ke server intranet saat seluler
+dimatikan, dan UI menampilkan "mixed content" walau Wi-Fi LAN sudah aktif.
+
+---
+
 `res/xml/file_paths.xml` **wajib** memuat `files-path` (tempat `Directory.Data` berada):
 
 ```xml

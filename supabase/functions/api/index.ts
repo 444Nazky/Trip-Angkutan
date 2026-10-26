@@ -433,6 +433,26 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 /**
+ * Origin yang SELALU diizinkan, apa pun isi `CORS_ORIGIN`.
+ *
+ * Aplikasi native (Capacitor/Android WebView) memuat halaman dari origin
+ * LOKAL `https://localhost` - bukan `http://192.168.1.123:5173` seperti
+ * dashboard. Kalau `CORS_ORIGIN` diisi tanpa origin ini, aplikasi mobile
+ * akan mendapat 403 "Origin tidak diizinkan" dan TIDAK bisa mengirim data
+ * ke server intranet sama sekali.
+ *
+ * Origin browser tidak bisa dipalsukan jadi `https://localhost` (header
+ * Origin controlled browser), jadi ini tidak melemahkan proteksi CORS untuk
+ * situs web mana pun.
+ */
+const ALWAYS_ALLOWED_ORIGINS = new Set([
+  "https://localhost",
+  "http://localhost",
+  "capacitor://localhost",
+  "https://127.0.0.1",
+]);
+
+/**
  * CORS respons sesuai origin pemanggil.
  *
  * `_shared.ts` memakai `Access-Control-Allow-Origin: *` SEKALIGUS untuk semua
@@ -445,7 +465,9 @@ export async function handleRequest(req: Request): Promise<Response> {
  * endpoint (Supabase cloud dan intranet) sama-sama bebas hambatan:
  *
  *   - Kalau `CORS_ORIGIN` diisi (daftar origin, dipisah koma), origin yang
- *     terdaftar ditiru + Allow-Credentials ikut diaktifkan.
+ *     terdaftar ditiru + Allow-Credentials ikut diaktifkan. Origin aplikasi
+ *     native (`https://localhost`) SELALU diizinkan - lihat
+ *     `ALWAYS_ALLOWED_ORIGINS`.
  *   - Kalau `CORS_ORIGIN` kosong, wildcard tetap dipakai (server intranet
  *     ada di LAN tertutup), tapi Allow-Credentials DIMATIKAN supaya
  *     kombinasi wildcard+credentials yang invalid tidak pernah terjadi.
@@ -464,7 +486,7 @@ function withCors(req: Request, res: Response): Response {
   let allowCredentials = false;
 
   if (allowed.length > 0) {
-    if (origin && allowed.includes(origin)) {
+    if (origin && (allowed.includes(origin) || ALWAYS_ALLOWED_ORIGINS.has(origin))) {
       allowOrigin = origin;
       allowCredentials = true;
     } else if (origin) {

@@ -15,12 +15,13 @@
         host publik tetap ditegakkan di kode aplikasi:
           - src/services/api.ts → normalizeUrl() memaksa https untuk host publik
             (host privat/LAN dibiarkan http)
-          - src/components/ServerSettingsModal.tsx → menolak menyimpan http://
-            untuk host publik, dan menolak mixed content (halaman https -> http://)
+          - src/services/api.ts → validateEndpointInput() menolak http:// dari
+            halaman https yang dibuka di BROWSER (mixed content), TETAPI
+            membolehkannya di aplikasi native (WebView) dan ke loopback
           - src/services/api.ts → isPrivateHostUrl() menandai LAN/privat sebagai
             host yang boleh memakai http://
 
-        Sisa permukaan: aplikasi/webview yang dikompromikan masih bisa membuka
+        Sisa permukaan: aplikasi/webview yang dikompromisen masih bisa membuka
         http:// ke host publik. Mitigasi terjadwal: tinjau ulang saat server kantor
         sudah memakai TLS (cloudflared tunnel) → kembalikan ke "false".
     -->
@@ -29,4 +30,13 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!--
+        Server INTRANET kantor (port 3000) - ditegaskan eksplisit supaya jelas
+        bahwa cleartext diizinkan untuk alamat ini. Kalau server kantor sudah
+        memakai TLS, blokir ini bisa dihapus.
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.123</domain>
+    </domain-config>
 </network-security-config>

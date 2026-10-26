@@ -4,6 +4,7 @@
  * Cache geofence & auth locally.
  */
 
+import { Capacitor } from '@capacitor/core'
 import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v2'
@@ -159,10 +160,16 @@ export interface PingResult {
   detail?: string
 }
 
-export async function pingBaseUrl(url: string, timeoutMs = 5000): Promise<PingResult> {
-  const pageHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
-  const mixed = pageHttps && /^http:\/\//i.test(url) && !isPrivateHostUrl(url)
-  if (mixed) {
+/**
+ * Ping cepat ke sebuah endpoint.
+ *
+ * `pageProtocol` bisa dioper eksplisit (untuk test / pemanggil yang tahu
+ * konteksnya) - kalau tidak, protokol halaman yang sedang berjalan dipakai.
+ */
+export async function pingBaseUrl(url: string, timeoutMs = 5000, pageProtocol?: string): Promise<PingResult> {
+  // Mixed content hanya berlaku di halaman https yang BUKAN aplikasi native
+  // dan bukan loopback. Di APK (WebView) endpoint LAN http:// tetap boleh.
+  if (isMixedContentBlocked(url, pageProtocol)) {
     return { ok: false, ms: 0, mixedContent: true, detail: 'http:// diblokir dari halaman https (mixed content)' }
   }
   const r = await probeServerHealth(url, timeoutMs)
@@ -415,6 +422,18 @@ export function intranetApiBaseUrl(): string {
   return (url ?? '').trim()
 }
 
+/**
+ * URL backend intranet dengan TLS (opsional).
+ *
+ * Kosong kalau server port 3000 hanya serves http (default). Kalau diisi,
+ * kandidat https muncul di layar "Pilih Endpoint" - berguna saat aplikasi
+ * dibuka lewat https (mixed content) dan server sudah punya sertifikat.
+ */
+export function intranetHttpsApiBaseUrl(): string {
+  const url = (environment as { intranetHttpsApiBaseUrl?: string }).intranetHttpsApiBaseUrl
+  return (url ?? '').trim()
+}
+
 /** True kalau URL tersebut mengarah ke backend intranet (bukan Supabase cloud). */
 export function isIntranetBaseUrl(url: string): boolean {
   if (!url) return false
@@ -433,6 +452,14 @@ export function apiBaseCandidates(): ApiBaseCandidate[] {
       hint: 'Default sistem. Server lokal di PC kantor (port 3000), tidak butuh internet.',
     })
   }
+  const intranetHttps = intranetHttpsApiBaseUrl()
+  if (intranetHttps) {
+    candidates.push({
+      url: intranetHttps,
+      label: 'Intranet Kantor (HTTPS)',
+      hint: 'Server lokal dengan TLS. Dipakai saat aplikasi dibuka lewat https (mixed content).',
+    })
+  }
   candidates.push({
     url: cloudApiBaseUrl(),
     label: 'Supabase (Cloud)',
@@ -446,6 +473,59 @@ export function isPrivateHostUrl(url: string): boolean {
     const u = new URL(url.startsWith('http') ? url : `https://${url}`)
     return /^127\.|^10\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^192\.168\.|^localhost$/i.test(u.hostname)
   } catch { return false }
+}
+
+// ─── Mixed content (halaman https → endpoint http://) ─────────────────────────
+
+/**
+ * True kalau aplikasi sedang berjalan di APLIKASI NATIVE (Capacitor/WebView).
+ *
+ * Di native, halaman aplikasi dimuat dari origin LOKAL (`https://localhost`),
+ * BUKAN dari server https jarak jauh. Aturan "mixed content" browser tidak
+ * berlaku di sini: yang menentukan boleh/tidaknya request `http://` adalah
+ * WebView (android `allowMixedContent` di capacitor.config.ts) + network
+ * security config, dan keduanya sudah disetel untuk mengizinkan cleartext ke
+ * LAN kantor.
+ *
+ * Tanpa pengecualian ini, aplikasi native akan menolak endpoint intranet
+ * (`http://192.168.1.123:3000`) dengan pesan "mixed content" padahal
+ * request-nya legally boleh dan LAN-nya sehat - persis gejala "data tidak
+ * bisa dikirim saat seluler dimatikan".
+ */
+export function isNativeApp(): boolean {
+  try {
+    return Capacitor?.isNativePlatform?.() === true
+  } catch {
+    return false
+  }
+}
+
+/** True kalau URL menunjuk ke loopback (localhost / 127.0.0.1) - exempt dari mixed content. */
+export function isLoopbackUrl(url: string): boolean {
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`)
+    return /^(localhost|127(\.\d+){3}|\[::1\])$/i.test(u.hostname)
+  } catch { return false }
+}
+
+/**
+ * True kalau request ke `url` AKAN diblokir browser karena mixed content
+ * (halaman https memanggil endpoint http://).
+ *
+ * Yang TIDAK terblokir:
+ *   - aplikasi native (WebView) - lihat `isNativeApp()`;
+ *   - loopback (localhost/127.0.0.1) - origin loopback dianggap "potentially
+ *     trustworthy" oleh browser, jadi http:// ke sana tetap boleh;
+ *   - endpoint https (memang bukan mixed content).
+ */
+export function isMixedContentBlocked(url: string, pageProtocol?: string): boolean {
+  if (!/^http:\/\//i.test(url)) return false
+  const page = pageProtocol
+    ?? (typeof window !== 'undefined' ? window.location?.protocol : undefined)
+  if (page !== 'https:') return false
+  if (isNativeApp()) return false
+  if (isLoopbackUrl(url)) return false
+  return true
 }
 
 /**
@@ -495,13 +575,19 @@ export function validateEndpointInput(raw: string, pageProtocol?: string): Endpo
   const page = pageProtocol
     ?? (typeof window !== 'undefined' ? window.location?.protocol : undefined)
 
-  // Halaman https tidak boleh memanggil http:// (mixed content): browser
-  // memblokir sebelum request keluar, sehingga server yang hidup akan tampak
-  // "tidak merespon".
-  if (page === 'https:' && /^http:\/\//i.test(url)) {
+  // Halaman https yang DIBUKA DI BROWSER tidak boleh memanggil http://
+  // (mixed content): browser memblokir sebelum request keluar, sehingga
+  // server yang hidup akan tampak "tidak merespon".
+  //
+  // Pengecualian penting: APLIKASI NATIVE (Capacitor/WebView) memuat
+  // halaman dari origin lokal `https://localhost`, jadi aturan mixed
+  // content browser tidak berlaku - request http:// ke LAN kantor berjalan
+  // normal (android `allowMixedContent` + network security config).
+  //loopback juga exempt (origin loopback dianggap potentially trustworthy).
+  if (isMixedContentBlocked(url, page)) {
     return {
       ok: false,
-      msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Pakai endpoint Supabase atau buka aplikasi lewat http://.',
+      msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Pakai endpoint Supabase, endpoint https://, atau buka aplikasi lewat http://.',
     }
   }
 

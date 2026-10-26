@@ -198,6 +198,30 @@ graphify update .  # Setelah modifikasi code
     server (cuma warning), tapi `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
     kosong tetap bikin container exit. Compose pakai `restart: on-failure:5`
     supaya container terlihat "Exited (1)", bukan spam restart terus.
+14. **Data tidak terkirim dari aplikasi native (gejala "mixed content")**:
+   aplikasi native (Capacitor/Android WebView) memuat halaman dari origin
+   LOKAL `https://localhost`. `validateEndpointInput()` (src/services/api.ts)
+   DULU menolak `http://192.168.1.123:3000` begitu protokol halaman `https:`,
+   jadi UI memaksa pindah ke Supabase - dan saat seluler dimatikan tidak ada
+   internet -> antrean offline tidak bisa dikirim. Aturan sekarang: mixed
+   content hanya berlaku untuk halaman https yang dibuka di BROWSER;
+   aplikasi native (`isNativeApp()`) dan loopback exempt.
+   WebView juga harus mengizinkan cleartext:
+   `android.allowMixedContent: true` di `capacitor.config.ts` DAN di
+   `android/app/src/main/assets/capacitor.config.json` (file inilah yang
+   dibaca runtime - `npx cap copy` menulis ulang isinya).
+   `res/xml/network_security_config.xml` tetap `cleartextTrafficPermitted`.
+15. **`CORS_ORIGIN` mematikan aplikasi native**: origin `https://localhost`
+   (WebView) tidak ada di daftar browser biasa, jadi server membalas 403
+   "Origin tidak diizinkan" dan TIDAK ADA data yang bisa dikirim. Origin
+   native (`https://localhost`, `capacitor://localhost`, `http://localhost`,
+   `https://127.0.0.1`) sekarang SELALU diizinkan di `withCors()`
+   (supabase/functions/api/index.ts).
+16. **HTTPS untuk server intranet (opsional)**: set `TLS_CERT_FILE` +
+   `TLS_KEY_FILE` (lihat `supabase/functions/api/.env.example`) supaya
+   `local_server.ts` serves HTTPS di port 3000. Sertifikat self-signed harus
+   diinstall di perangkat petugas. Kandidat endpoint-nya muncul otomatis
+   kalau `intranetHttpsApiBaseUrl` diisi di `src/environments/environment.ts`.
 
 ---
 

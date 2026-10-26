@@ -142,13 +142,58 @@ for (const ip of EXTRA_LAN_IPS) {
 // Body tetap utuh: `new Request(req, {headers})` mempertahankan stream body
 // yang sama, jadi `req.formData()` di /trips/complete tetap bisa membaca
 // multipart (sudah diverifikasi).
+// ── TLS opsional ──────────────────────────────────────────────────────────────
+//
+// Default: server intranet serves HTTP polos (http://192.168.1.123:3000/api).
+// Itu cukup untuk aplikasi native (WebView) karena cleartext ke LAN sudah
+// diizinkan lewat `android.allowMixedContent` + network security config.
+//
+// Kalau aplikasi dibuka lewat https di browser (atau kebijakan kantor mau
+// server intranet punya TLS), set dua env berikut:
+//
+//   TLS_CERT_FILE=/path/ke/sertifikat.pem
+//   TLS_KEY_FILE=/path/ke/private-key.pem
+//
+// Server lalu serve HTTPS di port yang sama, dan kandidat
+// "Intranet Kantor (HTTPS)" bisa dipakai di aplikasi (isi
+// `intranetHttpsApiBaseUrl` di src/environments/environment.ts).
+//
+// CATATAN PENTING: sertifikat self-signed harus DIINSTALL di perangkat
+// petugas, kalau tidak WebView/browser menolak koneksi ("sertifikat tidak
+// dipercaya") - gejalanya mirip "server tidak merespon".
+const TLS_CERT_FILE = (Deno.env.get("TLS_CERT_FILE") ?? "").trim();
+const TLS_KEY_FILE = (Deno.env.get("TLS_KEY_FILE") ?? "").trim();
+const TLS_ENABLED = Boolean(TLS_CERT_FILE && TLS_KEY_FILE);
+
+let tlsCert = "";
+let tlsKey = "";
+if (TLS_ENABLED) {
+  try {
+    tlsCert = await Deno.readTextFile(TLS_CERT_FILE);
+    tlsKey = await Deno.readTextFile(TLS_KEY_FILE);
+  } catch (e) {
+    console.error(
+      `[api-intranet] GAGAL START: TLS_CERT_FILE/TLS_KEY_FILE tidak bisa dibaca -> ${e}`,
+    );
+    Deno.exit(1);
+  }
+}
+
+const SCHEME = TLS_ENABLED ? "https" : "http";
+
 Deno.serve(
-  { port: PORT, hostname: HOST, onListen: ({ hostname, port }) => {
-    console.log(`[api-intranet] API lokal siap di http://${hostname}:${port}/api`);
-    for (const ip of LAN_IPS) {
-      console.log(`[api-intranet]   - LAN: http://${ip}:${port}/api`);
-    }
-  } },
+  {
+    port: PORT,
+    hostname: HOST,
+    // Deno.serve menerima `cert`/`key` (isi PEM) untuk HTTPS.
+    ...(TLS_ENABLED ? { cert: tlsCert, key: tlsKey } : {}),
+    onListen: ({ hostname, port }) => {
+      console.log(`[api-intranet] API lokal siap di ${SCHEME}://${hostname}:${port}/api`);
+      for (const ip of LAN_IPS) {
+        console.log(`[api-intranet]   - LAN: ${SCHEME}://${ip}:${port}/api`);
+      }
+    },
+  },
   (req, info) => {
     const peer = info.remoteAddr?.hostname;
     if (!peer) return handleRequest(req);
