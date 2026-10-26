@@ -5261,6 +5261,7 @@
         "npm:autoprefixer@^10.6.1",
         "npm:bcryptjs@^3.0.3",
         "npm:cordova-plugin-file-opener2@4",
+        "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint@^10.10.0",
         "npm:express@^4.19.2",
         "npm:fake-indexeddb@^6.2.5",
