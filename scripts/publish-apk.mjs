@@ -12,16 +12,16 @@ import { execFileSync } from 'child_process';
 import { URL } from 'url';
 
 const ARGUMENTS = {
-  '--apk': { required: true, description: 'Path to APK file' },
-  '--version': { required: true, description: 'Version (semver format, e.g., 1.0.0)' },
+  '--apk': { required: true, description: 'Lokasi berkas APK' },
+  '--version': { required: true, description: 'Versi (format semantik, contoh: 1.0.0)' },
   '--server': { default: process.env.TRIP_API_URL || 'http://192.168.1.123:3000/api', description: 'Alamat endpoint API intranet' },
-  '--secret': { default: process.env.PUBLISH_SECRET || 'trip-angkut-secret', description: 'Publish secret' },
-  '--force': { flag: true, description: 'Force publish even if version exists' },
-  '--notes': { description: 'Release notes (optional)' },
-  '--force-update': { flag: true, description: 'Mark as mandatory update' },
-  '--min-version': { description: 'Minimum supported version' },
-  '--apk-version-name': { description: 'versionName DI DALAM APK (auto-deteksi aapt2 bila kosong)' },
-  '--apk-version-code': { description: 'versionCode DI DALAM APK (auto-deteksi aapt2 bila kosong)' },
+  '--secret': { default: process.env.PUBLISH_SECRET || 'trip-angkut-secret', description: 'Secret publikasi' },
+  '--force': { flag: true, description: 'Terbitkan ulang walau versinya sudah ada' },
+  '--notes': { description: 'Catatan rilis (opsional)' },
+  '--force-update': { flag: true, description: 'Tandai sebagai pembaruan wajib' },
+  '--min-version': { description: 'Versi minimum yang didukung' },
+  '--apk-version-name': { description: 'versionName di dalam APK (deteksi otomatis lewat aapt2 bila kosong)' },
+  '--apk-version-code': { description: 'versionCode di dalam APK (deteksi otomatis lewat aapt2 bila kosong)' },
 };
 
 // ─── CLI Parser ─────────────────────────────────────────────────────────────
