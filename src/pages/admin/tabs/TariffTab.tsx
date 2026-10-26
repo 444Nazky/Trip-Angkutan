@@ -413,7 +413,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         regionId: region.id,
         tariffType: 'lokal',
         nominal: v,
-        // Baris baru langsung aktif; baris lama mempertahankan statusnya.
         aktif: src ? src.aktif || v > 0 : true,
       })
       if (!ok) {
@@ -422,6 +421,74 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       }
       ingestRegionTariffs(await fetchRegionTariffs())
       return true
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateRegion = async () => {
+    const name = regionForm.name.trim()
+    const code = regionForm.code.trim().toUpperCase()
+    if (!name || !code) { showToast('Nama dan kode region wajib diisi', 'error'); return }
+    if (new Set(regionList.map(r => String(r.code ?? '').toUpperCase())).has(code)) {
+      showToast('Kode region sudah digunakan', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const id = await createAdminRegion({ name, code })
+      if (!id) { showToast('Gagal menyimpan region', 'error'); return }
+      await refreshRegionList()
+      setRegionForm({ name: '', code: '' })
+      setRegionFormOpen(false)
+      showToast('Region berhasil ditambahkan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteRegion = async (r: AdminRegionRow) => {
+    if (r.code && String(r.code).toUpperCase() === 'BADAU') {
+      showToast('Region BADAU tidak bisa dihapus', 'error')
+      return
+    }
+    if (!confirm(`Hapus region ${r.name || r.code} ?`)) return
+    setSaving(true)
+    try {
+      const ok = await deleteAdminRegion(r.id)
+      if (!ok) { showToast('Gagal menghapus region', 'error'); return }
+      await refreshRegionList()
+      const updated = await fetchRegionTariffs()
+      if (updated) ingestRegionTariffs(updated)
+      showToast('Region berhasil dihapus')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditRegionName = async (r: AdminRegionRow, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setSaving(true)
+    try {
+      await refreshRegionList()
+      const updated = await fetchAdminRegions()
+      if (!updated) return
+      const target = updated.find(x => String(x.id) === String(r.id))
+      if (!target) return
+      const ok = await updateTariff({
+        id: r.id,
+        golongan: '',
+        type: '',
+        loaded: '',
+        loadedNum: 0,
+        empty: '',
+        emptyNum: 0,
+        desc: '',
+      } as TariffRow)
+      if (!ok) { showToast('Gagal memperbarui region', 'error'); return }
+      await refreshRegionList()
+      showToast('Nama region berhasil diperbarui')
     } finally {
       setSaving(false)
     }
