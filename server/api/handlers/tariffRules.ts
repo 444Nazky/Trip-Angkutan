@@ -6,15 +6,19 @@
 //
 // Urutan prioritas harga (kebijakan disetujui owner):
 //   1. Kategori Internal            -> Rp 0 (kendaraan internal selalu gratis)
-//   2. Master tarif                 -> baris tariffs (golongan + jenis kendaraan)
-//                                     loaded_tariff untuk muatan, empty_tariff untuk kosong
-//   3. Master tarif per jenis       -> fallback bila baris (golongan + jenis) tidak ada
+//   2. Baris tarif region eksak     -> region_tariff_rows (region + golongan + jenis)
+//                                      loaded=? muatan_tariff, empty -> kosong_tariff
+//   (2b. Baris tarif region per jenis) -> fallback bila golongan tidak cocok
+//   3. Master tarif                 -> baris tariffs (golongan + jenis kendaraan)
+//                                      loaded_tariff untuk muatan, empty_tariff untuk kosong
+//   3b. Master tarif per jenis      -> fallback bila baris (golongan + jenis) tidak ada
 //   4. Tarif terpusat per region    -> region_tariffs (lokal / eksternal) bila master kosong
 //   5. Nol                          -> tidak ada sumber harga (ditandai "tanpa-tarif")
 //
-// Kenapa master lebih dulu: master tarif membedakan MUATAN vs KOSONG dan
-// spesifik per golongan kendaraan. Tarif terpusat per region hanya nominal
-// datar, jadi dipakai sebagai cadangan saat master belum lengkap.
+// Kenapa baris region lebih dulu: baris region adalah override tersimpan yang
+// admin isi lewat panel REGION; kalau region belum mengisi baris (tanpa
+// override), resolver otomatis memakai master BADAU — sama dengan policy
+// "region baru tampil default sama dengan BADAU".
 //
 // Catatan normalisasi: penulisan jenis kendaraan di admin bisa "Truck Besar"
 // sedangkan label UI mobile "Truk Besar". both dinormalisasi ke kunci yang sama
@@ -32,7 +36,7 @@ export interface MasterTariffRow {
   is_active?: number;
 }
 
-export interface RegionTariffRow {
+export interface FlatRegionTariff {
   region_id: string;
   tariff_type: "lokal" | "eksternal";
   nominal_tariff: number;
@@ -41,6 +45,8 @@ export interface RegionTariffRow {
 
 export type TariffSource =
   | "internal"
+  | "region-row"
+  | "region-row-jenis"
   | "master"
   | "master-jenis"
   | "region"
@@ -56,7 +62,8 @@ export interface TariffResult {
 // ── Cache master tarif & tarif region (per instance edge function) ────────────
 
 let masterCache: { at: number; rows: MasterTariffRow[] } | null = null;
-let regionCache: { at: number; rows: RegionTariffRow[] } | null = null;
+let regionCache: { at: number; rows: FlatRegionTariff[] } | null = null;
+let overrideCache: { at: number; rows: OverrideTariffRow[] } | null = null;
 
 const MASTER_TTL_MS = 60_000;
 const REGION_TTL_MS = 60_000;
@@ -65,6 +72,7 @@ const REGION_TTL_MS = 60_000;
 export function invalidateTariffCache(): void {
   masterCache = null;
   regionCache = null;
+  overrideCache = null;
 }
 
 export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]> {
@@ -89,7 +97,7 @@ export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]
   return rows;
 }
 
-export async function getRegionTariffs(force = false): Promise<RegionTariffRow[]> {
+export async function getRegionTariffs(force = false): Promise<FlatRegionTariff[]> {
   if (!force && regionCache && Date.now() - regionCache.at < REGION_TTL_MS) {
     return regionCache.rows;
   }
@@ -106,6 +114,37 @@ export async function getRegionTariffs(force = false): Promise<RegionTariffRow[]
     is_active: Number(r.is_active ?? 0) || 0,
   }));
   regionCache = { at: Date.now(), rows };
+  return rows;
+}
+
+// ── Baris override tarif region (region_tariff_rows) ─────────────────────────
+
+export interface OverrideTariffRow {
+  region_id: string;
+  golongan: string;
+  vehicle_type: string;
+  muatan_tariff: number;
+  kosong_tariff: number;
+  is_active: number;
+}
+
+export async function getRegionTariffOverrides(force = false): Promise<OverrideTariffRow[]> {
+  if (!force && overrideCache && Date.now() - overrideCache.at < REGION_TTL_MS) {
+    return overrideCache.rows;
+  }
+  const { data, error } = await db
+    .from("region_tariff_rows")
+    .select("region_id, golongan, vehicle_type, muatan_tariff, kosong_tariff, is_active");
+  if (error || !data) return overrideCache?.rows ?? [];
+  const rows = (data as any[]).map((r) => ({
+    region_id: String(r.region_id ?? ""),
+    golongan: String(r.golongan ?? ""),
+    vehicle_type: String(r.vehicle_type ?? ""),
+    muatan_tariff: Number(r.muatan_tariff ?? 0) || 0,
+    kosong_tariff: Number(r.kosong_tariff ?? 0) || 0,
+    is_active: Number(r.is_active ?? 0) || 0,
+  }));
+  overrideCache = { at: Date.now(), rows };
   return rows;
 }
 
@@ -186,9 +225,34 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
     return { amount: 0, source: "internal", loaded: 0, empty: 0, category };
   }
 
+  // 2. Baris override tarif region (region + golongan + jenis, lalu per jenis).
+  //    Region tanpa baris otomatis jatuh ke master BADAU di bawah, sehingga
+  //    region baru default-nya sama dengan BADAU tanpa perlu menyalin baris.
+  if (input.regionId) {
+    const overrides = await getRegionTariffOverrides();
+    const mine = overrides.filter(
+      (o) => o.region_id === String(input.regionId) && o.is_active === 1 && (wantType ? normalizeVehicleType(o.vehicle_type) === wantType : true),
+    );
+    if (mine.length) {
+      const byRow = mine.find((o) => normalizeGolongan(o.golongan) === wantGolongan);
+      const hit = byRow ?? (mine.length === 1 ? mine[0] : undefined);
+      if (hit) {
+        const loaded = Number(hit.muatan_tariff ?? 0) || 0;
+        const empty = Number(hit.kosong_tariff ?? 0) || 0;
+        return {
+          amount: hasLoad ? loaded : empty,
+          source: byRow ? "region-row" : "region-row-jenis",
+          loaded,
+          empty,
+          category,
+        };
+      }
+    }
+  }
+
   const masters = await getMasterTariffs();
 
-  // 2. Master tarif baris eksak: jenis kendaraan + golongan.
+  // 3. Master tarif baris eksak: jenis kendaraan + golongan.
   const byGolongan = wantType
     ? masters.find(
       (t) => normalizeVehicleType(t.vehicle_type) === wantType &&

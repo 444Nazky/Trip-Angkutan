@@ -1,15 +1,21 @@
 // Region tariffs (admin). Port of backend/src/routes/region-tariffs.js.
+//
+// Dua lapis tarif per region:
+//   - flat  : region_tariffs (lokal/eksternal nominal datar) — turtle lama utk
+//             resolver cadangan & mode offline.
+//   - rows  : region_tariff_rows (muatan/kosong per golongan+jenis) — override
+//             master BADAU per wilayah; region tanpa baris otomatis memakai
+//             master (lihat handlers/tariffRules.ts resolveTariff).
 import { db, json, requireAdmin } from "../_shared.ts";
+import { invalidateTariffCache } from "./tariffRules.ts";
 
-export interface RegionTariffUpdateResponse {
-  success: true
-  regionId: string
-  tariffType: string
-  nominalTariff: number
-  isActive: number
-}
+const isUuid = (s: string) =>
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(s);
 
-export type RegionTariffResponse = RegionTariffUpdateResponse | { success: false; error: string }
+const asInt = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+};
 
 export async function getRegionTariffs(_req: Request): Promise<Response> {
   try {
@@ -22,12 +28,21 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
     const regionIds = (regions ?? []).map((r: any) => String(r.id));
     if (!regionIds.length) return json([]);
 
-    const { data: tariffs } = await db.from("region_tariffs").select("*").in("region_id", regionIds);
+    const [tariffs, rows] = await Promise.all([
+      db.from("region_tariffs").select("*").in("region_id", regionIds),
+      db
+        .from("region_tariff_rows")
+        .select("region_id, golongan, vehicle_type, muatan_tariff, kosong_tariff, is_active")
+        .in("region_id", regionIds)
+        .order("vehicle_type", { ascending: true }),
+    ]);
 
     const tariffsByRegion: Record<string, Record<string, any>> = {};
-    for (const t of tariffs ?? []) {
+    for (const t of tariffs.data ?? []) {
       (tariffsByRegion[String(t.region_id)] ||= {})[t.tariff_type] = t;
     }
+    const rowsByRegion: Record<string, any[]> = {};
+    for (const r of rows.data ?? []) (rowsByRegion[String(r.region_id)] ||= []).push(r);
 
     return json(
       (regions ?? []).map((r: any) => ({
@@ -38,6 +53,13 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
         lokal_active: tariffsByRegion[String(r.id)]?.lokal?.is_active ?? 0,
         eksternal_tariff: tariffsByRegion[String(r.id)]?.eksternal?.nominal_tariff ?? 0,
         eksternal_active: tariffsByRegion[String(r.id)]?.eksternal?.is_active ?? 0,
+        rows: (rowsByRegion[String(r.id)] ?? []).map((x) => ({
+          golongan: x.golongan,
+          vehicleType: x.vehicle_type,
+          muatanTariff: x.muatan_tariff,
+          kosongTariff: x.kosong_tariff,
+          isActive: x.is_active,
+        })),
       })),
     );
   } catch (error) {
@@ -46,53 +68,92 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
   }
 }
 
-export async function updateRegionTariff(req: Request, regionId: string, url?: URL): Promise<RegionTariffResponse> {
+/** Upsert satu baris override (golongan + jenis kendaraan) per region. */
+async function updateRegionRow(req: Request, regionId: string): Promise<Response> {
+  const body = await req.json().catch(() => ({} as any));
+  const golongan = String(body.golongan ?? "").trim();
+  const vehicleType = String(body.vehicleType ?? body.vehicle_type ?? "").trim();
+  if (!vehicleType) return json({ error: "vehicleType wajib diisi" }, 400);
+
+  const muatan = asInt(body.muatanTariff);
+  const kosong = asInt(body.kosongTariff ?? body.kosong);
+  const active = body.isActive === undefined ? 1 : body.isActive ? 1 : 0;
+
+  const { error: upErr } = await db
+    .from("region_tariff_rows")
+    .upsert(
+      { region_id: regionId, golongan, vehicle_type: vehicleType, muatan_tariff: muatan, kosong_tariff: kosong, is_active: active, updated_at: new Date().toISOString() },
+      { onConflict: "region_id,golongan,vehicle_type" },
+    );
+  if (upErr) {
+    console.error("Upsert region tariff row failed:", upErr);
+    return json({ error: "Gagal menyimpan baris tarif region" }, 500);
+  }
+  invalidateTariffCache();
+  return json({ success: true, regionId, golongan, vehicleType, muatanTariff: muatan, kosongTariff: kosong });
+}
+
+/** Upsert tarif flat (lokal/eksternal) per region. */
+async function updateRegionFlat(req: Request, regionId: string): Promise<Response> {
+  const body = await req.json().catch(() => ({} as any));
+
+  // Dua bentuk payload yang diterima:
+  //   legacy : { tariffType: 'lokal'|'eksternal', nominalTariff, isActive }
+  //   UI     : { lokal_tariff, lokal_active } | { eksternal_tariff, eksternal_active }
+  let type: string | undefined = body.tariffType;  let nominal = body.nominalTariff;
+  let active = body.isActive;
+  if (type === undefined) {
+    if (body.lokal_tariff !== undefined || body.lokal_active !== undefined) {
+      type = "lokal";
+      nominal = body.lokal_tariff;
+      active = body.lokal_active;
+    } else if (body.eksternal_tariff !== undefined || body.eksternal_active !== undefined) {
+      type = "eksternal";
+      nominal = body.eksternal_tariff;
+      active = body.eksternal_active;
+    }
+  }
+  if (type !== "lokal" && type !== "eksternal") {
+    return json({ error: "tariffType harus 'lokal' atau 'eksternal'" }, 400);
+  }
+
+  const nominalValue = asInt(nominal);
+  const activeValue = active === undefined ? 1 : active ? 1 : 0;
+
+  const { error } = await db
+    .from("region_tariffs")
+    .upsert(
+      { region_id: regionId, tariff_type: type, nominal_tariff: nominalValue, is_active: activeValue },
+      { onConflict: "region_id,tariff_type" },
+    );
+  if (error) return json({ error: "Region tariff creation failed" }, 500);
+
+  invalidateTariffCache();
+  return json({
+    success: true,
+    regionId,
+    tariffType: type,
+    nominalTariff: nominalValue,
+    isActive: activeValue,
+  });
+}
+
+export async function updateRegionTariff(req: Request, regionId: string, _url?: URL): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    if (!ctx?.region_id) return json({ error: "Admin region context required" }, 403);
+    if (!isUuid(regionId)) return json({ error: "Region id tidak valid" }, 400);
 
-    if (ctx.region_id !== regionId) {
-      return json({
-        error: `Admin region mismatch: cannot update tariffs for region '${regionId}' while logged into region '${ctx.region_id}'`,
-      }, 403);
-    }
+    const { data: region, error: regionErr } = await db.from("regions").select("id").eq("id", regionId).limit(1);
+    if (regionErr) throw regionErr;
+    if (!region || !region.length) return json({ error: "Region not found" }, 404);
 
-    const { tariffType, nominalTariff, isActive } = await req.json().catch(() => ({})) as any;
-    if (!["lokal", "eksternal"].includes(tariffType)) {
-      return json({ error: "tariffType harus 'lokal' atau 'eksternal'" }, 400);
-    }
-
-    const { data: region } = await db.from("regions").select("id").eq("id", regionId).limit(1);
-    if (!region || !Array.isArray(region ||: []) || region.length === 0) return json({ error: "Region not found" }, 404);
-
-    const existing = (await db
-      .from("region_tariffs")
-      .select("id")
-      .eq("region_id", regionId)
-      .eq("tariff_type", tariffType)
-      .limit(1)
-      .maybeSingle()) as { id: string } | null;
-
-    const nominal = Number.isFinite(Number(nominalTariff)) ? Number(nominalTariff) : 0;
-    const active = isActive === undefined ? 1 : (isActive ? 1 : 0);
-
-    if (existing) {
-      const { data: upd } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id).select("id").limit(1);
-      if (!upd || !upd.length) return json({ error: "Region tariff update failed" }, 500);
-      return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active }) as RegionTariffResponse;
-    }
-
-    const { data: ins, error: insertErr } = await db.from("region_tariffs").insert({
-      id: `${regionId}:${tariffType}`,
-      region_id: regionId,
-      tariff_type: tariffType,
-      nominal_tariff: nominal,
-      is_active: active,
-    });
-    if (insertErr) return json({ error: "Region tariff creation failed" }, 500) as RegionTariffResponse;
-
-    return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active }) as RegionTariffResponse;
+    // Bentuk payload menentukan target: baris override (golongan+jenis) atau flat.
+    const body = await req.json().catch(() => ({} as any));
+    const isRowPayload = body?.vehicleType !== undefined || body?.vehicle_type !== undefined ||
+      (body?.golongan !== undefined && (body?.muatanTariff !== undefined || body?.kosongTariff !== undefined));
+    if (isRowPayload) return await updateRegionRow(req, regionId);
+    return await updateRegionFlat(req, regionId);
   } catch (error) {
     console.error("Update region tariff error:", error);
     return json({ error: "Failed to update region tariff" }, 500);

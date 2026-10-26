@@ -19,7 +19,7 @@
  *   LAN_IP, PORT, HOST, TLS_CERT_FILE, TLS_KEY_FILE - opsional
  */
 
-import { join } from "std/path";
+import { join } from "node:path";
 
 const PORT = Number(Deno.env.get("PORT") ?? "3000");
 const HOST = Deno.env.get("HOST") ?? "0.0.0.0";
