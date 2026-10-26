@@ -1,6 +1,16 @@
 // Region tariffs (admin). Port of backend/src/routes/region-tariffs.js.
 import { db, json, requireAdmin } from "../_shared.ts";
 
+export interface RegionTariffUpdateResponse {
+  success: true
+  regionId: string
+  tariffType: string
+  nominalTariff: number
+  isActive: number
+}
+
+export type RegionTariffResponse = RegionTariffUpdateResponse | { success: false; error: string }
+
 export async function getRegionTariffs(_req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(_req);
@@ -36,11 +46,17 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
   }
 }
 
-export async function updateRegionTariff(req: Request, regionId: string): Promise<Response> {
+export async function updateRegionTariff(req: Request, regionId: string, url?: URL): Promise<RegionTariffResponse> {
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
     if (!ctx?.region_id) return json({ error: "Admin region context required" }, 403);
+
+    if (ctx.region_id !== regionId) {
+      return json({
+        error: `Admin region mismatch: cannot update tariffs for region '${regionId}' while logged into region '${ctx.region_id}'`,
+      }, 403);
+    }
 
     const { tariffType, nominalTariff, isActive } = await req.json().catch(() => ({})) as any;
     if (!["lokal", "eksternal"].includes(tariffType)) {
@@ -62,21 +78,21 @@ export async function updateRegionTariff(req: Request, regionId: string): Promis
     const active = isActive === undefined ? 1 : (isActive ? 1 : 0);
 
     if (existing) {
-        const { data: upd } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id).select("id").limit(1);
-        if (!upd || !upd.length) return json({ error: "Region tariff update failed" }, 500);
-        return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
-      }
+      const { data: upd } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id).select("id").limit(1);
+      if (!upd || !upd.length) return json({ error: "Region tariff update failed" }, 500);
+      return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active }) as RegionTariffResponse;
+    }
 
-      const { data: ins, error: insertErr } = await db.from("region_tariffs").insert({
+    const { data: ins, error: insertErr } = await db.from("region_tariffs").insert({
       id: `${regionId}:${tariffType}`,
       region_id: regionId,
       tariff_type: tariffType,
       nominal_tariff: nominal,
       is_active: active,
     });
-    if (insertErr) return json({ error: "Region tariff creation failed" }, 500);
+    if (insertErr) return json({ error: "Region tariff creation failed" }, 500) as RegionTariffResponse;
 
-    return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
+    return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active }) as RegionTariffResponse;
   } catch (error) {
     console.error("Update region tariff error:", error);
     return json({ error: "Failed to update region tariff" }, 500);
