@@ -12,7 +12,7 @@
  *   • fetch ke manifest & aset (dengan hitungan hash SHA-256 asli)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { resolveApiBaseUrl } from './api'
+import { resolveApiBaseUrl, supabaseProjectOrigin } from './api'
 import {
   checkForUpdate,
   applyUpdate,
@@ -33,7 +33,7 @@ if (!globalThis.crypto?.subtle) {
 }
 
 /** Harus sama dengan URL yang dipakai ota.ts: manifest dari Edge Function, aset dari bucket publik. */
-const SUPA_ORIGIN = new URL(resolveApiBaseUrl()).origin
+const SUPA_ORIGIN = supabaseProjectOrigin()
 const MANIFEST_URL = `${resolveApiBaseUrl()}/ota-manifest`
 const ASSETS_BASE = `${SUPA_ORIGIN}/storage/v1/object/public/ota/`
 

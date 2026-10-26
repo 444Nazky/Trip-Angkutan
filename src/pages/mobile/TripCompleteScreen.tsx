@@ -1,22 +1,39 @@
-import { useEffect } from 'react'
-import { Check } from 'lucide-react'
+import { useEffect, useState } from 'react'
+<<<<<<< HEAD
+import { Check, CheckCircle2, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
-import { processSyncQueue } from '../../services/sync'
+import { classifyTripSync, onSyncQueueChange, processSyncQueue, refreshSyncQueue, type SyncItem } from '../../services/sync'
+=======
+import { Check, CheckCircle2, CloudOff, Clock, RefreshCw } from 'lucide-react'
+import { useApp } from '../store'
+import { getSyncQueue, onSyncQueueChange, processSyncQueue } from '../../services/sync'
+>>>>>>> origin/main
 import type { MobileScreen } from '../types'
-
-
-
 
 interface TripCompleteScreenProps {
   go: (s: MobileScreen) => void
 }
 
-
-
-
+/**
+ * Layar konfirmasi trip. Status sinkronisasi HARUS jujur:
+ * - tersimpan lokal + belum terkirim  -> amber (menunggu)
+ * - sudah terkirim ke server          -> hijau
+ * - gagal permanen / butuh perhatian  -> merah + tombol coba lagi
+ *
+ * Sebelumnya layar ini selalu hijau "Trip Selesai!" walau server belum
+ * menerima apa pun, sehingga petugas mengira data sudah masuk.
+ */
 export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const { trips, detailTripId } = useApp()
   const t = trips.find(x => x.id === detailTripId)
+
+<<<<<<< HEAD
+  const [queue, setQueue] = useState<SyncItem[]>([])
+  useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
+=======
+  const [, setQueueTick] = useState(0)
+  useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
+>>>>>>> origin/main
 
   useEffect(() => {
     if (!detailTripId) go('home')
@@ -26,18 +43,100 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   if (!t) return null
 
+<<<<<<< HEAD
+  // SATU sumber kebenaran: antrean sync. `t.synced` saja tidak cukup —
+  // trip yang ditolak server (4xx) tetap `synced === false` tapi harus
+  // ditampilkan sebagai GAGAL, bukan "menunggu".
+  const syncStatus = classifyTripSync(t.id, t.synced, queue)
+  const failed = syncStatus.state === 'failed'
+  const pending = syncStatus.state === 'pending'
+  const synced = syncStatus.state === 'synced'
+=======
+  const queueItem = getSyncQueue().find(q => q.trip.id === t.id)
+  const failed = !!queueItem?.needsAttention
+  const pending = !!queueItem && !failed
+  const synced = !queueItem && t.synced === true
+  const offline = !queueItem && t.synced !== true
+>>>>>>> origin/main
+
+  const status = failed
+    ? {
+        tone: 'border-red-200 bg-red-50',
+        icon: 'text-red-500',
+        text: 'text-red-700',
+<<<<<<< HEAD
+        title: 'Gagal Terkirim ke Server',
+        detail: syncStatus.error
+          ? `${syncStatus.error}${syncStatus.attempts > 1 ? ` (percobaan ${syncStatus.attempts})` : ''}`
+          : 'Server menolak data. Periksa lalu coba lagi.',
+        Icon: AlertTriangle,
+=======
+        title: 'Belum Terkirim ke Server',
+        detail: queueItem?.lastError || 'Server menolak data. Periksa lalu coba lagi.',
+        Icon: CloudOff,
+>>>>>>> origin/main
+      }
+    : pending
+      ? {
+          tone: 'border-amber-200 bg-amber-50',
+          icon: 'text-amber-500',
+          text: 'text-amber-700',
+          title: 'Menunggu Sinkronisasi',
+          detail: 'Tersimpan di perangkat. Data akan dikirim saat koneksi tersedia.',
+          Icon: Clock,
+        }
+      : synced
+        ? {
+            tone: 'border-emerald-200 bg-emerald-50',
+            icon: 'text-emerald-500',
+            text: 'text-emerald-700',
+            title: 'Terkirim ke Server',
+            detail: 'Data trip sudah diterima server kantor.',
+            Icon: CheckCircle2,
+          }
+        : {
+            tone: 'border-slate-200 bg-slate-50',
+            icon: 'text-slate-400',
+            text: 'text-slate-600',
+            title: 'Tersimpan di Perangkat',
+<<<<<<< HEAD
+            detail: 'Belum masuk antrean sinkronisasi. Coba kirim ulang.',
+=======
+            detail: offline
+              ? 'Belum masuk antrean sinkronisasi. Coba kirim ulang.'
+              : 'Sinkronisasi berjalan di background.',
+>>>>>>> origin/main
+            Icon: Clock,
+          }
+
   const unitCount = t.vehicles && t.vehicles.length > 0
     ? t.vehicles.length
     : (t.vehicle !== '-' ? 1 : 0)
 
   return (
     <div className="px-4 pt-6 pb-4 flex flex-col items-center">
-      <div className="w-20 h-20 rounded-3xl bg-emerald-100 flex items-center justify-center mb-4">
-        <Check size={38} className="text-emerald-500" strokeWidth={3} />
+      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-4 ${
+<<<<<<< HEAD
+        failed ? 'bg-red-100' : pending ? 'bg-amber-100' : 'bg-emerald-100'
+      }`}>
+        <Check size={38} className={failed ? 'text-red-500' : pending ? 'text-amber-500' : 'text-emerald-500'} strokeWidth={3} />
       </div>
-      <h2 className="font-black text-slate-900 text-[24px] mb-1 text-center">Trip Selesai!</h2>
+      <h2 className="font-black text-slate-900 text-[24px] mb-1 text-center">
+        {failed ? 'Trip Gagal Dikirim!' : 'Trip Tercatat!'}
+      </h2>
       <p className="text-slate-500 text-[13px] text-center mb-5">
-        Trip {t.id} berhasil dicatat dan disimpan
+        {failed
+          ? `Trip ${t.id} BELUM masuk ke server — belum ada data di dashboard admin`
+          : `Trip ${t.id} tersimpan di perangkat`}
+=======
+        failed ? 'bg-red-100' : pending || offline ? 'bg-amber-100' : 'bg-emerald-100'
+      }`}>
+        <Check size={38} className={failed ? 'text-red-500' : pending || offline ? 'text-amber-500' : 'text-emerald-500'} strokeWidth={3} />
+      </div>
+      <h2 className="font-black text-slate-900 text-[24px] mb-1 text-center">Trip Tercatat!</h2>
+      <p className="text-slate-500 text-[13px] text-center mb-5">
+        Trip {t.id} tersimpan di perangkat
+>>>>>>> origin/main
       </p>
 
       <div className="w-full bg-[#0F172A] rounded-3xl p-5 mb-4">
@@ -56,14 +155,29 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
         </div>
       </div>
 
-      <div className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 flex items-center gap-3">
-        <Check size={18} className="text-emerald-500" strokeWidth={2.5} />
-        <div>
-          <p className="text-[12px] font-bold text-emerald-700">Tersimpan di Perangkat</p>
-          <p className="text-[10px] text-emerald-600">
-            {t.date} · {t.time} · sinkronisasi berjalan di background
+      <div className={`w-full border rounded-2xl p-4 mb-5 flex items-center gap-3 ${status.tone}`}>
+        <status.Icon size={18} className={status.icon} strokeWidth={2.5} />
+        <div className="min-w-0 flex-1">
+          <p className={`text-[12px] font-bold ${status.text}`}>{status.title}</p>
+          <p className={`text-[10px] ${status.text} opacity-90`}>
+            {t.date} · {t.time} · {status.detail}
           </p>
         </div>
+<<<<<<< HEAD
+        {(failed || pending || syncStatus.state === 'local') && (
+          <button
+            onClick={() => { void processSyncQueue({ retryAll: true }); refreshSyncQueue() }}
+=======
+        {(failed || offline) && (
+          <button
+            onClick={() => { void processSyncQueue({ retryAll: true }); setQueueTick(x => x + 1) }}
+>>>>>>> origin/main
+            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[10px] font-bold"
+            title="Kirim ulang ke server"
+          >
+            <RefreshCw size={11} /> Coba
+          </button>
+        )}
       </div>
 
       <div className="flex gap-3 w-full">
