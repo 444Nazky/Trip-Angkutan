@@ -47,7 +47,7 @@ export async function adminLogin(req: Request): Promise<Response> {
   if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
   try {
     const { username, password } = await req.json().catch(() => ({})) as any;
-    const adminUser = Deno.env.get("ADMIN_USERNAME") ?? "admin";
+    const adminUser = (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
     const { data: adminRow } = await db
       .from("admin_credentials")
@@ -59,23 +59,34 @@ export async function adminLogin(req: Request): Promise<Response> {
     let effectiveUser = adminUser;
 
     if (adminRow?.password) {
+      // Baris di database adalah sumber kebenaran. Password di situ bisa
+      // diubah operator lewat dashboard, jadi environment tidak boleh
+      // menimpanya (kalau tidak, password lama tetap berlaku selamanya).
       effectiveUser = adminRow.username || adminUser;
       if (username === effectiveUser) {
         try { valid = bcryptjs.compareSync(password, adminRow.password); } catch { valid = false; }
       }
     } else {
-      const adminPassword = Deno.env.get("ADMIN_PASSWORD");
-      if (!adminPassword) return json({ error: "Admin credentials not configured" }, 503);
-      valid = username === adminUser && password === adminPassword;
+      // Belum ada kredensial tersimpan: pakai ADMIN_PASSWORD dari environment
+      // sebagai jalur bootstrap. Nilai environment TIDAK ditulis ke database,
+      // jadi password tetap bisa diubah dari .env.local selama operator belum
+      // memakai menu Ganti Password di dashboard.
+      const envPassword = (Deno.env.get("ADMIN_PASSWORD") ?? "").trim();
+      if (!envPassword) {
+        return json({
+          error: "Kredensial admin belum diatur di server. Isi ADMIN_PASSWORD di server/api/.env.local, lalu jalankan ./restart-all-ubuntu.sh.",
+        }, 503);
+      }
+      valid = username === adminUser && password === envPassword;
     }
 
-    if (!valid) return json({ error: "Invalid credentials" }, 401);
+    if (!valid) return json({ error: "Username atau password salah" }, 401);
 
     const token = await signToken({ role: "admin", username: effectiveUser }, 24 * 60 * 60);
     return json({ token, admin: { username: effectiveUser, role: "admin" } });
   } catch (error) {
     console.error("Admin login error:", error);
-    return json({ error: "Admin login failed" }, 500);
+    return json({ error: "Login admin gagal" }, 500);
   }
 }
 

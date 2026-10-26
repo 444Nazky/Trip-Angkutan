@@ -184,6 +184,32 @@ if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "  atau jalankan: JWT_SECRET=... ./restart-all-ubuntu.sh"
 fi
 
+# ── Kredensial admin dashboard ───────────────────────────────────────────────
+#
+# Server butuh satu kredensial admin untuk dashboard. Kalau tabel
+# admin_credentials masih kosong di database lokal, password bootstrap diambil
+# dari ADMIN_PASSWORD.
+#
+# Kalau variabel itu belum diisi, script membuatkannya secara acak dan
+# mencetaknya di ringkasan akhir. Password hasil generate langsung dipakai
+# untuk login dashboard dan bisa diganti kapan saja lewat menu Ubah Password.
+# Tidak ada kredensial bawaan yang diketahui orang lain.
+
+ADMIN_BOOTSTRAP_PASSWORD=""
+if ! grep -qE '^ADMIN_PASSWORD=.+' "$ENV_LOCAL" 2>/dev/null; then
+    if command -v openssl > /dev/null 2>&1; then
+        ADMIN_BOOTSTRAP_PASSWORD="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-16)"
+    else
+        ADMIN_BOOTSTRAP_PASSWORD="$(head -c 18 /dev/urandom | od -An -tx1 | tr -dc '0-9a-f' | cut -c1-16)"
+    fi
+    if [ -n "$ADMIN_BOOTSTRAP_PASSWORD" ]; then
+        set_env_value "$ENV_LOCAL" "ADMIN_PASSWORD" "$ADMIN_BOOTSTRAP_PASSWORD"
+        ok "ADMIN_PASSWORD dibuat acak dan disimpan di .env.local"
+    else
+        warn "Gagal membuat ADMIN_PASSWORD acak - isi manual di .env.local."
+    fi
+fi
+
 # ── Ambil kode terbaru ───────────────────────────────────────────────────────
 
 echo "[*] Menarik kode terbaru dari repo..."
@@ -362,6 +388,12 @@ echo " API     (LAN)   : http://${LAN_IP}:3000/api"
 echo "=========================================="
 echo " Endpoint mobile : Intranet (LAN di atas) - satu-satunya endpoint"
 echo "                  - atur di 'Pengaturan Server' bila IP kantor berubah"
+if [ -n "$ADMIN_BOOTSTRAP_PASSWORD" ]; then
+    echo "=========================================="
+    echo " Login dashboard : admin / ${ADMIN_BOOTSTRAP_PASSWORD}"
+    echo "                   (password baru ini dibuat otomatis; ganti lewat"
+    echo "                    menu Ubah Password di dashboard)"
+fi
 echo "=========================================="
 echo " Stop  : $DOCKER compose -f $COMPOSE_FILE down"
 echo " Log   : $DOCKER compose -f $COMPOSE_FILE logs -f"

@@ -143,9 +143,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
       case "login": return await authh.login(req);
       case "select-dermaga": return await authh.selectDermaga(req);
       case "refresh": return await authh.refreshToken(req);
-      // "change-admin-password" DIHAPUS: fitur ganti password admin sudah
-      // tidak dipakai (card "Ganti Password Admin" juga sudah dibuang dari
-      // Admin Dashboard > Pengaturan).
+      // Ganti password admin dipakai operator untuk mengganti password
+      // bootstrap yang dibuat otomatis oleh ./restart-all-ubuntu.sh.
+      // Sumber kebenaran: baris di tabel admin_credentials. Selama tabel
+      // masih kosong, password bootstrap dari ADMIN_PASSWORD (environment)
+      // yang dipakai sebagai password lama.
+      case "change-admin-password": return await authh.changeAdminPassword(req);
     }
     return notFound();
   }

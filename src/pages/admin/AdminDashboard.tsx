@@ -31,7 +31,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [revealed, setRevealed] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [tab, setTab] = useState<AdminTab>('reports')
-  const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline'>('connecting')
+  const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline' | 'auth'>('connecting')
   const [serverError, setServerError] = useState<string | null>(null)
   const [, setServerTrips] = useState<BackendTrip[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
@@ -84,7 +84,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       const sess = await ensureAdminSession()
       if (!alive) return
       if (!sess.ok) {
-        setServerState('offline')
+        // Login yang DITOLAK server (kredensial salah, kredensial belum
+        // dikonfigurasi) berbeda dari server yang tidak bisa dihubungi.
+        // Dulu keduanya ditampilkan sebagai "Tidak bisa terhubung ke
+        // server", sehingga operator mengira servernya yang rusak padahal
+        // masalahnya kredensial.
+        setServerState(sess.authDenied ? 'auth' : 'offline')
         setServerError(sess.error ?? 'Sesi admin tidak bisa dibuat')
         return
       }
@@ -150,20 +155,38 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
         <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
-          {serverState === 'offline' && serverError && (
+          {(serverState === 'offline' || serverState === 'auth') && serverError && (
             <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-red-700">Tidak bisa terhubung ke server</p>
+                <p className="text-[13px] font-bold text-red-700">
+                  {serverState === 'auth'
+                    ? 'Login admin gagal'
+                    : 'Tidak bisa terhubung ke server'}
+                </p>
                 <p className="text-[12px] text-red-600 mt-0.5">{serverError}</p>
                 <p className="text-[11px] text-red-500 mt-1">
-                  Bila password admin baru saja diganti, buka lagi dashboard di tab baru dan masukkan kredensial baru.
+                  {serverState === 'auth'
+                    ? 'Server hidup, tetapi kredensial admin ditolak. Masukkan ulang username dan password. Bila password admin baru saja diganti, buka dashboard di tab baru dan gunakan kredensial baru.'
+                    : 'Server API intranet tidak merespons. Pastikan layanan di port 3000 masih berjalan, lalu coba lagi.'}
                 </p>
               </div>
               <button
-                onClick={() => { setServerState('connecting'); setServerError(null); window.location.reload() }}
+                onClick={() => {
+                  setServerState('connecting')
+                  setServerError(null)
+                  if (serverState === 'auth') {
+                    // Kredensial ditolak: token yang tersimpan tidak berguna.
+                    // Hapus supaya halaman login muncul lagi.
+                    api.setToken(null)
+                    try { localStorage.removeItem('trip.admin') } catch { /* storage tidak tersedia */ }
+                    onLogout()
+                    return
+                  }
+                  window.location.reload()
+                }}
                 className="shrink-0 rounded-lg bg-white border border-red-200 px-3 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-100"
               >
-                Coba Lagi
+                {serverState === 'auth' ? 'Masuk Ulang' : 'Coba Lagi'}
               </button>
             </div>
           )}
@@ -211,7 +234,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'settings' && (
-            <SettingsTab />
+            <SettingsTab showToast={showToast} />
           )}
         </div>
       </div>

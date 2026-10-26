@@ -36,7 +36,11 @@ import { fetchRegions, type Region } from '../../../services/regions'
 
 interface TariffTabProps {
   tariffs: TariffRow[]
-  serverState: 'connecting' | 'online' | 'offline'
+  /**
+   * Status koneksi ke server API intranet.
+   * `auth` berarti server hidup tetapi login admin ditolak.
+   */
+  serverState: 'connecting' | 'online' | 'offline' | 'auth'
   onSaveTariffs: (t: TariffRow[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
@@ -492,7 +496,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
             serverState === 'online'
               ? 'bg-emerald-50 text-emerald-600'
-              : serverState === 'offline'
+              : serverState === 'offline' || serverState === 'auth'
                 ? 'bg-red-50 text-red-600'
                 : 'bg-amber-50 text-amber-600'
           }`}
@@ -501,7 +505,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
             className={`w-1.5 h-1.5 rounded-full ${
               serverState === 'online'
                 ? 'bg-emerald-500'
-                : serverState === 'offline'
+                : serverState === 'offline' || serverState === 'auth'
                   ? 'bg-red-500'
                   : 'bg-amber-500'
             }`}
@@ -511,7 +515,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
             ? 'Tersambung'
             : serverState === 'offline'
               ? 'Offline'
-              : 'Menghubungkan'}
+              : serverState === 'auth'
+                ? 'Gagal Login'
+                : 'Menghubungkan'}
         </span>
       </div>
 
