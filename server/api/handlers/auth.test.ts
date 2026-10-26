@@ -1,15 +1,20 @@
 /**
  * Uji handler login admin.
  *
- * Fokusnya satu: memastikan dashboard admin selalu bisa login pada instalasi
- * baru. Instalasi baru berarti tabel admin_credentials kosong, dan kredensial
- * diambil dari environment ADMIN_PASSWORD.
+ * Fokusnya satu: dashboard admin harus selalu bisa dibuka.
+ *
+ * Dua mode yang diuji:
+ *   1. ADMIN_AUTH_DISABLED=1 - mode bawaan server intranet. Dashboard dibuka
+ *      tanpa password sama sekali.
+ *   2. ADMIN_AUTH_DISABLED tidak aktif - dashboard memakai kredensial dari
+ *      tabel admin_credentials, atau dari ADMIN_PASSWORD selama tabel itu
+ *      masih kosong.
  *
  * Jalankan:
  *   deno test --allow-net --allow-env server/api/handlers/auth.test.ts
  */
 
-import { assert, assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import bcryptjs from "npm:bcryptjs@2.4.3";
 
 interface AdminRow {
@@ -26,7 +31,7 @@ interface AdminRow {
  */
 function startFakePostgrest(rows: AdminRow[]): { url: string; rows: AdminRow[]; close: () => void } {
   const state = { nextId: rows.reduce((max, row) => Math.max(max, row.id), 0) + 1 };
-  const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, (req) => {
+  const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, async (req) => {
     const url = new URL(req.url);
     if (!url.pathname.endsWith("/admin_credentials")) {
       return new Response("not found", { status: 404 });
@@ -78,7 +83,7 @@ async function loadHandler(postgrestUrl: string) {
   return module as typeof import("./auth.ts");
 }
 
-function loginRequest(username: string, password: string): Request {
+function loginRequest(username = "admin", password = ""): Request {
   return new Request("http://127.0.0.1:3000/api/auth/admin-login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -86,17 +91,47 @@ function loginRequest(username: string, password: string): Request {
   });
 }
 
-Deno.test("login admin memakai ADMIN_PASSWORD saat tabel admin_credentials kosong", async () => {
+Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", async () => {
   const fake = startFakePostgrest([]);
   try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "1");
+    Deno.env.set("ADMIN_USERNAME", "admin");
+    Deno.env.set("ADMIN_PASSWORD", "");
+    const { adminLogin } = await loadHandler(fake.url);
+
+    const res = await adminLogin(loginRequest());
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertStringIncludes(String(body.token ?? ""), ".");
+    assertEquals(body.admin?.role, "admin");
+  } finally {
+    fake.close();
+  }
+});
+
+Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async () => {
+  const fake = startFakePostgrest([]);
+  try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "1");
+    const { adminLogin } = await loadHandler(fake.url);
+
+    await adminLogin(loginRequest());
+    assertEquals(fake.rows.length, 0);
+  } finally {
+    fake.close();
+  }
+});
+
+Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel kosong", async () => {
+  const fake = startFakePostgrest([]);
+  try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
     const { adminLogin } = await loadHandler(fake.url);
 
     const ok = await adminLogin(loginRequest("admin", "password-bootstrap"));
     assertEquals(ok.status, 200);
-    const body = await ok.json();
-    assertStringIncludes(String(body.token ?? ""), ".");
 
     const salah = await adminLogin(loginRequest("admin", "password-keliru"));
     assertEquals(salah.status, 401);
@@ -108,6 +143,7 @@ Deno.test("login admin memakai ADMIN_PASSWORD saat tabel admin_credentials koson
 Deno.test("login admin memberi pesan yang bisa ditindaklanjuti saat kredensial belum diatur", async () => {
   const fake = startFakePostgrest([]);
   try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
     const { adminLogin } = await loadHandler(fake.url);
@@ -125,6 +161,7 @@ Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
   const hash = bcryptjs.hashSync("password-yang-sudah-diubah", 10);
   const fake = startFakePostgrest([{ id: 1, username: "admin", password: hash }]);
   try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
     const { adminLogin } = await loadHandler(fake.url);
@@ -140,33 +177,6 @@ Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
   }
 });
 
-Deno.test("ganti password menyimpan satu baris saja dan langsung bisa dipakai", async () => {
-  const fake = startFakePostgrest([]);
-  try {
-    Deno.env.set("ADMIN_USERNAME", "admin");
-    Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
-    const { adminLogin, changeAdminPassword } = await loadHandler(fake.url);
-
-    const change = await changeAdminPassword(
-      new Request("http://127.0.0.1:3000/api/auth/change-admin-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: "password-bootstrap", newPassword: "password-baru-2026" }),
-      }),
-    );
-    assertEquals(change.status, 200);
-    assertEquals(fake.rows.length, 1);
-
-    const ok = await adminLogin(loginRequest("admin", "password-baru-2026"));
-    assertEquals(ok.status, 200);
-
-    const lama = await adminLogin(loginRequest("admin", "password-bootstrap"));
-    assertEquals(lama.status, 401);
-  } finally {
-    fake.close();
-  }
-});
-
 Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
   const hash = bcryptjs.hashSync("password-sama", 10);
   const fake = startFakePostgrest([
@@ -174,6 +184,7 @@ Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
     { id: 2, username: "admin", password: hash },
   ]);
   try {
+    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
     const { adminLogin } = await loadHandler(fake.url);

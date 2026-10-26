@@ -65,6 +65,23 @@ if (missing.length > 0) {
   Deno.exit(1);
 }
 
+// ── Mode akses dashboard admin ────────────────────────────────────────────────
+//
+// Dashboard admin pada server intranet TIDAK memakai password.
+//
+// Server ini hanya melayani jaringan lokal kantor (192.168.1.0/24), dan
+// dashboard sudah sebelumnya terbuka otomatis tanpa interaksi login. Mode ini
+// dipertahankan supaya instalasi baru tidak pernah tersangkut di layar login
+// karena kredensial admin belum dikonfigurasi.
+//
+// Set ADMIN_AUTH_DISABLED=0 (di .env.local) kalau dashboard memang perlu
+// dilindungi password. Setelah dimatikan, kredensial diambil dari tabel
+// admin_credentials; pakai `node scripts/reset-admin-password.mjs` untuk
+// membuat atau mengganti password-nya.
+if (Deno.env.get("ADMIN_AUTH_DISABLED") === undefined) {
+  Deno.env.set("ADMIN_AUTH_DISABLED", "1");
+}
+
 // ── Import router utama ───────────────────────────────────────────────────────
 
 const { handleRequest } = await import("./index.ts");

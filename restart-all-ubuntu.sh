@@ -186,17 +186,22 @@ fi
 
 # ── Kredensial admin dashboard ───────────────────────────────────────────────
 #
-# Server butuh satu kredensial admin untuk dashboard. Kalau tabel
-# admin_credentials masih kosong di database lokal, password bootstrap diambil
-# dari ADMIN_PASSWORD.
+# Dashboard admin pada server intranet dibuka TANPA password (mode
+# ADMIN_AUTH_DISABLED=1). Server ini hanya melayani jaringan lokal kantor,
+# jadi dashboard langsung terbuka begitu dibuka - tidak ada layar login yang
+# bisa tersangkut karena kredensial belum dikonfigurasi.
 #
-# Kalau variabel itu belum diisi, script membuatkannya secara acak dan
-# mencetaknya di ringkasan akhir. Password hasil generate langsung dipakai
-# untuk login dashboard dan bisa diganti kapan saja lewat menu Ubah Password.
-# Tidak ada kredensial bawaan yang diketahui orang lain.
+# Password hanya relevan kalau operator sengaja mengaktifkan mode proteksi
+# (ADMIN_AUTH_DISABLED=0). Pada mode itu, password dibuat acak di sini bila
+# belum ada, lalu dicetak di ringkasan akhir.
+
+if ! grep -qE '^ADMIN_AUTH_DISABLED=' "$ENV_LOCAL" 2>/dev/null; then
+    set_env_value "$ENV_LOCAL" "ADMIN_AUTH_DISABLED" "1"
+    ok "ADMIN_AUTH_DISABLED=1 - dashboard admin tanpa password"
+fi
 
 ADMIN_BOOTSTRAP_PASSWORD=""
-if ! grep -qE '^ADMIN_PASSWORD=.+' "$ENV_LOCAL" 2>/dev/null; then
+if [ "$(env_value "$ENV_LOCAL" "ADMIN_AUTH_DISABLED")" != "1" ] && ! grep -qE '^ADMIN_PASSWORD=.+' "$ENV_LOCAL" 2>/dev/null; then
     if command -v openssl > /dev/null 2>&1; then
         ADMIN_BOOTSTRAP_PASSWORD="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | cut -c1-16)"
     else
@@ -388,11 +393,12 @@ echo " API     (LAN)   : http://${LAN_IP}:3000/api"
 echo "=========================================="
 echo " Endpoint mobile : Intranet (LAN di atas) - satu-satunya endpoint"
 echo "                  - atur di 'Pengaturan Server' bila IP kantor berubah"
+echo " Dashboard admin : tanpa password - langsung terbuka di http://${LAN_IP}:8000"
 if [ -n "$ADMIN_BOOTSTRAP_PASSWORD" ]; then
     echo "=========================================="
     echo " Login dashboard : admin / ${ADMIN_BOOTSTRAP_PASSWORD}"
-    echo "                   (password baru ini dibuat otomatis; ganti lewat"
-    echo "                    menu Ubah Password di dashboard)"
+    echo "                   (password ini dibuat otomatis; ganti dengan:"
+    echo "                    node scripts/reset-admin-password.mjs)"
 fi
 echo "=========================================="
 echo " Stop  : $DOCKER compose -f $COMPOSE_FILE down"
