@@ -180,6 +180,22 @@ else
 fi
 git -C "$BASE" log --oneline -1 2>/dev/null || true
 
+# ── Validasi compose ─────────────────────────────────────────────────────────
+#
+# WAJIB sebelum container lama dibuang. Kalau docker-compose.yml tidak valid
+# (mis. `volumes:` kosong), `compose up` gagal SETELAH langkah "down" - artinya
+# seluruh layanan ikut mati hanya karena satu typo. Validasi dulu di sini,
+# maka file rusak tidak pernah menyentuh stack yang sedang berjalan.
+
+echo "[*] Memvalidasi docker-compose.yml..."
+if $DOCKER compose -f "$COMPOSE_FILE" config -q; then
+    ok
+else
+    bad "docker-compose.yml tidak valid - container yang sedang berjalan TIDAK dihentikan."
+    echo "    Perbaiki file di atas, lalu jalankan script ini lagi."
+    exit 1
+fi
+
 # ── Build image ───────────────────────────────────────────────────────────────
 
 echo "[*] Build image web (admin + mobile)..."
