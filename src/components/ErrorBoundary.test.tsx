@@ -18,6 +18,7 @@ function Boom(): React.ReactElement {
 }
 
 describe('ErrorBoundary', () => {
+
   let container: HTMLDivElement
   let root: Root
 
