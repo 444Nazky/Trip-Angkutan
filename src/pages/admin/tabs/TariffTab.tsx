@@ -18,8 +18,7 @@ interface TariffTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
-const VEHICLE_TYPES = ['motor', 'mobil', 'truk kecil', 'truk sedang', 'truk besar'] as const
-type VehicleType = (typeof VEHICLE_TYPES)[number]
+type VehicleType = 'motor' | 'mobil' | 'truk kecil' | 'truk sedang' | 'truk besar'
 
 const fmtRp = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 

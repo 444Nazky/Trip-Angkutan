@@ -149,7 +149,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
-        <div className={tab === 'settings' ? 'p-4 admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
+        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
           {serverState === 'offline' && serverError && (
             <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">

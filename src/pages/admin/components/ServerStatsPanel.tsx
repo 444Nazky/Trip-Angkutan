@@ -67,8 +67,8 @@ function TrafficChart({ buckets }: { buckets: { minute: number; total: number; o
   const max = Math.max(1, ...data.map(b => b.total))
 
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-      <div className="flex h-40 items-end gap-[2px]">
+    <div className="flex min-h-40 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+      <div className="flex min-h-32 flex-1 items-end gap-[2px]">
         {data.map(b => {
           const totalH = (b.total / max) * 100
           const errH = b.total ? (b.err / b.total) * totalH : 0
@@ -178,7 +178,7 @@ export function ServerStatsPanel() {
   const m = stats?.metrics
 
   return (
-    <div className="flex min-h-[calc(100vh-4.5rem)] w-full flex-col rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
+    <div className="flex min-h-screen w-full flex-col bg-slate-900 p-5">
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -216,7 +216,7 @@ export function ServerStatsPanel() {
       )}
 
       {stats && m && (
-        <div className="space-y-4">
+        <div className="flex flex-1 flex-col gap-4">
           {/* Kartu metrik utama */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Total Requests" value={m.total.toLocaleString('id-ID')} hint={`${m.ok} sukses · ${m.clientError} 4xx · ${m.serverError} 5xx`} color="#3B82F6" />
@@ -271,8 +271,8 @@ export function ServerStatsPanel() {
           </div>
 
           {/* Grafik + status komponen */}
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-            <div className="lg:col-span-3">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
+            <div className="flex min-h-0 flex-col lg:col-span-3">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                 <Activity size={12} /> Grafik Request per Menit
               </p>
@@ -280,7 +280,7 @@ export function ServerStatsPanel() {
               <TrafficTable buckets={m.buckets} />
             </div>
 
-            <div className="lg:col-span-2">
+            <div className="min-h-0 lg:col-span-2">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                 <Database size={12} /> Status Komponen Server
               </p>
@@ -305,9 +305,9 @@ export function ServerStatsPanel() {
 
           {/* Top endpoint */}
           {m.topPaths.length > 0 && (
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Endpoint Teramai</p>
-              <div className="overflow-x-auto rounded-xl border border-slate-700/60">
+              <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700/60">
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
                     <tr>
