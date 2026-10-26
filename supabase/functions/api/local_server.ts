@@ -29,7 +29,26 @@ Deno.env.set("API_DISABLE_EMBEDDED_SERVER", "1");
 
 // ── Pre-flight: secrets wajib ada ─────────────────────────────────────────────
 
-const REQUIRED = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] as const;
+// JWT_SECRET WAJIB ada di server intranet.
+//
+// Kenapa wajib (bukan sekadar peringatan):
+//   `_shared.ts` memakai fallback `|| "trip-angkut-secret-key"` kalau env
+//   kosong. Fallback itu tertulis di source repo, jadi anybody yang bisa
+//   membaca repo bisa MEMBUAT TOKEN ADMIN SENDIRI secara offline (HMAC-SHA256
+//   dengan key yang diketahui). Server intranet ini listen di 0.0.0.0:3000
+//   -> reachable dari device mana pun di LAN.
+//
+//   Plus CORS API intranet mengizinkan origin `*` (_shared.ts), jadi halaman
+//   web yang dibuka petugas di browser pun bisa menembak API intranet.
+//
+//   Perhatikan: pre-flight ini HANYA jalan di server intranet (file ini).
+//   Edge Function di Supabase tidak pernah lewat file ini, jadi perubahan
+//   ini tidak memengaruhi deployment cloud.
+const REQUIRED = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "JWT_SECRET",
+] as const;
 const missing = REQUIRED.filter((k) => !Deno.env.get(k));
 
 if (missing.length > 0) {
@@ -39,17 +58,16 @@ if (missing.length > 0) {
   console.error(
     `[api-intranet] Buat file supabase/functions/api/.env.local (lihat .env.example) lalu restart.`,
   );
+  if (missing.includes("JWT_SECRET")) {
+    console.error(
+      `[api-intranet] JWT_SECRET tidak boleh kosong: tanpa itu server memakai secret` +
+        ` default yang tertulis di source, dan token admin bisa dipalsukan.`,
+    );
+    console.error(
+      `[api-intranet] Ambil dari: Supabase Dashboard > Project Settings > API > JWT Secret.`,
+    );
+  }
   Deno.exit(1);
-}
-
-// JWT_SECRET kosong tidak mematikan server, tapi token yang issued server
-// cloud TIDAK akan valid di intranet (dan sebaliknya) -> petugas harus
-// login ulang setiap kali endpoint-nya diganti.
-if (!Deno.env.get("JWT_SECRET")) {
-  console.warn(
-    "[api-intranet] PERINGATAN: JWT_SECRET kosong. Set nilainya SAMA dengan secret di " +
-      "Supabase (supabase secrets list) supaya token dari server cloud tetap valid di intranet.",
-  );
 }
 
 // ── Import router utama ───────────────────────────────────────────────────────
@@ -101,6 +119,29 @@ for (const ip of EXTRA_LAN_IPS) {
   if (!LAN_IPS.includes(ip)) LAN_IPS.push(ip);
 }
 
+// ── Suntik IP peer asli ke request ───────────────────────────────────────────
+//
+// Rate limiter (_ratelimit.ts) menentukan IP klien dari header
+// `x-forwarded-for` -> `x-real-ip` -> `cf-connecting-ip`, fallback "unknown".
+//
+// Di Supabase Edge Runtime, `x-forwarded-for` diisi oleh platform -> benar.
+// Di server intranet TIDAK ADA reverse proxy di depan Deno, jadi header itu
+// datang langsung dari klien dan bisa DIPALSUKAN. Akibatnya:
+//   - rate limit per-IP jadi tidak berguna (klien putar header => bucket baru
+//     tiap request, dan "unknown" jadi bucket bersama semua device), dan
+//   - log request mencatat IP yang tidak akurat.
+//
+// Solusinya: Deno menyediakan IP peer asli lewat `info.remoteAddr` pada
+// handler Deno.serve. Kita BUNGKUS handleRequest dan menimpa `x-forwarded-for`
+// dengan nilai itu.
+//
+// PENTING: header pada Request dari Deno.serve bersifat immutable
+// ("Cannot change headers: headers are immutable"), jadi WAJIB lewat
+// `new Request(req, { headers })` - bukan `req.headers.set(...)`.
+//
+// Body tetap utuh: `new Request(req, {headers})` mempertahankan stream body
+// yang sama, jadi `req.formData()` di /trips/complete tetap bisa membaca
+// multipart (sudah diverifikasi).
 Deno.serve(
   { port: PORT, hostname: HOST, onListen: ({ hostname, port }) => {
     console.log(`[api-intranet] API lokal siap di http://${hostname}:${port}/api`);
@@ -108,7 +149,17 @@ Deno.serve(
       console.log(`[api-intranet]   - LAN: http://${ip}:${port}/api`);
     }
   } },
-  handleRequest,
+  (req, info) => {
+    const peer = info.remoteAddr?.hostname;
+    if (!peer) return handleRequest(req);
+
+    const headers = new Headers(req.headers);
+    // Timpa apa pun yang dikirim klien - inilah IP yang benar.
+    headers.set("x-forwarded-for", peer);
+    headers.set("x-real-ip", peer);
+
+    return handleRequest(new Request(req, { headers }));
+  },
 );
 
 console.log("[api-intranet] Service key dipakai: service_role (akses penuh DB)");

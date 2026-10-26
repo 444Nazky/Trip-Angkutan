@@ -20,8 +20,9 @@ import * as rprt from "./handlers/reports.ts";
 import * as ofc from "./handlers/officers.ts";
 import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
-import { corsHeaders, json, auth, requireAdmin } from "./_shared.ts";
-import { recordRequest, statsSnapshot } from "./_stats.ts";
+import * as srvst from "./handlers/serverStats.ts";
+import { corsHeaders, json, auth } from "./_shared.ts";
+import { recordRequest } from "./_metrics.ts";
 import {
   take,
   remaining,
@@ -47,6 +48,9 @@ import {
 function rateClassFor(parts: string[], method: string): RateClass {
   const [a] = parts;
   if (a === "health") return "health";
+  // Panel statistik di-poll tiap 5 detik. Klasifikasikan sebagai "health"
+  // supaya tidak memakan bucket "read" yang dipakai endpoint master data.
+  if (a === "server-stats") return "health";
   if (a === "auth") return "auth";
   if (a === "reports") return "report";
   if (method !== "GET" && method !== "OPTIONS") return "write";
@@ -130,13 +134,6 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     return json({ status: "ok", version: "3.0.0-supabase-only", mode, instance: INSTANCE_ID });
   }
 
-  // ---------------- /stats (admin only) ----------------
-  if (a === "stats" && req.method === "GET") {
-    const admin = await requireAdmin(req);
-    if (!admin) return json({ error: "Admin access required" }, 403);
-    return json(statsSnapshot(INSTANCE_ID));
-  }
-
   // ---------------- /auth ----------------
   if (a === "auth" && req.method === "POST") {
     switch (b) {
@@ -146,7 +143,9 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
       case "login": return await authh.login(req);
       case "select-dermaga": return await authh.selectDermaga(req);
       case "refresh": return await authh.refreshToken(req);
-      case "change-admin-password": return await authh.changeAdminPassword(req);
+      // "change-admin-password" DIHAPUS: fitur ganti password admin sudah
+      // tidak dipakai (card "Ganti Password Admin" juga sudah dibuang dari
+      // Admin Dashboard > Pengaturan).
     }
     return notFound();
   }
@@ -268,6 +267,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   if (a === "report-version" && req.method === "POST") return await upd.reportDeviceVersion(req);
   if (a === "device-versions" && req.method === "GET") return await upd.deviceVersions(req);
 
+  // ---------------- /server-stats ----------------
+  // Statistik runtime server (Total Requests, Success Rate, latensi, memori,
+  // grafik per menit, status komponen). Dipakai panel "Endpoint" di admin
+  // dashboard untuk memantau server intranet port 3000.
+  if (a === "server-stats" && req.method === "GET") return await srvst.serverStats(req);
+
   return notFound();
 }
 
@@ -316,7 +321,7 @@ function logQuery(url: URL): string {
  *  - `API_LOG=0` (default) → AGREGAT: satu baris ringkasan per 30 detik,
  *    berisi jumlah request per (path, ip, status, auth). Volume log ~1 baris
  *    per 30 detik per instance, tapi datanya tetap cukup untuk melihat
- *    endpoint mana yangștekan dan dari IP mana.
+ *    endpoint mana yang paling sering ditembak dan dari IP mana.
  *
  * Agregat lebih berguna untuk diagnosis lonjakan daripada log per request:
  * yang dicari adalah "siapa yang menembak apa", bukan isi tiap request.
@@ -349,10 +354,8 @@ function flushTraffic(force = false): void {
 }
 
 function logRequest(fields: Record<string, unknown>): void {
-  // Metrik /stats dihitung dari SATU tempat ini supaya semua response
-  // (termasuk 429) ikut terhitung. Error 500 dicatat di catch handleRequest.
-  recordRequest(String(fields.path ?? "/"), Number(fields.status ?? 0), Number(fields.ms ?? 0));
-
+  // Metrik /server-stats dicatat di handleRequest (satu pintu, termasuk 429
+  // dan error 500), bukan di sini - supaya tidak terhitung dua kali.
   if (API_LOG_ALL) {
     console.log(JSON.stringify({ ev: "api_request", ...fields }));
     return;
@@ -395,6 +398,102 @@ const anomalySeen = new Map<string, number>();
  * perilaku endpoint intranet == endpoint cloud.
  */
 export async function handleRequest(req: Request): Promise<Response> {
+  const started = Date.now();
+  let path = "";
+  let ip = "";
+  try {
+    const url = new URL(req.url);
+    let p = url.searchParams.get("path") ?? url.pathname.replace(/^\/functions\/v1\/api\/?/, "");
+    path = (p.startsWith("/") ? p : `/${p}`).replace(/^\/api(?=\/|$)/, "") || "/";
+    ip = clientIp(req);
+  } catch {
+    // URL rusak -> pakai path generik.
+    path = "?";
+  }
+
+  let res: Response;
+  try {
+    res = await handleRequestCore(req);
+  } catch (error) {
+    recordRequest({ path, method: req.method, status: 500, ms: Date.now() - started, ip });
+    throw error;
+  }
+
+  // Preflight OPTIONS bukan request nyata -> jangan dihitung sebagai traffic.
+  if (req.method !== "OPTIONS") {
+    recordRequest({
+      path,
+      method: req.method,
+      status: res.status,
+      ms: Date.now() - started,
+      ip,
+    });
+  }
+  return withCors(req, res);
+}
+
+/**
+ * CORS respons sesuai origin pemanggil.
+ *
+ * `_shared.ts` memakai `Access-Control-Allow-Origin: *` SEKALIGUS untuk semua
+ * respons. Itu sempat bermasalah karena kombinasi `*` + `Access-Control-Allow-
+ * Credentials: true` itu tidak valid di spec CORS: browser menolak request
+ * ber-credentials (cookie) kalau origin-nya wildcard.
+ *
+ * Admin dashboard (port 8000) memanggil API intranet (port 3000) - itu
+ * lintas origin, jadi header CORS menentukan boleh/tidaknya. Supaya kedua
+ * endpoint (Supabase cloud dan intranet) sama-sama bebas hambatan:
+ *
+ *   - Kalau `CORS_ORIGIN` diisi (daftar origin, dipisah koma), origin yang
+ *     terdaftar ditiru + Allow-Credentials ikut diaktifkan.
+ *   - Kalau `CORS_ORIGIN` kosong, wildcard tetap dipakai (server intranet
+ *     ada di LAN tertutup), tapi Allow-Credentials DIMATIKAN supaya
+ *     kombinasi wildcard+credentials yang invalid tidak pernah terjadi.
+ *
+ * Asal tidak boleh header yang sama dikembalikan dua kali, jadi header
+ * CORS lama dibuang lebih dulu.
+ */
+function withCors(req: Request, res: Response): Response {
+  const origin = req.headers.get("origin");
+  const allowed = (Deno.env.get("CORS_ORIGIN") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let allowOrigin = "*";
+  let allowCredentials = false;
+
+  if (allowed.length > 0) {
+    if (origin && allowed.includes(origin)) {
+      allowOrigin = origin;
+      allowCredentials = true;
+    } else if (origin) {
+      // Origin terkirim tapi tidak terdaftar -> jangan bocorkan data; tetap
+      // 403 agar pemanggil tahu masalahnya CORS, bukan "data kosong".
+      //
+      // Request TANPA header Origin (curl, aplikasi native tanpa Origin)
+      // tetap diizinkan: header Origin cuma ada untuk request browser.
+      return new Response(JSON.stringify({ error: "Origin tidak diizinkan" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  const headers = new Headers(res.headers);
+  headers.set("Access-Control-Allow-Origin", allowOrigin);
+  headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  headers.set(
+    "Access-Control-Allow-Headers",
+    "authorization, x-client-info, apikey, content-type, cache-control, pragma, expires, accept, origin, x-requested-with",
+  );
+  if (allowCredentials) headers.set("Access-Control-Allow-Credentials", "true");
+  else headers.delete("Access-Control-Allow-Credentials");
+
+  return new Response(res.body, { status: res.status, headers });
+}
+
+async function handleRequestCore(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -561,7 +660,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     });
   } catch (error) {
     console.error("[api]", req.method, path, error);
-    recordRequest(path, 500, Date.now() - startedAt);
+    recordRequest({ path, method: req.method, status: 500, ms: Date.now() - startedAt });
     return json({ error: "Internal error" }, 500);
   }
 }
