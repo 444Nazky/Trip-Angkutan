@@ -253,18 +253,36 @@ async function main() {
     return
   }
 
-  // 3. Kirim ke server intranet.
+  // 3. Kirim ke server intranet, satu tabel per permintaan.
+  //
+  // Alasannya urutan tabel TIDAK bisa diserahkan ke server. Di antara
+  // tabel ada ketergantungan dua arah: `vehicles.trip_id` menunjuk ke
+  // `trips`, sementara `trip_vehicles` menunjuk ke keduanya. Server
+  // menjalankan tabel dalam urutan miliknya sendiri, sehingga kalau
+  // urutan server tidak sama dengan urutan di sini, permintaan gagal
+  // dengan pelanggaran foreign key.
+  //
+  // Kirim per tabel membuat urutan yang benar menjamin penuh di sisi
+  // script, tanpa menuntut server selalu punya versi terbaru.
   console.log('')
   console.log('Mengirim ke server intranet...')
-  const result = await postImport(payload)
+  const totals = {}
+  const fileTotals = {}
+  for (const table of tables) {
+    const rows = payload.tables[table] || []
+    const result = await postImport({ mode: MODE, tables: { [table]: rows }, files: {} })
+    totals[table] = result.tables?.[table] ?? rows.length
+    console.log(`  ${table}: ${totals[table]} baris`)
+  }
+  for (const bucket of BUCKETS) {
+    const files = payload.files[bucket]
+    if (!files || Object.keys(files).length === 0) continue
+    const result = await postImport({ mode: MODE, tables: {}, files: { [bucket]: files } })
+    fileTotals[bucket] = result.files?.[bucket] ?? Object.keys(files).length
+    console.log(`  ${bucket}/: ${fileTotals[bucket]} berkas`)
+  }
   console.log('Selesai.')
-  console.log(`  Mode    : ${result.mode}`)
-  for (const [table, count] of Object.entries(result.tables || {})) {
-    console.log(`  ${table}: ${count} baris`)
-  }
-  for (const [bucket, count] of Object.entries(result.files || {})) {
-    console.log(`  ${bucket}/: ${count} berkas`)
-  }
+  console.log(`  Mode    : ${MODE}`)
 }
 
 main().catch((error) => {
