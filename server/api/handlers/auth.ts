@@ -49,11 +49,16 @@ export async function adminLogin(req: Request): Promise<Response> {
     const { username, password } = await req.json().catch(() => ({})) as any;
     const adminUser = (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
-    const { data: adminRow } = await db
+    const { data: rows } = await db
       .from("admin_credentials")
-      .select("username, password")
-      .limit(1)
-      .single();
+      .select("id, username, password")
+      .order("id", { ascending: true });
+
+    // Baris pertama yang dipakai. Baris sisanya dibuang supaya pembacaan
+    // kredensial selalu tunggal (tabel ini tidak punya batasan unik, dan
+    // `single()` akan gagal kalau ada lebih dari satu baris).
+    const list = (rows ?? []) as { id?: number; username?: string; password?: string }[];
+    const adminRow = list[0];
 
     let valid = false;
     let effectiveUser = adminUser;
@@ -81,6 +86,11 @@ export async function adminLogin(req: Request): Promise<Response> {
     }
 
     if (!valid) return json({ error: "Username atau password salah" }, 401);
+
+    for (const extra of list.slice(1)) {
+      if (extra.id === undefined) continue;
+      await db.from("admin_credentials").delete().eq("id", extra.id);
+    }
 
     const token = await signToken({ role: "admin", username: effectiveUser }, 24 * 60 * 60);
     return json({ token, admin: { username: effectiveUser, role: "admin" } });
