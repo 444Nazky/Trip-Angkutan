@@ -21,8 +21,8 @@ set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE/docker-compose.yml"
-ENV_LOCAL="$BASE/supabase/functions/api/.env.local"
-ENV_EXAMPLE="$BASE/supabase/functions/api/.env.example"
+ENV_LOCAL="$BASE/server/api/.env.local"
+ENV_EXAMPLE="$BASE/server/api/.env.example"
 
 FAILURES=0
 WARNINGS=0
@@ -63,12 +63,12 @@ echo "[*] Menyiapkan konfigurasi API intranet..."
 if [ ! -f "$ENV_LOCAL" ]; then
     if [ -f "$ENV_EXAMPLE" ]; then
         cp "$ENV_EXAMPLE" "$ENV_LOCAL"
-        warn "supabase/functions/api/.env.local belum ada - dibuat dari .env.example (nilainya masih kosong)."
+        warn "server/api/.env.local belum ada - dibuat dari .env.example (nilainya masih kosong)."
         warn "JWT_SECRET wajib diisi agar server intranet bisa start."
     else
         mkdir -p "$(dirname "$ENV_LOCAL")"
         : > "$ENV_LOCAL"
-        warn "supabase/functions/api/.env.local dibuat kosong - server intranet akan menolak start tanpa JWT_SECRET."
+        warn "server/api/.env.local dibuat kosong - server intranet akan menolak start tanpa JWT_SECRET."
     fi
 fi
 # env_file wajib ada agar `docker compose up` tidak gagal dengan error cryptic.
@@ -88,7 +88,7 @@ fi
 #
 # Semua sumber sudah masuk .gitignore dan file hasilnya selalu chmod 600.
 
-SECRETS_FILE="$BASE/supabase/functions/api/.env.secrets"
+SECRETS_FILE="$BASE/server/api/.env.secrets"
 
 # Tulis (atau ganti) satu key di file env.
 set_env_value() {
@@ -163,7 +163,7 @@ resolve_secret "JWT_SECRET" "JWT secret"
 
 if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "JWT_SECRET kosong di .env.local - container API intranet akan exit saat start."
-    warn "  Cara mengisinya tanpa edit manual: taruh di supabase/functions/api/.env.secrets,"
+    warn "  Cara mengisinya tanpa edit manual: taruh di server/api/.env.secrets,"
     warn "  atau jalankan: JWT_SECRET=... ./restart-all-ubuntu.sh"
 fi
 
@@ -280,7 +280,7 @@ else
     # Pesan paling sering: secret belum diisi -> container langsung exit.
     if $DOCKER logs trip-api 2>&1 | tail -5 | grep -q "GAGAL START"; then
         echo "                     Penyebab: JWT_SECRET belum diisi di"
-        echo "                     supabase/functions/api/.env.local. Isi dulu, lalu jalankan script lagi."
+        echo "                     server/api/.env.local. Isi dulu, lalu jalankan script lagi."
     else
         echo "                     (server menolak start kalau JWT_SECRET kosong;"
         echo "                      cek juga status container db dan rest)"

@@ -11,7 +11,7 @@
  *   - File     : direktori lokal `STORAGE_DIR` (default /data/storage),
  *                dilayani di /files/<bucket>/<path>.
  *
- * Syarat environment (lihat supabase/functions/api/.env.example):
+ * Syarat environment (lihat server/api/.env.example):
  *   JWT_SECRET     - WAJIB. Dipakai menandatangani token admin/petugas.
  *   POSTGREST_URL  - opsional, default http://127.0.0.1:3001 (docker: http://rest:3000)
  *   STORAGE_DIR    - opsional, default /data/storage
@@ -52,7 +52,7 @@ if (missing.length > 0) {
     `[api-intranet] GAGAL START: env wajib belum diisi -> ${missing.join(", ")}`,
   );
   console.error(
-    `[api-intranet] Buat file supabase/functions/api/.env.local (lihat .env.example) lalu restart.`,
+    `[api-intranet] Buat file server/api/.env.local (lihat .env.example) lalu restart.`,
   );
   if (missing.includes("JWT_SECRET")) {
     console.error(

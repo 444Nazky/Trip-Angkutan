@@ -19,7 +19,7 @@ export const environment = {
   //
   // Kosong = server intranet hanya serves http (default LAN kantor). Isi
   // kalau server port 3000 dijalankan dengan sertifikat TLS (lihat
-  // TLS_CERT_FILE / TLS_KEY_FILE di supabase/functions/api/local_server.ts).
+  // TLS_CERT_FILE / TLS_KEY_FILE di server/api/local_server.ts).
   // Kandidat https ini akan muncul otomatis di layar "Pilih Endpoint".
   //
   // CATATAN: sertifikat self-signed harus DIINSTALL DI PERANGKAT petugas,

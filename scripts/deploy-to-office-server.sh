@@ -80,9 +80,9 @@ RSYNC_ARGS=(-a --delete
   --exclude '.angular/'
   --exclude 'graphify-out/'
   --exclude '.env.local'
-  --exclude 'supabase/functions/api/.env.local'
+  --exclude 'server/api/.env.local'
   --exclude '.env.secrets'
-  --exclude 'supabase/functions/api/.env.secrets'
+  --exclude 'server/api/.env.secrets'
   --exclude '*.apk'
 )
 if [ "$DRY" -eq 1 ]; then
@@ -92,8 +92,8 @@ rsync "${RSYNC_ARGS[@]}" "$SRC_DIR/" "$DST_DIR/"
 echo "    OK"
 
 # ── 4. Pastikan secret untuk API intranet ada ────────────────────────────────
-ENV_LOCAL="$DST_DIR/supabase/functions/api/.env.local"
-ENV_EXAMPLE="$DST_DIR/supabase/functions/api/.env.example"
+ENV_LOCAL="$DST_DIR/server/api/.env.local"
+ENV_EXAMPLE="$DST_DIR/server/api/.env.example"
 echo
 echo "[4/4] Cek env API intranet"
 if [ -f "$ENV_LOCAL" ]; then

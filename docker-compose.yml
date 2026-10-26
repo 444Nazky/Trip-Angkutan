@@ -13,7 +13,7 @@ services:
   # API INTRANET (port 3000) - Edge Function yang sama dengan produksi,
   # dijawab dari jaringan lokal kantor (192.168.1.123).
   #
-  # Env diambil dari supabase/functions/api/.env.local.
+  # Env diambil dari server/api/.env.local.
   # File itu WAJIB ADA (boleh berisi nilai kosong) - restart-all-ubuntu.sh
   # membuatnya otomatis dari .env.example kalau belum ada.
   api-intranet:
@@ -51,16 +51,16 @@ services:
       - "STORAGE_DIR=/data/storage"
       - "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://192.168.1.123:3000}"
     env_file:
-      - supabase/functions/api/.env.local
+      - server/api/.env.local
     # OPSIONAL: sertifikat TLS untuk server intranet.
     #
     # Kalau env TLS_CERT_FILE + TLS_KEY_FILE diisi, server port 3000 serves
     # HTTPS (berguna saat aplikasi dibuka lewat https di browser).
     # Default TIDAK ada mount -> server tetap HTTP polos (default LAN).
     # Untuk mengaktifkan: tambahkan dua baris di bawah ke blok `volumes:`
-    # di atas, lalu taruh file .pem di supabase/functions/api/tls/.
+    # di atas, lalu taruh file .pem di server/api/tls/.
     #
-    #   - ./supabase/functions/api/tls:/etc/trip-tls:ro
+    #   - ./server/api/tls:/etc/trip-tls:ro
 
   # DATABASE LOKAL (PostgreSQL 16).
   #
@@ -83,7 +83,10 @@ services:
       - pgdata:/var/lib/postgresql/data
       # Dijalankan otomatis HANYA saat volume database masih kosong
       # (instalasi pertama).
-      - ./supabase/local/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      # Skema perubahan (ADD COLUMN, indeks, dll) dijalankan setelah skema
+      # utama. Idempoten, jadi aman untuk database yang sudah ada.
+      - ./server/db/migrations:/docker-entrypoint-initdb.d/20-migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trip} -d ${POSTGRES_DB:-trip}"]
       interval: 5s

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { groupOfficerExtras } from '../../supabase/functions/api/_officerExtras'
+import { groupOfficerExtras } from '../../server/api/_officerExtras'
 
 describe('groupOfficerExtras', () => {
   const regionRows = [

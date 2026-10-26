@@ -14,7 +14,7 @@
  *   CLOUD_SUPABASE_URL=https://xxxx.supabase.co \
  *   CLOUD_SERVICE_ROLE_KEY=eyJ... \
  *   STORAGE_DIR=./data/storage \
- *   deno run -A supabase/scripts/migrate_cloud_to_local.ts
+ *   deno run -A scripts/migration/migrate-cloud-to-local.ts
  *
  * Opsi:
  *   DRY_RUN=1       hanya menampilkan jumlah baris/berkas, tidak menulis

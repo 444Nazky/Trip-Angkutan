@@ -5,7 +5,7 @@
 # Build : sudo docker build -f Dockerfile.backend -t trip-angkutan-api .
 # Run   : sudo docker compose up -d api-intranet
 #
-# Env dibaca dari supabase/functions/api/.env.local (lihat .env.example).
+# Env dibaca dari server/api/.env.local (lihat .env.example).
 # File .env.local SENGAJA tidak ikut ke dalam image (lihat .dockerignore) —
 # env disuntikkan saat runtime lewat `env_file` di docker-compose.yml.
 FROM denoland/deno:alpine-2.9.8
@@ -17,7 +17,7 @@ ENV PORT=3000 \
     DENO_NO_UPDATE_CHECK=1 \
     DENO_DIR=/deno-dir
 
-COPY supabase/functions/api/ ./api/
+COPY server/api/ ./api/
 
 # Cache dependency saat build: std/path dari deno.land + npm:bcryptjs.
 # Setelah ini server start TANPA perlu internet (cache sudah baked ke image).

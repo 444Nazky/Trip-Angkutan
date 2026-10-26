@@ -1,6 +1,6 @@
 -- Reset all officer PINs to "123456"
 -- Run this migration via Supabase Dashboard SQL Editor or:
---   supabase db execute -f supabase/scripts/reset_officer_pins.sql
+--   supabase db execute -f server/db/reset-officer-pins.sql
 
 -- The bcrypt hash for "123456" (cost factor 10)
 -- Hash generated with: bcrypt.hashSync('123456', 10)

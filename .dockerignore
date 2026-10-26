@@ -17,12 +17,12 @@ ios
 ota
 # PENTING: folder `supabase` TIDAK boleh di-exclude.
 # Dockerfile.backend (API INTRANET port 3000) memakai
-#   COPY supabase/functions/api/ ./api/
+#   COPY server/api/ ./api/
 # Kalau foldernya di-exclude, build image API intranet GAGAL dengan
 # "COPY failed: file not found in build context".
 # Yang dikecualikan hanya file secret lokal (dikirim lewat env_file saat runtime).
-supabase/functions/api/.env.local
-supabase/functions/api/.env.secrets
+server/api/.env.local
+server/api/.env.secrets
 resources
 data
 *.apk
