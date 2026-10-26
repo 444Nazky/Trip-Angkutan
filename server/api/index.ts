@@ -21,6 +21,7 @@ import * as ofc from "./handlers/officers.ts";
 import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
+import * as imp from "./handlers/import.ts";
 import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
@@ -253,6 +254,9 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "DELETE" && b) return await plt.deletePlate(req, b);
     return notFound();
   }
+
+  // ---------------- impor massal (migrasi sekali jalan) ----------------
+  if (a === "admin" && b === "import" && req.method === "POST") return await imp.importData(req);
 
   // ---------------- app update / OTA ----------------
   if (a === "app-version" && req.method === "GET") return await upd.getAppVersion(req, url);

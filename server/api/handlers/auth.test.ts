@@ -74,13 +74,27 @@ function startFakePostgrest(rows: AdminRow[]): { url: string; rows: AdminRow[]; 
   };
 }
 
-async function loadHandler(postgrestUrl: string) {
+// SATU server tiruan dipakai seluruh pengujian.
+//
+// Alasannya: modul _db.ts membaca POSTGREST_URL saat modul itu sendiri
+// diimpor, dan impor ES hanya dieksekusi sekali. Kalau tiap pengujian
+// membuat server sendiri, semua request akan-Acuan ke server pertama yang
+// dibuat - dan pengujian yang butuh baris kredensial akan selalu melihat
+// tabel kosong.
+const fake = startFakePostgrest([]);
+
+async function loadHandler() {
   // Handler membaca JWT_SECRET saat modul dimuat, jadi env harus di-set
   // SEBELUM import. Impor dinamis dipakai untuk itu.
   Deno.env.set("JWT_SECRET", "secret-untuk-uji");
-  Deno.env.set("POSTGREST_URL", postgrestUrl);
+  Deno.env.set("POSTGREST_URL", fake.url);
   const module = await import("./auth.ts");
   return module as typeof import("./auth.ts");
+}
+
+/** Kosongkan tabel kredensial sebelum pengujian berikutnya. */
+function resetRows(rows: AdminRow[]): void {
+  rows.length = 0;
 }
 
 function loginRequest(username = "admin", password = ""): Request {
@@ -92,12 +106,12 @@ function loginRequest(username = "admin", password = ""): Request {
 }
 
 Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", async () => {
-  const fake = startFakePostgrest([]);
+  resetRows(fake.rows);
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "1");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     const res = await adminLogin(loginRequest());
     assertEquals(res.status, 200);
@@ -105,30 +119,30 @@ Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", a
     assertStringIncludes(String(body.token ?? ""), ".");
     assertEquals(body.admin?.role, "admin");
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
 
 Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async () => {
-  const fake = startFakePostgrest([]);
+  resetRows(fake.rows);
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "1");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     await adminLogin(loginRequest());
     assertEquals(fake.rows.length, 0);
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
 
 Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel kosong", async () => {
-  const fake = startFakePostgrest([]);
+  resetRows(fake.rows);
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     const ok = await adminLogin(loginRequest("admin", "password-bootstrap"));
     assertEquals(ok.status, 200);
@@ -136,35 +150,36 @@ Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel
     const salah = await adminLogin(loginRequest("admin", "password-keliru"));
     assertEquals(salah.status, 401);
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
 
 Deno.test("login admin memberi pesan yang bisa ditindaklanjuti saat kredensial belum diatur", async () => {
-  const fake = startFakePostgrest([]);
+  resetRows(fake.rows);
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     const res = await adminLogin(loginRequest("admin", "apa-saja"));
     assertEquals(res.status, 503);
     const body = await res.json();
     assertStringIncludes(String(body.error), "ADMIN_PASSWORD");
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
 
 Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
   const hash = bcryptjs.hashSync("password-yang-sudah-diubah", 10);
-  const fake = startFakePostgrest([{ id: 1, username: "admin", password: hash }]);
+  resetRows(fake.rows);
+  fake.rows.push({ id: 1, username: "admin", password: hash });
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     const ok = await adminLogin(loginRequest("admin", "password-yang-sudah-diubah"));
     assertEquals(ok.status, 200);
@@ -173,26 +188,25 @@ Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
     const lama = await adminLogin(loginRequest("admin", "password-bootstrap"));
     assertEquals(lama.status, 401);
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
 
 Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
   const hash = bcryptjs.hashSync("password-sama", 10);
-  const fake = startFakePostgrest([
-    { id: 1, username: "admin", password: hash },
-    { id: 2, username: "admin", password: hash },
-  ]);
+  resetRows(fake.rows);
+  fake.rows.push({ id: 1, username: "admin", password: hash });
+  fake.rows.push({ id: 2, username: "admin", password: hash });
   try {
     Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
-    const { adminLogin } = await loadHandler(fake.url);
+    const { adminLogin } = await loadHandler();
 
     const res = await adminLogin(loginRequest("admin", "password-sama"));
     assertEquals(res.status, 200);
     assertEquals(fake.rows.length, 1);
   } finally {
-    fake.close();
+    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
