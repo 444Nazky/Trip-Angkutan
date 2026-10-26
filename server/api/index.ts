@@ -218,7 +218,7 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // ---------------- /region-tariffs ----------------
   if (a === "region-tariffs") {
     if (req.method === "GET" && !b) return await rt.getRegionTariffs(req);
-    if (req.method === "PUT" && b) return await rt.updateRegionTariff(req, b);
+    if (req.method === "PUT" && b) return await rt.updateRegionTariff(req, b, url);
     return notFound();
   }
 

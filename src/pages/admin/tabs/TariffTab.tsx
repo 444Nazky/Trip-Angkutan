@@ -313,10 +313,11 @@ function GolonganSheet({
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regionList, setRegionList] = useState<AdminRegionRow[]>([])
   const [lokalNotus, setLokalTarif] = useState<Record<string, LokalTarif>>({})
-  const [panelRegionId, setPanelRegionId] = useState('')  const [addOpen, setAddOpen] = useState(false)
+  const [panelRegionId, setPanelRegionId] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
-  const [regionFormOpen, setRegionFormOpen] = useState(false)
   const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
+  const [regionFormOpen, setRegionFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const ingestRegionTariffs = useCallback((rows: Awaited<ReturnType<typeof fetchRegionTariffs>>) => {
@@ -374,12 +375,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     [regionList, panelRegionId, badauRegion],
   )
 
-  /** Region yang sedang dipilih untuk panel kanan (bisa diganti). */
-  const selectedPanelRegion = useMemo(
-    () => regionList.find((r) => r.id === panelRegionId) ?? panelRegion ?? null,
-    [regionList, panelRegionId, panelRegion],
-  )
-
   /** Baris master diurut sesuai sketsa: motor .. truk besar. */
   const sortedRows = useMemo(
     () =>
@@ -395,7 +390,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   // ── Aksi commit: autosave per sel ────────────────────────────────────────
 
   /** Simpan nominal lokal (tarif wilayah) untuk satu region. */
-  const commitLokalFor = async (region: Region | null, v: number): Promise<boolean> => {
+  const commitLokalFor = async (region: AdminRegionRow | null, v: number): Promise<boolean> => {
     if (!region) {
       showToast('Region belum tersedia', 'error')
       return false
@@ -460,26 +455,18 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
   }
 
+  /**
+   * Ubah nama region.
+   *
+   * Endpoint region (PUT /regions/:id) yang dipakai, bukan endpoint tarif.
+   * Mengirim id region ke endpoint tarif akan mengubah baris tarif lain.
+   */
   const handleEditRegionName = async (r: AdminRegionRow, name: string) => {
     const trimmed = name.trim()
-    if (!trimmed) return
+    if (!trimmed || trimmed === r.name) return
     setSaving(true)
     try {
-      await refreshRegionList()
-      const updated = await fetchAdminRegions()
-      if (!updated) return
-      const target = updated.find(x => String(x.id) === String(r.id))
-      if (!target) return
-      const ok = await updateTariff({
-        id: r.id,
-        golongan: '',
-        type: '',
-        loaded: '',
-        loadedNum: 0,
-        empty: '',
-        emptyNum: 0,
-        desc: '',
-      } as TariffRow)
+      const ok = await updateAdminRegion(r.id, { name: trimmed })
       if (!ok) { showToast('Gagal memperbarui region', 'error'); return }
       await refreshRegionList()
       showToast('Nama region berhasil diperbarui')
@@ -543,21 +530,35 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     return GOLONGAN_OPTIONS.find((g) => !used.has(g)) ?? 'I'
   }
 
-  const handleUpdateRegionName = async (r: AdminRegionRow, name: string) => {
-    if (!name || !name.trim()) return
+  /** Simpan baris master tarif baru (kolom muatan/kosong per golongan). */
+  const submitAdd = async () => {
+    const type = addForm.type.trim()
+    const golongan = addForm.golongan.trim().toUpperCase() || nextGolongan()
+    const muatan = Number(addForm.muatan.replace(/[^\d]/g, '')) || 0
+    const kosong = Number(addForm.kosong.replace(/[^\d]/g, '')) || 0
+    if (!type) {
+      showToast('Jenis kendaraan wajib diisi', 'error')
+      return
+    }
     setSaving(true)
     try {
-      const r2 = await fetchAdminRegions()
-      if (!r2) return
-      const target = r2.find(x => String(x.id) === String(r.id))
-      if (!target) return
-      const ok = await updateTariff({ id: r.id, golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' } as TariffRow)
-      if (!ok) {
-        showToast('Gagal memperbarui region', 'error')
+      const id = await createTariff({
+        golongan,
+        type,
+        loaded: fmtRp(muatan),
+        loadedNum: muatan,
+        empty: fmtRp(kosong),
+        emptyNum: kosong,
+        desc: '',
+      })
+      if (!id) {
+        showToast('Server menolak tarif baru', 'error')
         return
       }
-      await refreshRegionList()
-      showToast('Nama region berhasil diperbarui')
+      await refreshMasterRows()
+      setAddOpen(false)
+      setAddForm({ golongan: '', type: '', muatan: '', kosong: '' })
+      showToast('Baris golongan ditambahkan')
     } finally {
       setSaving(false)
     }
@@ -571,27 +572,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   const cancelRegionForm = () => {
     setRegionFormOpen(false)
     setRegionForm({ name: '', code: '' })
-  }
-
-  /** Simpan region edit (nama). */
-  const handleEditRegionName = async (r: AdminRegionRow, name: string) => {
-    if (!name || !name.trim()) return
-    setSaving(true)
-    try {
-      const r2 = await fetchAdminRegions()
-      if (!r2) return
-      const target = r2.find(x => String(x.id) === String(r.id))
-      if (!target) return
-      const ok = await updateTariff({ id: r.id, golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' } as TariffRow)
-      if (!ok) {
-        showToast('Gagal memperbarui region', 'error')
-        return
-      }
-      await refreshRegionList()
-      showToast('Nama region berhasil diperbarui')
-    } finally {
-      setSaving(false)
-    }
   }
 
   /** Nominal lokal tampil per tabel (BADAU vs REGION). */
@@ -754,32 +734,33 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                 </option>
               ))}
             </select>
-          }              rows={sortedRows}
-              placeholdersExternal
-              getLokal={() => lokalOf(panelRegion)}
-              commitLokal={(v) => commitLokalFor(panelRegion, v)}
-              commitMuatan={async () => false}
-              commitKosong={async () => false}
-              onDelete={handleDelete}
-              footer={
-                <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-2">
-                  <button
-                    onClick={showRegionForm}
-                    disabled={saving}
-                    className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
-                  >
-                    + region baru
-                  </button>
-                  <button
-                    onClick={() => panelRegion && handleDeleteRegion(panelRegion)}
-                    disabled={!panelRegion || saving}
-                    className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                  >
-                    hapus region
-                  </button>
-                </div>
-              }
-            />
+          }
+          rows={sortedRows}
+          placeholdersExternal
+          getLokal={() => lokalOf(panelRegion)}
+          commitLokal={(v) => commitLokalFor(panelRegion, v)}
+          commitMuatan={async () => false}
+          commitKosong={async () => false}
+          onDelete={handleDelete}
+          footer={
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-3 py-2">
+              <button
+                onClick={showRegionForm}
+                disabled={saving}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
+              >
+                + region baru
+              </button>
+              <button
+                onClick={() => panelRegion && handleDeleteRegion(panelRegion)}
+                disabled={!panelRegion || saving}
+                className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+              >
+                hapus region
+              </button>
+            </div>
+          }
+        />
       </div>
 
       {/* Keterangan singkat */}

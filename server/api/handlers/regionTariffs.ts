@@ -40,6 +40,7 @@ export async function updateRegionTariff(req: Request, regionId: string): Promis
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
+    if (!ctx?.region_id) return json({ error: "Admin region context required" }, 403);
 
     const { tariffType, nominalTariff, isActive } = await req.json().catch(() => ({})) as any;
     if (!["lokal", "eksternal"].includes(tariffType)) {
@@ -47,33 +48,31 @@ export async function updateRegionTariff(req: Request, regionId: string): Promis
     }
 
     const { data: region } = await db.from("regions").select("id").eq("id", regionId).limit(1);
-    if (!region || !region?.length) return json({ error: "Region not found" }, 404);
+    if (!region || !Array.isArray(region || []) || region.length === 0) return json({ error: "Region not found" }, 404);
 
-    const { data: existing } = await db
+    const existing = (await db
       .from("region_tariffs")
       .select("id")
       .eq("region_id", regionId)
       .eq("tariff_type", tariffType)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle()) as { id: string } | null;
 
     const nominal = Number.isFinite(Number(nominalTariff)) ? Number(nominalTariff) : 0;
-    const active = isActive === undefined ? 1 : (isActive ? 1 : 0);
+    const active = isActive === undefined ? 1 : (isActive ? 1 : 0);      if (existing) {
+        const { data: upd } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id).select("id").limit(1);
+        if (!upd || !upd.length) return json({ error: "Region tariff update failed" }, 500);
+        return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
+      }
 
-    if (existing) {
-      const { error: err } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id);
-      if (err) throw err;
-      return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
-    }
-
-    const { error: err2 } = await db.from("region_tariffs").insert({
+      const { data: ins, error: insertErr } = await db.from("region_tariffs").insert({
       id: `${regionId}:${tariffType}`,
       region_id: regionId,
       tariff_type: tariffType,
       nominal_tariff: nominal,
       is_active: active,
     });
-    if (err2) throw err2;
+    if (insertErr) return json({ error: "Region tariff creation failed" }, 500);
 
     return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
   } catch (error) {
