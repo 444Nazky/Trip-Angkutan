@@ -82,6 +82,70 @@ if (Deno.env.get("ADMIN_AUTH_DISABLED") === undefined) {
   Deno.env.set("ADMIN_AUTH_DISABLED", "1");
 }
 
+// ── Pre-flight: direktori penyimpanan berkas ─────────────────────────────────
+//
+// Server menyimpan berkas (foto trip, APK, bundel OTA) di STORAGE_DIR, yang di
+// dalam container berupa bind-mount dari host (`./data/storage`).
+//
+// Dua hal bisa menggagalkan penulisan berkas:
+//
+//   1. Direktori tidak ada sama sekali -> `mkdir` gagal.
+//   2. Direktori ada tapi dimiliki user lain. Ini kasus yang paling sering
+//      terjadi: container berjalan sebagai user non-root `deno` (uid 1000),
+//      sedangkan direktori di host dibuat oleh `docker` sebagai root dengan
+//      mode 755. User `deno` lalu tidak boleh menulis di dalamnya.
+//
+// Gejalanya: SEMUA unggahan berkas gagal dengan "Permission denied
+// (os error 13)", termasuk unggahan foto trip dari aplikasi petugas, yang
+// berakhir sebagai HTTP 500 dari /trips/complete. Galat itu muncul jauh dari
+// penyebabnya, jadiukar dihentikan di sini dengan pesan yang menyebutkan
+// perbaikannya.
+//
+// Perbaikan: pastikan direktori ada dan bisa ditulis. Kalau tidak bisa
+// ditulis, server tetap jalan (endpoint lain tetap berfungsi) tetapi
+///storage menandai kondisi ini supaya operator tahu apa yang harus dibetulkan.
+
+const STORAGE_DIR = Deno.env.get("STORAGE_DIR") || "/data/storage";
+
+async function prepareStorageDir(): Promise<boolean> {
+  try {
+    await Deno.mkdir(STORAGE_DIR, { recursive: true });
+  } catch (error) {
+    console.error(
+      `[api-intranet] PERINGATAN: direktori penyimpanan ${STORAGE_DIR} tidak bisa dibuat: ` +
+        `${error instanceof Error ? error.message : error}`,
+    );
+    return false;
+  }
+
+  // Uji tulis nyata. Akses directory (stat/mkdir) bisa succeeds sementara
+  // file di dalamnya tetap tidak bisa ditulis, jadi yang diuji adalah
+  // menulis file sungguhan.
+  const probe = join(STORAGE_DIR, ".write-probe");
+  try {
+    await Deno.writeFile(probe, new Uint8Array([0]));
+    await Deno.remove(probe);
+    return true;
+  } catch (error) {
+    console.error(
+      `[api-intranet] PERINGATAN: direktori penyimpanan ${STORAGE_DIR} tidak bisa ditulis: ` +
+        `${error instanceof Error ? error.message : error}`,
+    );
+    console.error(
+      `[api-intranet] Unggahan foto trip, APK, dan bundel OTA AKAN GAGAL sampai ini diperbaiki.`,
+    );
+    console.error(
+      `[api-intranet] Perbaikan di PC kantor: sudo chown -R 1000:1000 <folder>/data/storage`,
+    );
+    console.error(
+      `[api-intranet] (1000 = uid user 'deno' di dalam container), lalu jalankan ./restart-all-ubuntu.sh`,
+    );
+    return false;
+  }
+}
+
+const STORAGE_READY = await prepareStorageDir();
+
 // ── Import router utama ───────────────────────────────────────────────────────
 
 const { handleRequest } = await import("./index.ts");

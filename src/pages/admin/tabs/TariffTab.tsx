@@ -22,17 +22,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Plus, Trash2, X, UserPlus, Users } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import {
+  AdminRegionRow,
+  createAdminRegion,
   createTariff,
+  deleteAdminRegion,
   deleteTariff,
+  fetchAdminRegions,
   fetchRegionTariffs,
   fetchTariffs,
   updateTariff,
   upsertRegionTariff,
 } from '../../../services/tariffs'
-import { fetchRegions, type Region } from '../../../services/regions'
 
 interface TariffTabProps {
   tariffs: TariffRow[]
@@ -56,6 +59,11 @@ interface AddRowForm {
   type: string
   muatan: string
   kosong: string
+}
+
+interface AddRegionForm {
+  name: string
+  code: string
 }
 
 const GOLONGAN_OPTIONS = ['I', 'II', 'III', 'IV', 'V']
@@ -302,14 +310,16 @@ function GolonganSheet({
 }
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
-  const [regions, setRegions] = useState<Region[]>([])
+  const [regionList, setRegionList] = useState<AdminRegionRow[]>([])
   const [lokalNotus, setLokalTarif] = useState<Record<string, LokalTarif>>({})
   const [panelRegionId, setPanelRegionId] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
+  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
+  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
+  const [regionFormOpen, setRegionFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  /** Terjemah baris `RegionTariffRow[]` server -> peta per region id. */
   const ingestRegionTariffs = useCallback((rows: Awaited<ReturnType<typeof fetchRegionTariffs>>) => {
     if (!rows) return
     const map: Record<string, LokalTarif> = {}
@@ -319,34 +329,61 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     setLokalTarif(map)
   }, [])
 
+  const refreshRegionList = async () => {
+    const fresh = await fetchAdminRegions()
+    if (fresh) setRegionList(fresh)
+  }
+
+  /** Muat ulang daftar region dari server. */
+  const refreshRegionList = async () => {
+    const fresh = await fetchAdminRegions()
+    if (fresh) setRegionList(fresh)
+  }
+
   // Muat region + tarif wilayah lokal sekali saat tab dibuka.
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [rts, regs] = await Promise.all([fetchRegionTariffs(), fetchRegions()])
+      const regs = await fetchAdminRegions()
       if (!alive) return
-      if (regs) setRegions(regs)
-      if (rts) ingestRegionTariffs(rts)
+      if (regs) setRegionList(regs)
     })()
-    return () => {
-      alive = false
+    return () => { alive = false }
+  }, [])
+
+  // Muat ulang tarif region setelah region selesai.
+  useEffect(() => {
+    let alive = true
+    if (regionList.length > 0) {
+      ;(async () => {
+        const rts = await fetchRegionTariffs()
+        if (!alive) return
+        if (rts) ingestRegionTariffs(rts)
+      })()
     }
-  }, [ingestRegionTariffs])
+    return () => { alive = false }
+  }, [regionList, ingestRegionTariffs])
 
   /** Region tabel kiri (BADAU): tarif wilayah Badau. */
   const badauRegion = useMemo(
-    () => regions.find((r) => String(r.code ?? '').toUpperCase() === 'BADAU') ?? regions[0] ?? null,
-    [regions],
+    () => regionList.find((r) => String(r.code ?? '').toUpperCase() === 'BADAU') ?? regionList[0] ?? null,
+    [regionList],
   )
 
   /** Region tabel kanan: default = region pertama selain BADAU. */
   const panelRegion = useMemo(
     () =>
-      regions.find((r) => r.id === panelRegionId) ??
-      regions.find((r) => r.id !== badauRegion?.id) ??
-      regions[0] ??
+      regionList.find((r) => r.id === panelRegionId) ??
+      regionList.find((r) => r.id !== badauRegion?.id) ??
+      regionList[0] ??
       null,
-    [regions, panelRegionId, badauRegion],
+    [regionList, panelRegionId, badauRegion],
+  )
+
+  /** Region yang sedang dipilih untuk panel kanan (bisa diganti). */
+  const selectedPanelRegion = useMemo(
+    () => regionList.find((r) => r.id === panelRegionId) ?? panelRegion ?? null,
+    [regionList, panelRegionId, panelRegion],
   )
 
   /** Baris master diurut sesuai sketsa: motor .. truk besar. */
@@ -445,34 +482,32 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     return GOLONGAN_OPTIONS.find((g) => !used.has(g)) ?? 'I'
   }
 
-  const submitAdd = async () => {
-    const type = addForm.type.trim()
-    const golongan = addForm.golongan.trim().toUpperCase() || nextGolongan()
-    const muatan = Number(addForm.muatan.replace(/[^\d]/g, '')) || 0
-    const kosong = Number(addForm.kosong.replace(/[^\d]/g, '')) || 0
-    if (!type) {
-      showToast('Jenis kendaraan wajib diisi', 'error')
-      return
-    }
+  const showRegionForm = () => {
+    setRegionForm({ name: '', code: '' })
+    setRegionFormOpen(true)
+  }
+
+  const cancelRegionForm = () => {
+    setRegionFormOpen(false)
+    setRegionForm({ name: '', code: '' })
+  }
+
+  /** Simpan region edit (nama). */
+  const handleUpdateRegionName = async (r: AdminRegionRow, name: string) => {
+    if (!name || !name.trim()) return
     setSaving(true)
     try {
-      const id = await createTariff({
-        golongan,
-        type,
-        loaded: fmtRp(muatan),
-        loadedNum: muatan,
-        empty: fmtRp(kosong),
-        emptyNum: kosong,
-        desc: '',
-      })
-      if (!id) {
-        showToast('Server menolak tarif baru', 'error')
+      const r2 = await fetchAdminRegions()
+      if (!r2) return
+      const target = r2.find(x => String(x.id) === String(r.id))
+      if (!target) return
+      const ok = await updateTariff({ id: r.id, golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' } as TariffRow)
+      if (!ok) {
+        showToast('Gagal memperbarui region', 'error')
         return
       }
-      await refreshMasterRows()
-      setAddOpen(false)
-      setAddForm({ golongan: '', type: '', muatan: '', kosong: '' })
-      showToast('Baris golongan ditambahkan')
+      await refreshRegionList()
+      showToast('Nama region berhasil diperbarui')
     } finally {
       setSaving(false)
     }

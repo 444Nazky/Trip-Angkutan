@@ -1,8 +1,6 @@
 import { api } from './api'
 import type { TariffRow } from '../pages/admin/components/types'
 
-
-
 export interface ServerTariff {
   id: string
   golongan: string
@@ -12,8 +10,6 @@ export interface ServerTariff {
   description?: string
   is_active: number
 }
-
-
 
 export interface RegionTariffRow {
   id: string
@@ -25,13 +21,9 @@ export interface RegionTariffRow {
   eksternal_active: number | null
 }
 
-
-
 function fmtRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
-
-
 
 function toRow(s: ServerTariff): TariffRow {
   return {
@@ -46,8 +38,6 @@ function toRow(s: ServerTariff): TariffRow {
   }
 }
 
-
-
 function toPayload(row: TariffRow) {
   return {
     golongan: row.golongan,
@@ -58,21 +48,15 @@ function toPayload(row: TariffRow) {
   }
 }
 
-
-
 export async function fetchTariffs(): Promise<TariffRow[] | null> {
   const rows = await api.getOk<ServerTariff[]>('/tariffs')
   return rows ? rows.map(toRow) : null
 }
 
-
-
 export async function createTariff(row: TariffRow): Promise<string | null> {
   const res = await api.post<{ id: string }>('/tariffs', toPayload(row))
   return res.ok && res.data ? res.data.id : null
 }
-
-
 
 export async function updateTariff(row: TariffRow): Promise<boolean> {
   if (!row.id) return false
@@ -80,21 +64,15 @@ export async function updateTariff(row: TariffRow): Promise<boolean> {
   return r.ok
 }
 
-
-
 export async function deleteTariff(row: TariffRow): Promise<boolean> {
   if (!row.id) return false
   const r = await api.delete(`/tariffs/${row.id}`)
   return r.ok
 }
 
-
-
 export async function fetchRegionTariffs(): Promise<RegionTariffRow[] | null> {
   return api.getOk<RegionTariffRow[]>('/region-tariffs')
 }
-
-
 
 export async function upsertRegionTariff(input: {
   regionId: string
@@ -107,4 +85,37 @@ export async function upsertRegionTariff(input: {
     [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
   })
   return r.ok
+}
+
+export async function upsertRegionTariffDirect(input: {
+  regionId: string
+  tariffType: 'lokal' | 'eksternal'
+  nominal: number
+  aktif: boolean
+}): Promise<boolean> {
+  const r = await api.put(`/region-tariffs/${input.regionId}`, {
+    [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
+    [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
+  })
+  return r.ok
+}
+
+export async function fetchAdminRegions(): Promise<AdminRegionRow[] | null> {
+  return api.getOk<AdminRegionRow[]>('/regions')
+}
+
+export async function createAdminRegion(input: { name: string; code: string }): Promise<string | null> {
+  const res = await api.post<{ id: string }>('/regions', input)
+  return res.ok && res.data ? res.data.id : null
+}
+
+export async function deleteAdminRegion(id: string): Promise<boolean> {
+  const r = await api.delete(`/regions/${id}`)
+  return r.ok
+}
+
+export interface AdminRegionRow {
+  id: string
+  name: string
+  code: string
 }
