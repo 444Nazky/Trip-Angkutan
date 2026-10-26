@@ -97,6 +97,23 @@ async function publicUrl(bucket: string, path: string): Promise<string> {
   return data.publicUrl;
 }
 
+/**
+ * Pesan galat yang bisa ditindaklanjuti saat unggahan berkas gagal.
+ *
+ * Kegagalan paling sering di kantor adalah direktori penyimpanan tidak
+ * bisa ditulis (kepemilikan salah di host). Tanpa penerjemahan ini, petugas
+ * hanya melihat "gagal menyimpan" tanpa tahu harus minta apa ke operator.
+ */
+function storageErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (/permission denied|EACCES|os error 13/i.test(raw)) {
+    return "Server tidak bisa menyimpan berkas. Operator perlu memperbaiki " +
+      "kepemilikan folder penyimpanan di PC kantor " +
+      "(sudo chown -R 1000:1000 data/storage).";
+  }
+  return "Server gagal menyimpan berkas: " + raw;
+}
+
 async function storePhoto(file: File): Promise<string> {
   const ext = EXT_BY_TYPE[file.type] || ".jpg";
   const path = `${crypto.randomUUID()}${ext}`;
@@ -105,7 +122,7 @@ async function storePhoto(file: File): Promise<string> {
     contentType: file.type,
     upsert: false,
   });
-  if (error) throw error;
+  if (error) throw new Error(storageErrorMessage(error));
   return await publicUrl("trip-photos", path);
 }
 
@@ -309,6 +326,13 @@ export async function completeTrip(req: Request): Promise<Response> {
     return json({ id: tripId, noTrip }, 201);
   } catch (error) {
     console.error("Complete trip submission error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    // Galat penyimpanan berkas punya penyebab yang jelas dan bisa diperbaiki
+    // operator, jadi pesannya diteruskan apa adanya. Galat lain disamarkan
+    // supaya detail internal server tidak bocor ke perangkat petugas.
+    if (/tidak bisa menyimpan berkas|tidak bisa ditulis/i.test(message)) {
+      return json({ error: message }, 500);
+    }
     return json({ error: "Failed to submit complete trip documentation" }, 500);
   }
 }

@@ -27,6 +27,7 @@ export async function createRegion(req: Request): Promise<Response> {
     const { name, code } = await req.json().catch(() => ({})) as any;
     const { data, error } = await db.from("regions").insert({ name, code }).select().single();
     if (error) throw error;
+    invalidateTariffCache();
     return json(data, 201);
   } catch (error) {
     console.error("Create region error:", error);
@@ -45,6 +46,7 @@ export async function updateRegion(req: Request, id: string): Promise<Response> 
     if (b.password !== undefined) updateData.password = b.password;
     const { error } = await db.from("regions").update(updateData).eq("id", id);
     if (error) throw error;
+    invalidateTariffCache();
     return json({ success: true });
   } catch (error) {
     console.error("Update region error:", error);

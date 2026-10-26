@@ -257,6 +257,35 @@ else
     bad "build image API intranet gagal - cek log di atas."
 fi
 
+# ── Direktori penyimpanan berkas ──────────────────────────────────────────────
+#
+# Berkas (foto trip, APK, bundel OTA) disimpan di ./data/storage yang di-mount
+# ke container API lewat bind-mount.
+#
+# Container API berjalan sebagai user non-root `deno` (uid 1000 di dalam
+# image). Kalau direktori di host dibuat oleh `docker` sebagai root dengan
+# mode 755, user `deno` TIDAK boleh menulis di dalamnya. Akibatnya SEMUA
+# unggahan berkas gagal dengan "Permission denied (os error 13)" - termasuk
+# foto trip dari aplikasi petugas, yang muncul sebagai HTTP 500 dari
+# /trips/complete.
+#
+# Jadi direktori dibuat lebih dulu di host, lalu dimiliki uid 1000 supaya
+# cocok dengan user `deno` di dalam container. `chown` diulang setiap restart
+# supaya tetap berlaku walaupun volumenya pernah diganti.
+
+echo "[*] Menyiapkan direktori penyimpanan berkas..."
+STORAGE_DIR="$BASE/data/storage"
+mkdir -p "$STORAGE_DIR" 2>/dev/null
+# `--user root` wajib: image berjalan sebagai user `deno`, dan user `deno`
+# tidak punya hak untuk mengganti kepemilikan berkas.
+if $DOCKER run --rm --user root -v "$STORAGE_DIR:/probe" --entrypoint sh trip-angkut-api -c \
+        "chown -R deno:deno /probe" > /dev/null 2>&1; then
+    ok
+else
+    warn "Gagal menyiapkan kepemilikan $STORAGE_DIR - unggahan berkas bisa gagal."
+    warn "  Perbaikan manual: sudo chown -R 1000:1000 $STORAGE_DIR"
+fi
+
 # ── Jalankan / restart container ──────────────────────────────────────────────
 
 echo "[*] Membersihkan container lama..."

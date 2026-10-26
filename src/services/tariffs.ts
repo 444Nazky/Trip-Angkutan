@@ -84,7 +84,16 @@ export async function upsertRegionTariff(input: {
     [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
     [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
   })
-  return r.ok
+  if (!r.ok) return false
+  const rows = await api.getOk<RegionTariffRow[]>('/region-tariffs')
+  if (!rows) return true
+  return true
+}
+
+export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionTariffRow | null> {
+  const rows = await api.getOk<RegionTariffRow[]>('/region-tariffs')
+  if (!rows) return null
+  return rows.find(r => String(r.id) === String(regionId)) ?? null
 }
 
 export async function upsertRegionTariffDirect(input: {
@@ -107,6 +116,21 @@ export async function fetchAdminRegions(): Promise<AdminRegionRow[] | null> {
 export async function createAdminRegion(input: { name: string; code: string }): Promise<string | null> {
   const res = await api.post<{ id: string }>('/regions', input)
   return res.ok && res.data ? res.data.id : null
+}
+
+/**
+ * Ubah nama/kode sebuah region.
+ *
+ * Memakai endpoint region (PUT /regions/:id), BUKAN endpoint tarif. Region
+ * dan tarif adalah dua tabel berbeda; mengirim id region ke endpoint tarif
+ * akan mengubah baris tarif yang kebetulan memakai id tersebut.
+ */
+export async function updateAdminRegion(
+  id: string,
+  input: { name?: string; code?: string },
+): Promise<boolean> {
+  const r = await api.put(`/regions/${id}`, input)
+  return r.ok
 }
 
 export async function deleteAdminRegion(id: string): Promise<boolean> {

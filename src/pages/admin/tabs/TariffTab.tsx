@@ -312,8 +312,7 @@ function GolonganSheet({
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regionList, setRegionList] = useState<AdminRegionRow[]>([])
   const [lokalNotus, setLokalTarif] = useState<Record<string, LokalTarif>>({})
-  const [panelRegionId, setPanelRegionId] = useState('')
-  const [addOpen, setAddOpen] = useState(false)
+  const [panelRegionId, setPanelRegionId] = useState('')  const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
   const [regionFormOpen, setRegionFormOpen] = useState(false)
   const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
@@ -579,7 +578,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   }
 
   /** Simpan region edit (nama). */
-  const handleUpdateRegionName = async (r: AdminRegionRow, name: string) => {
+  const handleEditRegionName = async (r: AdminRegionRow, name: string) => {
     if (!name || !name.trim()) return
     setSaving(true)
     try {
@@ -752,22 +751,39 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               title="Pilih region untuk panel ini"
               className="max-w-[220px] truncate rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] font-semibold text-slate-600 outline-none hover:border-slate-300"
             >
-              {regions.length === 0 && <option value="">—</option>}
-              {regions.map((r) => (
+              {regionList.length === 0 && <option value="">—</option>}
+              {regionList.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.code} — {r.name}
                 </option>
               ))}
             </select>
-          }
-          rows={sortedRows}
-          placeholdersExternal
-          getLokal={() => lokalOf(panelRegion)}
-          commitLokal={(v) => commitLokalFor(panelRegion, v)}
-          commitMuatan={async () => false}
-          commitKosong={async () => false}
-          onDelete={handleDelete}
-        />
+          }              rows={sortedRows}
+              placeholdersExternal
+              getLokal={() => lokalOf(panelRegion)}
+              commitLokal={(v) => commitLokalFor(panelRegion, v)}
+              commitMuatan={async () => false}
+              commitKosong={async () => false}
+              onDelete={handleDelete}
+              footer={
+                <div className="flex items-center justify-end gap-2 border-t border-slate-200 p-2">
+                  <button
+                    onClick={showRegionForm}
+                    disabled={saving}
+                    className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
+                  >
+                    + region baru
+                  </button>
+                  <button
+                    onClick={() => panelRegion && handleDeleteRegion(panelRegion)}
+                    disabled={!panelRegion || saving}
+                    className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                  >
+                    hapus region
+                  </button>
+                </div>
+              }
+            />
       </div>
 
       {/* Keterangan singkat */}
