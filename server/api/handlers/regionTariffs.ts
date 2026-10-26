@@ -59,7 +59,9 @@ export async function updateRegionTariff(req: Request, regionId: string): Promis
       .maybeSingle()) as { id: string } | null;
 
     const nominal = Number.isFinite(Number(nominalTariff)) ? Number(nominalTariff) : 0;
-    const active = isActive === undefined ? 1 : (isActive ? 1 : 0);      if (existing) {
+    const active = isActive === undefined ? 1 : (isActive ? 1 : 0);
+
+    if (existing) {
         const { data: upd } = await db.from("region_tariffs").update({ nominal_tariff: nominal, is_active: active }).eq("id", existing.id).select("id").limit(1);
         if (!upd || !upd.length) return json({ error: "Region tariff update failed" }, 500);
         return json({ success: true, regionId, tariffType, nominalTariff: nominal, isActive: active });
