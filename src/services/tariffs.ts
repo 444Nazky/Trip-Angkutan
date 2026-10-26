@@ -102,9 +102,13 @@ export async function upsertRegionTariff(input: {
   nominal: number
   aktif: boolean
 }): Promise<boolean> {
+  // Handler updateRegionTariff membaca `tariffType`, `nominalTariff`,
+  // `isActive` (camelCase) — kirim `lokal_tariff`/`lokal_active` akan
+  // ditolak 400 ("tariffType harus 'lokal' atau 'eksternal'").
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
-    [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
-    [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
+    tariffType: input.tariffType,
+    nominalTariff: input.nominal,
+    isActive: input.aktif,
   })
   return r.ok
 }
