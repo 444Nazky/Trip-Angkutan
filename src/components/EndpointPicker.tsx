@@ -115,7 +115,7 @@ export default function EndpointPicker({ onApplied, withHeader = true }: Props) 
         <div>
           <h3 className="text-lg font-bold text-slate-800 mb-1">Pilih Endpoint</h3>
           <p className="text-xs text-slate-500">
-            Tentukan server mana yang dipakai aplikasi: Supabase (cloud, butuh internet) atau Intranet kantor (LAN).
+            Alamat server intranet kantor yang dipakai aplikasi. Tidak ada endpoint cloud.
           </p>
         </div>
       )}
@@ -207,8 +207,8 @@ export default function EndpointPicker({ onApplied, withHeader = true }: Props) 
       </div>
 
       <p className="text-[10px] leading-relaxed text-slate-400">
-        Antrian data offline tetap tersimpan dan dikirim ke endpoint yang sedang aktif. Kalau server intranet
-        tidak bisa dihubungi, pindah kembali ke Supabase (Cloud).
+        Antrian data offline tetap tersimpan dan dikirim ke endpoint yang sedang aktif setelah server
+        intranet bisa dihubungi kembali.
       </p>
     </div>
   )

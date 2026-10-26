@@ -35,8 +35,8 @@ if (!globalThis.crypto?.subtle) {
 
 /** Harus sama dengan URL yang dipakai ota.ts: manifest dari endpoint aktif, aset dari bucket publik. */
 const MANIFEST_URL = `${resolveApiBaseUrl()}/ota-manifest`
-/** Basis aset diambil dari ota.ts sendiri: SELALU origin Supabase cloud, bukan endpoint aktif
- *  (dengan default intranet :3000, origin endpoint ≠ origin storage → aset 404 di tes). */
+/** Basis aset diambil dari ota.ts sendiri: server intranet yang sama dengan
+ *  manifest, pada path /files/ota/. */
 const ASSETS_BASE = otaAssetsBase()
 
 const h = vi.hoisted(() => ({

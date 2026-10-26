@@ -270,10 +270,9 @@ export async function prefetchTariffs(): Promise<TariffInfo[]> {
  *
  * Interval 30 menit, bukan 5 menit: satu siklus prefetch = 4-5 request
  * (rute + geofence per dermaga + tarif + daftar petugas). Pada 5 menit itu
- * ~1.440 request/hari per perangkat — padahal kuota free plan Supabase hanya
- * 500.000 invocations edge function per bulan untuk SELURUH proyek.
- * Sebagai jaring pengaman, 30 menit cukup: setiap kali aplikasi dibuka ulang
- * (appStateChange) master data tetap ditarik paksa.
+ * ~1.440 request/hari per perangkat, sementara data master hampir tidak
+ * berubah dalam rentang itu. Sebagai jaring pengaman, 30 menit cukup: setiap
+ * kali aplikasi dibuka ulang (appStateChange) master data tetap ditarik paksa.
  */
 const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000
 let _autoSyncTimer: ReturnType<typeof setInterval> | null = null

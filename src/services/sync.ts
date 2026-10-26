@@ -887,9 +887,8 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
     // DULU probeServer() dipanggil paling dulu, sehingga setiap perangkat
     // yang idle tetap menembak GET /health tiap 20 detik (PING_TTL_MS hanya
     // 2,5 detik, jadi cache pings-nya selalu kedaluwarsa). Itu 4.320
-    // invocations edge function per hari per perangkat, padahal tidak ada
-    // satu byte pun yang perlu dikirim. Di free plan Supabase (500.000
-    // invocations/bulan) ini dengan sendirinya menghabiskan kuota.
+    // request per hari per perangkat, padahal tidak ada satu byte pun yang
+    // perlu dikirim. Sekarang server tidak disentuh selama antrean kosong.
     const items = await readQueue()
     _queueCache = items
     if (items.length === 0) {

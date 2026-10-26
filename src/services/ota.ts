@@ -3,7 +3,7 @@ import { Device } from '@capacitor/device'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
 import { isDevMode } from './runtimeEnv'
-import { api, supabaseProjectOrigin } from './api'
+import { api } from './api'
 
 
 /**
@@ -22,22 +22,18 @@ export function isLocalhostDev(): boolean {
 
 
 
-// Manifest & berkas modul kini dilayani server API sendiri (/api/v1/ota-manifest
-// dan /ota/<versi>/...), sehingga penerbitan tidak lagi bergantung repo GitHub.
-// Semua hit ke Edge Function lewat api.baseUrl (…/functions/v1/api)
+// Manifest & berkas modul dilayani server API intranet sendiri
+// (/api/ota-manifest dan /files/ota/<versi>/...), sehingga penerbitan tidak
+// bergantung layanan di internet.
 function manifestUrl(): string {
   return `${api.baseUrl}/ota-manifest`
 }
 
 export function otaAssetsBase(): string {
-  // Berkas bundel disimpan di Supabase Storage bucket publik "ota".
-  //
-  // Hostnya SELALU project Supabase cloud, bukan endpoint API yang sedang
-  // aktif. Kalau origin diambil dari `api.baseUrl`, begitu petugas memakai
-  // server intranet (port 3000) unduhan bundel akan diarahkan ke server
-  // yang tidak punya /storage -> 404.
-  const supabaseUrl = supabaseProjectOrigin()
-  return `${supabaseUrl}/storage/v1/object/public/ota/`
+  // Berkas bundel disimpan di server intranet pada STORAGE_DIR bucket "ota"
+  // dan disajikan lewat /files/ota/. Origin diturunkan dari base URL yang
+  // sedang aktif supaya unduhan selalu menuju server yang sama dengan API.
+  return `${api.baseUrl.replace(/\/api$/, '')}/files/ota/`
 }
 
 

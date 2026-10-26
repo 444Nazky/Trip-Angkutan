@@ -16,7 +16,6 @@ import {
   probeServerHealth,
   resolveApiBaseUrl,
   setApiBaseUrlOverride,
-  supabaseProjectOrigin,
   validateEndpointInput,
 } from './api'
 import { otaAssetsBase } from './ota'
@@ -34,16 +33,15 @@ vi.mock('@capacitor/core', () => ({
 
 const OVERRIDE_KEY = 'trip.api.baseUrl'
 
-describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
+describe('endpoint intranet tunggal', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
-  it('menawarkan dua kandidat endpoint: intranet LAN lebih dulu, lalu Supabase', () => {
+  it('hanya menawarkan kandidat endpoint intranet (tanpa cloud)', () => {
     const urls = apiBaseCandidates().map(c => c.url)
-    expect(urls[0]).toBe(intranetApiBaseUrl())
-    expect(urls).toContain('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
-    expect(urls.length).toBeGreaterThanOrEqual(2)
+    expect(urls).toEqual([intranetApiBaseUrl()])
+    expect(urls.some(u => u.includes('supabase'))).toBe(false)
   })
 
   it('default tanpa override adalah server intranet port 3000', () => {
@@ -58,7 +56,7 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
   })
 
   it('reset mengembalikan ke endpoint default intranet', () => {
-    setApiBaseUrlOverride('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
+    setApiBaseUrlOverride('http://192.168.1.124:3000/api')
     setApiBaseUrlOverride(null)
     expect(localStorage.getItem(OVERRIDE_KEY)).toBeNull()
     expect(resolveApiBaseUrl()).toBe(intranetApiBaseUrl())
@@ -73,16 +71,16 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     expect(normalizeBaseUrl('contoh.example.com')).toBe('https://contoh.example.com/api')
   })
 
-  it('membedakan endpoint cloud dan intranet', () => {
+  it('membedakan host LAN dan host publik', () => {
     expect(isIntranetBaseUrl('http://192.168.1.123:3000/api')).toBe(true)
-    expect(isIntranetBaseUrl('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')).toBe(false)
+    expect(isIntranetBaseUrl('https://contoh.example.com/api')).toBe(false)
     expect(isPrivateHostUrl('http://192.168.1.123:3000/api')).toBe(true)
     expect(isPrivateHostUrl('https://contoh.example.com/api')).toBe(false)
   })
 
   it('label kandidat intranet menyebut jaringan lokal', () => {
-    expect(apiBaseCandidateLabel('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')).toBe('Supabase')
     expect(apiBaseCandidateLabel('http://192.168.1.123:3000/api')).toContain('Intranet')
+    expect(apiBaseCandidateLabel('https://contoh.example.com/api')).toBe('contoh.example.com')
   })
 
   it('api.baseUrl live: ganti endpoint langsung berlaku tanpa reload', () => {
@@ -91,12 +89,11 @@ describe('dual endpoint (Supabase cloud + intranet kantor)', () => {
     expect(api.url).toBe('http://192.168.1.123:3000/api')
   })
 
-  it('bundel OTA tetap diambil dari host Supabase, bukan server intranet', () => {
-    // Kalau origin storage ikut mengikuti endpoint aktif, begitu petugas
-    // memilih intranet, unduhan bundel OTA jadi 404.
+  it('bundel OTA diambil dari server intranet yang sedang aktif', () => {
+    // Bundel disajikan server yang sama dengan API (/files/ota), jadi origin
+    // aset harus mengikuti base URL aktif.
     setApiBaseUrlOverride('http://192.168.1.123:3000/api')
-    expect(otaAssetsBase()).toBe(`${supabaseProjectOrigin()}/storage/v1/object/public/ota/`)
-    expect(otaAssetsBase()).not.toContain('192.168.1.123')
+    expect(otaAssetsBase()).toBe('http://192.168.1.123:3000/files/ota/')
   })
 })
 
@@ -201,7 +198,7 @@ describe('mixed content: aplikasi native boleh pakai endpoint LAN http://', () =
 
   it('endpoint https tidak pernah dianggap mixed content', () => {
     expect(isMixedContentBlocked('https://192.168.1.123:3000/api', 'https:')).toBe(false)
-    expect(isMixedContentBlocked('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', 'https:')).toBe(false)
+    expect(isMixedContentBlocked('https://contoh.example.com/api', 'https:')).toBe(false)
   })
 
   it('validateEndpointInput menerima endpoint LAN http:// di aplikasi native', () => {

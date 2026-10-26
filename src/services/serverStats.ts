@@ -2,12 +2,12 @@
  * Klien panel statistik server.
  *
  * Data diambil SELALU dari server INTRANET port 3000
- * (http://192.168.1.123:3000/api/server-stats) - bukan dari endpoint aktif
- * aplikasi dan bukan dari Supabase cloud.
+ * (http://192.168.1.123:3000/api/server-stats) - bukan dari alamat lain yang
+ * sedang diisi pengguna.
  *
  * Alasannya: angka statistik itu kumulatif di dalam satu proses Deno yang
- * hidup terus di PC kantor. Instance Edge Function Supabase bisa mati dan
- * di-replace kapan saja, sehingga hitungannya tidak pernah akurat.
+ * hidup terus di PC kantor. Proses yang di-restart akan mengulang hitungan
+ * dari nol.
  */
 
 import { environment } from '../environments/environment'
@@ -82,8 +82,8 @@ export type ServerStatsResult =
  * Ambil statistik dari server intranet port 3000.
  *
  * Token admin dikirim kalau tersedia supaya endpoint `/server-stats` (yang
- * mewajibkan role admin) menerimanya. JWT_SECRET server intranet sama
- * dengan yang dipakai Supabase, jadi token dari cloud tetap sah di sini.
+ * mewajibkan role admin) menerimanya. Token diterbitkan server intranet itu
+ * sendiri dengan JWT_SECRET yang sama.
  */
 export async function fetchServerStats(timeoutMs = 8000): Promise<ServerStatsResult> {
   const base = intranetStatsBaseUrl()

@@ -64,9 +64,8 @@ function getBaseUrl(): string {
 /**
  * Endpoint default sistem = backend INTRANET kantor (port 3000).
  *
- * Cloud hanya dipakai bila `intranetApiBaseUrl` dikosongkan di environment.
- * Jangan mengembalikan `apiBaseUrl` lebih dulu: aplikasi mobile kantor harus
- * tetap bisa login/geofence walau tidak ada internet.
+ * Aplikasi tidak punya endpoint cadangan di internet: seluruh permintaan
+ * berhenti di jaringan lokal.
  */
 export function defaultApiBaseUrl(): string {
   const intranet = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
@@ -76,10 +75,6 @@ export function defaultApiBaseUrl(): string {
 /** True kalau endpoint default/aktif adalah server intranet. */
 export function isDefaultIntranet(): boolean {
   return isIntranetBaseUrl(defaultApiBaseUrl())
-}
-
-function cloudApiBaseUrl(): string {
-  return environment.apiBaseUrl
 }
 
 function normalizeUrl(raw: string): string {
@@ -103,38 +98,6 @@ export function setApiBaseUrl(url: string | null) {
 
 export function resolveApiBaseUrl(): string {
   return getBaseUrl()
-}
-
-/**
- * Origin project Supabase (cloud).
- *
- * Artefak yang disimpan di Supabase Storage (bundel OTA di bucket `ota`, file
- * APK di bucket `apks`) SELALU berada di host cloud ini - bukan di server
- * intranet. Jadi URL storage tidak boleh diturunkan dari `api.baseUrl` yang
- * sedang aktif: begitu petugas memilih endpoint intranet, unduhan OTA akan
- * diarahkan ke port 3000 yang tidak melayani /storage -> 404.
- */
-export function supabaseProjectOrigin(): string {
-  const explicit = (environment as { supabaseUrl?: string }).supabaseUrl
-  try {
-    return new URL(explicit || environment.apiBaseUrl).origin
-  } catch {
-    try {
-      return new URL(environment.apiBaseUrl).origin
-    } catch {
-      return 'https://bmiruktfruunegtbydyw.supabase.co'
-    }
-  }
-}
-
-/**
- * Alamat Supabase yang aman ditampilkan (disamarkan sesuai audit).
- * Hanya untuk UI/konfigurasi — JANGAN dipakai untuk request.
- */
-export function maskedSupabaseUrl(): string {
-  return (environment as { supabaseUrlMask?: string }).supabaseUrlMask
-    || (environment as { supabaseUrl?: string }).supabaseUrl
-    || environment.apiBaseUrl
 }
 
 export function getApiBaseUrl(): string {
@@ -214,9 +177,6 @@ async function request<T>(
   const token = loadToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const anon = (environment as { supabaseAnonKey?: string }).supabaseAnonKey
-  if (anon) headers['apikey'] = anon
-
   const url = `${currentBaseUrl()}${path}`
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
@@ -250,7 +210,7 @@ async function request<T>(
  * Base URL aktif.
  *
  * Sengaja TIDAK di-cache di level modul: endpoint bisa diganti saat runtime
- * lewat "Pengaturan Server" (pindah Supabase <-> Intranet). Kalau di-cache,
+ * lewat "Pengaturan Server" (pindah antar-server intranet). Kalau di-cache,
  * `api.baseUrl` masih menunjuk ke server lama sampai aplikasi di-reload.
  */
 function currentBaseUrl(): string {
@@ -401,7 +361,6 @@ export function clearCredentials() {
 // ─── Server Settings helpers ─────────────────────────────────────────────────
 
 export function apiBaseCandidateLabel(candidate: string): string {
-  if (/\.supabase\.co/i.test(candidate)) return 'Supabase'
   try {
     const u = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`)
     return isIntranetBaseUrl(candidate) ? `Intranet (${u.hostname})` : u.hostname
@@ -434,10 +393,9 @@ export function intranetHttpsApiBaseUrl(): string {
   return (url ?? '').trim()
 }
 
-/** True kalau URL tersebut mengarah ke backend intranet (bukan Supabase cloud). */
+/** True kalau URL tersebut mengarah ke backend intranet (host privat/LAN). */
 export function isIntranetBaseUrl(url: string): boolean {
   if (!url) return false
-  if (/\.supabase\.co/i.test(url)) return false
   return isPrivateHostUrl(url)
 }
 
@@ -460,11 +418,6 @@ export function apiBaseCandidates(): ApiBaseCandidate[] {
       hint: 'Server lokal dengan TLS. Dipakai saat aplikasi dibuka lewat https (mixed content).',
     })
   }
-  candidates.push({
-    url: cloudApiBaseUrl(),
-    label: 'Supabase (Cloud)',
-    hint: 'Cadangan untuk luar jaringan kantor. Butuh internet.',
-  })
   return candidates
 }
 
@@ -587,7 +540,7 @@ export function validateEndpointInput(raw: string, pageProtocol?: string): Endpo
   if (isMixedContentBlocked(url, page)) {
     return {
       ok: false,
-      msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Pakai endpoint Supabase, endpoint https://, atau buka aplikasi lewat http://.',
+      msg: 'Halaman ini dibuka lewat https, jadi alamat http:// diblokir browser (mixed content). Pakai endpoint https://, atau buka aplikasi lewat http://.',
     }
   }
 

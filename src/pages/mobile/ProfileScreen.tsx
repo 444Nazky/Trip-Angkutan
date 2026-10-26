@@ -215,7 +215,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <p className="mt-0.5 text-[10px] text-slate-400 truncate">{resolveApiBaseUrl()}</p>
           </div>
           <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${isIntranetBaseUrl(resolveApiBaseUrl()) ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
-            {isIntranetBaseUrl(resolveApiBaseUrl()) ? 'Intranet' : 'Supabase'}
+            {isIntranetBaseUrl(resolveApiBaseUrl()) ? 'Intranet' : 'Kustom'}
           </span>
           <ChevronRight size={16} className="text-slate-400" />
         </button>

@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Simpan component stack untuk diagnosa lewat Supabase Logs / console.
+    // Simpan component stack untuk diagnosa lewat console / log server intranet.
     console.error('[ErrorBoundary]', this.props.label ?? 'app', error, info.componentStack)
     this.setState({ info: info.componentStack ?? null })
   }

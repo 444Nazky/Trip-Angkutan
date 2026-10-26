@@ -3,7 +3,7 @@
  *
  * Yang diuji: tab Endpoint menampilkan panel statistik server port 3000
  * (dengan URL sumber `http://192.168.1.123:3000/api/server-stats`) - BUKAN
- * Supabase.
+ * server lain di internet.
  *
  * Semua sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
  */
@@ -43,7 +43,7 @@ const statsPayload = {
   },
   components: [
     { id: 'api', label: 'Proses API', status: 'ok', detail: 'Server intranet aktif', ms: 0 },
-    { id: 'database', label: 'Database (Supabase)', status: 'ok', detail: 'PostgreSQL terjangkau', ms: 30 },
+    { id: 'database', label: 'Database (PostgreSQL)', status: 'ok', detail: 'PostgreSQL terjangkau', ms: 30 },
   ],
 }
 
@@ -82,7 +82,7 @@ describe('tab Endpoint — panel statistik server port 3000', () => {
     expect(container.textContent).toContain('Grafik Request per Menit')
   })
 
-  it('meminta data ke server intranet, bukan ke Supabase', async () => {
+  it('meminta data ke server intranet, bukan ke host internet', async () => {
     await act(async () => {
       root.render(<EndpointTab showToast={() => {}} />)
     })

@@ -19,19 +19,19 @@ describe('url endpoint update', () => {
   })
 
   it('tetap benar saat baseUrl di-override', () => {
-    setApiBaseUrlOverride('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api')
-    expect(getUpdateApiUrl()).toBe('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/app-version')
+    setApiBaseUrlOverride('http://192.168.1.124:3000/api')
+    expect(getUpdateApiUrl()).toBe('http://192.168.1.124:3000/api/app-version')
     expect(getUpdateApiUrl()).not.toContain('/api/api')
   })
 })
 
 describe('url unduh APK', () => {
   it('downloadUrl absolute dipakai apa adanya (tidak di-prefix lagi)', () => {
-    const abs = 'https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.4.apk'
+    const abs = 'http://192.168.1.123:3000/files/apks/app-1.0.4.apk'
     expect(resolveDownloadUrl(abs)).toBe(abs)
   })
 
-  it('downloadUrl relatif ditempel ke API base (…/functions/v1/api)', () => {
+  it('downloadUrl relatif ditempel ke API base', () => {
     const base = new URL(api.baseUrl).toString().replace(/\/$/, '')
     expect(resolveDownloadUrl('/app-download/1.0.9')).toBe(`${base}/app-download/1.0.9`)
     expect(resolveDownloadUrl('app-download/1.0.9')).toBe(`${base}/app-download/1.0.9`)
