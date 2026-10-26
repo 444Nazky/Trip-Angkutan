@@ -57,10 +57,9 @@ services:
     # Kalau env TLS_CERT_FILE + TLS_KEY_FILE diisi, server port 3000 serves
     # HTTPS (berguna saat aplikasi dibuka lewat https di browser).
     # Default TIDAK ada mount -> server tetap HTTP polos (default LAN).
-    # Untuk mengaktifkan: hapus komentar pada `volumes:` DAN baris mount di
-    # bawah, lalu taruh file .pem di supabase/functions/api/tls/.
+    # Untuk mengaktifkan: tambahkan dua baris di bawah ke blok `volumes:`
+    # di atas, lalu taruh file .pem di supabase/functions/api/tls/.
     #
-    # volumes:
     #   - ./supabase/functions/api/tls:/etc/trip-tls:ro
 
   # DATABASE LOKAL (PostgreSQL 16).

@@ -1,5 +1,6 @@
-# Server API INTRANET (port 3000) — menjalankan Edge Function yang sama
-# dengan yang di-deploy ke Supabase, tapi dijawab dari jaringan lokal kantor.
+# Server API INTRANET (port 3000) — melayani seluruh aplikasi dari jaringan
+# lokal kantor. Database: PostgreSQL lokal lewat container `rest` (PostgREST).
+# Berkas: direktori lokal /data/storage.
 #
 # Build : sudo docker build -f Dockerfile.backend -t trip-angkutan-api .
 # Run   : sudo docker compose up -d api-intranet
@@ -18,7 +19,7 @@ ENV PORT=3000 \
 
 COPY supabase/functions/api/ ./api/
 
-# Cache dependency saat build: @supabase/supabase-js dari esm.sh + npm:bcryptjs.
+# Cache dependency saat build: std/path dari deno.land + npm:bcryptjs.
 # Setelah ini server start TANPA perlu internet (cache sudah baked ke image).
 #
 # PENTING: `deno cache` TIDAK menerima flag izin (--allow-net dkk). Kalau diberi,
@@ -37,10 +38,11 @@ USER deno
 
 EXPOSE 3000
 
-# --allow-net  : fetch ke Supabase + serve request lokal
-# --allow-env  : baca SUPABASE_URL / JWT_SECRET / dll
-# --allow-read : baca file handler
+# --allow-net   : serve request lokal + fetch ke PostgREST (http://rest:3000)
+# --allow-env   : baca POSTGREST_URL / STORAGE_DIR / JWT_SECRET / dll
+# --allow-read  : baca file handler + berkas di STORAGE_DIR
+# --allow-write : tulis berkas (foto trip, APK, bundel OTA) ke STORAGE_DIR
 # --allow-sys  : Deno.networkInterfaces() untuk mencetak IP LAN di banner.
 #                TANPA flag ini fungsi itu melempar "Requires sys access" dan
 #                daftar IP LAN selalu kosong (tanpa error yang mencolok).
-CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-sys", "--node-modules-dir=none", "api/local_server.ts"]
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "--allow-sys", "--node-modules-dir=none", "api/local_server.ts"]

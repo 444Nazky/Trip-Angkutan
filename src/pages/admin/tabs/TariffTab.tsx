@@ -42,7 +42,7 @@ interface TariffTabProps {
 }
 
 /** Draft baris baru: nominal lokal wilayah per region id (key = region id). */
-interface LokalNotus {
+interface LokalTarif {
   lokal: number
   aktif: boolean
 }
@@ -299,7 +299,7 @@ function GolonganSheet({
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regions, setRegions] = useState<Region[]>([])
-  const [lokalNotus, setLokalNotus] = useState<Record<string, LokalNotus>>({})
+  const [lokalNotus, setLokalTarif] = useState<Record<string, LokalTarif>>({})
   const [panelRegionId, setPanelRegionId] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
@@ -308,11 +308,11 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   /** Terjemah baris `RegionTariffRow[]` server -> peta per region id. */
   const ingestRegionTariffs = useCallback((rows: Awaited<ReturnType<typeof fetchRegionTariffs>>) => {
     if (!rows) return
-    const map: Record<string, LokalNotus> = {}
+    const map: Record<string, LokalTarif> = {}
     for (const rt of rows) {
       map[rt.id] = { lokal: rt.lokal_tariff ?? 0, aktif: (rt.lokal_active ?? 0) === 1 }
     }
-    setLokalNotus(map)
+    setLokalTarif(map)
   }, [])
 
   // Muat region + tarif wilayah lokal sekali saat tab dibuka.
@@ -418,18 +418,8 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
   }
 
-  const commitMuatan = useCallback(
-    (row: TariffRow, v: number) => commitMasterField(row, 'loadedNum', v),
-    // commitMasterField stabil (didefinisikan tiap render tapi tak terikat
-    // state yang diambil dari closure kecuali setter) — abaikan.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-  const commitKosong = useCallback(
-    (row: TariffRow, v: number) => commitMasterField(row, 'emptyNum', v),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
+  const commitMuatan = (row: TariffRow, v: number) => commitMasterField(row, 'loadedNum', v)
+  const commitKosong = (row: TariffRow, v: number) => commitMasterField(row, 'emptyNum', v)
 
   const handleDelete = async (row: TariffRow) => {
     if (!row.id) return showToast('Baris belum tersimpan di server', 'error')
