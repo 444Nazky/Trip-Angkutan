@@ -67,6 +67,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     }
     const f = filters ?? reportFilters
 
+<<<<<<< HEAD
     let rows = await fetchTripReports(f)
     if (rows === null) {
       // Sesi admin belum siap (atau basi) -> siapkan lalu ulangi.
@@ -92,10 +93,33 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       setReportError('Server tidak menjawab permintaan laporan.')
       return
     }
+=======
+    // Tab Laporan bisa mount SEBELUM AdminDashboard selesai membuat sesi
+    // admin. Dulu hasilnya 403 -> state 'offline' dan tidak pernah dicoba
+    // lagi sampai halaman di-reload (data trip terlihat "hilang"). Sekarang:
+    // pastikan sesi, lalu ulangi sekali. Kalau tetap gagal baru 'offline'.
+    let rows = await fetchTripReports(f)
+    if (rows === null) {
+      const sess = await ensureAdminSession()
+      if (sess.ok) rows = await fetchTripReports(f)
+    }
+    if (rows === null) { setReportState('offline'); return }
+>>>>>>> origin/main
     setReportTrips(rows)
     setReportState('ready')
     setReportError(null)
   }, [reportFilters])
+<<<<<<< HEAD
+
+  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
+  // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
+  useEffect(() => {
+    const onReady = () => { void loadReports() }
+    window.addEventListener(SESSION_READY_EVENT, onReady)
+    return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
+  }, [loadReports])
+=======
+>>>>>>> dcca9f4354bb0256cbac1e9986950da66ccaeb18
 
   // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
   // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
