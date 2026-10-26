@@ -1,9 +1,15 @@
-// Klien database lokal: pengganti @supabase/supabase-js.
+// Klien database lokal.
 //
 // Semua query dari handler memakai API builder yang sama seperti sebelumnya
 // (`db.from(...).select(...).eq(...)`), tetapi diterjemahkan menjadi HTTP ke
-// PostgREST lokal (container `rest` di docker-compose). Penyimpanan file
+// PostgREST lokal (container `rest` di docker-compose). Penyimpanan berkas
 // memakai direktori lokal, bukan layanan penyimpanan daring.
+//
+// Path berkas disimpan RELATIF (`/files/<bucket>/<path>`), bukan URL absolut.
+// Alasannya: alamat IP PC kantor bisa berubah, dan data hasil migrasi dari
+// server lama tidak boleh ikut menyimpan host lama di dalam database. Klien
+// (aplikasi mobile dan dashboard admin) menyelesaikan path relatif terhadap
+// origin server yang sedang aktif.
 //
 // ponytail: hanya method yang benar-benar dipakai handler yang diimplementasi.
 // Kalau nanti ada method baru, tambahkan di sini.
@@ -12,7 +18,9 @@ import { join, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const POSTGREST_URL = (Deno.env.get("POSTGREST_URL") || "http://127.0.0.1:3001").replace(/\/$/, "");
 const STORAGE_DIR = Deno.env.get("STORAGE_DIR") || "/data/storage";
-const PUBLIC_BASE_URL = (Deno.env.get("PUBLIC_BASE_URL") || `http://${Deno.env.get("LAN_IP") || "192.168.1.123"}:3000`).replace(/\/$/, "");
+
+/** Prefix URL untuk menyajikan berkas lokal. */
+export const FILES_PREFIX = "/files";
 
 export type DbError = { message: string; details?: string | null; hint?: string | null; code?: string | null };
 export type DbResult<T = unknown> = {
@@ -315,7 +323,7 @@ function storageBucket(bucket: string) {
     },
     getPublicUrl(path: string): { data: { publicUrl: string } } {
       const clean = path.replace(/^\/+/, "");
-      return { data: { publicUrl: `${PUBLIC_BASE_URL}/files/${bucket}/${clean}` } };
+      return { data: { publicUrl: `${FILES_PREFIX}/${bucket}/${clean}` } };
     },
     remove(paths: string[]): Promise<{ data: null; error: DbError | null }> {
       return Promise.all(paths.map((p) => Deno.remove(objectPath(bucket, p)).catch(() => {})))
@@ -335,9 +343,16 @@ export const db = {
   },
 };
 
-// Dipakai local_server.ts untuk melayani /files/<bucket>/<path>.
+// Dipakai index.ts untuk menyajikan /files/<bucket>/<path>.
+//
+// Prefiks `/api` juga diterima karena sebagian klien menyusun URL berkas dari
+// base URL API (`http://host:3000/api`), sedangkan berkas disajikan di root
+// server (`http://host:3000/files/...`). Tanpa pengecualian ini, path relatif
+// yang diselesaikan terhadap base URL API berakhir di /api/files/... dan
+// selalu 404.
 export async function serveStoredFile(pathname: string): Promise<Response | null> {
-  const match = pathname.match(/^\/files\/([^/]+)\/(.+)$/);
+  const normalized = pathname.replace(/^\/api(?=\/|$)/, "");
+  const match = normalized.match(/^\/files\/([^/]+)\/(.+)$/);
   if (!match) return null;
   const [, bucket, object] = match;
   let target: string;

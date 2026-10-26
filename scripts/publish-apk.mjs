@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ─── Publish APK Script ──────────────────────────────────────────────────────
-// Upload APK to backend server and register as latest version
-// Usage: node publish-apk.mjs --apk=/path/to/app.apk --version=1.0.0 [options]
+// Unggah APK ke server intranet dan daftarkan sebagai versi terbaru.
+// Pemakaian: node publish-apk.mjs --apk=/path/ke/app.apk --version=1.0.0 [opsi]
 
 import fs from 'fs';
 import path from 'path';
@@ -14,7 +14,7 @@ import { URL } from 'url';
 const ARGUMENTS = {
   '--apk': { required: true, description: 'Path to APK file' },
   '--version': { required: true, description: 'Version (semver format, e.g., 1.0.0)' },
-  '--server': { default: 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', description: 'Backend server URL' },
+  '--server': { default: process.env.TRIP_API_URL || 'http://192.168.1.123:3000/api', description: 'Alamat endpoint API intranet' },
   '--secret': { default: process.env.PUBLISH_SECRET || 'trip-angkut-secret', description: 'Publish secret' },
   '--force': { flag: true, description: 'Force publish even if version exists' },
   '--notes': { description: 'Release notes (optional)' },
@@ -92,29 +92,33 @@ function parseArgs(args) {
 
 function printHelp() {
   console.log(`
-📦 APK Publisher — Custom Self-Hosted Update System
+APK Publisher - Custom Self-Hosted Update System
 
-Usage:
-  node publish-apk.mjs --apk=/path/to/app.apk --version=1.0.0 [options]
+Pemakaian:
+  node publish-apk.mjs --apk=/path/ke/app.apk --version=1.0.0 [opsi]
 
-Arguments:
+Argumen:
 ${Object.entries(ARGUMENTS).map(([key, config]) => {
-    const required = config.required ? '(required)' : config.flag ? '(flag)' : `(default: ${config.default})`;
+    const required = config.required ? '(wajib)' : config.flag ? '(flag)' : `(bawaan: ${config.default})`;
     return `  ${key.padEnd(20)} ${required} ${config.description}`;
   }).join('\n')}
 
 Environment Variables:
-  PUBLISH_SECRET     Secret for authenticating with backend (default: trip-angkut-secret)
+  PUBLISH_SECRET     Secret untuk autentikasi ke server (bawaan: trip-angkut-secret)
+  TRIP_API_URL       Alamat endpoint API intranet (bawaan: http://192.168.1.123:3000/api)
 
-Examples:
+Contoh:
   node publish-apk.mjs --apk=./app-release.apk --version=1.0.0
-  node publish-apk.mjs --apk=./app.apk --version=1.0.1 --force-update --notes="Bug fixes"
-  node publish-apk.mjs --apk=./app.apk --version=2.0.0 --server=https://api.example.com
+  node publish-apk.mjs --apk=./app.apk --version=1.0.1 --force-update --notes="Perbaikan"
+  node publish-apk.mjs --apk=./app.apk --version=2.0.0 --server=http://192.168.1.123:3000/api
 
-Notes:
-  - Version must be in semantic versioning format (X.Y.Z)
-  - APK file will be read and sent as base64 to the backend
-  - The backend must have the /publish-version endpoint configured
+Catatan:
+  - Versi wajib memakai format semantik (X.Y.Z).
+  - Isi APK dibaca lalu dikirim sebagai base64 ke server.
+  - Server wajib menyediakan endpoint /publish-version.
+  - Server yang dipakai adalah server intranet. APK disimpan di penyimpanan
+    lokal server, sehingga perangkat tanpa akses internet tetap bisa
+    mengunduh pembaruan.
 `);
 }
 
@@ -262,80 +266,80 @@ function detectApkBadging(apkPath) {
 async function main() {
   const args = parseArgs(process.argv);
 
-  console.log('\n📦 APK Publisher — Custom Self-Hosted Update System\n');
+  console.log('\nAPK Publisher - Custom Self-Hosted Update System\n');
   console.log('─'.repeat(50));
 
   // Validate inputs
   const apkValidation = validateApkPath(args.apk);
   if (!apkValidation.valid) {
-    console.error('❌ Validation Error:', apkValidation.error);
+    console.error('Validasi gagal:', apkValidation.error);
     process.exit(1);
   }
 
   const versionValidation = validateVersion(args.version);
   if (!versionValidation.valid) {
-    console.error('❌ Validation Error:', versionValidation.error);
+    console.error('Validasi gagal:', versionValidation.error);
     process.exit(1);
   }
 
   const fileSize = getFileSize(args.apk);
-  console.log(`📁 APK: ${args.apk}`);
-  console.log(`📏 Size: ${formatBytes(fileSize)}`);
-  console.log(`🏷️  Version: ${args.version}`);
-  console.log(`🌐 Server: ${args.server}`);
+  console.log(`Berkas APK : ${args.apk}`);
+  console.log(`Ukuran     : ${formatBytes(fileSize)}`);
+  console.log(`Versi      : ${args.version}`);
+  console.log(`Server     : ${args.server}`);
 
   // Penanda versi asli: server memakainya untuk MENOLAK paket salah label.
   const badging = detectApkBadging(args.apk);
   const apkVersionName = args.apkVersionName || badging.versionName;
   const apkVersionCode = Number(args.apkVersionCode) || badging.versionCode;
-  console.log(`🔍 Di dalam APK: versionName=${apkVersionName ?? '?(aapt2 tidak ada)'} versionCode=${apkVersionCode ?? '?'}`);
+  console.log(`Isi APK    : versionName=${apkVersionName ?? '?(aapt2 tidak ada)'} versionCode=${apkVersionCode ?? '?'}`);
 
   if (!badging.aapt2) {
-    console.log('⚠️  aapt2 tidak ditemukan — versi APK tidak bisa diverifikasi dari sini.');
+    console.log('PERHATIAN: aapt2 tidak ditemukan - versi APK tidak bisa diverifikasi dari sini.');
   }
   if (apkVersionName && apkVersionName !== args.version) {
-    console.error(`❌ APK berisi '${apkVersionName}', bukan '${args.version}'.`);
+    console.error(`APK berisi '${apkVersionName}', bukan '${args.version}'.`);
     console.error('   Menerbitkannya membuat versi di HP tidak pernah naik. Pakai --force bila memang sadar.');
     if (!args.force) process.exit(1);
   }
 
   if (args.forceUpdate) {
-    console.log('🔒 Force Update: Yes (mandatory)');
+    console.log('Force update : ya (wajib)');
   }
 
   if (args.force) {
-    console.log('⚡ Force: Yes (overwrite existing)');
+    console.log('Force        : ya (timpa versi yang ada)');
   }
 
   console.log('─'.repeat(50));
 
   // Check server connectivity
-  console.log('\n🔌 Checking server connection...');
+  console.log('\nMemeriksa koneksi server...');
   try {
-    const healthCheck = await httpRequest(`${args.server}/api/health`);
+    const healthCheck = await httpRequest(`${args.server}/health`);
     if (healthCheck.status !== 200) {
       throw new Error(`Server returned status ${healthCheck.status}`);
     }
-    console.log('✅ Server is reachable\n');
+    console.log('Server dapat dihubungi.\n');
   } catch (error) {
-    console.error('❌ Cannot connect to server:', error.message);
-    console.error('   Make sure the backend server is running at:', args.server);
+    console.error('Tidak dapat menghubungi server:', error.message);
+    console.error('   Pastikan server API intranet berjalan di alamat:', args.server);
     process.exit(1);
   }
 
   // Read APK file
-  console.log('📖 Reading APK file...');
+  console.log('Membaca berkas APK...');
   let apkBase64;
   try {
     apkBase64 = await readFileAsBase64(args.apk);
-    console.log('✅ APK file loaded');
+    console.log('Berkas APK dimuat.');
   } catch (error) {
-    console.error('❌ Failed to read APK:', error.message);
+    console.error('Gagal membaca APK:', error.message);
     process.exit(1);
   }
 
   // Publish to server
-  console.log('\n🚀 Publishing to server...');
+  console.log('\nMenerbitkan ke server...');
   try {
     const payload = {
       version: args.version,
@@ -357,26 +361,26 @@ async function main() {
     });
 
     if (response.status === 200 || response.status === 201) {
-      console.log('✅ Publish successful!');
-      console.log('\n📋 Response:');
+      console.log('Publikasi berhasil.');
+      console.log('\nRespons server:');
       console.log(JSON.stringify(response.data, null, 2));
 
-      console.log('\n🎉 APK published successfully!');
+      console.log('\nAPK berhasil diterbitkan.');
       console.log(`   Version: ${args.version}`);
       console.log(`   Download URL: ${args.server}/app-download/${args.version}`);
       console.log(`   Version check: ${args.server}/app-version?current=${args.version}`);
     } else if (response.status === 401) {
-      console.error('❌ Authentication failed');
-      console.error('   Check your --secret value');
+      console.error('Autentikasi gagal.');
+      console.error('   Periksa nilai --secret yang dipakai.');
       process.exit(1);
     } else if (response.status === 400) {
-      console.error('❌ Publish rejected:', response.data.message);
+      console.error('Publikasi ditolak server:', response.data.message);
       process.exit(1);
     } else {
       throw new Error(`Server returned ${response.status}: ${JSON.stringify(response.data)}`);
     }
   } catch (error) {
-    console.error('❌ Publish failed:', error.message);
+    console.error('Publikasi gagal:', error.message);
     process.exit(1);
   }
 
@@ -386,6 +390,6 @@ async function main() {
 // ─── Run ────────────────────────────────────────────────────────────────────
 
 main().catch((error) => {
-  console.error('\n❌ Unexpected error:', error);
+  console.error('\nTerjadi kesalahan tak terduga:', error);
   process.exit(1);
 });

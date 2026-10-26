@@ -1,6 +1,10 @@
 #!/usr/bin/env node
-// publish-ota-server.mjs — kirim bundel modul web ke server API sendiri.
-// pakai: node scripts/publish-ota-server.mjs [--server=URL] [--secret=S] [--notes="..."] [--force-update] [--min-version=1.0.0]
+// publish-ota-server.mjs — kirim bundel modul web ke server API intranet.
+//
+// Pakai: node scripts/publish-ota-server.mjs [--server=URL] [--secret=S] [--notes="..."] [--force-update] [--min-version=1.0.0]
+//
+// Server default adalah server intranet kantor (port 3000). Override lewat
+// --server= atau environment TRIP_API_URL.
 
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -16,7 +20,7 @@ const args = process.argv.slice(2)
 const argValue = (name) => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
 const hasFlag = (name) => args.includes(`--${name}`)
 
-const SERVER = (argValue('server') || process.env.TRIP_API_URL || 'https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api').replace(/\/+$/, '')
+const SERVER = (argValue('server') || process.env.TRIP_API_URL || 'http://192.168.1.123:3000/api').replace(/\/+$/, '')
 const SECRET = argValue('secret') || process.env.PUBLISH_SECRET || 'trip-angkut-secret'
 
 
@@ -39,14 +43,14 @@ function nextVersion() {
     const prev = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8'))
     const match = String(prev.version ?? '').match(/^(\d+)\.(\d+)\.(\d+)/)
     if (match) base = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`
-  } catch { /* belum ada manifest → mulai 1.0.0 */ }
+  } catch { /* belum ada manifest, mulai dari 1.0.0 */ }
   return `${base}+${Date.now()}`
 }
 
 
 
 if (!fs.existsSync(path.join(WEB_DIR, 'index.html'))) {
-  console.error('❌ www/ belum dibuild. Jalankan "npm run build" dulu.')
+  console.error(' www/ belum dibuild. Jalankan "npm run build" dulu.')
   process.exit(1)
 }
 
@@ -54,7 +58,7 @@ if (!fs.existsSync(path.join(WEB_DIR, 'index.html'))) {
 
 const assets = collectAssets(WEB_DIR)
 if (!assets.includes('index.html') || assets.length < 3) {
-  console.error(`❌ www/ tampak parsial (index.html=${assets.includes('index.html')}, total=${assets.length}).`)
+  console.error(` www/ tampak parsial (index.html=${assets.includes('index.html')}, total=${assets.length}).`)
   process.exit(1)
 }
 
@@ -68,7 +72,7 @@ for (const asset of assets) {
   integrity[asset] = crypto.createHash('sha256').update(bytes).digest('hex')
 }
 
-console.log(`Bundel: ${assets.length} berkas → versi ${version}`)
+console.log(`Bundel: ${assets.length} berkas, versi ${version}`)
 console.log(`Server: ${SERVER}`)
 
 
@@ -90,13 +94,13 @@ try {
     body: JSON.stringify(payload),
   })
 } catch (error) {
-  console.error(`❌ Gagal menghubungi server: ${error.message}`)
+  console.error(` Gagal menghubungi server: ${error.message}`)
   process.exit(1)
 }
 
 const body = await response.json().catch(() => null)
 if (!response.ok) {
-  console.error(`❌ Publish gagal (${response.status}): ${body?.message || 'tanpa pesan'}`)
+  console.error(` Publish gagal (${response.status}): ${body?.message || 'tanpa pesan'}`)
   process.exit(1)
 }
 
@@ -105,6 +109,6 @@ if (!response.ok) {
 // Manifest lokal ikut diperbarui supaya versi bundel di perangkat = yang dipublikasikan.
 fs.writeFileSync(MANIFEST_FILE, `${JSON.stringify({ version, assets, integrity }, null, 2)}\n`)
 
-console.log(`✅ ${body?.message || `Modul ${version} dipublikasikan`}`)
+console.log(` ${body?.message || `Modul ${version} dipublikasikan`}`)
 if (body?.pruned?.length) console.log(`   bundel lama dihapus: ${body.pruned.join(', ')}`)
 console.log('   Perangkat akan menariknya otomatis lewat tombol "Cek & Perbarui Aplikasi".')

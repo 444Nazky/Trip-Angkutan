@@ -1,14 +1,29 @@
 /**
- * Migrasi data sekali jalan: Supabase cloud -> server intranet lokal.
+ * Migrasi data sekali jalan: server daring -> server intranet lokal.
  *
  * Menyalin SELURUH baris tabel operasional beserta berkas di bucket
- * trip-photos/ apks/ ota/ ke Postgres lokal (lewat PostgREST) dan ke
- * STORAGE_DIR di PC kantor. Jalankan SEKALI di PC kantor sebelum aplikasi
- * dipakai penuh di jaringan lokal.
+ * trip-photos/ apks/ ota/ ke PostgreSQL lokal (lewat PostgREST) dan ke
+ * STORAGE_DIR di PC kantor. Jalankan SEKALI di PC kantor, di jaringan yang
+ * masih punya akses ke server lama, sebelum aplikasi dipakai penuh di
+ * jaringan lokal.
  *
- * Prasyarat (sudah berjalan):
- *   - docker compose up -d db rest   (Postgres + PostgREST lokal)
- *   - schema.sql sudah dimuat otomatis oleh container db
+ * Yang dipindahkan:
+ *   - Tabel master : regions, dermagas, routes, geofences, officers,
+ *     officer_regions, officer_dermagas, vehicles, tariffs, vehicle_plates,
+ *     region_tariffs.
+ *   - Tabel transaksi : trips, trip_vehicles, plate_scans.
+ *   - Tabel rilis : app_versions, device_versions, ota_bundles,
+ *     admin_credentials.
+ *   - Berkas : seluruh isi bucket trip-photos/, apks/, dan ota/.
+ *
+ * URL berkas di dalam database ditulis ulang menjadi path lokal relatif
+ * (`/files/<bucket>/<path>`). Tanpa langkah ini, data hasil migrasi masih
+ * menunjuk ke server lama dan seluruh foto trip, APK, serta bundel modul akan
+ * gagal dimuat begitu server lama tidak bisa dijangkau.
+ *
+ * Prasyarat (harus sudah berjalan):
+ *   docker compose up -d db rest    (PostgreSQL + PostgREST lokal)
+ *   Skema sudah dimuat otomatis oleh container db (server/db/schema.sql).
  *
  * Jalankan:
  *   CLOUD_SUPABASE_URL=https://xxxx.supabase.co \
@@ -17,12 +32,12 @@
  *   deno run -A scripts/migration/migrate-cloud-to-local.ts
  *
  * Opsi:
- *   DRY_RUN=1       hanya menampilkan jumlah baris/berkas, tidak menulis
+ *   DRY_RUN=1       hanya menampilkan jumlah baris dan berkas, tidak menulis
  *   TABLES=a,b      batasi tabel yang disalin (default: semua)
  *   SKIP_STORAGE=1  lewati penyalinan berkas
  *
- * Kredensial cloud HANYA dibaca dari environment, tidak pernah ditulis ke
- * repo. UUID dipertahankan supaya relasi antar tabel tetap sah.
+ * Kredensial server lama HANYA dibaca dari environment, tidak pernah ditulis
+ * ke repo. UUID dipertahankan supaya relasi antar tabel tetap sah.
  */
 
 const CLOUD_URL = (Deno.env.get("CLOUD_SUPABASE_URL") ?? "").replace(/\/+$/, "");
@@ -57,6 +72,18 @@ const TABLES = [
 
 const BUCKETS = ["trip-photos", "apks", "ota"];
 
+/**
+ * Kolom yang menyimpan path berkas, per tabel.
+ *
+ * Nilai kolom ini diubah dari URL server lama menjadi path lokal relatif
+ * (`/files/<bucket>/<path>`).
+ */
+const FILE_COLUMNS: Record<string, string[]> = {
+  trips: ["foto_kosong_path", "selfie_path"],
+  trip_vehicles: ["foto_path"],
+  app_versions: ["download_url"],
+};
+
 /** Kolom pengurut untuk paginasi; tabel tanpa `id` memakai kolom PK pertamanya. */
 const ORDER: Record<string, string> = {
   officer_regions: "officer_id",
@@ -81,7 +108,27 @@ async function cloudGet<T>(path: string): Promise<T> {
   return await res.json() as T;
 }
 
-/** Ambil semua baris sebuah tabel, dipaginasi (PostgREST membatasi per request). */
+/**
+ * Ubah URL berkas server lama menjadi path lokal relatif.
+ *
+ * Pola yang ditangani:
+ *   https://<host>/storage/v1/object/public/<bucket>/<path>
+ *   https://<host>/storage/v1/object/sign/<bucket>/<path>
+ *   /storage/v1/object/public/<bucket>/<path>
+ *
+ * Nilai yang tidak recognised dikembalikan apa adanya supaya tidak ada data
+ * yang hilang diam-diam.
+ */
+export function toLocalFilePath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  const match = raw.match(/^(?:https?:\/\/[^/]+)?\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)$/i);
+  if (!match) return raw;
+  const [, bucket, object] = match;
+  return `/files/${bucket}/${object}`;
+}
+
 async function pullTable(table: string): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
   const order = ORDER[table] ?? "id";
@@ -92,6 +139,23 @@ async function pullTable(table: string): Promise<Record<string, unknown>[]> {
     rows.push(...batch);
     if (batch.length < PAGE) return rows;
   }
+}
+
+/** Terapkan penulisan ulang path berkas pada satu kumpulan baris. */
+function rewriteFilePaths(table: string, rows: Record<string, unknown>[]): number {
+  const columns = FILE_COLUMNS[table];
+  if (!columns) return 0;
+  let changed = 0;
+  for (const row of rows) {
+    for (const column of columns) {
+      const local = toLocalFilePath(row[column]);
+      if (local !== null && local !== row[column]) {
+        row[column] = local;
+        changed += 1;
+      }
+    }
+  }
+  return changed;
 }
 
 /** Upsert ke PostgREST lokal; target konflik = primary key tabel. */
@@ -145,6 +209,22 @@ async function copyObject(bucket: string, path: string): Promise<void> {
   await Deno.writeFile(target, new Uint8Array(await res.arrayBuffer()));
 }
 
+/** Pastikan server PostgREST lokal menjawab sebelum data mulai ditulis. */
+async function checkLocalRest(): Promise<void> {
+  try {
+    const res = await fetch(`${LOCAL_REST}/regions?limit=1`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    throw new Error(
+      `Server database lokal tidak dapat dihubungi (${LOCAL_REST}). ` +
+        `Pastikan container db dan rest sudah berjalan: docker compose up -d db rest. ` +
+        `Detail: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   if (!CLOUD_URL || !CLOUD_KEY) {
     console.error("CLOUD_SUPABASE_URL dan CLOUD_SERVICE_ROLE_KEY wajib diisi.");
@@ -152,21 +232,32 @@ async function main(): Promise<void> {
   }
   console.log(`Sumber : ${CLOUD_URL}`);
   console.log(`Tujuan : ${LOCAL_REST} + ${STORAGE_DIR}${DRY_RUN ? " (DRY RUN)" : ""}`);
+  console.log("");
 
+  await checkLocalRest();
+
+  let totalRows = 0;
+  let totalRewritten = 0;
   for (const table of tables) {
     const rows = await pullTable(table);
-    console.log(`  ${table}: ${rows.length} baris`);
+    const rewritten = rewriteFilePaths(table, rows);
+    totalRows += rows.length;
+    totalRewritten += rewritten;
+    console.log(`  ${table}: ${rows.length} baris` + (rewritten ? ` (${rewritten} path berkas ditulis ulang)` : ""));
     if (!DRY_RUN) await pushTable(table, rows);
   }
 
-  if (SKIP_STORAGE) return;
-  for (const bucket of BUCKETS) {
-    const files = await listObjects(bucket);
-    console.log(`  ${bucket}/: ${files.length} berkas`);
-    if (DRY_RUN) continue;
-    for (const path of files) await copyObject(bucket, path);
+  if (!SKIP_STORAGE) {
+    for (const bucket of BUCKETS) {
+      const files = await listObjects(bucket);
+      console.log(`  ${bucket}/: ${files.length} berkas`);
+      if (DRY_RUN) continue;
+      for (const path of files) await copyObject(bucket, path);
+    }
   }
 
+  console.log("");
+  console.log(`Total: ${totalRows} baris, ${totalRewritten} path berkas ditulis ulang.`);
   console.log(DRY_RUN ? "Selesai (tidak ada yang ditulis)." : "Migrasi selesai.");
 }
 

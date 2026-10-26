@@ -8,6 +8,23 @@ function storagePublicUrl(bucket: string, path: string): string {
   return db.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
+/**
+ * Jadikan path berkas menjadi URL absolut sesuai origin server yang sedang
+ * melayani request.
+ *
+ * Path di database disimpan relatif (`/files/<bucket>/<path>`) supaya tetap
+ * valid saat alamat IP PC kantor berubah. Untuk pengunduhan APK, klien butuh
+ * URL absolut, jadi path relatif resolving-nya dilakukan di sini - bukan
+ * disimpan ke database.
+ */
+function absoluteUrl(req: Request, path: string): string {
+  const value = String(path ?? "").trim();
+  if (!value) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  const origin = new URL(req.url).origin;
+  return `${origin}${value.startsWith("/") ? "" : "/"}${value}`;
+}
+
 function parse(v: string): [number, number, number, number] {
   const [core = "", stamp = "0"] = String(v ?? "").split("+");
   const [a = 0, b = 0, c = 0] = String(core).split(".").map((n) => Number(n) || 0);
@@ -62,7 +79,9 @@ export async function getAppVersion(req: Request, url: URL): Promise<Response> {
       latestVersion: latest.version,
       updateAvailable,
       isForceUpdate: isForce(latest),
-      downloadUrl: latest.download_url || storagePublicUrl(APK_BUCKET, `app-${latest.version}.apk`),
+      downloadUrl: latest.download_url
+        ? absoluteUrl(req, latest.download_url)
+        : absoluteUrl(req, storagePublicUrl(APK_BUCKET, `app-${latest.version}.apk`)),
       releaseNotes,
       apkSize: latest.apk_size ?? null,
       apkHash: latest.apk_hash ?? null,
@@ -128,6 +147,21 @@ export async function publishVersion(req: Request): Promise<Response> {
   if (downloadUrl && !/^https?:\/\//i.test(downloadUrl)) {
     return json({ error: "INVALID_DOWNLOAD_URL", message: "downloadUrl harus absolut (http/https). Untuk berkas lokal, pakai apkBase64." }, 400);
   }
+  // Berkas APK wajib tinggal di server ini. URL yang menunjuk ke host lain
+  // (server daring atau CDN di luar jaringan kantor) ditolak: begitu perangkat
+  // petugas kehilangan koneksi internet, unduhan update tidak akan pernah
+  // selesai. Cara yang benar adalah mengirim isi APK (apkBase64) supaya
+  // server menyimpannya di penyimpanan lokal.
+  if (downloadUrl) {
+    const target = new URL(downloadUrl);
+    const self = new URL(req.url);
+    if (target.origin !== self.origin) {
+      return json({
+        error: "EXTERNAL_DOWNLOAD_URL",
+        message: "downloadUrl harus menunjuk ke server ini. Untuk berkas APK, kirim apkBase64 supaya disimpan di server lokal.",
+      }, 400);
+    }
+  }
 
   let apkBytes: Uint8Array | null = null;
   if (apkBase64 && !downloadUrl) {
@@ -155,7 +189,11 @@ export async function publishVersion(req: Request): Promise<Response> {
     }
   }
 
-  const download_url = downloadUrl || storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
+  // Yang disimpan ke database selalu path RELATIF. Kalau nanti alamat IP PC
+  // kantor berubah, URL yang sudah tersimpan tidak ikut rusak.
+  const download_url = downloadUrl
+    ? new URL(downloadUrl).pathname
+    : storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
   const { error: insertErr } = await db
     .from("app_versions")
     .insert({
@@ -182,11 +220,11 @@ export async function publishVersion(req: Request): Promise<Response> {
   });
 }
 
-// GET /app-download/:version → redirect ke storage publik
-export async function appDownload(_req: Request, version: string): Promise<Response> {
+// GET /app-download/:version → redirect ke berkas APK di penyimpanan lokal
+export async function appDownload(req: Request, version: string): Promise<Response> {
   try {
     const { data } = await db.from("app_versions").select("download_url").eq("version", version).limit(1).single();
-    const url = data?.download_url || storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
+    const url = absoluteUrl(req, data?.download_url || storagePublicUrl(APK_BUCKET, `app-${version}.apk`));
     if (!/^https?:\/\//i.test(url)) return json({ error: "APK_NOT_FOUND" }, 404);
     return new Response(null, { status: 302, headers: { Location: url } });
   } catch {

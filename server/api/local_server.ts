@@ -15,7 +15,6 @@
  *   JWT_SECRET     - WAJIB. Dipakai menandatangani token admin/petugas.
  *   POSTGREST_URL  - opsional, default http://127.0.0.1:3001 (docker: http://rest:3000)
  *   STORAGE_DIR    - opsional, default /data/storage
- *   PUBLIC_BASE_URL- opsional, default http://<LAN_IP atau 192.168.1.123>:3000
  *   ADMIN_USERNAME / ADMIN_PASSWORD - opsional, kredensial dashboard
  *   LAN_IP, PORT, HOST, TLS_CERT_FILE, TLS_KEY_FILE - opsional
  */
