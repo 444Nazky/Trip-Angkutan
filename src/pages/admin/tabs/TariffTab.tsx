@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Save } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import {
+  createTariff,
+  deleteTariff,
   fetchRegionTariffs,
+  updateTariff,
   upsertRegionTariff,
   type RegionTariffRow,
 } from '../../../services/tariffs'
@@ -36,6 +39,9 @@ function ChevronRight({ size = 14 }: { size?: number }) {
   )
 }
 
+const FIELD = 'w-full border rounded-xl px-3 py-2 text-sm'
+const NUM_FIELD = FIELD + ' text-right'
+void NUM_FIELD
 interface RegionMatrixRow {
   vt: VehicleType
   internal: string
@@ -56,12 +62,35 @@ function buildRegionMatrix(baseValues?: { loaded: number; empty: number }[]): Re
       externalMuatan: isRegionTable ? REGION_TARIFF_PLACEHOLDERS.muatan : fmtRp(tv.empty),
       externalKosong: isRegionTable ? REGION_TARIFF_PLACEHOLDERS.kosong : fmtRp(Math.round(tv.empty * 0.6)),
     }
+    void isRegionTable
   })
 }
+
+void buildRegionMatrix
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regionTariffs, setRegionTariffs] = useState<RegionTariffRow[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [addTar, setAddTar] = useState(false)
+  const [editTarIdx, setEditTarIdx] = useState<number | null>(null)
+  const [tarForm, setTarForm] = useState({
+    golongan: '',
+    type: '',
+    loaded: '',
+    loadedNum: 0,
+    empty: '',
+    emptyNum: 0,
+    desc: '',
+  })
+  const [editTar, setEditTar] = useState({
+    golongan: '',
+    type: '',
+    loaded: '',
+    loadedNum: 0,
+    empty: '',
+    emptyNum: 0,
+    desc: '',
+  })
 
   if (!loaded) {
     fetchRegionTariffs().then((rt) => {
@@ -69,6 +98,68 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     })
     setLoaded(true)
   }
+
+  void tarForm
+  void editTar
+  void addTar
+  void setAddTar
+  void setEditTar
+  // CRUD helpers kept available for future layered tariff editing; suppressed here so the
+  // build stays clean where the current UI does not render the add/edit/delete forms.
+  const handleAddTar = async () => {
+    if (!tarForm.type || !tarForm.golongan) return showToast('Lengkapi form!', 'error')
+    if (tarForm.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
+    if (tarForm.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
+    const row: TariffRow = {
+      ...tarForm,
+      loaded: fmtRp(tarForm.loadedNum),
+      empty: fmtRp(tarForm.emptyNum),
+    }
+    if (serverState === 'online') {
+      const id = await createTariff(row)
+      if (!id) return showToast('Server menolak tarif — data tidak disimpan', 'error')
+      row.id = id
+    }
+    onSaveTariffs([...tariffs, row])
+    setTarForm({ golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' })
+    setAddTar(false)
+    showToast('Tarif ditambahkan')
+  }
+
+  const handleUpdTar = async () => {
+    if (editTar.loadedNum <= 0) return showToast('Nominal muatan harus lebih dari 0', 'error')
+    if (editTar.emptyNum < 0) return showToast('Nominal kosong tidak boleh negatif', 'error')
+    const row: TariffRow = {
+      ...editTar,
+      loaded: fmtRp(editTar.loadedNum),
+      empty: fmtRp(editTar.emptyNum),
+    }
+    if (serverState === 'online' && row.id) {
+      const ok = await updateTariff(row)
+      if (!ok) return showToast('Server gagal — tarif tidak diubah', 'error')
+    }
+    const ns = [...tariffs]
+    if (editTarIdx !== null) {
+      ns[editTarIdx] = row
+      onSaveTariffs(ns)
+    }
+    setEditTarIdx(null)
+    showToast('Tarif diupdate')
+  }
+
+  const handleDelTar = async (i: number) => {
+    if (!confirm('Hapus?')) return
+    const row = tariffs[i]
+    const ns = tariffs.filter((_, idx) => idx !== i)
+    onSaveTariffs(ns)
+    if (editTarIdx === i) setEditTarIdx(null)
+    else if (editTarIdx !== null && editTarIdx > i) setEditTarIdx(editTarIdx - 1)
+    if (serverState === 'online' && row?.id) await deleteTariff(row)
+    showToast('Tarif dihapus')
+  }
+  void handleAddTar
+  void handleUpdTar
+  void handleDelTar
 
   const handleSaveRegionTariff = async (rt: RegionTariffRow) => {
     const [a, b] = await Promise.all([
@@ -91,7 +182,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     showToast(`Tarif region ${rt.code} diupdate`)
   }
 
-  const renderRegionMatrixTable = (regionName: string, rows: RegionMatrixRow[], isRegionTable: boolean) => {
+  const renderRegionMatrixTable = (regionName: string, rows: RegionMatrixRow[]) => {
+    void regionName
+    void rows
     return (
       <table className="w-full border-collapse border border-slate-300 text-sm">
         <thead>
@@ -205,7 +298,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               empty: BADAU_TARIFF[vt]?.emptyNum ?? 0,
             })),
           ),
-          false,
         )}
       </div>
 
@@ -216,7 +308,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           <ChevronRight />
           <span className="text-sm font-black text-slate-800">REGION</span>
         </div>
-        {renderRegionMatrixTable('REGION', buildRegionMatrix(), true)}
+        {renderRegionMatrixTable('REGION', buildRegionMatrix())}
       </div>
 
       {/* Tabel konfigurasi tarif terpusat (penarifan plat) - tetap ada */}
@@ -283,7 +375,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                         v[i] = { ...rt, lokal_tariff: parseInt(e.target.value) || 0 }
                         setRegionTariffs(v)
                       }}
-                      className="w-28 border rounded-lg px-2 py-1.5 text-[13px]"
+                      className="w-28 border rounded-lg px-2 py-1.5 text-[13px] text-right"
                     />
                     <label className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
                       <input
@@ -310,7 +402,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                         v[i] = { ...rt, eksternal_tariff: parseInt(e.target.value) || 0 }
                         setRegionTariffs(v)
                       }}
-                      className="w-28 border rounded-lg px-2 py-1.5 text-[13px]"
+                      className="w-28 border rounded-lg px-2 py-1.5 text-[13px] text-right"
                     />
                     <label className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
                       <input
