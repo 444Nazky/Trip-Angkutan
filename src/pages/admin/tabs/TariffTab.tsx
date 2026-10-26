@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Plus, Trash2, X, UserPlus, Users } from 'lucide-react'
+import { Plus, Trash2, X } from 'lucide-react'
 import type { TariffRow } from '../components/types'
 import {
   AdminRegionRow,
@@ -33,6 +33,7 @@ import {
   fetchAdminRegions,
   fetchRegionTariffs,
   fetchTariffs,
+  updateAdminRegion,
   updateTariff,
   upsertRegionTariff,
 } from '../../../services/tariffs'
@@ -326,11 +327,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
     setLokalTarif(map)
   }, [])
-
-  const refreshRegionList = async () => {
-    const fresh = await fetchAdminRegions()
-    if (fresh) setRegionList(fresh)
-  }
 
   /** Muat ulang daftar region dari server. */
   const refreshRegionList = async () => {
