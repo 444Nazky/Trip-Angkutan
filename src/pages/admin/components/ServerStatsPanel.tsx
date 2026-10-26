@@ -178,7 +178,7 @@ export function ServerStatsPanel() {
   const m = stats?.metrics
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
+    <div className="flex min-h-[calc(100vh-4.5rem)] w-full flex-col rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
