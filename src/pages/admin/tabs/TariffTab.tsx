@@ -315,9 +315,8 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   const [panelRegionId, setPanelRegionId] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
-  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
-  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
   const [regionFormOpen, setRegionFormOpen] = useState(false)
+  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
   const [saving, setSaving] = useState(false)
 
   const ingestRegionTariffs = useCallback((rows: Awaited<ReturnType<typeof fetchRegionTariffs>>) => {
@@ -547,6 +546,26 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   const nextGolongan = () => {
     const used = new Set(tariffs.map((t) => String(t.golongan ?? '').toUpperCase()))
     return GOLONGAN_OPTIONS.find((g) => !used.has(g)) ?? 'I'
+  }
+
+  const handleUpdateRegionName = async (r: AdminRegionRow, name: string) => {
+    if (!name || !name.trim()) return
+    setSaving(true)
+    try {
+      const r2 = await fetchAdminRegions()
+      if (!r2) return
+      const target = r2.find(x => String(x.id) === String(r.id))
+      if (!target) return
+      const ok = await updateTariff({ id: r.id, golongan: '', type: '', loaded: '', loadedNum: 0, empty: '', emptyNum: 0, desc: '' } as TariffRow)
+      if (!ok) {
+        showToast('Gagal memperbarui region', 'error')
+        return
+      }
+      await refreshRegionList()
+      showToast('Nama region berhasil diperbarui')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const showRegionForm = () => {
