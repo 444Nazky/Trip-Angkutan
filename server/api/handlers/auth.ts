@@ -357,25 +357,43 @@ export async function changeAdminPassword(req: Request): Promise<Response> {
       return json({ error: "Password baru minimal 8 karakter" }, 400);
     }
 
-    const { data: row } = await db
+    const { data: rows } = await db
       .from("admin_credentials")
-      .select("username, password")
-      .limit(1)
-      .single();
+      .select("id, username, password")
+      .order("id", { ascending: true });
+
+    const list = (rows ?? []) as { id?: number; username?: string; password?: string }[];
+    const row = list[0];
 
     let valid = false;
     if (row?.password) {
       try { valid = bcryptjs.compareSync(currentPassword, row.password); } catch { valid = false; }
-    } else if (Deno.env.get("ADMIN_PASSWORD")) {
-      valid = currentPassword === Deno.env.get("ADMIN_PASSWORD");
+    } else {
+      const envPassword = (Deno.env.get("ADMIN_PASSWORD") ?? "").trim();
+      valid = Boolean(envPassword) && currentPassword === envPassword;
     }
 
     if (!valid) return json({ error: "Password lama salah" }, 401);
 
     const hashed = await bcryptjs.hash(newPassword, 10);
-    const username = row?.username || Deno.env.get("ADMIN_USERNAME") || "admin";
+    const username = row?.username || (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
-    await db.from("admin_credentials").upsert({ username, password: hashed });
+    // Baris pertama diperbarui, baris lain dihapus.
+    //
+    // `upsert` TIDAK dipakai di sini: tabel admin_credentials tidak punya
+    // batasan unik pada kolom username, sehingga merge-duplicates tidak punya
+    // target konflik dan akan menyisipkan baris baru setiap kali. Satu baris
+    // tambahan membuat pembacaan kredensial (limit 1) ambigu, dan login
+    // berikutnya gagal walau password-nya benar.
+    if (row?.id !== undefined) {
+      await db.from("admin_credentials").update({ username, password: hashed }).eq("id", row.id);
+    } else {
+      await db.from("admin_credentials").insert({ username, password: hashed });
+    }
+    for (const extra of list.slice(1)) {
+      if (extra.id === undefined) continue;
+      await db.from("admin_credentials").delete().eq("id", extra.id);
+    }
 
     return json({ success: true, username });
   } catch (error) {
