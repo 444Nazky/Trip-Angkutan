@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
-
+lakukan update versi release mobile di /home/nazky/RPL/Intern/Aplikasi-Trip-Main Branch/android/app/build/outputs/apk/release serta set versi ke 1.0.2
         setContent {
             MaterialTheme {
                 Text("Auth initialized!")

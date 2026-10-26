@@ -21,9 +21,9 @@ export default function RecapSheet() {
 
   const load = useCallback(async () => {
     setState(s => (s === 'ready' ? s : 'loading'))
-    const ok = await ensureAdminSession()
+    const sess = await ensureAdminSession()
     if (!alive.current) return
-    if (!ok) { setState('offline'); return }
+    if (!sess.ok) { setState('offline'); return }
 
     const filters: ReportFilters = {
       ...(startDate && endDate ? { startDate, endDate } : {}),
