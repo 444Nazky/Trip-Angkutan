@@ -743,21 +743,83 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           commitKosong={async () => false}
           onDelete={handleDelete}
           footer={
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-3 py-2">
-              <button
-                onClick={showRegionForm}
-                disabled={saving}
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
-              >
-                + region baru
-              </button>
-              <button
-                onClick={() => panelRegion && handleDeleteRegion(panelRegion)}
-                disabled={!panelRegion || saving}
-                className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-              >
-                hapus region
-              </button>
+            <div className="space-y-2 border-t border-slate-200 px-3 py-2">
+              {/* Ubah nama region yang sedang dipilih di dropdown header. */}
+              {panelRegion && (
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="region-name-input"
+                    className="shrink-0 text-[11px] font-semibold text-slate-500"
+                  >
+                    nama region
+                  </label>
+                  <input
+                    // Key membuat ulang input saat region berganti, sehingga
+                    // nilai yang tampil selalu nama region yang aktif.
+                    key={panelRegion.id}
+                    id="region-name-input"
+                    defaultValue={panelRegion.name}
+                    disabled={saving}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur()
+                    }}
+                    onBlur={(e) => void handleEditRegionName(panelRegion, e.target.value)}
+                    className="flex-1 min-w-0 rounded border border-slate-200 px-2 py-1 text-[12px] text-slate-700 outline-none focus:border-blue-400 disabled:opacity-50"
+                  />
+                </div>
+              )}
+
+              {/* Formulir tambah region; dibuka dari tombol "+ region baru". */}
+              {regionFormOpen && (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={regionForm.name}
+                    placeholder="nama region"
+                    onChange={(e) => setRegionForm((f) => ({ ...f, name: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
+                    className="flex-1 min-w-0 rounded border border-slate-200 px-2 py-1 text-[12px] outline-none focus:border-blue-400"
+                  />
+                  <input
+                    value={regionForm.code}
+                    placeholder="kode"
+                    onChange={(e) => setRegionForm((f) => ({ ...f, code: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
+                    className="w-24 rounded border border-slate-200 px-2 py-1 text-[12px] uppercase outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={() => void handleCreateRegion()}
+                    disabled={saving}
+                    className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
+                  >
+                    simpan
+                  </button>
+                  <button
+                    onClick={cancelRegionForm}
+                    disabled={saving}
+                    className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-200 disabled:opacity-40"
+                  >
+                    batal
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={showRegionForm}
+                  disabled={saving}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
+                >
+                  + region baru
+                </button>
+                <button
+                  onClick={() => panelRegion && handleDeleteRegion(panelRegion)}
+                  disabled={!panelRegion || saving}
+                  className="rounded-md bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                >
+                  hapus region
+                </button>
+              </div>
             </div>
           }
         />

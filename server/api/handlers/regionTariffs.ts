@@ -64,7 +64,7 @@ export async function updateRegionTariff(req: Request, regionId: string, url?: U
     }
 
     const { data: region } = await db.from("regions").select("id").eq("id", regionId).limit(1);
-    if (!region || !Array.isArray(region || []) || region.length === 0) return json({ error: "Region not found" }, 404);
+    if (!region || !Array.isArray(region ||: []) || region.length === 0) return json({ error: "Region not found" }, 404);
 
     const existing = (await db
       .from("region_tariffs")
