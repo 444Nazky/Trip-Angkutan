@@ -6,6 +6,9 @@ import {
   apiBaseCandidateLabel,
   intranetApiBaseUrl,
   isIntranetBaseUrl,
+  isLoopbackUrl,
+  isMixedContentBlocked,
+  isNativeApp,
   isPrivateHostUrl,
   normalizeApiBaseInput,
   normalizeBaseUrl,
@@ -17,6 +20,17 @@ import {
   validateEndpointInput,
 } from './api'
 import { otaAssetsBase } from './ota'
+
+// `native` = apakah aplikasi dianggap berjalan di WebView native (Capacitor).
+// Di native, halaman dimuat dari origin lokal https://localhost sehingga
+// aturan mixed content browser TIDAK berlaku untuk request http:// ke LAN.
+const h = vi.hoisted(() => ({ native: false }))
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: () => h.native,
+    getPlatform: () => (h.native ? 'android' : 'web'),
+  },
+}))
 
 const OVERRIDE_KEY = 'trip.api.baseUrl'
 
@@ -154,6 +168,67 @@ describe('validateEndpointInput: aturan tunggal untuk semua layar pengaturan ser
     const rejected = applyEndpointInput('http://contoh.example.com', 'http:')
     expect(rejected.ok).toBe(false)
     expect(resolveApiBaseUrl()).toBe('http://192.168.1.123:3000/api')
+  })
+})
+
+describe('mixed content: aplikasi native boleh pakai endpoint LAN http://', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    h.native = false
+  })
+  afterEach(() => {
+    h.native = false
+    vi.unstubAllGlobals()
+  })
+
+  it('browser di halaman https tetap diblokir untuk host LAN', () => {
+    expect(isMixedContentBlocked('http://192.168.1.123:3000/api', 'https:')).toBe(true)
+    expect(isMixedContentBlocked('http://192.168.1.123:3000/api', 'http:')).toBe(false)
+  })
+
+  it('aplikasi native (WebView) TIDAK diblokir walau protokol halaman https', () => {
+    h.native = true
+    expect(isNativeApp()).toBe(true)
+    expect(isMixedContentBlocked('http://192.168.1.123:3000/api', 'https:')).toBe(false)
+  })
+
+  it('loopback exempt dari mixed content (origin loopback dianggap trustworthy)', () => {
+    expect(isLoopbackUrl('http://localhost:3000/api')).toBe(true)
+    expect(isLoopbackUrl('http://127.0.0.1:3000/api')).toBe(true)
+    expect(isLoopbackUrl('http://192.168.1.123:3000/api')).toBe(false)
+    expect(isMixedContentBlocked('http://localhost:3000/api', 'https:')).toBe(false)
+  })
+
+  it('endpoint https tidak pernah dianggap mixed content', () => {
+    expect(isMixedContentBlocked('https://192.168.1.123:3000/api', 'https:')).toBe(false)
+    expect(isMixedContentBlocked('https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api', 'https:')).toBe(false)
+  })
+
+  it('validateEndpointInput menerima endpoint LAN http:// di aplikasi native', () => {
+    h.native = true
+    const res = validateEndpointInput('http://192.168.1.123:3000', 'https:')
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.url).toBe('http://192.168.1.123:3000/api')
+  })
+
+  it('pingBaseUrl di aplikasi native tidak menandai mixed content', async () => {
+    h.native = true
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })))
+
+    const r = await pingBaseUrl('http://192.168.1.123:3000/api')
+    expect(r.mixedContent).toBeUndefined()
+    expect(r.ok).toBe(true)
+  })
+
+  it('pingBaseUrl di browser https menandai mixed content tanpa memanggil server', async () => {
+    h.native = false
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await pingBaseUrl('http://192.168.1.123:3000/api', 5000, 'https:')
+    expect(r.mixedContent).toBe(true)
+    expect(r.ok).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

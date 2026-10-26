@@ -37,3 +37,12 @@ services:
       - "LAN_IP=${LAN_IP:-192.168.1.123}"
     env_file:
       - supabase/functions/api/.env.local
+    volumes:
+      # OPSIONAL: sertifikat TLS untuk server intranet.
+      #
+      # Kalau env TLS_CERT_FILE + TLS_KEY_FILE diisi, server port 3000 serves
+      # HTTPS (berguna saat aplikasi dibuka lewat https di browser). Aktifkan
+      # baris di bawah DAN taruh file .pem di supabase/functions/api/tls/.
+      #
+      # Default TIDAK ada mount -> server tetap HTTP polos (default LAN).
+      # - ./supabase/functions/api/tls:/etc/trip-tls:ro
