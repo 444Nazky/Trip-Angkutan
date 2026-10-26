@@ -24,7 +24,7 @@ const pidOf = (needle) =>
 console.log('Status server lokal Trip Angkutan\n')
 for (const svc of SERVICES) {
   const up = listening.includes(`:${svc.port} `) || listening.includes(`:${svc.port}\n`)
-  const marker = up ? '🟢 UP  ' : '🔴 DOWN'
+  const marker = up ? '[ UP ]  ' : '[DOWN] '
   const proc = svc.port === 3000 ? 'local_server.ts' : svc.port === 5173 ? 'ng serve' : 'php -S'
   console.log(`${marker}  :${svc.port}  ${svc.name.padEnd(15)} ${svc.url}`)
   console.log(`         pid: ${pidOf(proc)}`)

@@ -23,6 +23,7 @@ BASE="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$BASE/docker-compose.yml"
 ENV_LOCAL="$BASE/server/api/.env.local"
 ENV_EXAMPLE="$BASE/server/api/.env.example"
+SECRETS_FILE="$BASE/server/api/.env.secrets"
 
 FAILURES=0
 WARNINGS=0
@@ -60,6 +61,24 @@ fi
 # ── Persiapan env server API intranet ─────────────────────────────────────────
 
 echo "[*] Menyiapkan konfigurasi API intranet..."
+
+# Secret dari versi lama repo (folder `supabase/`) dipindahkan otomatis ke
+# lokasi sekarang (`server/api/`). Tanpa ini, JWT_SECRET yang sudah terisi
+# akan hilang dan server intranet menolak start.
+LEGACY_ENV_LOCAL="$BASE/supabase/functions/api/.env.local"
+LEGACY_SECRETS_FILE="$BASE/supabase/functions/api/.env.secrets"
+if [ ! -f "$ENV_LOCAL" ] && [ -f "$LEGACY_ENV_LOCAL" ]; then
+    mkdir -p "$(dirname "$ENV_LOCAL")"
+    cp "$LEGACY_ENV_LOCAL" "$ENV_LOCAL"
+    chmod 600 "$ENV_LOCAL"
+    warn "Konfigurasi lama di supabase/functions/api/.env.local dipindahkan ke server/api/.env.local."
+fi
+if [ ! -f "$SECRETS_FILE" ] && [ -f "$LEGACY_SECRETS_FILE" ]; then
+    cp "$LEGACY_SECRETS_FILE" "$SECRETS_FILE"
+    chmod 600 "$SECRETS_FILE"
+    warn "Berkas .env.secrets dari lokasi lama dipindahkan ke server/api/.env.secrets."
+fi
+
 if [ ! -f "$ENV_LOCAL" ]; then
     if [ -f "$ENV_EXAMPLE" ]; then
         cp "$ENV_EXAMPLE" "$ENV_LOCAL"
@@ -87,8 +106,6 @@ fi
 # supaya script bisa dipanggil otomatis dari cron/CI.
 #
 # Semua sumber sudah masuk .gitignore dan file hasilnya selalu chmod 600.
-
-SECRETS_FILE="$BASE/server/api/.env.secrets"
 
 # Tulis (atau ganti) satu key di file env.
 set_env_value() {
@@ -230,6 +247,31 @@ if $DOCKER compose -f "$COMPOSE_FILE" up -d --remove-orphans; then
     ok
 else
     bad "docker compose up gagal - cek log di atas."
+fi
+
+# ── Migrasi skema database ───────────────────────────────────────────────────
+#
+# Skema utama (server/db/schema.sql) hanya dimuat saat volume database masih
+# kosong. Untuk database yang sudah terisi, perubahan skema dijalankan lewat
+# berkas di server/db/migrations/ - semuanya idempoten (ADD COLUMN IF NOT
+# EXISTS, CREATE INDEX IF NOT EXISTS), jadi aman dijalankan berulang kali.
+#
+# Folder migrasi sudah dimount ke dalam container db, jadi perintahnya cukup
+# `psql -f` tanpa perlu menyalin berkas ke host.
+echo "[*] Menerapkan migrasi skema database..."
+MIGRATIONS_DIR="$BASE/server/db/migrations"
+if [ -d "$MIGRATIONS_DIR" ]; then
+    for migration in "$MIGRATIONS_DIR"/*.sql; do
+        [ -f "$migration" ] || continue
+        name="$(basename "$migration")"
+        if $DOCKER compose -f "$COMPOSE_FILE" exec -T db \
+            psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-trip}" -d "${POSTGRES_DB:-trip}" \
+            -f "/docker-entrypoint-initdb.d/20-migrations/$name" > /dev/null 2>&1; then
+            ok "$name"
+        else
+            warn "Migrasi '$name' gagal atau container db belum siap. Jalankan ulang script ini."
+        fi
+    done
 fi
 
 # ── Verifikasi ────────────────────────────────────────────────────────────────
