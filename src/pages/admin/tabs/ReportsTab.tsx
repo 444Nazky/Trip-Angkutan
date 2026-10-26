@@ -231,7 +231,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
-          <p className="text-slate-500 text-[12px]">Data trip, kendaraan, dan tarif</p>
+          <p className="text-slate-500 text-[12px]">Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
         </div>
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 ${
@@ -542,6 +542,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           </td>
                           <td className="px-4 py-2.5 text-right">
                             <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={t.trip_revenue || 0} />
+                            {(t.vehicles ?? []).length > 0 && (t.vehicles ?? []).every(v => String(v.tarif_source ?? '') === 'internal') && (
+                              <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Internal - tidak ditagih</span>
+                            )}
                           </td>
                           <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
                         </tr>

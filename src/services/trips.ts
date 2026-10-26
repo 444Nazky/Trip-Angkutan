@@ -94,7 +94,7 @@ export const OPERATIONAL_CATEGORIES = ['Internal', 'Eksternal', 'Lokal']
 /** Label sumber tarif yang dipakai di laporan. */
 export function tarifSourceLabel(source: string | null | undefined): string {
   switch (String(source ?? '')) {
-    case 'internal': return 'Internal (Rp 0)'
+    case 'internal': return 'Internal - tidak ditagih'
     case 'master': return 'Master Tarif'
     case 'master-jenis': return 'Master Tarif (per jenis)'
     case 'region': return 'Tarif Region'
