@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
+<<<<<<< HEAD
 import { Check, CheckCircle2, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
 import { classifyTripSync, onSyncQueueChange, processSyncQueue, refreshSyncQueue, type SyncItem } from '../../services/sync'
+=======
+import { Check, CheckCircle2, CloudOff, Clock, RefreshCw } from 'lucide-react'
+import { useApp } from '../store'
+import { getSyncQueue, onSyncQueueChange, processSyncQueue } from '../../services/sync'
+>>>>>>> origin/main
 import type { MobileScreen } from '../types'
 
 interface TripCompleteScreenProps {
@@ -21,8 +27,13 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const { trips, detailTripId } = useApp()
   const t = trips.find(x => x.id === detailTripId)
 
+<<<<<<< HEAD
   const [queue, setQueue] = useState<SyncItem[]>([])
   useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
+=======
+  const [, setQueueTick] = useState(0)
+  useEffect(() => onSyncQueueChange(() => setQueueTick(x => x + 1)), [])
+>>>>>>> origin/main
 
   useEffect(() => {
     if (!detailTripId) go('home')
@@ -32,6 +43,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   if (!t) return null
 
+<<<<<<< HEAD
   // SATU sumber kebenaran: antrean sync. `t.synced` saja tidak cukup —
   // trip yang ditolak server (4xx) tetap `synced === false` tapi harus
   // ditampilkan sebagai GAGAL, bukan "menunggu".
@@ -39,17 +51,30 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const failed = syncStatus.state === 'failed'
   const pending = syncStatus.state === 'pending'
   const synced = syncStatus.state === 'synced'
+=======
+  const queueItem = getSyncQueue().find(q => q.trip.id === t.id)
+  const failed = !!queueItem?.needsAttention
+  const pending = !!queueItem && !failed
+  const synced = !queueItem && t.synced === true
+  const offline = !queueItem && t.synced !== true
+>>>>>>> origin/main
 
   const status = failed
     ? {
         tone: 'border-red-200 bg-red-50',
         icon: 'text-red-500',
         text: 'text-red-700',
+<<<<<<< HEAD
         title: 'Gagal Terkirim ke Server',
         detail: syncStatus.error
           ? `${syncStatus.error}${syncStatus.attempts > 1 ? ` (percobaan ${syncStatus.attempts})` : ''}`
           : 'Server menolak data. Periksa lalu coba lagi.',
         Icon: AlertTriangle,
+=======
+        title: 'Belum Terkirim ke Server',
+        detail: queueItem?.lastError || 'Server menolak data. Periksa lalu coba lagi.',
+        Icon: CloudOff,
+>>>>>>> origin/main
       }
     : pending
       ? {
@@ -74,7 +99,13 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
             icon: 'text-slate-400',
             text: 'text-slate-600',
             title: 'Tersimpan di Perangkat',
+<<<<<<< HEAD
             detail: 'Belum masuk antrean sinkronisasi. Coba kirim ulang.',
+=======
+            detail: offline
+              ? 'Belum masuk antrean sinkronisasi. Coba kirim ulang.'
+              : 'Sinkronisasi berjalan di background.',
+>>>>>>> origin/main
             Icon: Clock,
           }
 
@@ -85,6 +116,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   return (
     <div className="px-4 pt-6 pb-4 flex flex-col items-center">
       <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-4 ${
+<<<<<<< HEAD
         failed ? 'bg-red-100' : pending ? 'bg-amber-100' : 'bg-emerald-100'
       }`}>
         <Check size={38} className={failed ? 'text-red-500' : pending ? 'text-amber-500' : 'text-emerald-500'} strokeWidth={3} />
@@ -96,6 +128,15 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
         {failed
           ? `Trip ${t.id} BELUM masuk ke server — belum ada data di dashboard admin`
           : `Trip ${t.id} tersimpan di perangkat`}
+=======
+        failed ? 'bg-red-100' : pending || offline ? 'bg-amber-100' : 'bg-emerald-100'
+      }`}>
+        <Check size={38} className={failed ? 'text-red-500' : pending || offline ? 'text-amber-500' : 'text-emerald-500'} strokeWidth={3} />
+      </div>
+      <h2 className="font-black text-slate-900 text-[24px] mb-1 text-center">Trip Tercatat!</h2>
+      <p className="text-slate-500 text-[13px] text-center mb-5">
+        Trip {t.id} tersimpan di perangkat
+>>>>>>> origin/main
       </p>
 
       <div className="w-full bg-[#0F172A] rounded-3xl p-5 mb-4">
@@ -122,9 +163,15 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
             {t.date} · {t.time} · {status.detail}
           </p>
         </div>
+<<<<<<< HEAD
         {(failed || pending || syncStatus.state === 'local') && (
           <button
             onClick={() => { void processSyncQueue({ retryAll: true }); refreshSyncQueue() }}
+=======
+        {(failed || offline) && (
+          <button
+            onClick={() => { void processSyncQueue({ retryAll: true }); setQueueTick(x => x + 1) }}
+>>>>>>> origin/main
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[10px] font-bold"
             title="Kirim ulang ke server"
           >
