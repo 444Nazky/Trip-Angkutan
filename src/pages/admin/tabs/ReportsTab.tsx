@@ -6,6 +6,7 @@ import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
+import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
 import { locationDistanceText } from '../../../services/locationDistance'
 
 
@@ -39,6 +40,7 @@ interface ReportsTabProps {
 export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleReveal, baseUrl = '' }: ReportsTabProps) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
+  const [reportError, setReportError] = useState<string | null>(null)
   const [openTripId, setOpenTripId] = useState<string | null>(null)
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
   const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[] }>({ golongan: [], vehicleTypes: [] })
@@ -46,14 +48,73 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
 
-  const loadReports = useCallback(async (filters?: ReportFilters) => {
-    setReportState('loading')
+  /**
+   * Muat laporan dari server.
+   *
+   * Dua jebakan yang dulu membuat trip "hilang" dari dashboard:
+   *   1. Tab Laporan bisa mount SEBELUM sesi admin siap -> 403 -> state
+   *      'offline' dan tidak pernah dicoba lagi. Sekarang: pastikan sesi,
+   *      lalu ulangi; kalau tetap gagal, tampilkan alasannya (bukan cuma
+   *      kata "Offline") supaya penyebabnya bisa ditindaklanjuti.
+   *   2. Server sempat menjawab 5xx/timeout sesaat -> satu percobaan langsung
+   *      dianggap gagal permanen. Sekarang ada beberapa percobaan berjeda.
+   */
+  const loadReports = useCallback(async (filters?: ReportFilters, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true
+    if (!silent) {
+      setReportState('loading')
+      setReportError(null)
+    }
     const f = filters ?? reportFilters
-    const rows = await fetchTripReports(f)
-    if (rows === null) { setReportState('offline'); return }
+
+    let rows = await fetchTripReports(f)
+    if (rows === null) {
+      // Sesi admin belum siap (atau basi) -> siapkan lalu ulangi.
+      const sess = await ensureAdminSession()
+      if (sess.ok) rows = await fetchTripReports(f)
+      else {
+        setReportState('offline')
+        setReportError(sess.error ?? 'Sesi admin tidak bisa dibuat')
+        return
+      }
+    }
+
+    if (rows === null) {
+      // Beberapa percobaan lagi dengan jeda pendek (server sesaat bermasalah).
+      for (let attempt = 0; attempt < 2 && rows === null; attempt++) {
+        await new Promise(r => setTimeout(r, 1200))
+        rows = await fetchTripReports(f)
+      }
+    }
+
+    if (rows === null) {
+      setReportState('offline')
+      setReportError('Server tidak menjawab permintaan laporan.')
+      return
+    }
     setReportTrips(rows)
     setReportState('ready')
+    setReportError(null)
   }, [reportFilters])
+
+  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
+  // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
+  useEffect(() => {
+    const onReady = () => { void loadReports() }
+    window.addEventListener(SESSION_READY_EVENT, onReady)
+    return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
+  }, [loadReports])
+
+  // Auto-refresh berkala: trip baru dari mobile harus langsung terlihat di
+  // dashboard tanpa perlu menekan tombol Refresh. Hanya jalan saat tab terlihat
+  // supaya tidak membebani server.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void loadReports(undefined, { silent: true })
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [loadReports])
 
   useEffect(() => {
     if (reportState === 'idle') {
@@ -177,8 +238,13 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             reportState === 'ready' ? 'text-slate-600' : reportState === 'offline' ? 'text-amber-700 border-amber-200' : 'text-slate-500'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${reportState === 'ready' ? 'bg-emerald-500' : reportState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
-            {reportState === 'ready' ? 'Tersambung' : reportState === 'offline' ? 'Offline' : 'Memuat...'}
+            {reportState === 'ready' ? 'Tersambung' : reportState === 'offline' ? 'Gagal memuat' : 'Memuat...'}
           </span>
+          {reportState === 'offline' && reportError && (
+            <span className="text-[11px] font-semibold text-red-600 max-w-[280px] truncate" title={reportError}>
+              {reportError}
+            </span>
+          )}
           <button onClick={() => void loadReports()} disabled={reportState === 'loading'}
             className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
             Refresh
@@ -371,7 +437,18 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
           </thead>
           <tbody>
             {reportState === 'offline' ? (
-              <tr><td colSpan={11} className="p-8 text-center text-slate-400">Offline</td></tr>
+              <tr>
+                <td colSpan={11} className="p-8 text-center">
+                  <p className="text-slate-500 font-semibold">Laporan tidak bisa dimuat</p>
+                  <p className="text-[12px] text-slate-400 mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
+                  <button
+                    onClick={() => void loadReports()}
+                    className="mt-3 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50"
+                  >
+                    Coba Lagi
+                  </button>
+                </td>
+              </tr>
             ) : reportState !== 'ready' ? (
               <tr><td colSpan={11} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
