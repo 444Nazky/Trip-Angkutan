@@ -94,10 +94,7 @@ export async function upsertRegionTariff(input: {
     [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
     [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
   })
-  if (!r.ok) return false
-  const rows = await api.getOk<RegionTariffRow[]>('/region-tariffs')
-  if (!rows) return true
-  return true
+  return r.ok
 }
 
 /** Upsert override master (muatan+kosong) satu golongan+jenis untuk region. */

@@ -498,6 +498,19 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         showToast('Gagal menyimpan region', 'error')
         return
       }
+      // Salin nilai master sekali, supaya region baru langsung punya harga
+      // sendiri dan tidak tampil "ikut BADAU" sampai tiap sel diedit.
+      if (code !== MASTER_CODE) {
+        for (const t of tariffs) {
+          await upsertRegionTariffRow({
+            regionId: id,
+            golongan: t.golongan,
+            vehicleType: t.type,
+            muatanTariff: t.loadedNum,
+            kosongTariff: t.emptyNum,
+          })
+        }
+      }
       await reloadRegions()
       setRegionForm({ name: '', code: '' })
       setRegionFormOpen(false)
@@ -724,7 +737,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       {/* Formulir region baru */}
       {regionFormOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-3 py-2 shadow-sm">
           <input
             autoFocus
             value={regionForm.name}
@@ -757,7 +770,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       )}
 
       {/* Filter */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] p-3 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
           <Field label="Region">
             <select
@@ -816,9 +829,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               key={v.key}
               onClick={() => setFilterType(active ? '' : v.key)}
               title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${v.label.replace(/^\d+\.\s*/, '')}`}
-              className={`flex flex-col items-center gap-2 rounded-2xl border bg-white px-2 py-4 transition ${
+              className={`flex flex-col items-center gap-2 rounded-2xl border bg-[#F2F6FC] px-2 py-4 transition ${
                 active
-                  ? 'border-blue-300 ring-2 ring-blue-100'
+                  ? 'border-blue-300 bg-[#E6EEFB] ring-2 ring-blue-100'
                   : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
               }`}
             >
@@ -836,11 +849,11 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Tabel tarif */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
               <thead>
-                <tr className="bg-slate-50 text-[11px] text-slate-500">
+                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
                   <th rowSpan={3} className="border-b border-slate-200 px-4 py-2 text-left font-semibold">
                     Jenis Kendaraan
                   </th>
@@ -851,7 +864,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                     Aksi
                   </th>
                 </tr>
-                <tr className="bg-slate-50 text-[11px] text-slate-500">
+                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
                   <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Internal
                   </th>
@@ -862,7 +875,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                     Eksternal
                   </th>
                 </tr>
-                <tr className="bg-slate-50 text-[11px] text-slate-500">
+                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
                   <th colSpan={2} className="border-b border-slate-200 px-2 py-1.5" />
                   <th className="border-b border-slate-200 px-2 py-1.5 text-center font-medium">
                     Ada Muatan
@@ -881,7 +894,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                   return (
                     <Fragment key={region.id}>
                       <tr
-                        className="cursor-pointer border-b border-slate-200 bg-slate-100/60 transition hover:bg-slate-100"
+                        className="cursor-pointer border-b border-slate-200 bg-[#DCE7F6] transition hover:bg-[#D2E0F4]"
                         onClick={() => toggleRegion(region.id)}
                       >
                         <td colSpan={6} className="px-4 py-2.5">
@@ -927,7 +940,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                       {open &&
                         golonganGroups.map(([golongan, groupCells]) => (
                           <Fragment key={`${region.id}-${golongan}`}>
-                            <tr className="bg-slate-50/70">
+                            <tr className="bg-[#EAF0FA]">
                               <td
                                 colSpan={6}
                                 className="border-b border-slate-100 px-5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"
@@ -1030,7 +1043,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
         {/* Panel tambah / edit */}
         <aside id="tariff-form" className="xl:sticky xl:top-6">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
             <div className="flex items-start gap-2 border-b border-slate-100 px-4 py-3.5">
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                 <Plus size={15} />
@@ -1160,7 +1173,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       </div>
 
       {/* Keterangan singkat */}
-      <div className="space-y-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[11px] text-slate-500 shadow-sm">
+      <div className="space-y-1 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-4 py-3 text-[11px] text-slate-500 shadow-sm">
         <p>
           <b className="text-slate-700">{MASTER_CODE}</b> — master tarif. Tiap region punya salinan
           barisnya sendiri, jadi mengubah {MASTER_CODE} tidak mengubah region lain.
