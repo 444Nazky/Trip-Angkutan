@@ -305,7 +305,8 @@ function RegionSheet({
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regions, setRegions] = useState<RegionTariffRow[]>([])
-  const [addOpen, setAddOpen] = useState(false)
+  /** Region yang sedang membuka baris tambah (id) — hanya satu pada satu waktu. */
+  const [addRegionId, setAddRegionId] = useState<string | null>(null)
   const [addForm, setAddForm] = useState<AddRowForm>({ golongan: '', type: '', muatan: '', kosong: '' })
   const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
   const [regionFormOpen, setRegionFormOpen] = useState(false)
@@ -347,14 +348,16 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
   /** Nilai tampil per region: override region bila ada, selain itu master. */
   const cellsFor = (region: RegionTariffRow): Cell[] => {
-    const overrides = new Map<string, { muatan: number; kosong: number }>()
+    const overrides = new Map<string, { golongan: string; type: string; muatan: number; kosong: number }>()
     for (const o of region.rows ?? []) {
       overrides.set(rowKey(o.golongan, o.vehicleType), {
+        golongan: o.golongan,
+        type: o.vehicleType,
         muatan: o.muatanTariff,
         kosong: o.kosongTariff,
       })
     }
-    return sortedRows.map((row) => {
+    const cells: Cell[] = sortedRows.map((row) => {
       const o = overrides.get(rowKey(row.golongan, row.type))
       return {
         row,
@@ -363,6 +366,17 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
         overridden: !!o,
       }
     })
+    // Baris override yang jenisnya tidak ada di master tetap ditampilkan.
+    for (const [key, o] of overrides) {
+      if (sortedRows.some((row) => rowKey(row.golongan, row.type) === key)) continue
+      cells.push({
+        row: { id: '', golongan: o.golongan, type: o.type, loaded: '', loadedNum: o.muatan, empty: '', emptyNum: o.kosong, desc: '' },
+        muatan: o.muatan,
+        kosong: o.kosong,
+        overridden: true,
+      })
+    }
+    return cells
   }
 
   const refreshMasterRows = async () => {
@@ -518,36 +532,103 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     return GOLONGAN_OPTIONS.find((g) => !used.has(g)) ?? 'I'
   }
 
-  /** Simpan baris master tarif baru (kolom muatan/kosong per golongan). */
-  const submitAdd = async () => {
+  /** Baris master yang cocok dengan isian form — dipakai untuk prefill. */
+  const masterFor = (form: AddRowForm): TariffRow | undefined => {
+    const type = normalizeType(form.type)
+    if (!type) return undefined
+    const gol = form.golongan.trim().toUpperCase()
+    return (
+      tariffs.find(
+        (t) => normalizeType(t.type) === type && String(t.golongan ?? '').toUpperCase() === gol,
+      ) ?? tariffs.find((t) => normalizeType(t.type) === type)
+    )
+  }
+
+  const closeAdd = () => {
+    setAddRegionId(null)
+    setAddForm({ golongan: '', type: '', muatan: '', kosong: '' })
+  }
+
+  /** Buka form tambah baris; region non-master diisi nilai tarif yang sudah ada. */
+  const beginAdd = (region: RegionTariffRow) => {
+    const override = region.rows?.[0]
+    const seed = override
+      ? {
+          golongan: override.golongan,
+          type: override.vehicleType,
+          muatan: String(override.muatanTariff),
+          kosong: String(override.kosongTariff),
+        }
+      : sortedRows[0]
+        ? {
+            golongan: sortedRows[0].golongan,
+            type: sortedRows[0].type,
+            muatan: String(sortedRows[0].loadedNum),
+            kosong: String(sortedRows[0].emptyNum),
+          }
+        : { golongan: '', type: '', muatan: '', kosong: '' }
+    setAddForm(isMasterRegion(region) ? { golongan: '', type: '', muatan: '', kosong: '' } : seed)
+    setAddRegionId(region.id)
+  }
+
+  /** Ketik jenis → langsung isi muatan/kosong dari master yang sudah ada. */
+  const changeAddType = (v: string) => {
+    const m = masterFor({ ...addForm, type: v })
+    setAddForm((f) => ({
+      ...f,
+      type: v,
+      golongan: f.golongan || (m?.golongan ?? ''),
+      muatan: m ? String(m.loadedNum) : f.muatan,
+      kosong: m ? String(m.emptyNum) : f.kosong,
+    }))
+  }
+
+  /** Simpan baris baru: BADAU -> master, region lain -> override region. */
+  const submitAdd = async (region: RegionTariffRow) => {
     const type = addForm.type.trim()
-    const golongan = addForm.golongan.trim().toUpperCase() || nextGolongan()
-    const muatan = Number(addForm.muatan.replace(/[^\d]/g, '')) || 0
-    const kosong = Number(addForm.kosong.replace(/[^\d]/g, '')) || 0
     if (!type) {
       showToast('Jenis kendaraan wajib diisi', 'error')
       return
     }
+    const master = isMasterRegion(region)
+    const golongan =
+      addForm.golongan.trim().toUpperCase() || masterFor(addForm)?.golongan || nextGolongan()
+    const muatan = Number(addForm.muatan.replace(/[^\d]/g, '')) || 0
+    const kosong = Number(addForm.kosong.replace(/[^\d]/g, '')) || 0
     setSaving(true)
     try {
-      const id = await createTariff({
-        golongan,
-        type,
-        loaded: fmtRp(muatan),
-        loadedNum: muatan,
-        empty: fmtRp(kosong),
-        emptyNum: kosong,
-        desc: '',
-      })
-      if (!id) {
-        showToast('Server menolak tarif baru', 'error')
-        return
+      if (master) {
+        const id = await createTariff({
+          golongan,
+          type,
+          loaded: fmtRp(muatan),
+          loadedNum: muatan,
+          empty: fmtRp(kosong),
+          emptyNum: kosong,
+          desc: '',
+        })
+        if (!id) {
+          showToast('Server menolak tarif baru', 'error')
+          return
+        }
+        await refreshMasterRows()
+        showToast('Baris golongan ditambahkan')
+      } else {
+        const ok = await upsertRegionTariffRow({
+          regionId: region.id,
+          golongan,
+          vehicleType: type,
+          muatanTariff: muatan,
+          kosongTariff: kosong,
+        })
+        if (!ok) {
+          showToast('Server menolak tarif region', 'error')
+          return
+        }
+        showToast('Baris region ditambahkan')
       }
-      await refreshMasterRows()
       await reloadRegions()
-      setAddOpen(false)
-      setAddForm({ golongan: '', type: '', muatan: '', kosong: '' })
-      showToast('Baris golongan ditambahkan')
+      closeAdd()
     } finally {
       setSaving(false)
     }
@@ -657,75 +738,76 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               onDeleteRow={handleDeleteRow}
               onDeleteRegion={handleDeleteRegion}
               footer={
-                master ? (
+                addRegionId === region.id ? (
                   <tfoot>
-                    {addOpen ? (
-                      <tr className="bg-amber-50/60">
-                        <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
-                          <div className="flex items-center gap-1">
-                            <input
-                              list="tariff-golongan-options"
-                              value={addForm.golongan}
-                              placeholder={nextGolongan()}
-                              onChange={(e) => setAddForm((f) => ({ ...f, golongan: e.target.value }))}
-                              onKeyDown={(e) => e.key === 'Enter' && void submitAdd()}
-                              title="Golongan (I..V)"
-                              className="w-10 border border-slate-200 rounded px-1 py-1 text-center text-[12px] uppercase outline-none focus:border-blue-400"
-                            />
-                            <input
-                              autoFocus
-                              value={addForm.type}
-                              placeholder="jenis kendaraan"
-                              onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))}
-                              onKeyDown={(e) => e.key === 'Enter' && void submitAdd()}
-                              className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-[12px] outline-none focus:border-blue-400"
-                            />
-                            <button
-                              onClick={() => setAddOpen(false)}
-                              title="Batal"
-                              className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </td>
-                        <LockedInternalCell />
-                        <td className={`${BORDER} border-slate-300 bg-slate-50`} />
-                        <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
+                    <tr className="bg-amber-50/60">
+                      <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
+                        <div className="flex items-center gap-1">
                           <input
-                            value={addForm.muatan}
-                            inputMode="numeric"
-                            placeholder="0"
-                            onChange={(e) => setAddForm((f) => ({ ...f, muatan: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && void submitAdd()}
-                            className="w-full bg-transparent text-right text-[13px] tabular-nums outline-none"
+                            list="tariff-golongan-options"
+                            value={addForm.golongan}
+                            placeholder={nextGolongan()}
+                            onChange={(e) => setAddForm((f) => ({ ...f, golongan: e.target.value }))}
+                            onKeyDown={(e) => e.key === 'Enter' && void submitAdd(region)}
+                            title="Golongan (I..V)"
+                            className="w-10 border border-slate-200 rounded px-1 py-1 text-center text-[12px] uppercase outline-none focus:border-blue-400"
                           />
-                        </td>
-                        <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
                           <input
-                            value={addForm.kosong}
-                            inputMode="numeric"
-                            placeholder="0"
-                            onChange={(e) => setAddForm((f) => ({ ...f, kosong: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && void submitAdd()}
-                            className="w-full bg-transparent text-right text-[13px] tabular-nums outline-none"
+                            autoFocus
+                            value={addForm.type}
+                            placeholder="jenis kendaraan"
+                            onChange={(e) => changeAddType(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && void submitAdd(region)}
+                            className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-[12px] outline-none focus:border-blue-400"
                           />
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className={`${BORDER} border-slate-300`}>
                           <button
-                            onClick={() => setAddOpen(true)}
-                            className="w-full py-1.5 text-center text-[11px] font-medium text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                            onClick={closeAdd}
+                            title="Batal"
+                            className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                           >
-                            + tambah baris
+                            <X size={14} />
                           </button>
-                        </td>
-                      </tr>
-                    )}
+                        </div>
+                      </td>
+                      <LockedInternalCell />
+                      <td className={`${BORDER} border-slate-300 bg-slate-50`} />
+                      <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
+                        <input
+                          value={addForm.muatan}
+                          inputMode="numeric"
+                          placeholder="0"
+                          onChange={(e) => setAddForm((f) => ({ ...f, muatan: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && void submitAdd(region)}
+                          className="w-full bg-transparent text-right text-[13px] tabular-nums outline-none"
+                        />
+                      </td>
+                      <td className={`${BORDER} border-slate-300 px-2 py-1.5`}>
+                        <input
+                          value={addForm.kosong}
+                          inputMode="numeric"
+                          placeholder="0"
+                          onChange={(e) => setAddForm((f) => ({ ...f, kosong: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && void submitAdd(region)}
+                          className="w-full bg-transparent text-right text-[13px] tabular-nums outline-none"
+                        />
+                      </td>
+                    </tr>
                   </tfoot>
-                ) : undefined
+                ) : (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={5} className={`${BORDER} border-slate-300`}>
+                        <button
+                          onClick={() => beginAdd(region)}
+                          disabled={saving}
+                          className="w-full py-1.5 text-center text-[11px] font-medium text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 disabled:opacity-40"
+                        >
+                          + tambah baris
+                        </button>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
               }
             />
           )
