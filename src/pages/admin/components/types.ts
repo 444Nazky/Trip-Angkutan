@@ -3,6 +3,7 @@ export type AdminTab =
   | 'tariff'
   | 'plates'
   | 'routes'
+  | 'region'
   | 'officers'
   | 'endpoint'
   | 'settings'

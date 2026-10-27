@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   checkEndpointConsistency,
-  readEnvFromBundle,
+  parseEnvFromSource,
 } from '../../scripts/check-endpoint-consistency.mjs'
 
 /**
@@ -21,15 +21,9 @@ import {
 
 const LAN = 'http://192.168.1.123:3000/api'
 
-/** Tulis bundle sementara lalu baca lewat parser. */
+/** Parse bundle dari string (tanpa I/O, jadi aman dipanggil dari test). */
 function parseBundle(source: string) {
-  const { mkdtempSync, writeFileSync } = require('node:fs') as typeof import('node:fs')
-  const { tmpdir } = require('node:os') as typeof import('node:os')
-  const { join } = require('node:path') as typeof import('node:path')
-  const dir = mkdtempSync(join(tmpdir(), 'endpoint-check-'))
-  const file = join(dir, 'main-TEST.js')
-  writeFileSync(file, source, 'utf8')
-  return readEnvFromBundle(file)
+  return parseEnvFromSource(source)
 }
 
 describe('readEnvFromBundle: nilai environment di bundle minify', () => {
