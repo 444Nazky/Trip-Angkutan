@@ -7,14 +7,14 @@
  * Sumber angka (resolver backend, handlers/tariffRules.ts -> resolveTariff):
  *
  *   1. Kategori Internal -> Rp 0 (kolom "internal" terkunci)
- *   2. Master tarif (BADAU) -> kolom external: muatan / kosong per golongan
- *   3. Override region     -> `region_tariff_rows` (golongan+jenis), fallback
- *                             ke master bila region belum punya baris
+ *   2. Baris region        -> `region_tariff_rows` (golongan+jenis) milik
+ *                             region itu sendiri; tiap region bisa beda harga
+ *   3. Master tarif (BADAU) -> cadangan bila region belum punya baris tersebut
  *   4. Tarif region flat   -> kolom "lokal" (`region_tariffs`)
  *
  * Edit seperti spreadsheet: klik angka, ubah, Enter/blur = autosave.
- * Menulis di tabel BADAU mengubah master (berlaku ke semua region yang belum
- * punya override); menulis di tabel region lain membuat/mengubah override.
+ * BADAU menulis master `tariffs`; region lain menulis barisnya sendiri sehingga
+ * tidak pernah mengubah BADAU maupun region lain.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -280,12 +280,12 @@ function RegionSheet({
               <SheetCell
                 value={cell.muatan}
                 onCommit={(v) => commitCell(cell, 'muatan', v)}
-                title={cell.overridden ? 'Override region: kendaraan bermuatan' : 'Mengikuti master: kendaraan bermuatan'}
+                title={cell.overridden ? 'Tarif region ini: kendaraan bermuatan' : 'Sama dengan BADAU (bisa diubah): kendaraan bermuatan'}
               />
               <SheetCell
                 value={cell.kosong}
                 onCommit={(v) => commitCell(cell, 'kosong', v)}
-                title={cell.overridden ? 'Override region: kendaraan kosong' : 'Mengikuti master: kendaraan kosong'}
+                title={cell.overridden ? 'Tarif region ini: kendaraan kosong' : 'Sama dengan BADAU (bisa diubah): kendaraan kosong'}
               />
             </tr>
           ))}
@@ -822,13 +822,13 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       {/* Keterangan singkat */}
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] text-slate-500 shadow-sm space-y-1">
         <p>
-          <b className="text-slate-700">{MASTER_CODE}</b> — kolom <b>muatan</b> dan <b>kosong</b> adalah
-          master tarif yang dipakai aplikasi menghitung tagihan trip. Perubahan di sini berlaku ke semua
-          region yang belum punya override.
+          <b className="text-slate-700">{MASTER_CODE}</b> — master tarif. Tiap region punya salinan
+          barisnya sendiri, jadi mengubah {MASTER_CODE} tidak mengubah region lain.
         </p>
         <p>
-          <b className="text-slate-700">Region lain</b> — mengikuti master sampai sel diubah; setelah
-          diubah baris itu tersimpan sebagai override region (muatan + kosong sekaligus).
+          <b className="text-slate-700">Region lain</b> — ubah sel di tabel region itu sendiri
+          (mis. motor {MASTER_CODE} Rp 50.000, BELITUNG Rp 45.000). Hanya baris baru yang belum
+          pernah ada di region tersebut yang masih memakai nilai {MASTER_CODE}.
         </p>
         <p>
           <b className="text-slate-700">lokal</b> — nominal flat per wilayah (`region_tariffs`).

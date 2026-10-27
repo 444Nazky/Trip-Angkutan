@@ -20,6 +20,33 @@ export async function getRegions(req: Request): Promise<Response> {
   }
 }
 
+/**
+ * Region baru mulai dengan salinan tarif master, tetapi barisnya milik region
+ * itu sendiri. Jadi mengubah tarif region ini tidak menyentuh BADAU/region lain.
+ */
+async function seedRegionRowsFromMaster(regionId: string): Promise<void> {
+  const { data: master, error } = await db
+    .from("tariffs")
+    .select("golongan, vehicle_type, loaded_tariff, empty_tariff")
+    .eq("is_active", 1);
+  if (error) throw error;
+  const rows = (master ?? [])
+    .filter((t: any) => t.vehicle_type)
+    .map((t: any) => ({
+      region_id: regionId,
+      golongan: String(t.golongan ?? ""),
+      vehicle_type: String(t.vehicle_type),
+      muatan_tariff: Number(t.loaded_tariff ?? 0),
+      kosong_tariff: Number(t.empty_tariff ?? 0),
+      is_active: 1,
+    }));
+  if (!rows.length) return;
+  const { error: seedError } = await db
+    .from("region_tariff_rows")
+    .upsert(rows, { onConflict: "region_id,golongan,vehicle_type" });
+  if (seedError) throw seedError;
+}
+
 export async function createRegion(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -27,6 +54,12 @@ export async function createRegion(req: Request): Promise<Response> {
     const { name, code } = await req.json().catch(() => ({})) as any;
     const { data, error } = await db.from("regions").insert({ name, code }).select().single();
     if (error) throw error;
+    try {
+      await seedRegionRowsFromMaster(String((data as any).id));
+    } catch (seedError) {
+      // Region tetap dibuat; baris master masih dipakai sebagai cadangan.
+      console.error("Seed region tariff rows error:", seedError);
+    }
     invalidateTariffCache();
     return json(data, 201);
   } catch (error) {
