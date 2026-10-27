@@ -356,6 +356,21 @@ function hasTripPhoto(trip: Trip): boolean {
 }
 
 
+
+
+/**
+ * Perbandingan murah untuk memutuskan "state tidak berubah": cukup ada/tidaknya
+ * foto. Isi foto hanya berubah lewat aksi yang menaikkan `updatedAt`
+ * (patchTripPhoto / patchVehiclePhoto), jadi perbandingan boolean sudah cukup —
+ * dan penting: tanpa cek ini, optimasi "sama → pakai state lama" justru
+ * membuang foto yang baru dipulihkan dari IndexedDB.
+ */
+function samePhotoPresence(a: Trip | undefined, b: Trip | undefined): boolean {
+  if (!a || !b) return a === b
+  return hasTripPhoto(a) === hasTripPhoto(b)
+}
+
+
 /**
  * Buang data foto (base64) dari sebuah trip.
  *
@@ -618,7 +633,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const merged = mergeTrips(full, onlyLocal)
           .map(t => withStoredPhotos(t, prevById.get(String(t.id))))
         if (merged.length === prev.length) {
-          const same = merged.every((t, i) => t === prev[i] || t.updatedAt === prev[i]?.updatedAt)
+          const same = merged.every((t, i) => t === prev[i]
+            || (t.updatedAt === prev[i]?.updatedAt && samePhotoPresence(t, prev[i])))
           if (same) return prev
         }
         return merged
