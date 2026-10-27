@@ -24,6 +24,31 @@ function longText(value: unknown): string {
   return String(value ?? "").trim().slice(0, MAX_LONG_TEXT);
 }
 
+// ── Validasi UUID ─────────────────────────────────────────────────────────────
+//
+// Semua kolom FK di tabel trips/vehicles bertipe uuid. Kalau satu nilai
+// bukan UUID (mis. ID dermaga lawas "BADAU-D1", atau region kosong ""),
+// PostgreSQL menolak insert dengan "invalid input syntax for type uuid".
+// Handler lama melempar galat itu apa adanya -> PostgREST 400 -> router jadi
+// HTTP 500 tanpa penjelasan, dan petugas hanya melihat "gagal mengunggah".
+//
+// Jadi: TIGA hal dilakukan di sini.
+//   1. Nilai yang TIDAK berbentuk uuid TIDAK PERNAH masuk ke query.
+//   2. Nilai yang wajib (officer) tidak valid -> 401/400 dengan pesan jelas.
+//   3. Nilai opsional (region/dermaga) tidak valid -> null, bukan error.
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: unknown): boolean {
+  return typeof value === "string" && UUID_RE.test(value.trim());
+}
+
+/** Nilai UUID yang valid, atau null. String kosong -> null (bukan error). */
+export function asUuidOrNull(value: unknown): string | null {
+  const s = String(value ?? "").trim();
+  return UUID_RE.test(s) ? s : null;
+}
+
 /**
  * Validasi satu kendaraan pada payload trip.
  * Mengembalikan pesan error (bahasa Indonesia) atau null bila valid.
