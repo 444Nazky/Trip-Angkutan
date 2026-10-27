@@ -175,7 +175,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
                 <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
                 <SyncBadge state={stateOf(t.id, t.synced)} />
               </div>
-              <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
+              <p className="font-mono text-[11px] text-slate-400">{t.displayId ?? t.id}</p>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-[11px] text-slate-400">{t.date} · {t.time}</span>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${t.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.load}</span>

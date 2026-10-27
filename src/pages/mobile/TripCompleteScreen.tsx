@@ -81,6 +81,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const unitCount = t.vehicles && t.vehicles.length > 0
     ? t.vehicles.length
     : (t.vehicle !== '-' ? 1 : 0)
+  const tripLabel = t.displayId ?? t.id
 
   return (
     <div className="px-4 pt-6 pb-4 flex flex-col items-center">
@@ -94,8 +95,8 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
       </h2>
       <p className="text-slate-500 text-[13px] text-center mb-5">
         {failed
-          ? `Trip ${t.id} BELUM masuk ke server — belum ada data di dashboard admin`
-          : `Trip ${t.id} tersimpan di perangkat`}
+          ? `Trip ${tripLabel} BELUM masuk ke server — belum ada data di dashboard admin`
+          : `Trip ${tripLabel} tersimpan di perangkat`}
       </p>
 
       <div className="w-full bg-[#0F172A] rounded-3xl p-5 mb-4">

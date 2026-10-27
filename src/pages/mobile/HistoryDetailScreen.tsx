@@ -124,7 +124,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
+          <p className="font-mono text-[11px] text-slate-400">{t.displayId ?? t.id}</p>
           <h2 className="font-black text-slate-900 text-[18px]">{t.route}</h2>
         </div>
         <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
@@ -321,7 +321,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </button>
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
-            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
+            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.displayId ?? t.id}</p>
             {preview.kind !== 'selfie' && (
               <button
                 onClick={() => {

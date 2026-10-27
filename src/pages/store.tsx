@@ -45,7 +45,10 @@ export interface VehicleEntry {
 
 
 export interface Trip {
+  /** Kunci internal unik (tidak pernah dipakai ulang). */
   id: string
+  /** Nomor urut yang ditampilkan ke petugas, mis. TRP-2026-0012. */
+  displayId?: string
   route: string
   routeCode?: string
   routeFrom?: string
@@ -303,10 +306,34 @@ export function vehicleTariff(vehicleType: string, category: string, load: 'load
 export function nextTripId(trips: Trip[]): string {
   let max = 0
   for (const t of trips) {
-    const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)
+    const m = /TRP-(\d{4})-(\d{4})/.exec(t.displayId || t.id)
     if (m) max = Math.max(max, parseInt(m[2], 10))
   }
   return `TRP-${new Date().getFullYear()}-${String(max + 1).padStart(4, '0')}`
+}
+
+/**
+ * Buat ID internal yang benar-benar unik untuk satu trip.
+ *
+ * `nextTripId()` hanya nomor urut tampilan: nilainya bisa terulang setelah
+ * riwayat dihapus, aplikasi dipasang ulang, atau dipakai perangkat lain.
+ * Kalau nilai itu dipakai sebagai kunci penyimpanan/sinkronisasi, trip baru
+ * akan MENIMPA trip lama (kendaraan dan fotonya ikut hilang).
+ *
+ * Komponen waktu + acak di bawah ini membuat ID tidak pernah sama walau
+ * nomor urutnya kembali ke 0001. Nomor urut tetap ditampilkan lewat
+ * `displayId`.
+ */
+export function uniqueTripId(displayId: string): string {
+  const stamp = Date.now().toString(36).toUpperCase()
+  let random = ''
+  try {
+    const bytes = crypto.getRandomValues(new Uint8Array(4))
+    random = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+  } catch {
+    random = Math.random().toString(36).slice(2, 10).toUpperCase()
+  }
+  return `${displayId}-${stamp}${random}`
 }
 
 
@@ -803,7 +830,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     const now = new Date()
-    const id = nextTripId(tripsRef.current)
+    const displayId = nextTripId(tripsRef.current)
+    const id = uniqueTripId(displayId)
     const routeCode = draft.routeCode ?? ''
     const sepIdx = routeCode.lastIndexOf('-')
     const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
@@ -813,6 +841,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       : routeCode || 'Tidak Diketahui'
     const trip: Trip = {
       id,
+      displayId,
       route: routeLabel,
       routeCode,
       routeFrom,
@@ -854,7 +883,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     const now = new Date()
-    const id = nextTripId(tripsRef.current)
+    const displayId = nextTripId(tripsRef.current)
+    const id = uniqueTripId(displayId)
     const routeCode = draft.routeCode ?? ''
     const sepIdx = routeCode.lastIndexOf('-')
     const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
@@ -866,6 +896,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const total = vehicles.reduce((sum, v) => sum + (v.tariff ?? 0), 0)
     const trip: Trip = {
       id,
+      displayId,
       route: routeLabel,
       routeCode,
       routeFrom,

@@ -369,6 +369,79 @@ async function rollbackTrip(tripId: string): Promise<void> {
   }
 }
 
+export interface TripRetryCandidate {
+  id: string;
+  no_trip?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+}
+
+// Dua request dianggap trip yang SAMA kalau waktu selesainya sama. Toleransi
+// kecil menutupi perbedaan format/putaran detik, bukan untuk menebak.
+const RETRY_COMPLETED_TOLERANCE_MS = 2 * 60 * 1000;
+
+// Klien lama yang tidak mengirim completedAt: hanya request yang tiba tidak
+// lama setelah trip dibuat yang dianggap pengulangan. Trip berhari-hari lalu
+// tidak boleh ditimpa.
+const RETRY_MISSING_TIMESTAMP_WINDOW_MS = 30 * 60 * 1000;
+
+function timeMs(value: unknown): number | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Pilih trip lama yang benar-benar PENGULANGAN request ini.
+ *
+ * `client_trip_id` dibuat di perangkat (mis. "TRP-2026-0003") dan bisa
+ * terulang setelah riwayat dihapus, aplikasi dipasang ulang, atau dipakai
+ * perangkat lain. Dulu server menganggap SEMUA request dengan id sama sebagai
+ * update -> trip baru menimpa trip lama, kendaraan lama terhapus, dan trip
+ * baru tetap memakai `created_at` lama sehingga tidak terlihat di dashboard.
+ *
+ * Pengulangan sejati (retry setelah timeout) selalu membawa `completedAt`
+ * yang sama. Kalau waktunya berbeda, itu trip BARU: jangan ditimpa.
+ */
+export function pickRetryCandidate(
+  candidates: TripRetryCandidate[],
+  payloadCompletedAt: unknown,
+  nowMs = Date.now(),
+): TripRetryCandidate | null {
+  if (!candidates.length) return null;
+
+  const wanted = timeMs(payloadCompletedAt);
+  if (wanted !== null) {
+    let best: TripRetryCandidate | null = null;
+    let bestDelta = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+      const existing = timeMs(candidate.completed_at);
+      if (existing === null) continue;
+      const delta = Math.abs(existing - wanted);
+      if (delta <= RETRY_COMPLETED_TOLERANCE_MS && delta < bestDelta) {
+        best = candidate;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }
+
+  // Kompatibilitas klien lama tanpa completedAt: hanya request yang masih
+  // "segar" yang dianggap retry; selain itu lebih aman membuat trip baru.
+  let best: TripRetryCandidate | null = null;
+  let bestAge = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const created = timeMs(candidate.created_at);
+    if (created === null) continue;
+    const age = nowMs - created;
+    if (age >= 0 && age <= RETRY_MISSING_TIMESTAMP_WINDOW_MS && age < bestAge) {
+      best = candidate;
+      bestAge = age;
+    }
+  }
+  return best;
+}
+
 /**
  * Verifikasi bahwa trip punya TEPAT sejumlah kendaraan yang terhubung.
  *
@@ -479,15 +552,28 @@ export async function completeTrip(req: Request): Promise<Response> {
 
     const clientTripId = typeof payload.clientTripId === "string" ? payload.clientTripId.trim() : "";
 
-    let existingTrip: any = null;
+    let existingTrip: TripRetryCandidate | null = null;
     if (clientTripId) {
-      const { data } = await db
+      // Ambil SEMUA trip dengan id lokal ini, bukan yang pertama. Id bisa
+      // terulang antar-periode/perangkat; yang menentukan retry adalah
+      // completed_at, bukan urutan baris.
+      const { data, error: lookupError } = await db
         .from("trips")
-        .select("id, no_trip")
+        .select("id, no_trip, completed_at, created_at")
         .eq("client_trip_id", clientTripId)
         .eq("officer_id", officerId)
-        .limit(1);
-      existingTrip = data?.[0] ?? null;
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (lookupError) throw lookupError;
+
+      const candidates = (data ?? []) as TripRetryCandidate[];
+      existingTrip = pickRetryCandidate(candidates, payload.completedAt);
+      if (!existingTrip && candidates.length) {
+        console.warn(
+          `[trips/complete] client_trip_id ${clientTripId} dipakai ulang oleh trip baru ` +
+          `(completed_at berbeda) — trip dibuat baru, data lama tidak ditimpa`,
+        );
+      }
     }
 
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files.length);

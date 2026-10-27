@@ -22,7 +22,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { AppProvider, persistTrips, stripTripPhotos, useApp, type Trip } from './store'
+import { AppProvider, nextTripId, persistTrips, stripTripPhotos, uniqueTripId, useApp, type Trip } from './store'
 import { dbAll, dbClear, dbPut, initLocalDb } from '../services/localDb'
 
 // React 19 membutuhkan flag ini agar `act` benar-benar mem-flush efek.
@@ -195,5 +195,36 @@ describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka u
     const trip = stored.find(t => t.id === 'TRP-2026-0001')
     expect(trip?.photoUrl).toBe(TRIP_PHOTO)
     expect(trip?.vehicles?.[0]?.photoUrl).toBe(VEHICLE_PHOTO)
+  })
+})
+
+describe('ID trip unik — nomor urut boleh direset, kunci internal tidak', () => {
+  it('nomor tampilan tetap berurutan tetapi ID internal selalu berbeda', () => {
+    const trips = [fullTrip()]
+    const display = nextTripId(trips)
+    expect(display).toBe(`TRP-${new Date().getFullYear()}-0002`)
+
+    const a = uniqueTripId(display)
+    const b = uniqueTripId(display)
+    expect(a.startsWith(display)).toBe(true)
+    expect(a).not.toBe(b)
+  })
+
+  it('riwayat dihapus -> nomor kembali ke 0001, ID internal tetap tidak bentrok', () => {
+    const display = nextTripId([])
+    const first = uniqueTripId(display)
+    const second = uniqueTripId(display)
+
+    expect(display).toBe(`TRP-${new Date().getFullYear()}-0001`)
+    expect(first).not.toBe(second)
+  })
+
+  it('nextTripId memakai displayId, bukan ID internal yang panjang', () => {
+    const trips: Trip[] = [{
+      ...fullTrip(),
+      id: 'TRP-2026-0007-ABC123',
+      displayId: 'TRP-2026-0007',
+    }]
+    expect(nextTripId(trips)).toBe('TRP-2026-0008')
   })
 })
