@@ -214,6 +214,37 @@ function deriveTripPhoto(trip: Trip): PhotoEntry | undefined {
 
 
 
+/** true bila entri foto benar-benar membawa data gambar. */
+function hasPhotoData(p?: PhotoEntry): p is PhotoEntry {
+  return !!p?.dataUrl && p.dataUrl.trim().length > 0
+}
+
+
+
+
+/**
+ * Gabungkan foto baru dengan foto yang SUDAH tersimpan di antrean.
+ *
+ * Entri baru yang kosong tidak boleh menimpa entri lama yang berisi. `trip`
+ * yang masuk ke fungsi ini bisa berasal dari state yang hanya memuat metadata
+ * (`localStorage` adalah cache metadata — foto dibuang dari sana). Tanpa aturan
+ * ini, satu aksi "Ubah / Simpan & Kirim" pada trip offline akan menghapus
+ * salinan foto terakhir di antrean, sehingga trip terkirim tanpa blob foto
+ * (atau langsung ditolak server dengan PHOTO_MISSING).
+ *
+ * Foto hasil ambil ulang tetap menang karena entri barunya berisi data.
+ */
+function mergePhotoEntries(next: PhotoEntry[], prev: PhotoEntry[] = []): PhotoEntry[] {
+  return next.map((p, i) => {
+    if (hasPhotoData(p)) return p
+    const old = prev[i]
+    return hasPhotoData(old) ? old : p
+  })
+}
+
+
+
+
 async function migrateLegacyQueue(): Promise<void> {
   try {
     if (await metaGet(MIGRATION_KEY)) return
@@ -273,8 +304,10 @@ export async function addToSyncQueue(
     needsAttention: existing?.needsAttention,
     createdAt,
     lastAttemptAt: existing?.lastAttemptAt,
-    photos: photos?.length ? photos : derivePhotos(trip),
-    tripPhoto: tripPhoto ?? deriveTripPhoto(trip),
+    photos: mergePhotoEntries(photos?.length ? photos : derivePhotos(trip), existing?.photos),
+    // Foto trip hanya boleh diganti oleh foto BARU yang berisi data; kalau
+    // tidak ada, pertahankan salinan yang sudah ada di antrean.
+    tripPhoto: (hasPhotoData(tripPhoto) ? tripPhoto : deriveTripPhoto(trip)) ?? existing?.tripPhoto,
   }
   await writeItem(item)
   notifyQueueListeners()
@@ -291,6 +324,38 @@ async function dbGetById(tripId: string): Promise<SyncItem | null> {
 
 
 
+
+/**
+ * Foto yang masih tersimpan di antrean sinkronisasi untuk sebuah trip.
+ *
+ * Antrean (`pending`) menyimpan data URL foto secara UTUH — berbeda dari cache
+ * metadata `localStorage` yang membuangnya. Kalau store `trips` kehilangan foto
+ * (penulisan IndexedDB gagal, mis. kuota penuh), antrean adalah salinan terakhir
+ * yang bisa dipakai memulihkan foto di halaman Riwayat dan memastikan upload
+ * tetap membawa blob foto yang valid.
+ */
+export interface QueuedPhotos {
+  /** Foto kendaraan; index-nya sejajar dengan `vehicles` pada trip di antrean. */
+  vehiclePhotos: Array<string | undefined>
+  tripPhotoUrl?: string
+  selfieUrl?: string
+}
+
+/** Foto sebuah trip dari antrean sync. `null` = antrean tidak punya fotonya. */
+export async function readQueuedPhotos(tripId: string): Promise<QueuedPhotos | null> {
+  try {
+    await initLocalDb()
+    const item = await dbGetById(tripId)
+    if (!item) return null
+    const vehiclePhotos = (item.photos ?? []).map(p => (hasPhotoData(p) ? p.dataUrl : undefined))
+    const tripPhotoUrl = hasPhotoData(item.tripPhoto) ? item.tripPhoto.dataUrl : undefined
+    const selfieUrl = typeof item.trip?.selfieUrl === 'string' ? item.trip.selfieUrl : undefined
+    if (!vehiclePhotos.some(Boolean) && !tripPhotoUrl && !selfieUrl) return null
+    return { vehiclePhotos, tripPhotoUrl, selfieUrl }
+  } catch {
+    return null
+  }
+}
 
 /** Paksa muat ulang antrean + kabari semua listener (setelah kirim ulang manual). */
 export function refreshSyncQueue(): void {
@@ -315,8 +380,10 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
     const item: SyncItem = {
       ...existing,
       trip,
-      photos: derivePhotos(trip),
-      tripPhoto: deriveTripPhoto(trip),
+      // Antrean menyimpan salinan foto TERAKHIR yang masih utuh — entri baru
+      // yang kosong tidak boleh menghapusnya (lihat mergePhotoEntries).
+      photos: mergePhotoEntries(derivePhotos(trip), existing.photos),
+      tripPhoto: deriveTripPhoto(trip) ?? existing.tripPhoto,
       attempts: 0,
       lastError: undefined,
       lastErrorCode: undefined,

@@ -1,9 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { officerList, tariffData } from './data'
-import { addToSyncQueue, onTripSynced, retrySyncItem, notifyQueueListeners } from '../services/sync'
+import {
+  addToSyncQueue,
+  onTripSynced,
+  retrySyncItem,
+  notifyQueueListeners,
+  readQueuedPhotos,
+  type QueuedPhotos,
+} from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
-import { dbAll, dbClear, dbPutMany, initLocalDb, metaGet, metaSet } from '../services/localDb'
+import { dbAll, dbClear, dbGet, dbPutMany, initLocalDb, metaGet, metaSet } from '../services/localDb'
 import { syncOfficersToLocal, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
@@ -367,6 +374,118 @@ export function stripTripPhotos(trip: Trip): Trip {
 }
 
 
+
+
+/**
+ * Salin foto (beserta metadata jepretannya) dari versi yang SUDAH tersimpan ke
+ * versi baru yang tidak membawa foto.
+ *
+ * Aturan: foto hanya bergerak MAJU. State `trips` awalnya diisi dari cache
+ * metadata `localStorage` — yang sengaja TIDAK memuat foto — sehingga menulis
+ * state itu mentah-mentah ke IndexedDB menghapus foto yang tersimpan permanen
+ * (gejala: "Foto Dokumentasi (0)" di Riwayat setelah aplikasi dibuka ulang).
+ * Versi baru yang benar-benar membawa foto (termasuk hasil ambil ulang) selalu
+ * menang, jadi tidak ada foto yang "nyangkut" di data lama.
+ */
+export function withStoredPhotos(next: Trip, stored?: Trip): Trip {
+  if (!stored) return next
+  const picked: Partial<Trip> = {}
+  if (!next.photoUrl && stored.photoUrl) {
+    picked.photoUrl = stored.photoUrl
+    picked.photoCapturedAt = stored.photoCapturedAt
+    picked.photoLatitude = stored.photoLatitude
+    picked.photoLongitude = stored.photoLongitude
+  }
+  if (!next.selfieUrl && stored.selfieUrl) {
+    picked.selfieUrl = stored.selfieUrl
+    picked.selfieCapturedAt = stored.selfieCapturedAt
+  }
+  const vehicles = next.vehicles?.map(v => {
+    if (v.photoUrl) return v
+    const plate = v.plate?.trim().toUpperCase()
+    // Cocokkan per plat, bukan per index: urutan kendaraan bisa berubah dan
+    // index yang bergeser akan menempelkan foto ke unit yang salah.
+    const match = stored.vehicles?.find(s => !!s.photoUrl && !!plate && s.plate?.trim().toUpperCase() === plate)
+    return match
+      ? {
+          ...v,
+          photoUrl: match.photoUrl,
+          photoCapturedAt: match.photoCapturedAt,
+          photoLatitude: match.photoLatitude,
+          photoLongitude: match.photoLongitude,
+        }
+      : v
+  })
+  return { ...next, ...picked, vehicles }
+}
+
+
+
+
+/** Isi foto yang masih KOSONG dari salinan antrean (foto yang sudah ada dibiarkan). */
+function applyQueuedPhotos(trip: Trip, q: QueuedPhotos): Trip {
+  const vehicles = trip.vehicles?.map((v, i) => {
+    const url = q.vehiclePhotos[i]
+    return !v.photoUrl && url ? { ...v, photoUrl: url } : v
+  })
+  return {
+    ...trip,
+    photoUrl: trip.photoUrl ?? q.tripPhotoUrl,
+    selfieUrl: trip.selfieUrl ?? q.selfieUrl,
+    vehicles,
+  }
+}
+
+
+
+
+/**
+ * Pemulihan terakhir untuk foto yang sudah terlanjur hilang dari store `trips`.
+ *
+ * Antrean sync (`pending`) menyimpan foto secara utuh dan tidak pernah ditulis
+ * sebagai metadata-only, jadi selama trip masih menunggu kirim, fotonya masih
+ * bisa dikembalikan ke Riwayat — sekaligus memastikan upload tetap membawa blob
+ * foto yang valid.
+ */
+async function recoverPhotosFromQueue(trips: Trip[]): Promise<Trip[]> {
+  const missing = trips.filter(t => !hasTripPhoto(t))
+  if (!missing.length) return trips
+  const healed = new Map<string, Trip>()
+  for (const t of missing) {
+    const queued = await readQueuedPhotos(t.id)
+    if (queued) healed.set(String(t.id), applyQueuedPhotos(t, queued))
+  }
+  if (!healed.size) return trips
+  return trips.map(t => healed.get(String(t.id)) ?? t)
+}
+
+
+
+
+/**
+ * Simpan riwayat ke IndexedDB tanpa pernah menghapus foto yang sudah tersimpan.
+ * Diekspor agar bisa diuji langsung (lihat store.persistence.test.tsx).
+ */
+export async function persistTrips(trips: Trip[]): Promise<void> {
+  try {
+    const rows: Trip[] = []
+    for (const t of trips) {
+      if (hasTripPhoto(t)) { rows.push(t); continue }
+      // Trip tanpa foto = lapisan cache metadata. Baca versi tersimpan dulu
+      // supaya foto tetap utuh di IndexedDB.
+      const stored = await dbGet<Trip>('trips', t.id).catch(() => null)
+      rows.push(withStoredPhotos(t, stored ?? undefined))
+    }
+    const ok = await dbPutMany<Trip>('trips', rows)
+    if (!ok) {
+      console.warn('[store] riwayat gagal disimpan ke IndexedDB (kuota penuh?) — foto masih ada di antrean sync')
+    }
+  } catch (err) {
+    console.warn('[store] riwayat gagal disimpan ke IndexedDB:', err)
+  }
+}
+
+
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
@@ -473,8 +592,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('[store] localStorage penuh — data aman di IndexedDB:', err)
     }
-    void dbPutMany<Trip>('trips', trips)
-  }, [trips])
+    // JANGAN menulis ke IndexedDB sebelum hidrasi selesai: state awal diisi
+    // dari cache metadata (tanpa foto), dan menulisnya lebih dulu menghapus
+    // SEMUA foto yang tersimpan. `tripsLoaded` ikut jadi dependency supaya
+    // state hasil hidrasi tetap tersimpan setelah hidrasi tuntas.
+    if (!tripsLoaded) return
+    void persistTrips(trips)
+  }, [trips, tripsLoaded])
 
   // Sumber kebenaran riwayat = IndexedDB (lengkap dengan foto).
   // localStorage hanya cache metadata, jadi trip yang masih ada di sana tapi
@@ -484,11 +608,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const stored = await dbAll<Trip>('trips')
       if (!alive) return
-      const full = normalizeTrips(stored)
+      const full = await recoverPhotosFromQueue(normalizeTrips(stored))
+      if (!alive) return
       setTrips(prev => {
+        const prevById = new Map(prev.map(t => [String(t.id), t]))
         const fullIds = new Set(full.map(t => t.id))
         const onlyLocal = prev.filter(t => !fullIds.has(t.id))
+        // Hidrasi hanya boleh MENAMBAH foto — tidak pernah menguranginya.
         const merged = mergeTrips(full, onlyLocal)
+          .map(t => withStoredPhotos(t, prevById.get(String(t.id))))
         if (merged.length === prev.length) {
           const same = merged.every((t, i) => t === prev[i] || t.updatedAt === prev[i]?.updatedAt)
           if (same) return prev
