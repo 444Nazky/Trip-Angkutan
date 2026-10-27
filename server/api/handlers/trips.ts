@@ -48,6 +48,19 @@ export function asUuidOrNull(value: unknown): string | null {
   const s = String(value ?? "").trim();
   return UUID_RE.test(s) ? s : null;
 }
+/**
+ * Apakah payload ini instance yang sama dengan trip yang sudah tersimpan?
+ *
+ * Kunci idempoten: `completed_at`. Retry dari perangkat yang sama mengirim
+ * payload yang sama persis, jadi nilainya cocok. Trip yang berbeda pasti
+ * punya waktu selesai yang berbeda.
+ */
+function isSameTripInstance(existing: any, payload: any): boolean {
+  const a = String(existing?.completed_at ?? "");
+  const b = String(payload?.completedAt ?? "");
+  if (!a && !b) return true;
+  return a === b;
+}
 
 /**
  * Validasi satu kendaraan pada payload trip.
@@ -109,12 +122,29 @@ async function supportsColumn(table: string, column: string): Promise<boolean> {
 // punya cache sendiri per-instance (60 detik), jadi handler tidak perlu query
 // tariffs per kendaraan.
 
-async function resolveOfficerDermaga(officerId: string, regionId: string, bodyDermagaId: unknown): Promise<string | undefined> {
-  if (bodyDermagaId) return String(bodyDermagaId);
+/**
+ * Tentukan dermaga untuk trip.
+ *
+ * Semua nilai yang dikembalikan PASTI UUID valid atau undefined:
+ *  - id dermaga dari klien dicek dulu (id lawas seperti "BADAU-D1" kalau
+ *    diteruskan mentah-mentah akan membuat INSERT trips gagal dengan
+ *    "invalid input syntax for type uuid" -> HTTP 500 -> trip hilang);
+ *  - id dari tabel officer_dermagas / dermagas juga dicek, karena data lama
+ *    bisa saja masih berisi id non-UUID.
+ */
+async function resolveOfficerDermaga(
+  officerId: string,
+  regionId: string | null,
+  bodyDermagaId: unknown,
+): Promise<string | undefined> {
+  const fromBody = asUuidOrNull(bodyDermagaId);
+  if (fromBody) return fromBody;
   const { data: od } = await db.from("officer_dermagas").select("dermaga_id").eq("officer_id", officerId).limit(1);
-  if (od?.[0]) return od[0].dermaga_id;
+  const linked = asUuidOrNull(od?.[0]?.dermaga_id);
+  if (linked) return linked;
+  if (!regionId) return undefined;
   const { data: d } = await db.from("dermagas").select("id").eq("region_id", regionId).limit(1);
-  return d?.[0]?.id;
+  return asUuidOrNull(d?.[0]?.id) ?? undefined;
 }
 
 async function publicUrl(bucket: string, path: string): Promise<string> {
@@ -128,15 +158,25 @@ async function publicUrl(bucket: string, path: string): Promise<string> {
  * Kegagalan paling sering di kantor adalah direktori penyimpanan tidak
  * bisa ditulis (kepemilikan salah di host). Tanpa penerjemahan ini, petugas
  * hanya melihat "gagal menyimpan" tanpa tahu harus minta apa ke operator.
+ *
+ * CATATAN: klien database (server/api/_db.ts) mengembalikan objek galat
+ * biasa `{ message }`, BUKAN instance `Error`. Versi lama memakai
+ * `String(error)` sehingga hasilnya "[object Object]" dan pola
+ * "permission denied" TIDAK PERNAH cocok - artinya pesan yang bisa
+ * ditindaklanjuti tidak pernah sampai ke petugas.
  */
 function storageErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
+  const raw = error instanceof Error
+    ? error.message
+    : (typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? ""));
   if (/permission denied|EACCES|os error 13/i.test(raw)) {
     return "Server tidak bisa menyimpan berkas. Operator perlu memperbaiki " +
       "kepemilikan folder penyimpanan di PC kantor " +
       "(sudo chown -R 1000:1000 data/storage).";
   }
-  return "Server gagal menyimpan berkas: " + raw;
+  return "Server gagal menyimpan berkas: " + (raw || "kesalahan tidak diketahui");
 }
 
 async function storePhoto(file: File): Promise<string> {
@@ -155,7 +195,7 @@ async function insertVehicle(
   tripId: string,
   vehicle: any,
   photoPath: string,
-  regionId: string,
+  regionId: string | null,
 ): Promise<void> {
   const vehicleId = crypto.randomUUID();
 
@@ -207,7 +247,13 @@ async function insertVehicle(
   const { error } = await db.from("vehicles").insert(row).select("id").single();
   if (error) throw error;
 
-  await db.from("trip_vehicles").insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
+  // Link kendaraan <-> trip WAJIB dicek. Kalau insert ini gagal diam-diam,
+  // baris trip tetap ada tapi kendaraan tidak pernah muncul di dashboard
+  // (vehicle_count = 0) tanpa ada error yang terlihat.
+  const { error: linkError } = await db
+    .from("trip_vehicles")
+    .insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
+  if (linkError) throw linkError;
 }
 
 // POST /trips/complete — multipart form: payload JSON + photos[]
@@ -243,8 +289,16 @@ export async function completeTrip(req: Request): Promise<Response> {
 
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
-    const officerId = ctx.officerId ?? "";
-    const regionId = String(ctx.regionId ?? "");
+
+    // Id petugas WAJIB UUID. Tanpa ini, INSERT trips gagal diam-diam dengan
+    // "invalid input syntax for type uuid" -> HTTP 500 -> trip tidak pernah
+    // masuk dashboard padahal petugas menekan "kirim".
+    const officerId = asUuidOrNull(ctx.officerId);
+    if (!officerId) {
+      return json({ error: "Sesi petugas tidak valid — silakan login ulang" }, 401);
+    }
+    // Region boleh kosong (petugas tanpa wilayah) -> null, bukan string kosong.
+    const regionId = asUuidOrNull(ctx.regionId);
 
     console.log("[trips/complete] officer", officerId, "trip", payload.clientTripId ?? "(new)");
 
@@ -254,11 +308,22 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (clientTripId) {
       const { data } = await db
         .from("trips")
-        .select("id, no_trip")
+        .select("id, no_trip, completed_at")
         .eq("client_trip_id", clientTripId)
         .eq("officer_id", officerId)
         .limit(1);
-      existingTrip = data?.[0] ?? null;
+      const found = data?.[0] ?? null;
+      // Idempoten HANYA kalau itu benar-benar trip yang sama (waktu selesai
+      // sama). Kalau client_trip_id sama tapi isinya berbeda, itu trip BARU
+      // yang kebetulan memakai id yang sama - mis. petugas memakai perangkat
+      // lain, atau riwayat di perangkat lama dihapus sehingga penomoran mulai
+      // dari nol lagi.
+      //
+      // Versi lama selalu menganggapnya trip yang sama, lalu MENIMPA trip lama:
+      // baris trip baru tidak pernah dibuat, created_at tetap tanggal yang
+      // lama, dan petugas melihat "terkirim" padahal trip-nya tidak muncul
+      // di dashboard sebagai data baru.
+      if (found && isSameTripInstance(found, payload)) existingTrip = found;
     }
 
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files.length);
@@ -323,8 +388,12 @@ export async function completeTrip(req: Request): Promise<Response> {
 
       const { data: oldVehicles } = await db.from("trip_vehicles").select("vehicle_id").eq("trip_id", tripId);
       if (oldVehicles?.length) {
-        await db.from("trip_vehicles").delete().eq("trip_id", tripId);
-        for (const row of oldVehicles) await db.from("vehicles").delete().eq("id", row.vehicle_id);
+        const { error: delLinkError } = await db.from("trip_vehicles").delete().eq("trip_id", tripId);
+        if (delLinkError) throw delLinkError;
+        for (const row of oldVehicles) {
+          const { error: delVehError } = await db.from("vehicles").delete().eq("id", row.vehicle_id);
+          if (delVehError) throw delVehError;
+        }
       }
 
       await Promise.all(
@@ -369,8 +438,9 @@ export async function createTrip(req: Request): Promise<Response> {
     if (!ctx) return json({ error: "Invalid token" }, 401);
     const { statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath } =
       await req.json().catch(() => ({})) as any;
-    const officerId = ctx.officerId ?? "";
-    const regionId = String(ctx.regionId ?? "");
+    const officerId = asUuidOrNull(ctx.officerId);
+    if (!officerId) return json({ error: "Sesi petugas tidak valid — silakan login ulang" }, 401);
+    const regionId = asUuidOrNull(ctx.regionId);
 
     if (!statusMuatan) return json({ error: "Status muatan wajib diisi" }, 400);
     if (!VALID_STATUS_MUATAN.has(String(statusMuatan).trim().toLowerCase())) {
@@ -382,7 +452,10 @@ export async function createTrip(req: Request): Promise<Response> {
 
     const dermagaId = await resolveOfficerDermaga(officerId, regionId, undefined);
 
-    await db.from("trips").insert({
+    // Error insert HARUS dicek. Versi lama mengabaikan error -> handler
+    // membalas 201 walau baris trip tidak pernah dibuat, sehingga petugas
+    // melihat "berhasil terkirim" padahal tidak ada data di dashboard.
+    const { error: insErr } = await db.from("trips").insert({
       id: tripId,
       no_trip: noTrip,
       officer_id: officerId,
@@ -394,6 +467,10 @@ export async function createTrip(req: Request): Promise<Response> {
       keterangan: keterangan,
       foto_kosong_path: fotoKosongPath,
     });
+    if (insErr) {
+      console.error("Create trip insert error:", insErr);
+      return json({ error: "Gagal menyimpan trip" }, 500);
+    }
 
     return json({ id: tripId, noTrip }, 201);
   } catch (error) {

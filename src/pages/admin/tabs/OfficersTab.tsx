@@ -218,16 +218,31 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
     const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
     const be = findBackendOfficer(editOff)
-    if (be) {
-      if (ids.length > 0) await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
-      const validDm = new Set(dermagaOptionsFor(chosen).map(d => d.id))
-      const dmIds = editDermagaIds.filter(id => validDm.has(id))
-      await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
-      // ponytail: ambang PIN disamakan dengan create (≥4). Dulu hanya ==6 yang
-      // dikirim sehingga PIN 4-5 digit "terupdate" di UI tapi tidak di DB.
-      if (editOff.pin && editOff.pin.length >= 4) await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
-      await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
+    if (!be) {
+      showToast('Petugas ini belum ada di server — tidak bisa diperbarui', 'error')
+      return
     }
+
+    // SEMUA panggilan harus dicek. Versi lama mengabaikan hasilnya lalu
+    // selalu menampilkan "Petugas diupdate" - padahal server bisa saja
+    // menolak (403/500) dan akses dermaga tidak berubah sama sekali.
+    if (ids.length > 0) {
+      const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
+      if (!res.ok) return showToast(res.error?.message ?? 'Gagal menyimpan wilayah', 'error')
+    }
+    const validDm = new Set(dermagaOptionsFor(chosen).map(d => d.id))
+    const dmIds = editDermagaIds.filter(id => validDm.has(id))
+    const dmRes = await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
+    if (!dmRes.ok) return showToast(dmRes.error?.message ?? 'Gagal menyimpan akses dermaga', 'error')
+
+    // ponytail: ambang PIN disamakan dengan create (≥4). Dulu hanya ==6 yang
+    // dikirim sehingga PIN 4-5 digit "terupdate" di UI tapi tidak di DB.
+    if (editOff.pin && editOff.pin.length >= 4) {
+      const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
+      if (!pinRes.ok) return showToast(pinRes.error?.message ?? 'Gagal menyimpan PIN', 'error')
+    }
+
+    await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
     setEditOffIdx(null)
     setEditOff(null)
     setEditDermagaIds([])

@@ -638,8 +638,36 @@ export function isValidGeofencePoint(p: GeofencePoint): string[] {
  * Coba dapat posisi GPS dari browser/device.
  * Mengembalikan null pada kegagalan (bukan throw).
  */
+/**
+ * Ambil posisi GPS.
+ *
+ * Mengembalikan null hanya kalau benar-benar TIDAK ADA posisi yang bisa
+ * dipakai - termasuk posisi lama (stale) yang masih dipakai sebagai
+ * cadangan. Field `stale` menandai bahwa koordinat bukan fix terbaru.
+ *
+ * Timeout Android untuk GPS cold start sering lebih dari 8 detik, jadi
+ * batas 8 detik guarantee kode 3 (Timeout expired) dan memblokir petugas
+ * di layar "Pilih Rute".
+ */
+export interface GpsPosition {
+  lat: number
+  lng: number
+  accuracy?: number
+  /** true = koordinat berasal dari fix lama, bukan permintaan terbaru. */
+  stale?: boolean
+  /** Umur fix dalam milidetik (hanya kalau stale). */
+  ageMs?: number
+}
+
 const GPS_CACHE_TTL = 30_000
-let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } | null> | null = null
+/** Fix dianggap masih berguna sampai 10 menit. */
+const STALE_FIX_MAX_AGE_MS = 10 * 60_000
+/** Batas waktu permintaan GPS presisi tinggi (detik). */
+const GPS_HIGH_ACCURACY_TIMEOUT = 15_000
+/** Batas waktu permintaan GPS presisi rendah / jaringan (detik). */
+const GPS_LOW_ACCURACY_TIMEOUT = 10_000
+
+let pendingGpsRequest: Promise<GpsPosition | null> | null = null
 
 // ponytail: GPS watch Keeping cache tetap hangat. Dengan watch, layar "Pilih
 // Rute" hampir selalu punya fix instan (tidak menunggu 8-15 detik GPS cold
@@ -673,7 +701,7 @@ export function stopGpsWatch(): void {
   _gpsWatchId = null
 }
 
-export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{ lat: number; lng: number; accuracy?: number } | null> {
+export function getCurrentPosition(options: { force?: boolean } = {}): Promise<GpsPosition | null> {
   const cached = getCachedGpsFix()
   if (!options.force && cached && Date.now() - cached.timestamp <= GPS_CACHE_TTL) {
     return Promise.resolve({ lat: cached.latitude, lng: cached.longitude, accuracy: cached.accuracy })
@@ -682,7 +710,10 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
 
   const requestFix = (highAccuracy: boolean) => Geolocation.getCurrentPosition({
     enableHighAccuracy: highAccuracy,
-    timeout: 8000,
+    // Batas 8 detik terlalu pendek untuk GPS cold start di Android - hasilnya
+    // hampir selalu kode 3 (Timeout expired). 15 detik untuk fix presisi
+    // tinggi, 10 detik untuk fix jaringan.
+    timeout: highAccuracy ? GPS_HIGH_ACCURACY_TIMEOUT : GPS_LOW_ACCURACY_TIMEOUT,
     maximumAge: highAccuracy ? 15000 : 60000,
   })
 
@@ -704,6 +735,24 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
       })
       .catch(error => {
         console.warn('[geofence] Gagal mendapatkan GPS:', error)
+        // Cadangan terakhir: pakai fix terakhir yang tersimpan, selama tidak
+        // lebih tua dari 10 menit. Tanpa ini, satu kedipan sinyal GPS
+        // (tunnel, atap kapal, basement) langsung memblokir petugas di layar
+        // "Pilih Rute" dengan pesan "GPS tidak tersedia".
+        const last = getCachedGpsFix()
+        if (last) {
+          const ageMs = Date.now() - last.timestamp
+          if (ageMs <= STALE_FIX_MAX_AGE_MS) {
+            console.warn('[geofence] Memakai posisi terakhir (umur', Math.round(ageMs / 1000), 'detik)')
+            return {
+              lat: last.latitude,
+              lng: last.longitude,
+              accuracy: last.accuracy,
+              stale: true,
+              ageMs,
+            }
+          }
+        }
         return null
       })
       .finally(() => { pendingGpsRequest = null })
