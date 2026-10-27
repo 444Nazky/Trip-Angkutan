@@ -70,6 +70,8 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
+  /** Base URL server yang menerima trip ini (menampilkan mismatch endpoint). */
+  syncedTarget?: string
   officerId?: string
   selfieUrl?: string
   selfieCapturedAt?: string
@@ -897,8 +899,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     commitTrip(trip)
   }, [draft, officer.name, officer.id, commitTrip])
-  const markTripSynced = useCallback((id: string) => {
-    setTrips(prev => prev.map(t => (t.id === id ? { ...t, synced: true } : t)))
+  const markTripSynced = useCallback((id: string, target?: string) => {
+    setTrips(prev => prev.map(t => (
+      t.id === id ? { ...t, synced: true, syncedTarget: target ?? t.syncedTarget } : t
+    )))
   }, [])
   const patchTripPhoto = useCallback((tripId: string, fields: Partial<Trip>) => {
     const current = tripsRef.current.find(t => t.id === tripId)
@@ -979,7 +983,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshOfficers])
 
   useEffect(() => {
-    const unsub = onTripSynced(id => markTripSynced(id))
+    const unsub = onTripSynced((id, target) => markTripSynced(id, target))
     return unsub
   }, [markTripSynced])
 

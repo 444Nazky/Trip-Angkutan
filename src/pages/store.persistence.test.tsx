@@ -20,7 +20,7 @@
 
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import React, { act } from 'react'
+import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { AppProvider, persistTrips, stripTripPhotos, useApp, type Trip } from './store'
 import { dbAll, dbClear, dbPut, initLocalDb } from '../services/localDb'
@@ -92,11 +92,13 @@ const readStored = () => dbAll<Trip>('trips')
 
 /** State trips terakhir yang dilihat UI (setara yang dibaca HistoryScreen). */
 const seen = { trips: [] as Trip[], loaded: false }
+let app: ReturnType<typeof useApp> | null = null
 
 function Probe() {
-  const { trips, tripsLoaded } = useApp()
-  seen.trips = trips
-  seen.loaded = tripsLoaded
+  const ctx = useApp()
+  app = ctx
+  seen.trips = ctx.trips
+  seen.loaded = ctx.tripsLoaded
   return null
 }
 
@@ -134,6 +136,7 @@ beforeEach(() => {
   localStorage.clear()
   root = null
   container = null
+  app = null
 })
 
 describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka ulang', () => {
@@ -162,18 +165,21 @@ describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka u
     expect(trip?.vehicles?.[0]?.photoUrl).toBe(VEHICLE_PHOTO)
   })
 
-  it('trip yang baru dicatat (foto hanya di memori) tetap tersimpan lengkap', async () => {
+  it('foto hasil ambil ulang menggantikan foto lama tanpa menghilangkan foto lain', async () => {
     await prepareColdStart()
     await mountApp()
     await flush()
 
-    const fresh: Trip = { ...fullTrip(), id: 'TRP-2026-0002', photoUrl: TRIP_PHOTO }
-    // Meniru commitTrip: state bertambah, lalu efek persist menyimpan ke IndexedDB.
-    seen.trips = [fresh, ...seen.trips]
+    const retaken = 'data:image/jpeg;base64,RETAKE'
+    await act(async () => {
+      app!.patchTripPhoto('TRP-2026-0001', { photo: true, photoUrl: retaken })
+    })
     await flush()
 
-    const stored = await readStored()
-    expect(stored.find(t => t.id === 'TRP-2026-0002')?.photoUrl).toBe(TRIP_PHOTO)
+    const stored = (await readStored()).find(t => t.id === 'TRP-2026-0001')
+    expect(stored?.photoUrl).toBe(retaken)
+    expect(stored?.selfieUrl, 'swafoto tidak boleh ikut hilang').toBe(SELFIE)
+    expect(stored?.vehicles?.[0]?.photoUrl, 'foto kendaraan tidak boleh ikut hilang').toBe(VEHICLE_PHOTO)
   })
 
   it('cache metadata (tanpa foto) tidak menimpa foto yang sudah tersimpan', async () => {

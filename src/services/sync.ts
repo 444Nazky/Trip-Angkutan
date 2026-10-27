@@ -13,7 +13,7 @@ import {
   metaSet,
   requestPersistentStorage,
 } from './localDb'
-import type { Trip } from '../pages/store'
+import type { Trip, VehicleEntry } from '../pages/store'
 import { syncOnResume } from './adminPull'
 
 
@@ -67,6 +67,8 @@ interface SyncResult {
   error?: string
   code?: string
   permanent?: boolean
+  /** Base URL server yang MENERIMA trip ini (untuk ditampilkan ke petugas). */
+  target?: string
 }
 
 
@@ -77,7 +79,7 @@ type QueueListener = (count: number, queue: SyncItem[]) => void
 
 
 
-type SyncedListener = (tripId: string) => void
+type SyncedListener = (tripId: string, target?: string) => void
 
 let queueListeners: QueueListener[] = []
 let syncedListeners: SyncedListener[] = []
@@ -187,8 +189,8 @@ export function notifyQueueListeners() {
 
 
 
-function notifySyncedListeners(tripId: string) {
-  for (const l of [...syncedListeners]) { try { l(tripId) } catch { /* ignore */ } }
+function notifySyncedListeners(tripId: string, target?: string) {
+  for (const l of [...syncedListeners]) { try { l(tripId, target) } catch { /* ignore */ } }
 }
 
 const LEGACY_QUEUE_KEY = 'trip.syncQueue.v1'
@@ -223,23 +225,129 @@ function hasPhotoData(p?: PhotoEntry): p is PhotoEntry {
 
 
 /**
- * Gabungkan foto baru dengan foto yang SUDAH tersimpan di antrean.
- *
- * Entri baru yang kosong tidak boleh menimpa entri lama yang berisi. `trip`
- * yang masuk ke fungsi ini bisa berasal dari state yang hanya memuat metadata
- * (`localStorage` adalah cache metadata — foto dibuang dari sana). Tanpa aturan
- * ini, satu aksi "Ubah / Simpan & Kirim" pada trip offline akan menghapus
- * salinan foto terakhir di antrean, sehingga trip terkirim tanpa blob foto
- * (atau langsung ditolak server dengan PHOTO_MISSING).
- *
- * Foto hasil ambil ulang tetap menang karena entri barunya berisi data.
+ * Normalisasi plat untuk pencocokan: huruf besar, tanpa spasi/teguk.
  */
-function mergePhotoEntries(next: PhotoEntry[], prev: PhotoEntry[] = []): PhotoEntry[] {
-  return next.map((p, i) => {
-    if (hasPhotoData(p)) return p
-    const old = prev[i]
-    return hasPhotoData(old) ? old : p
+function plateKey(plate?: string): string {
+  return String(plate ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/**
+ * Gabungkan daftar kendaraan state (baru) dengan daftar kendaraan yang
+ * sudah ada di antrean (lama).
+ *
+ * Dua aturan, keduanya berakar dari gejala "kendaraan menghilang":
+ *
+ *   1. Daftar BARU tidak boleh lebih pendek dari daftar LAMA kalau state
+ *      yang datang hanya metadata (foto dibuang dari cache localStorage).
+ *      Dalam keadaan itu daftar lama dipertahankan — lengkap dengan fotonya.
+ *   2. Pencocokan foto dilakukan per PLAT, bukan per index: urutan kendaraan
+ *      bisa berubah (plat diedit, unit dihapus) dan pencocokan per index
+ *      akan menempelkan foto unit yang salah.
+ *
+ * Kalau jumlah keduanya sama, itu berarti petugas hanya MENGEDIT platunit
+ * yang sama — jadi posisinya yang jadi acuan (foto ikut unitnya).
+ */
+function mergeVehicleList(
+  next: VehicleEntry[],
+  prev: VehicleEntry[] = [],
+): VehicleEntry[] {
+  if (!prev.length) return next
+  if (!next.length) return prev
+
+  // Jumlah sama = daftar yang sama, plat bisa saja diedit -> cocok per index.
+  if (next.length === prev.length) {
+    return next.map((v, i) => {
+      const old = prev[i]
+      if (!old) return v
+      return {
+        ...v,
+        photoUrl: v.photoUrl ?? old.photoUrl,
+        photoCapturedAt: v.photoCapturedAt ?? old.photoCapturedAt,
+        photoLatitude: v.photoLatitude ?? old.photoLatitude,
+        photoLongitude: v.photoLongitude ?? old.photoLongitude,
+      }
+    })
+  }
+
+  // Jumlah berbeda: coralkan per plat, jangan sampai ada unit yang hilang.
+  const used = new Set<number>()
+  const merged: VehicleEntry[] = next.map((v, i) => {
+    const key = plateKey(v.plate)
+    let idx = prev.findIndex((p, j) => !used.has(j) && key && plateKey(p.plate) === key)
+    if (idx < 0) {
+      // Tanpa plat yang cocok -> pakai index kalau slotnya masih kosong.
+      idx = prev.findIndex((p, j) => !used.has(j) && j === i)
+    }
+    if (idx < 0) return v
+    used.add(idx)
+    const old = prev[idx]
+    return {
+      ...v,
+      photoUrl: v.photoUrl ?? old.photoUrl,
+      photoCapturedAt: v.photoCapturedAt ?? old.photoCapturedAt,
+      photoLatitude: v.photoLatitude ?? old.photoLatitude,
+      photoLongitude: v.photoLongitude ?? old.photoLongitude,
+    }
   })
+  // Unit lama yang tidak punya pasangan ikut dipertahankan (dengan fotonya).
+  for (let j = 0; j < prev.length; j++) {
+    if (used.has(j)) continue
+    merged.push(prev[j])
+  }
+  return merged
+}
+
+/**
+ * Susun ulang isi antrean supaya TIDAK PERNAH kehilangan kendaraan atau foto.
+ *
+ * kembalikan: trip (dengan kendaraan + foto), daftar foto kendaraan (sejajar
+ * dengan `trip.vehicles`), dan foto bukti trip.
+ */
+function mergeQueuedTrip(
+  next: Trip,
+  prev?: SyncItem,
+): { trip: Trip; photos: PhotoEntry[]; tripPhoto?: PhotoEntry } {
+  const prevVehicles = prev?.trip?.vehicles ?? []
+  const vehicles = mergeVehicleList(next.vehicles ?? [], prevVehicles)
+
+  // Foto per kendaraan: pakai yang ada di state, kalau kosong ambil dari
+  // antrean (cocok per plat, fallback per index).
+  const prevPhotos = prev?.photos ?? []
+  const photos: PhotoEntry[] = vehicles.map((v, i) => {
+    const own = v.photoUrl
+    if (hasPhotoData({ dataUrl: own ?? '', mimeType: 'image/jpeg' })) {
+      return { dataUrl: own as string, mimeType: 'image/jpeg' }
+    }
+    const key = plateKey(v.plate)
+    let idx = prevVehicles.findIndex((p, j) => {
+      const prevPhoto = prevPhotos[j]?.dataUrl
+      return !!prevPhoto && !!key && plateKey(p.plate) === key
+    })
+    // Tanpa plat yang cocok -> pakai posisi yang sama di antrean.
+    if (idx < 0) idx = i < prevPhotos.length ? i : -1
+    const fallback = idx >= 0 ? prevPhotos[idx] : undefined
+    return {
+      dataUrl: hasPhotoData(fallback) ? fallback.dataUrl : '',
+      mimeType: 'image/jpeg',
+    }
+  })
+
+  // Kembalikan foto ke dalam trip supaya isi antrean selalu konsisten:
+  // `vehicles[i].photoUrl` = `photos[i].dataUrl`.
+  const tripVehicles = vehicles.map((v, i) => ({
+    ...v,
+    photoUrl: photos[i].dataUrl || v.photoUrl,
+  }))
+
+  const tripPhoto = hasPhotoData({ dataUrl: next.photoUrl ?? '', mimeType: 'image/jpeg' })
+    ? { dataUrl: next.photoUrl as string, mimeType: 'image/jpeg' }
+    : prev?.tripPhoto
+
+  return {
+    trip: { ...next, vehicles: tripVehicles },
+    photos,
+    tripPhoto,
+  }
 }
 
 
@@ -295,19 +403,39 @@ export async function addToSyncQueue(
   await initLocalDb()
   const existing = (await dbGetById(trip.id))
   const createdAt = existing?.createdAt ?? Date.now()
+
+  // Foto dari parameter (kamera) adalah yang paling baru — pakai dulu.
+  // Kalau parameter tidak membawa foto, ambil dari state trip; kalau tetap
+  // kosong, pertahankan salinan di antrean.
+  const incomingPhotos = photos?.length ? photos : derivePhotos(trip)
+  const withPhotos: Trip = {
+    ...trip,
+    vehicles: (trip.vehicles ?? []).map((v, i) => {
+      const dataUrl = incomingPhotos[i]?.dataUrl
+      return dataUrl ? { ...v, photoUrl: dataUrl } : v
+    }),
+  }
+  const incomingTripPhoto = hasPhotoData(tripPhoto)
+    ? tripPhoto
+    : (hasPhotoData(deriveTripPhoto(trip)) ? deriveTripPhoto(trip) : undefined)
+
+  // Gabungkan dengan isi antrean lama: daftar kendaraan dan foto tidak boleh
+  // pernah hilang hanya karena state yang dipakai hanya metadata.
+  const merged = mergeQueuedTrip(withPhotos, existing)
+
   const item: SyncItem = {
     syncId: existing?.syncId ?? `trip:${trip.id}:${createdAt}`,
-    trip,
+    trip: merged.trip,
     attempts: existing?.attempts ?? 0,
     lastError: existing?.lastError,
     lastErrorCode: existing?.lastErrorCode,
     needsAttention: existing?.needsAttention,
     createdAt,
     lastAttemptAt: existing?.lastAttemptAt,
-    photos: mergePhotoEntries(photos?.length ? photos : derivePhotos(trip), existing?.photos),
+    photos: merged.photos,
     // Foto trip hanya boleh diganti oleh foto BARU yang berisi data; kalau
     // tidak ada, pertahankan salinan yang sudah ada di antrean.
-    tripPhoto: (hasPhotoData(tripPhoto) ? tripPhoto : deriveTripPhoto(trip)) ?? existing?.tripPhoto,
+    tripPhoto: incomingTripPhoto ?? existing?.tripPhoto,
   }
   await writeItem(item)
   notifyQueueListeners()
@@ -377,13 +505,17 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
       await addToSyncQueue(trip, derivePhotos(trip), deriveTripPhoto(trip))
       return
     }
+    // Gabungkan state yang baru dengan isi antrean lama. State bisa saja
+    // hanya metadata (foto dibuang dari cache localStorage) atau kehilangan
+    // daftar kendaraan — tanpa penggabungan ini, satu aksi "Simpan & Kirim"
+    // akan menghapus kendaraan/foto dari antrean dan trip terkirim tanpa
+    // dokumen (gejala "kendaraan menghilang" di dashboard admin).
+    const merged = mergeQueuedTrip(trip, existing)
     const item: SyncItem = {
       ...existing,
-      trip,
-      // Antrean menyimpan salinan foto TERAKHIR yang masih utuh — entri baru
-      // yang kosong tidak boleh menghapusnya (lihat mergePhotoEntries).
-      photos: mergePhotoEntries(derivePhotos(trip), existing.photos),
-      tripPhoto: deriveTripPhoto(trip) ?? existing.tripPhoto,
+      trip: merged.trip,
+      photos: merged.photos,
+      tripPhoto: merged.tripPhoto,
       attempts: 0,
       lastError: undefined,
       lastErrorCode: undefined,
@@ -700,6 +832,66 @@ async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | 
 
 
 
+/**
+ * Bentuk jawaban server untuk `POST /trips/complete`.
+ *
+ * `vehicleCount` / `photoCount` dipakai sebagai KONFIRMASI: server baru
+ * mengirimkannya kalau seluruh kendaraan & foto benar-benar tersimpan. Kalau
+ * angkanya tidak cocok, data di server tidak utuh dan trip TIDAK boleh
+ * dianggap terkirim.
+ */
+export interface TripCompleteAck {
+  id?: string
+  noTrip?: string
+  updated?: boolean
+  vehicleCount?: number
+  photoCount?: number
+}
+
+/**
+ * Periksa apakah jawaban server benar-benar mengonfirmasi trip tersimpan.
+ *
+ * Ini yang mencegah gejala "notifikasi berhasil terkirim tapi data tidak ada
+ * di dashboard admin": status HTTP 2xx saja TIDAK cukup — server wajib
+ * mengembalikan nomor trip, dan kalau ia melaporkan jumlah kendaraan/foto,
+ * angka itu harus sama dengan yang dikirim.
+ */
+export function verifyTripAcknowledgement(
+  data: unknown,
+  expectedVehicles: number,
+  expectedPhotos: number,
+): { ok: true } | { ok: false; error: string } {
+  if (!data || typeof data !== 'object') {
+    return {
+      ok: false,
+      error: 'Server tidak mengonfirmasi trip tersimpan — periksa endpoint server yang dipakai',
+    }
+  }
+  const ack = data as TripCompleteAck
+  const noTrip = typeof ack.noTrip === 'string' ? ack.noTrip.trim() : ''
+  if (!noTrip) {
+    return {
+      ok: false,
+      error: 'Server tidak mengonfirmasi trip tersimpan (nomor trip tidak ada) — periksa endpoint server yang dipakai',
+    }
+  }
+  if (typeof ack.vehicleCount === 'number' && ack.vehicleCount !== expectedVehicles) {
+    return {
+      ok: false,
+      error: `Server hanya menyimpan ${ack.vehicleCount} dari ${expectedVehicles} kendaraan — trip dikirim ulang`,
+    }
+  }
+  if (typeof ack.photoCount === 'number' && ack.photoCount !== expectedPhotos) {
+    return {
+      ok: false,
+      error: `Server hanya menyimpan ${ack.photoCount} dari ${expectedPhotos} foto dokumentasi — trip dikirim ulang`,
+    }
+  }
+  return { ok: true }
+}
+
+
+
 async function postTripToServer(item: SyncItem, allowReauth = true): Promise<SyncResult> {
   const { syncId, trip } = item
   try {
@@ -813,10 +1005,26 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const dermagaId = getStoredDermaga()?.id
     if (dermagaId) form.append('dermagaId', String(dermagaId))
 
-    const res = await api.postMultipart<unknown>('/trips/complete', form)
+    const res = await api.postMultipart<TripCompleteAck>('/trips/complete', form)
 
     if (res.ok) {
-      return { syncId, success: true }
+      // Server boleh membalas 2xx, tapi itu BELUM tentu berarti datanya
+      // tersimpan. Endpoint yang salah (mis. backend lain yang kebalas 200
+      // dengan body kosong) dulu dianggap "sukses" -> petugas melihat
+      // "berhasil terkirim" padahal tidak ada apa pun di dashboard admin.
+      //
+      // Jadi respons server WAJIB mengonfirmasi trip: ada nomor trip, dan
+      // (kalau ada) jumlah kendaraan & foto harus sama dengan yang dikirim.
+      const confirm = verifyTripAcknowledgement(res.data, vehicles.length, blobs.length)
+      if (!confirm.ok) {
+        return {
+          syncId,
+          success: false,
+          error: confirm.error,
+          code: 'NOT_CONFIRMED',
+        }
+      }
+      return { syncId, success: true, target: readApiBaseUrl() }
     }
 
     const code = res.error?.code
@@ -938,7 +1146,9 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   if (result.success) {
     await removeItem(item.syncId)
     notifyQueueListeners()
-    notifySyncedListeners(item.trip.id)
+    // Target ikut dilaporkan: petugas bisa memastikan trip-nya masuk ke
+    // server yang sama dengan yang dipakai dashboard admin.
+    notifySyncedListeners(item.trip.id, result.target)
     return
   }
 

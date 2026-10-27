@@ -262,12 +262,12 @@ async function storePhoto(file: File): Promise<string> {
   return await publicUrl("trip-photos", path);
 }
 
-async function insertVehicle(
+async function insertVehicleRow(
   tripId: string,
   vehicle: any,
   photoPath: string,
   regionId: string | null,
-): Promise<void> {
+): Promise<string> {
   const vehicleId = crypto.randomUUID();
 
   // Kategori operasional = apa yang dipilih petugas (Internal/Eksternal/Lokal).
@@ -318,6 +318,16 @@ async function insertVehicle(
   const { error } = await db.from("vehicles").insert(row).select("id").single();
   if (error) throw error;
 
+  return vehicleId;
+}
+
+/**
+ * Hubungkan satu kendaraan ke trip lewat tabel `trip_vehicles`.
+ *
+ * Pisah dari insert baris kendaraan supaya alur "ganti" (update) bisa
+ * menukar 집ahan tanpa pernah meninggalkan trip dalam keadaan setengah jadi.
+ */
+async function linkVehicle(tripId: string, vehicleId: string): Promise<void> {
   // ponytail: galat di sini DILEWATI diam-diam (tidak diperiksa) sejak awal.
   // Akibatnya kendaraan tercatat di tabel `vehicles` tapi TIDAK pernah
   // terhubung ke trip -> dashboard admin menampilkan trip dengan 0 kendaraan
@@ -325,6 +335,90 @@ async function insertVehicle(
   const { error: linkError } = await db.from("trip_vehicles")
     .insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
   if (linkError) throw linkError;
+}
+
+/**
+ * Hapus baris kendaraan (dan tautannya) — dipakai untuk rollback.
+ *
+ * `trip_vehicles.vehicle_id` punya `ON DELETE CASCADE`, jadi menghapus baris
+ * `vehicles` otomatis melepas tautannya juga.
+ */
+async function deleteVehicleRows(vehicleIds: string[]): Promise<void> {
+  for (const id of vehicleIds) {
+    try {
+      await db.from("vehicles").delete().eq("id", id);
+    } catch {
+      // Rollback best-effort: kegagalan di sini dilaporkan lewat verifikasi akhir.
+    }
+  }
+}
+
+/**
+ * Hapus trip beserta seluruh kendaraannya.
+ *
+ * Dipakai kalau trip BARU gagal menyimpan kendaraan: meninggalkan baris trip
+ * setengah jadi akan membuat dashboard menampilkan trip dengan 0 kendaraan
+ * (gejala "kendaraan menghilang") walau pets sudah diberi tahu gagal kirim.
+ * Lebih baik trip tidak ada sama sekali dan petugas mengirim ulang.
+ */
+async function rollbackTrip(tripId: string): Promise<void> {
+  try {
+    await db.from("trips").delete().eq("id", tripId);
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Verifikasi bahwa trip punya TEPAT sejumlah kendaraan yang terhubung.
+ *
+ * Sumber kebenaran dashboard laporan adalah tabel `trip_vehicles`, bukan
+ * tabel `vehicles`. Kalau vehicle row ada tapi tautannya hilang, dashboard
+ * menampilkan 0 kendaraan. Karena itu jumlahnya diverifikasi di sini sebelum
+ * server bilang "berhasil".
+ */
+export async function countLinkedVehicles(tripId: string): Promise<number> {
+  const { data, error } = await db
+    .from("trip_vehicles")
+    .select("vehicle_id")
+    .eq("trip_id", tripId);
+  if (error) return -1;
+  return (data ?? []).length;
+}
+
+/**
+ * Simpan seluruh kendaraan sebuah trip dan pastikan semuanya TERHUBUNG.
+ *
+ * Mengembalikan id kendaraan yang tersimpan. Kalau ada yang gagal, baris
+ * yang sudah terlanjur ditulis DIHAPUS supaya tidak ada kendaraan yatim
+ * (kendaraan ada di tabel `vehicles` tapi tidak menempel ke trip).
+ */
+async function insertAndLinkVehicles(
+  tripId: string,
+  vehicles: any[],
+  photoPaths: string[],
+  vehiclePhotoIndexes: number[],
+  regionId: string | null,
+): Promise<string[]> {
+  const inserted: string[] = [];
+  try {
+    for (let i = 0; i < vehicles.length; i++) {
+      const vehicleId = await insertVehicleRow(
+        tripId,
+        vehicles[i],
+        photoPaths[vehiclePhotoIndexes[i]!],
+        regionId,
+      );
+      inserted.push(vehicleId);
+    }
+    for (const vehicleId of inserted) {
+      await linkVehicle(tripId, vehicleId);
+    }
+  } catch (err) {
+    await deleteVehicleRows(inserted);
+    throw err;
+  }
+  return inserted;
 }
 
 // POST /trips/complete — multipart form: payload JSON + photos[]
@@ -461,16 +555,58 @@ export async function completeTrip(req: Request): Promise<Response> {
       const { error: upErr } = await db.from("trips").update(tripDoc).eq("id", tripId);
       if (upErr) throw upErr;
 
-      const { data: oldVehicles } = await db.from("trip_vehicles").select("vehicle_id").eq("trip_id", tripId);
-      if (oldVehicles?.length) {
-        await db.from("trip_vehicles").delete().eq("trip_id", tripId);
-        for (const row of oldVehicles) await db.from("vehicles").delete().eq("id", row.vehicle_id);
+      // Kendaraan LAMA dibiarkan dulu sampai semua kendaraan BARU berhasil
+      // disimpan. Kalau ada yang gagal, mobil baru dihapus dan mobil lama
+      // tetap utuh -> dashboard tidak pernah menampilkan trip setengah jadi.
+      const { data: oldLinks } = await db.from("trip_vehicles").select("vehicle_id").eq("trip_id", tripId);
+      const oldVehicleIds = (oldLinks ?? []).map((r: any) => String(r.vehicle_id));
+
+      let newVehicleIds: string[] = [];
+      try {
+        newVehicleIds = await insertAndLinkVehicles(
+          tripId,
+          vehicles,
+          photoPaths,
+          vehiclePhotoIndexes,
+          regionId,
+        );
+      } catch (err) {
+        // Mobil lama masih terpasang -> trip tetap utuh seperti sebelumnya.
+        throw err;
       }
 
-      await Promise.all(
-        vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!], regionId)),
+      // Verifikasi semua mobil baru benar-benar TERHUBUNG ke trip.
+      const linked = await countLinkedVehicles(tripId);
+      const expected = oldVehicleIds.length + newVehicleIds.length;
+      if (linked !== expected) {
+        await deleteVehicleRows(newVehicleIds);
+        console.error(
+          `[trips/complete] verifikasi kendaraan gagal untuk trip ${tripId}: terhubung=${linked}, diharapkan=${expected}`,
+        );
+        return json(
+          { error: "Data kendaraan gagal disimpan — trip lama dipertahankan, silakan kirim ulang" },
+          500,
+        );
+      }
+
+      // Sekarang boleh lepas mobil lama (tautannya ikut terhapus by cascade).
+      await deleteVehicleRows(oldVehicleIds);
+
+      const finalCount = await countLinkedVehicles(tripId);
+      if (finalCount !== vehicles.length) {
+        console.error(
+          `[trips/complete] jumlah kendaraan akhir tidak sesuai untuk trip ${tripId}: ${finalCount} != ${vehicles.length}`,
+        );
+        return json(
+          { error: "Data kendaraan gagal disimpan — silakan kirim ulang" },
+          500,
+        );
+      }
+
+      return json(
+        { id: tripId, noTrip, updated: true, vehicleCount: finalCount, photoCount: files.length },
+        200,
       );
-      return json({ id: tripId, noTrip, updated: true }, 200);
     }
 
     const { error: insErr } = await db.from("trips").insert({
@@ -484,11 +620,43 @@ export async function completeTrip(req: Request): Promise<Response> {
     });
     if (insErr) throw insErr;
 
-    await Promise.all(
-      vehicles.map((v: any, i: number) => insertVehicle(tripId, v, photoPaths[vehiclePhotoIndexes[i]!], regionId)),
-    );
+    // Simpan + hubungkan seluruh kendaraan. Kalau gagal, trip yang barusan
+    // dibuat DIHAPUS supaya dashboard tidak menampilkan trip dengan 0
+    // kendaraan (gejala "kendaraan menghilang" yang bikin petugas mengira
+    // datanya sudah tersimpan padahal tidak).
+    let insertedVehicleIds: string[] = [];
+    try {
+      insertedVehicleIds = await insertAndLinkVehicles(
+        tripId,
+        vehicles,
+        photoPaths,
+        vehiclePhotoIndexes,
+        regionId,
+      );
+    } catch (err) {
+      await rollbackTrip(tripId);
+      throw err;
+    }
 
-    return json({ id: tripId, noTrip }, 201);
+    // Verifikasi: semua kendaraan harus TERHUBUNG ke trip, tidak cukup
+    //.barisnya ada di tabel `vehicles`.
+    const linkedCount = await countLinkedVehicles(tripId);
+    if (linkedCount !== vehicles.length) {
+      await deleteVehicleRows(insertedVehicleIds);
+      await rollbackTrip(tripId);
+      console.error(
+        `[trips/complete] verifikasi kendaraan gagal untuk trip ${tripId}: terhubung=${linkedCount}, diharapkan=${vehicles.length}`,
+      );
+      return json(
+        { error: "Data kendaraan gagal disimpan — trip dibatalkan, silakan kirim ulang" },
+        500,
+      );
+    }
+
+    return json(
+      { id: tripId, noTrip, vehicleCount: linkedCount, photoCount: files.length },
+      201,
+    );
   } catch (error) {
     console.error("Complete trip submission error:", error);
     const message = errorText(error);

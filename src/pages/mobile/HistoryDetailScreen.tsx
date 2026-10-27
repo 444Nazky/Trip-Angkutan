@@ -42,6 +42,13 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const [preview, setPreview] = useState<DocPhoto | null>(null)
 
+  // Foto yang gagal dimuat (data URL rusak / gambar tidak bisa didekode WebView).
+  // Diperlakukan sama seperti foto yang belum ada: placeholder + tombol ambil
+  // ulang, bukan thumbnail rusak atau hitungan foto yang menipu.
+  const [broken, setBroken] = useState<Record<string, true>>({})
+  const usableUrl = (url?: string): string | undefined => (url && !broken[url] ? url : undefined)
+  const markBroken = (url: string) => setBroken(b => (b[url] ? b : { ...b, [url]: true }))
+
   const [editVehicle, setEditVehicle] = useState<number | null>(null)
   const [editPlate, setEditPlate] = useState('')
   const [editType, setEditType] = useState('')
@@ -71,27 +78,32 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const vehicles: VehicleEntry[] = realVehicles
     ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
 
+  const tripPhotoUrl = usableUrl(t.photoUrl)
+  const selfieUrl = usableUrl(t.selfieUrl)
+
   const photos: DocPhoto[] = isEmptyTrip
     ? [
-        ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
-        ...(t.selfieUrl ? [{ url: t.selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+        ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
       ]
     : [
-        ...(t.photoUrl ? [{ url: t.photoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
+        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
         ...vehicles.map((v, i) => ({
-          url: v.photoUrl ?? '',
+          url: usableUrl(v.photoUrl) ?? '',
           label: unitLabel(vehicles, i),
           kind: 'vehicle' as const,
           index: i,
         })).filter(p => !!p.url),
-        ...(t.selfieUrl ? [{ url: t.selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+        ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
       ]
 
   const missingVehicles = isEmptyTrip
     ? []
     : vehicles
-        .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!v.photoUrl }))
+        .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!usableUrl(v.photoUrl) }))
         .filter(x => !x.hasPhoto)
+
+  const brokenCount = Object.keys(broken).length
 
   const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
     patchDraft({
@@ -139,12 +151,13 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             const label = unitLabel(vehicles, i)
             const canRetake = !!realVehicles?.[i]
             const editing = editVehicle === i
+            const photoUrl = usableUrl(v.photoUrl)
             return (
               <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
                 <div className="flex items-center gap-3">
-                  {v.photoUrl ? (
-                    <button onClick={() => setPreview({ url: v.photoUrl!, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
-                      <img src={v.photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                  {photoUrl ? (
+                    <button onClick={() => setPreview({ url: photoUrl, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
+                      <img src={photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" onError={() => markBroken(v.photoUrl!)} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
                     </button>
                   ) : (
                     <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
@@ -160,7 +173,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   </div>
                   {!editing && canRetake && (
                     <div className="flex flex-col gap-1 shrink-0">
-                      {!v.photoUrl && (
+                      {!photoUrl && (
                         <button
                           onClick={() => retakePhoto('vehicle', i)}
                           className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
@@ -233,7 +246,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
             {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
           </p>
-          {t.photo && !t.photoUrl && (
+          {t.photo && !tripPhotoUrl && (
             <button
               onClick={() => retakePhoto('trip')}
               className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
@@ -254,10 +267,22 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </div>
         )}
 
+        {brokenCount > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-800 leading-snug">
+              {brokenCount} foto tidak dapat dimuat dari penyimpanan perangkat — ambil ulang
+              fotonya supaya trip terkirim lengkap ke server.
+            </p>
+          </div>
+        )}
+
         {photos.length === 0 ? (
           <div className="rounded-xl bg-slate-50 py-8 text-center">
             <Camera size={26} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-[11px] text-slate-400">Belum ada foto dokumentasi tersimpan</p>
+            <p className="text-[11px] text-slate-400">
+              {brokenCount > 0 ? 'Foto tidak dapat dimuat dari perangkat' : 'Belum ada foto dokumentasi tersimpan'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -267,7 +292,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 onClick={() => setPreview(p)}
                 className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 text-left active:scale-[0.98] transition-transform"
               >
-                <img src={p.url} alt={p.label} loading="lazy" decoding="async" className="w-full h-28 object-cover" />
+                <img src={p.url} alt={p.label} loading="lazy" decoding="async" onError={() => markBroken(p.url)} className="w-full h-28 object-cover" />
                 <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5">
                   <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
                 </span>
@@ -295,7 +320,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <X size={20} />
           </button>
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
-            <img src={preview.url} alt={preview.label} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
+            <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
             {preview.kind !== 'selfie' && (
               <button
@@ -347,7 +372,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             {sendFailed
               ? `${syncStatus?.error ?? 'Server menolak data trip'}${syncStatus?.attempts ? ` · percobaan ${syncStatus.attempts}` : ''} — data BELUM masuk dashboard admin`
               : isSynced
-                ? `Data berhasil dikirim ke server · ${t.date}`
+                ? `Data berhasil dikirim ke ${t.syncedTarget ?? 'server'} · ${t.date}`
                 : photoStuck
                   ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
                   : inQueue

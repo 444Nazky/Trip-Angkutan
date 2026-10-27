@@ -18,7 +18,9 @@ import {
   onTripSynced,
   probeServer,
   processSyncQueue,
+  readQueuedPhotos,
   resolveRoute,
+  retrySyncItem,
   type SyncItem,
 } from './sync'
 import { dbAll } from './localDb'
@@ -424,5 +426,82 @@ describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
       offSukses()
       offGagal()
     }
+  })
+})
+
+// ── 6. Foto di antrean tidak boleh terhapus oleh state yang hanya metadata ───
+// Regresi: halaman Riwayat menampilkan "Foto Dokumentasi (0)" dan trip
+// terkirim tanpa blob foto. Penyebabnya: `retrySyncItem(trip)` (dipanggil
+// setelah petugas mengubah plat / mengambil ulang foto) menimpa entri foto di
+// antrean dengan entri KOSONG, padahal `trip` yang datang dari state bisa saja
+// tidak lagi membawa foto (foto dibuang dari cache metadata localStorage).
+
+describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
+  it('retrySyncItem mempertahankan foto lama saat trip tidak membawa foto', async () => {
+    await addToSyncQueue(makeTrip())
+
+    // State yang hanya memuat metadata: semua photoUrl hilang.
+    const metadataOnly = makeTrip({ photoUrl: undefined, vehicles: [
+      { plate: 'B 1234 XY', type: 'Truck Besar', category: 'Internal', tariff: 100_000 },
+    ] })
+    await retrySyncItem(metadataOnly)
+
+    const rows = await pendingRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].tripPhoto?.dataUrl, 'foto bukti trip tidak boleh terhapus').toBe(IMG)
+    expect(rows[0].photos?.[0]?.dataUrl, 'foto kendaraan tidak boleh terhapus').toBe(IMG)
+  })
+
+  it('setelah edit dari state tanpa foto, upload tetap membawa blob foto lengkap', async () => {
+    await addToSyncQueue(makeTrip())
+
+    // Aksi nyata dari Riwayat ("Simpan & Kirim" / ubah plat) dengan state yang
+    // sudah kehilangan foto — dulu ini menghapus foto di antrean.
+    const metadataOnly = makeTrip({ photoUrl: undefined, vehicles: [
+      { plate: 'B 1234 XY', type: 'Truck Besar', category: 'Internal', tariff: 100_000 },
+    ] })
+    await retrySyncItem(metadataOnly)
+
+    h.api.postCalls = 0
+    await processSyncQueue({ retryAll: true })
+
+    expect(h.api.postCalls).toBe(1)
+    const body = h.api.lastBody
+    expect(body, 'trip harus terkirim').toBeTruthy()
+    const payload = JSON.parse(String(body!.get('payload'))) as {
+      tripPhotoIndex: number
+      vehicles: Array<{ photoIndex: number }>
+    }
+    expect(payload.tripPhotoIndex).toBe(0)
+    expect(payload.vehicles[0].photoIndex).toBe(1)
+    // Dua blob (foto bukti trip + foto kendaraan) — bukan payload tanpa foto.
+    expect(body!.getAll('photos')).toHaveLength(2)
+  })
+
+  it('foto hasil ambil ulang tetap menggantikan foto lama', async () => {
+    await addToSyncQueue(makeTrip())
+
+    const retake = makeTrip({ photoUrl: IMG_BARU, vehicles: [
+      { plate: 'B 1234 XY', type: 'Truck Besar', category: 'Internal', tariff: 100_000, photoUrl: IMG_BARU },
+    ] })
+    await retrySyncItem(retake)
+
+    const rows = await pendingRows()
+    expect(rows[0].tripPhoto?.dataUrl).toBe(IMG_BARU)
+    expect(rows[0].photos?.[0]?.dataUrl).toBe(IMG_BARU)
+  })
+
+  it('readQueuedPhotos mengembalikan salinan foto untuk pemulihan Riwayat', async () => {
+    await addToSyncQueue(makeTrip())
+
+    const q = await readQueuedPhotos('TRP-2026-0001')
+    expect(q?.tripPhotoUrl).toBe(IMG)
+    expect(q?.vehiclePhotos[0]).toBe(IMG)
+  })
+
+  it('readQueuedPhotos mengembalikan null bila antrean tidak punya foto', async () => {
+    await addToSyncQueue(makeTrip({ photoUrl: undefined, vehicles: [] }))
+    expect(await readQueuedPhotos('TRP-2026-0001')).toBeNull()
+    expect(await readQueuedPhotos('TRP-TIDAK-ADA')).toBeNull()
   })
 })
