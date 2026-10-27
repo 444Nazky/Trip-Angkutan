@@ -222,6 +222,43 @@ graphify update .  # Setelah modifikasi code
    `local_server.ts` serves HTTPS di port 3000. Sertifikat self-signed harus
    diinstall di perangkat petugas. Kandidat endpoint-nya muncul otomatis
    kalau `intranetHttpsApiBaseUrl` diisi di `src/environments/environment.ts`.
+17. **Deno memblokir baca `/proc`**: `Deno.readTextFile("/proc/meminfo")` dan
+   `Deno.open("/proc/stat")` gagal dengan "Requires all access to ..." ->
+   hanya boleh kalau server jalan dengan `--allow-all`. Server intranet TIDAK
+   memakai `--allow-all`, jadi `server/api/_system.ts` membaca /proc lewat
+   subprocess `cat` (fallback otomatis), dan kapasitas disk lewat `df`.
+   Konsekuensi: `Dockerfile.backend` wajib punya `--allow-run=cat` dan
+   `--allow-run=df`. Tanpa itu, panel "Kondisi Hardware Server" di dashboard
+   admin tampil nol (bukan error). Catatan: `deno eval` memberi izin penuh
+   otomatis, jadi tes dengan `deno eval` TIDAK bisa mendeteksi masalah izin
+   ini - harus `deno run` / `deno test`.
+18. **Grafik request per menit kosong**: `server/api/_metrics.ts` dulu hanya
+   mengirim bucket menit yang ADA request-nya, jadi deretnya bolong-bolong
+   dan grafik di dashboard terlihat kosong. Sekarang `snapshot()` selalu
+   mengirim 60 bucket kontinu (lama -> baru, jarak tepat 1 menit, menit sepi
+   diisi 0). Kalau grafik masih kosong, cek `metrics.buckets` dari
+   `/api/server-stats`, bukan UI.
+
+---
+
+## Statistik Server (dashboard admin)
+
+- Endpoint: `GET /api/server-stats` di server intranet port 3000 (butuh role
+  admin). Isinya: `metrics` (proses Deno: request, success rate, latensi,
+  bucket per menit, top path) + `system` (hardware: CPU, RAM, swap, storage,
+  load average, uptime mesin) + `components` (status Supabase/DB/disk/BCrypt).
+- Kolektor hardware: `server/api/_system.ts` (sumber `/proc/stat`,
+  `/proc/cpuinfo`, `/proc/meminfo`, `/proc/loadavg`, `/proc/uptime`, `df -k`).
+- UI: `src/pages/admin/components/ServerStatsPanel.tsx` (dipakai
+  `src/pages/admin/tabs/SettingsTab.tsx`). Grafik request per menit digambar
+  sebagai SVG kurva mulus + area gradien (gaya kripto), bukan diagram batang.
+  Lebar SVG diukur pakai `ResizeObserver` (jsdom tidak punya itu, jadi ada
+  fallback ke event `resize`).
+- Rebuild WAJIB setelah ubah backend: `docker compose build api-intranet web &&
+  docker compose up -d` (perubahan izin `--allow-run` ada di
+  `Dockerfile.backend`).
+- Uji: `deno test --allow-env --allow-read --allow-sys --allow-run=df
+  --allow-run=cat server/api/metrics.test.ts`.
 
 ---
 

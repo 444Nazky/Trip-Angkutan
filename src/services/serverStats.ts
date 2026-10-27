@@ -64,6 +64,57 @@ export interface ServerMetrics {
   uniqueClientsLastHour: number
 }
 
+/** Metrik CPU mesin server (dari /proc). */
+export interface SystemCpuMetrics {
+  /** Persentase 0-100 sejak sampel sebelumnya. null saat belum ada pembanding. */
+  usagePercent: number | null
+  /** Rata-rata penggunaan sejak boot (0-100). */
+  averageSinceBootPercent: number
+  /** Jumlah core processor yang terlihat. */
+  cores: number
+  /** Nama model processor. */
+  model: string
+  /** Frekuensi MHz rata-rata kalau bisa dibaca. */
+  mhz: number | null
+  /** Load average 1 menit, 5 menit, 15 menit. */
+  loadAvg: [number, number, number]
+}
+
+/** Metrik RAM + swap mesin server (dari /proc/meminfo). */
+export interface SystemMemoryMetrics {
+  total: number
+  used: number
+  available: number
+  usedPercent: number
+  swapTotal: number
+  swapUsed: number
+  swapUsedPercent: number
+}
+
+/** Metrik satu filesystem (dari `df`). */
+export interface SystemDiskMetrics {
+  label: string
+  path: string
+  total: number
+  used: number
+  free: number
+  usedPercent: number
+}
+
+/** Ringkasan kondisi hardware mesin server. */
+export interface SystemMetrics {
+  hostname: string
+  os: string
+  arch: string
+  /** Uptime mesin dalam detik. */
+  uptimeSeconds: number
+  cpu: SystemCpuMetrics
+  memory: SystemMemoryMetrics
+  disks: SystemDiskMetrics[]
+  /** True kalau minimal satu sumber data berhasil dibaca. */
+  available: boolean
+}
+
 export interface ServerStats {
   ok: true
   generatedAt: number
@@ -71,6 +122,8 @@ export interface ServerStats {
   instance: string
   version: string
   metrics: ServerMetrics
+  /** Metrik hardware mesin server. Opsional supaya server versi lama tetap aman. */
+  system?: SystemMetrics
   components: ServerComponent[]
 }
 

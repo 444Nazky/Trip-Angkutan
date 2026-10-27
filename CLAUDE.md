@@ -32,3 +32,33 @@ sessions. Follow these rules:
   Reporting is not notifying — it may reach no one — so do not tell your human
   a teammate was alerted.
 <!-- coord:end -->
+
+<!-- project-notes:start -->
+## Project notes
+
+Commands:
+
+```bash
+npm run test:unit                                  # vitest, 260 tests
+npm run lint                                       # angular eslint
+npx tsc --noEmit -p tsconfig.app.json
+deno test --allow-env --allow-net --allow-read --allow-write server/api/
+```
+
+Tariff model (do not regress):
+
+- Resolution order in `server/api/handlers/tariffRules.ts` → `resolveTariff`:
+  Internal (Rp 0) → `region_tariff_rows` override → master `tariffs` (BADAU)
+  → flat `region_tariffs` → Rp 0. A region without an override inherits BADAU,
+  so no row copying is needed when adding a region.
+- Per-region prices live in `region_tariff_rows`, unique on
+  `(region_id, golongan, vehicle_type)`. BADAU keeps using master `tariffs`;
+  every other region writes through `PUT /api/region-tariffs/:regionId`.
+- Gotcha: a Deno `Request` body can be read only once. Parse `req.json()`
+  once in a handler and pass the parsed object into helpers — a second read
+  throws and silently degrades to `{}`.
+- Migrations for this: `server/db/migrations/20261026000000_region_tariff_rows.sql`
+  and `20261027000000_seed_region_tariff_rows.sql`; apply them to the office DB
+  before deploying. Rebuild containers after backend changes:
+  `docker compose build api-intranet web && docker compose up -d`.
+<!-- project-notes:end -->

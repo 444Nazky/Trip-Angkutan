@@ -45,4 +45,9 @@ EXPOSE 3000
 # --allow-sys  : Deno.networkInterfaces() untuk mencetak IP LAN di banner.
 #                TANPA flag ini fungsi itu melempar "Requires sys access" dan
 #                daftar IP LAN selalu kosong (tanpa error yang mencolok).
-CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "--allow-sys", "--node-modules-dir=none", "api/local_server.ts"]
+# --allow-run=df : `df -k` untuk membaca kapasitas disk (statistik storage di
+#                dashboard admin). Izin DIBATAS ke perintah `df` saja.
+# --allow-run=cat : membaca /proc (CPU, RAM, load, uptime) untuk statistik
+#                hardware. Deno memblokir pembacaan /proc kecuali --allow-all,
+#                jadi file /proc dibaca lewat subprocess `cat`.
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "--allow-sys", "--allow-run=df", "--allow-run=cat", "--node-modules-dir=none", "api/local_server.ts"]

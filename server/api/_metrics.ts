@@ -60,6 +60,8 @@ export type MetricsSnapshot = {
 
 /** Berapa lama bucket per menit disimpan (ms). */
 const BUCKET_WINDOW_MS = 90 * 60 * 1000;
+/** Berapa banyak menit yang selalu dikirim ke dashboard (deret kontinu). */
+const WINDOW_MINUTES = 60;
 /** Berapa lama latensi mentah disimpan (untuk p95). */
 const LATENCY_WINDOW = 1000;
 /** Berapa banyak path yang dilacak. */
@@ -193,13 +195,33 @@ export function snapshot(): MetricsSnapshot {
     ? Math.round(latencySamples.reduce((a, b) => a + b, 0) / latencySamples.length)
     : 0;
 
-  const bucketList = [...buckets.values()].sort((a, b) => a.minute - b.minute);
-  const lastMinute = bucketList.length ? bucketList[bucketList.length - 1] : null;
+  // Deret KONTINU 60 menit terakhir (lama -> baru).
+  //
+  // Dulu hanya menit yang punya request yang dikirim, jadi grafik
+  // "request per menit" di dashboard sering tampil kosong / bolong-bolong.
+  // Sekarang menit tanpa request diisi dengan angka 0 supaya grafik selalu
+  // berupa garis penuh yang naik-turun sesuai kondisi server.
+  const currentMinute = Math.floor(now / 60_000) * 60_000;
+  const bucketList: MetricsBucket[] = [];
+  for (let i = WINDOW_MINUTES - 1; i >= 0; i--) {
+    const minute = currentMinute - i * 60_000;
+    bucketList.push(buckets.get(minute) ?? { minute, total: 0, ok: 0, err: 0 });
+  }
+
+  // "Request per menit" = menit terakhir yang punya traffic (bukan menit
+  // berjalan yang mungkin masih 0 karena baru saja berganti menit).
+  let lastMinute: MetricsBucket | null = null;
+  for (let i = bucketList.length - 1; i >= 0; i--) {
+    if (bucketList[i].total > 0) {
+      lastMinute = bucketList[i];
+      break;
+    }
+  }
+
   const hourCutoff = now - 60 * 60 * 1000;
   const requestsLastHour = bucketList
     .filter((b) => b.minute >= hourCutoff)
     .reduce((sum, b) => sum + b.total, 0);
-
   const total = counters.total;
   const successRate = total ? Math.round((counters.ok / total) * 1000) / 10 : 100;
 

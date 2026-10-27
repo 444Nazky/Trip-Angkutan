@@ -15,6 +15,7 @@
 
 import { db, json, requireAdmin } from "../_shared.ts";
 import { snapshot, type MetricsSnapshot } from "../_metrics.ts";
+import { systemSnapshot, type SystemMetrics } from "../_system.ts";
 
 type ComponentStatus = "ok" | "degraded" | "down" | "unknown";
 
@@ -34,6 +35,7 @@ type ServerStatsResponse = {
   instance: string;
   version: string;
   metrics: MetricsSnapshot;
+  system: SystemMetrics;
   components: Component[];
 };
 
@@ -136,6 +138,7 @@ export async function serverStats(req: Request): Promise<Response> {
   }
 
   const metrics = snapshot();
+  const system = await systemSnapshot();
 
   const components: Component[] = [
     {
@@ -157,6 +160,7 @@ export async function serverStats(req: Request): Promise<Response> {
     instance: Deno.env.get("API_INSTANCE_LABEL") ?? "api-intranet",
     version: "3.0.0-local",
     metrics,
+    system,
     components,
   };
 

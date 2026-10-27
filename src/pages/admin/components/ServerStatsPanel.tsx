@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Cpu, Database, Globe, HardDrive, RefreshCw, Server, ShieldCheck, Wifi } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Activity, Cpu, Database, Globe, HardDrive, MemoryStick, RefreshCw, Server, ShieldCheck, Wifi } from 'lucide-react'
 import {
   fetchServerStats,
   formatBytes,
@@ -9,6 +9,7 @@ import {
   type ComponentStatus,
   type MetricsBucket,
   type ServerStats,
+  type SystemMetrics,
 } from '../../../services/serverStats'
 
 /**
@@ -52,51 +53,178 @@ function Meter({ ratio, color }: { ratio: number; color: string }) {
   )
 }
 
-/** Grafik batang per menit: total request (abu) + error (merah) bertumpuk. */
-function TrafficChart({ buckets }: { buckets: { minute: number; total: number; ok: number; err: number }[] }) {
-  const data = useMemo(() => buckets.slice(-60), [buckets])
+/** Lebar container yang diamati (dalam piksel) supaya SVG bisa digambar real-size. */
+function useElementWidth(): [RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
 
-  if (data.length === 0) {
-    return (
-      <div className="flex h-40 items-center justify-center rounded-xl border border-slate-700/60 bg-slate-900/40 text-[11px] text-slate-500">
-        Belum ada data request.
-      </div>
-    )
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => setWidth(el.getBoundingClientRect().width)
+    update()
+    // jsdom (unit test) tidak punya ResizeObserver -> pakai event resize.
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  return [ref, width]
+}
+
+/**
+ * Path kurva mulus (cardinal spline) dari titik-titik data.
+ *
+ * Inilah yang bikin grafik terasa "kripto": garisnya tidak patah-patah
+ * seperti diagram batang, tapi melengkung mulus seperti grafik harga aset.
+ */
+function smoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const cur = points[i]
+    const midX = (prev.x + cur.x) / 2
+    d += ` C ${midX} ${prev.y}, ${midX} ${cur.y}, ${cur.x} ${cur.y}`
   }
+  return d
+}
+
+/**
+ * Grafik request per menit bergaya kripto: area gradien, garis melengkung
+ * glowing, titik terakhir yang menonjol, plus garis tipis untuk error.
+ */
+function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
+  const data = useMemo(() => buckets.slice(-60), [buckets])
+  const [wrapRef, width] = useElementWidth()
+
+  const H = 180
+  const PAD_L = 34
+  const PAD_R = 8
+  const PAD_T = 10
+  const PAD_B = 20
 
   const max = Math.max(1, ...data.map(b => b.total))
+  const peak = data.reduce((acc, b) => (b.total > acc.total ? b : acc), { minute: 0, total: 0, ok: 0, err: 0 })
+
+  const innerW = Math.max(0, width - PAD_L - PAD_R)
+  const innerH = H - PAD_T - PAD_B
+  const step = data.length > 1 ? innerW / (data.length - 1) : innerW
+
+  const toPoints = (value: (b: MetricsBucket) => number) =>
+    data.map((b, i) => ({
+      x: PAD_L + i * step,
+      y: PAD_T + innerH - (Math.max(0, value(b)) / max) * innerH,
+    }))
+
+  const linePts = toPoints(b => b.total)
+  const errPts = toPoints(b => b.err)
+  const linePath = smoothPath(linePts)
+  const errPath = smoothPath(errPts)
+  const areaPath = linePath
+    ? `${linePath} L ${linePts[linePts.length - 1].x} ${PAD_T + innerH} L ${linePts[0].x} ${PAD_T + innerH} Z`
+    : ''
+  const last = linePts[linePts.length - 1]
+
+  const gridLines = [0, 0.25, 0.5, 0.75, 1]
 
   return (
     <div className="flex min-h-40 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-      <div className="flex min-h-32 flex-1 items-end gap-[2px]">
-        {data.map(b => {
-          const totalH = (b.total / max) * 100
-          const errH = b.total ? (b.err / b.total) * totalH : 0
-          return (
-            <div
-              key={b.minute}
-              title={`${new Date(b.minute).toLocaleTimeString('id-ID')} · ${b.total} request · ${b.err} error`}
-              className="group relative flex flex-1 flex-col justify-end"
-              style={{ minWidth: 2 }}
-            >
-              <div
-                className="rounded-t-[2px] bg-slate-500/70 transition-colors group-hover:bg-slate-400"
-                style={{ height: `${Math.max(totalH, b.total > 0 ? 3 : 1)}%` }}
-              />
-              {b.err > 0 && (
-                <div className="rounded-b-[2px]" style={{ height: `${errH}%`, backgroundColor: '#EF4444' }} />
-              )}
-            </div>
-          )
-        })}
+      <div ref={wrapRef} className="relative min-h-[180px] w-full flex-1">
+        {data.length === 0 ? (
+          <div className="flex h-40 items-center justify-center text-[11px] text-slate-500">
+            Belum ada data request.
+          </div>
+        ) : width > 0 && (
+          <svg width={width} height={H} className="block overflow-visible">
+            <defs>
+              <linearGradient id="trafficFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.45} />
+                <stop offset="55%" stopColor="#3B82F6" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="trafficStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#3B82F6" />
+                <stop offset="60%" stopColor="#22D3EE" />
+                <stop offset="100%" stopColor="#A78BFA" />
+              </linearGradient>
+              <filter id="trafficGlow" x="-20%" y="-40%" width="140%" height="180%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Grid + label sumbu Y */}
+            {gridLines.map(r => {
+              const y = PAD_T + innerH - r * innerH
+              return (
+                <g key={r}>
+                  <line
+                    x1={PAD_L}
+                    y1={y}
+                    x2={PAD_L + innerW}
+                    y2={y}
+                    stroke="#334155"
+                    strokeWidth={r === 0 ? 1 : 0.5}
+                    strokeDasharray={r === 0 ? undefined : '3 4'}
+                  />
+                  <text x={PAD_L - 6} y={y + 3} textAnchor="end" fontSize={9} fill="#64748B" fontFamily="monospace">
+                    {Math.round(r * max)}
+                  </text>
+                </g>
+              )
+            })}
+
+            {/* Area gradien di bawah garis */}
+            <path d={areaPath} fill="url(#trafficFill)" />
+
+            {/* Garis error (merah tipis) */}
+            {data.some(b => b.err > 0) && (
+              <path d={errPath} fill="none" stroke="#EF4444" strokeWidth={1} strokeOpacity={0.7} />
+            )}
+
+            {/* Garis utama + glow */}
+            <path
+              d={linePath}
+              fill="none"
+              stroke="url(#trafficStroke)"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#trafficGlow)"
+            />
+
+            {/* Titik terakhir */}
+            <circle cx={last.x} cy={last.y} r={9} fill="#22D3EE" fillOpacity={0.15} />
+            <circle cx={last.x} cy={last.y} r={3.5} fill="#22D3EE" stroke="#0F172A" strokeWidth={1.5} />
+
+            {/* Label sumbu X */}
+            <text x={PAD_L} y={H - 5} fontSize={9} fill="#64748B" fontFamily="monospace">
+              {data.length ? new Date(data[0].minute).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
+            </text>
+            <text x={PAD_L + innerW} y={H - 5} textAnchor="end" fontSize={9} fill="#64748B" fontFamily="monospace">
+              {data.length ? new Date(data[data.length - 1].minute).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
+            </text>
+          </svg>
+        )}
       </div>
+
       <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-        <span>{data.length ? new Date(data[0].minute).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
         <span className="flex items-center gap-3">
-          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-slate-500" /> request</span>
-          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: '#EF4444' }} /> error</span>
+          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full bg-[#22D3EE]" /> request</span>
+          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: '#EF4444' }} /> error</span>
         </span>
-        <span>{data.length ? new Date(data[data.length - 1].minute).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+        <span className="font-mono">
+          puncak {peak.total} req/menit · total {data.reduce((s, b) => s + b.total, 0)} req
+        </span>
       </div>
     </div>
   )
@@ -136,6 +264,109 @@ function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/**
+ * Panel kondisi hardware mesin server: processor, RAM, storage, load
+ * average, dan uptime mesin. Data berasal dari `/proc` + `df` di server.
+ */
+function SystemPanel({ system }: { system: SystemMetrics }) {
+  const cpu = system.cpu
+  const mem = system.memory
+  const cpuPct = cpu.usagePercent ?? cpu.averageSinceBootPercent
+  const cpuColor = cpuPct >= 85 ? '#EF4444' : cpuPct >= 60 ? '#F59E0B' : '#22D3EE'
+  const memColor = mem.usedPercent >= 85 ? '#EF4444' : mem.usedPercent >= 60 ? '#F59E0B' : '#3B82F6'
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-700/60 bg-slate-800/40 px-3 py-2 font-mono text-[10px] text-slate-400">
+        <span className="flex items-center gap-1.5 text-slate-200">
+          <Server size={12} /> {system.hostname}
+        </span>
+        <span>{system.os}</span>
+        <span>uptime mesin {formatUptime(system.uptimeSeconds * 1000)}</span>
+        {!system.available && <span className="text-amber-400">metrik sistem tidak terbaca di server ini</span>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        {/* Processor */}
+        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <Cpu size={12} /> Processor
+            </span>
+            <span className="font-mono text-[11px] font-bold" style={{ color: cpuColor }}>{cpuPct.toFixed(1)}%</span>
+          </div>
+          <Meter ratio={cpuPct / 100} color={cpuColor} />
+          <p className="mt-1.5 truncate text-[10px] text-slate-500" title={cpu.model}>{cpu.model}</p>
+          <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[10px] text-slate-400">
+            <span>{cpu.cores || '-'} core</span>
+            <span>{cpu.mhz ? `${cpu.mhz} MHz` : '-'}</span>
+            <span className="text-right">
+              load {cpu.loadAvg.map(v => v.toFixed(2)).join(' / ')}
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] text-slate-600">
+            rata-rata sejak boot {cpu.averageSinceBootPercent.toFixed(1)}%
+          </p>
+        </div>
+
+        {/* Memori */}
+        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <MemoryStick size={12} /> Memori (RAM)
+            </span>
+            <span className="font-mono text-[11px] font-bold" style={{ color: memColor }}>
+              {mem.usedPercent.toFixed(1)}%
+            </span>
+          </div>
+          <Meter ratio={mem.usedPercent / 100} color={memColor} />
+          <p className="mt-1.5 font-mono text-[10px] text-slate-300">
+            {formatBytes(mem.used)} / {formatBytes(mem.total)}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2 font-mono text-[10px] text-slate-400">
+            <span>bebas {formatBytes(mem.available)}</span>
+            <span className="text-right">
+              swap {formatBytes(mem.swapUsed)} / {formatBytes(mem.swapTotal)}
+            </span>
+          </div>
+        </div>
+
+        {/* Storage */}
+        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <HardDrive size={12} /> Penyimpanan
+            </span>
+            <span className="font-mono text-[10px] text-slate-500">
+              {system.disks.length} filesystem
+            </span>
+          </div>
+          {system.disks.length === 0 ? (
+            <p className="text-[10px] text-slate-500">Informasi disk tidak tersedia.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {system.disks.map(d => (
+                <div key={d.path}>
+                  <div className="flex items-center justify-between font-mono text-[10px]">
+                    <span className="text-slate-300">{d.label}</span>
+                    <span className="text-slate-400">{d.usedPercent.toFixed(1)}%</span>
+                  </div>
+                  <div className="mt-1">
+                    <Meter ratio={d.usedPercent / 100} color={d.usedPercent >= 85 ? '#EF4444' : d.usedPercent >= 60 ? '#F59E0B' : '#10B981'} />
+                  </div>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-500" title={d.path}>
+                    {formatBytes(d.used)} terpakai / {formatBytes(d.total)} · {formatBytes(d.free)} bebas
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -269,6 +500,16 @@ export function ServerStatsPanel() {
               <p className="mt-1.5 text-[10px] text-slate-500">IP unik dalam 1 jam terakhir</p>
             </div>
           </div>
+
+          {/* Kondisi hardware mesin server */}
+          {stats.system && (
+            <div className="flex flex-col">
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                <Cpu size={12} /> Kondisi Hardware Server
+              </p>
+              <SystemPanel system={stats.system} />
+            </div>
+          )}
 
           {/* Grafik + status komponen */}
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
