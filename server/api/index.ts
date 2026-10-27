@@ -110,12 +110,8 @@ function invalidationTargets(parts: string[], method: string): string[] {
       // Master plat ikut/compose paket offline → cache paket harus dibuang.
       return ["/master/offline"];
     case "region-tariffs":
-      // Perubahan tarif region mempengaruhi paket offline & UI panel REGION.
-      // Invalidasi cache region tariffs supaya panel REGION selalu tampilkan nilai terbaru.
-      return ["/region-tariffs", "/master/offline"];
-    case "region-tariffs":
-      // Perubahan tarif region mempengaruhi paket offline & UI panel REGION.
-      // Invalidasi cache region tariffs supaya panel REGION selalu tampilkan nilai terbaru.
+      // Perubahan tarif region mempengaruhi paket offline & UI tabel region.
+      // Invalidasi cache region tariffs supaya tabel selalu tampilkan nilai terbaru.
       return ["/region-tariffs", "/master/offline"];
     case "master":
       return b === "tariffs" ? ["/tariffs", "/master/tariffs"] : [];

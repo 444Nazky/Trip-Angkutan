@@ -11,6 +11,14 @@ export interface ServerTariff {
   is_active: number
 }
 
+export interface RegionTariffOverrideRow {
+  golongan: string
+  vehicleType: string
+  muatanTariff: number
+  kosongTariff: number
+  isActive: number
+}
+
 export interface RegionTariffRow {
   id: string
   name: string
@@ -19,6 +27,8 @@ export interface RegionTariffRow {
   lokal_active: number | null
   eksternal_tariff: number | null
   eksternal_active: number | null
+  /** Override master per golongan+jenis (kosong = pakai master). */
+  rows?: RegionTariffOverrideRow[] | null
 }
 
 function fmtRp(n: number): string {
@@ -88,6 +98,24 @@ export async function upsertRegionTariff(input: {
   const rows = await api.getOk<RegionTariffRow[]>('/region-tariffs')
   if (!rows) return true
   return true
+}
+
+/** Upsert override master (muatan+kosong) satu golongan+jenis untuk region. */
+export async function upsertRegionTariffRow(input: {
+  regionId: string
+  golongan: string
+  vehicleType: string
+  muatanTariff: number
+  kosongTariff: number
+}): Promise<boolean> {
+  const r = await api.put(`/region-tariffs/${input.regionId}`, {
+    golongan: input.golongan,
+    vehicleType: input.vehicleType,
+    muatanTariff: input.muatanTariff,
+    kosongTariff: input.kosongTariff,
+    isActive: 1,
+  })
+  return r.ok
 }
 
 export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionTariffRow | null> {
