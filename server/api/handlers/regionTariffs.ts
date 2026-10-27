@@ -69,8 +69,7 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
 }
 
 /** Upsert satu baris override (golongan + jenis kendaraan) per region. */
-async function updateRegionRow(req: Request, regionId: string): Promise<Response> {
-  const body = await req.json().catch(() => ({} as any));
+async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   const golongan = String(body.golongan ?? "").trim();
   const vehicleType = String(body.vehicleType ?? body.vehicle_type ?? "").trim();
   if (!vehicleType) return json({ error: "vehicleType wajib diisi" }, 400);
@@ -94,9 +93,7 @@ async function updateRegionRow(req: Request, regionId: string): Promise<Response
 }
 
 /** Upsert tarif flat (lokal/eksternal) per region. */
-async function updateRegionFlat(req: Request, regionId: string): Promise<Response> {
-  const body = await req.json().catch(() => ({} as any));
-
+async function updateRegionFlat(body: any, regionId: string): Promise<Response> {
   // Dua bentuk payload yang diterima:
   //   legacy : { tariffType: 'lokal'|'eksternal', nominalTariff, isActive }
   //   UI     : { lokal_tariff, lokal_active } | { eksternal_tariff, eksternal_active }
@@ -152,8 +149,8 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
     const body = await req.json().catch(() => ({} as any));
     const isRowPayload = body?.vehicleType !== undefined || body?.vehicle_type !== undefined ||
       (body?.golongan !== undefined && (body?.muatanTariff !== undefined || body?.kosongTariff !== undefined));
-    if (isRowPayload) return await updateRegionRow(req, regionId);
-    return await updateRegionFlat(req, regionId);
+    if (isRowPayload) return await updateRegionRow(body, regionId);
+    return await updateRegionFlat(body, regionId);
   } catch (error) {
     console.error("Update region tariff error:", error);
     return json({ error: "Failed to update region tariff" }, 500);

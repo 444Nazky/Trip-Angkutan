@@ -96,11 +96,11 @@ const VEHICLE_CARDS = [
 ]
 
 const INPUT_CLS =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
+  'w-full rounded-lg border border-slate-200 bg-[#F5F8FE] px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
 const BTN_PRIMARY =
   'inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
 const BTN_GHOST =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-[#F5F8FE] px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
 
 const EMPTY_FORM: TariffForm = { regionId: '', golongan: '', type: '', lokal: '', muatan: '', kosong: '' }
 
