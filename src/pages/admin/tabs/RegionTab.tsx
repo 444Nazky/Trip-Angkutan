@@ -210,8 +210,17 @@ export function RegionTab({ showToast }: RegionTabProps) {
     if (!CODE_RE.test(code)) {
       return showToast('Kode dermaga 2–16 karakter tanpa spasi', 'error')
     }
-    if (dermagas.some((d) => String(d.code ?? '').toUpperCase() === code)) {
-      return showToast(`Kode dermaga ${code} sudah dipakai`, 'error')
+    // Kode dermaga hanya wajib unik DI DALAM satu wilayah. Di database kantor
+    // setiap wilayah memakai kode yang sama (D1, D2, ...), jadi aturan unik
+    // global akan memblokir penambahan dermaga di wilayah yang masih kosong.
+    if (
+      dermagas.some(
+        (d) =>
+          String(d.region_id ?? '') === dermagaForm.regionId &&
+          String(d.code ?? '').toUpperCase() === code,
+      )
+    ) {
+      return showToast(`Wilayah ini sudah punya dermaga berkode ${code}`, 'error')
     }
 
     setSaving(true)
@@ -449,8 +458,8 @@ export function RegionTab({ showToast }: RegionTabProps) {
                   <Fragment key={region.id}>
                     <tr className="bg-slate-100">
                       <td className="border border-slate-300 px-3 py-2">
-                        <span className="font-bold text-slate-800">{labelOf(region)}</span>
-                        <span className="ml-2 text-[11px] text-slate-500">wilayah</span>
+                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
+                        <span className="text-[11px] text-slate-500">wilayah</span>
                       </td>
                       <td className="border border-slate-300 px-3 py-2 font-mono text-slate-600 text-[12px] uppercase">
                         {region.code || '—'}

@@ -272,7 +272,7 @@ describe('RegionTab (render harness)', () => {
     expect(toasts.at(-1)?.msg).toBe('Dermaga ditambahkan ke database')
   })
 
-  it('menolak kode dermaga yang sudah dipakai tanpa memanggil server', async () => {
+  it('menolak kode dermaga kembar di wilayah yang sama tanpa memanggil server', async () => {
     await renderTab()
 
     await setValue(container.querySelector('select') as HTMLSelectElement, 'r-sbdz')
@@ -281,7 +281,37 @@ describe('RegionTab (render harness)', () => {
     await click(buttonByText('Tambah Dermaga'))
 
     expect(createDermaga).not.toHaveBeenCalled()
-    expect(toasts.at(-1)).toEqual({ msg: 'Kode dermaga SBD1 sudah dipakai', type: 'error' })
+    expect(toasts.at(-1)).toEqual({ msg: 'Wilayah ini sudah punya dermaga berkode SBD1', type: 'error' })
+  })
+
+  it('mengizinkan kode dermaga yang sama di wilayah BERBEDA (pola database kantor: D1, D2 per wilayah)', async () => {
+    await renderTab()
+
+    // Kode SBD1 sudah dipakai Dermaga Sindang, tetapi di wilayah lain tetap boleh.
+    await setValue(container.querySelector('select') as HTMLSelectElement, 'r-master')
+    await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Badau Satu')
+    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
+    await click(buttonByText('Tambah Dermaga'))
+
+    expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-master', name: 'Dermaga Badau Satu', code: 'SBD1' })
+    expect(container.textContent ?? '').toContain('Dermaga Badau Satu')
+    expect(toasts.at(-1)?.msg).toBe('Dermaga ditambahkan ke database')
+  })
+
+  it('menampilkan kode dermaga yang sama di dua wilayah tanpa tertukar (pola database kantor)', async () => {
+    ;(db.dermagas as RowDermaga[]).push({
+      id: 'd-master',
+      region_id: 'r-master',
+      name: 'Dermaga Badau Satu',
+      code: 'SBD1',
+    })
+    await renderTab()
+
+    expect(rowByText('Dermaga Sindang')?.textContent).toContain('SBD1')
+    expect(rowByText('Dermaga Badau Satu')?.textContent).toContain('SBD1')
+    // Jumlah dermaga dihitung per wilayah, bukan dari kode yang bisa berulang.
+    expect(rowByText('Wilayah Badau')?.textContent).toContain('1 dermaga')
+    expect(rowByText('Wilayah Sindang')?.textContent).toContain('1 dermaga')
   })
 
   it('tidak menghapus wilayah yang masih punya dermaga', async () => {

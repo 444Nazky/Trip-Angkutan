@@ -114,8 +114,9 @@ async function main() {
   const dom = await inPage(`
     const rows = $$('tbody tr').map(tr => {
       const cells = $$('td', tr).map(td => td.innerText.replace(/\\s+/g, ' ').trim());
-      const isRegion = !!tr.querySelector('span.font-bold') && (tr.innerText || '').includes('wilayah');
-      return { isRegion, cells };
+      const label = tr.querySelector('td span.font-bold');
+      const isRegion = !!label && (tr.innerText || '').includes('wilayah');
+      return { isRegion, cells, label: label ? label.textContent.trim() : null };
     });
     return {
       badge: (bodyText().match(/\\d+ wilayah · \\d+ dermaga/) || ['tidak ada'])[0],
@@ -127,41 +128,50 @@ async function main() {
   `)
   console.log('badge halaman:', JSON.stringify(dom.badge), '| tabel kosong?', dom.tabelKosong, dom.offline ? '| OFFLINE' : '')
 
-  const regionRows = dom.rows.filter((r) => r.isRegion).map((r) => r.cells)
-  const dermagaRows = dom.rows.filter((r) => !r.isRegion && r.cells.length === 4).map((r) => r.cells)
+  const regionRows = dom.rows.filter((r) => r.isRegion)
+  const dermagaRows = dom.rows.filter((r) => !r.isRegion && r.cells.length === 4)
   console.log('\n--- baris wilayah di halaman ---')
-  for (const c of regionRows) console.log(' ', c[0], '|', c[1], '|', c[2])
+  for (const r of regionRows) console.log(' ', r.label, '|', r.cells[1], '|', r.cells[2])
   console.log('--- baris dermaga di halaman ---')
-  for (const c of dermagaRows) console.log(' ', c[0], '|', c[1], '|', c[2])
+  for (const r of dermagaRows) console.log(' ', r.cells[0], '|', r.cells[1], '|', r.cells[2])
 
   // Bandingkan dengan database.
-  const regionByCode = new Map(regions.map((r) => [String(r.code).toUpperCase(), r]))
   const regionIds = new Set(regions.map((r) => String(r.id)))
-  const expectedNames = regions.map((r) => r.name || r.code)
-  const domNames = regionRows.map((c) => c[0].replace(/\\s*wilayah$/, '').trim())
-  const kurang = expectedNames.filter((n) => !domNames.includes(String(n)))
-  const lebih = domNames.filter((n) => !expectedNames.map(String).includes(n))
+  const expectedNames = regions.map((r) => String(r.name || r.code))
+  const domNames = regionRows.map((r) => String(r.label))
+  const kurang = expectedNames.filter((n) => !domNames.includes(n))
+  const lebih = domNames.filter((n) => !expectedNames.includes(n))
   console.log('\nwilayah di DB tapi tidak tampil di halaman:', kurang.length ? kurang : 'tidak ada')
   console.log('wilayah di halaman tapi tidak ada di DB:', lebih.length ? lebih : 'tidak ada')
 
   const orphanDb = dermagas.filter((d) => !d.region_id || !regionIds.has(String(d.region_id)))
   console.log(`dermaga yatim di DB (region_id kosong/tidak ada wilayahnya): ${orphanDb.length}`,
-    orphanDb.map((d) => `${d.name}/${d.code}`).join(', ') || '')
-  const orphanDom = dermagaRows.filter((c) => domNames.every((n) => false) === false ? false : false)
-  void orphanDom
+    orphanDb.map((d) => `${d.name}/${d.code}`).join(', '))
   console.log('halaman menampilkan blok "Dermaga tanpa wilayah"?', dom.rows.some((r) => r.cells.join(' ').includes('Dermaga tanpa wilayah')))
 
   // Jumlah dermaga per wilayah: DB vs halaman.
   let mismatch = 0
   for (const r of regions) {
     const dbCount = dermagas.filter((d) => String(d.region_id) === String(r.id)).length
-    const header = regionRows.find((c) => c[0].replace(/\\s*wilayah$/, '').trim() === String(r.name || r.code))
-    const domCount = header ? Number((header[2].match(/^(\\d+) dermaga/) || [])[1] ?? -1) : -1
+    const header = regionRows.find((x) => String(x.label) === String(r.name || r.code))
+    const domCount = header ? Number((header.cells[2].match(/^(\d+) dermaga/) || [])[1] ?? -1) : -1
     if (dbCount !== domCount) { mismatch++; console.log(`  BEDA ${r.code}: DB=${dbCount} halaman=${domCount}`) }
   }
   console.log('selisih jumlah dermaga per wilayah:', mismatch === 0 ? 'tidak ada' : `${mismatch} wilayah`)
   console.log('jumlah baris dermaga di halaman:', dermagaRows.length, '| dermaga di DB:', dermagas.length)
-  void regionByCode
+
+  // Kode dermaga berulang antar wilayah: pastikan tiap baris menempel ke wilayahnya.
+  const pasanganDb = dermagas.map((d) => `${regions.find((r) => String(r.id) === String(d.region_id))?.code ?? '?'}:${d.code}`).sort()
+  const pasanganDom = []
+  let wilayahAktif = null
+  for (const row of dom.rows) {
+    if (row.isRegion) wilayahAktif = (regions.find((r) => String(r.name || r.code) === String(row.label)) || {}).code ?? row.label
+    else if (row.cells.length === 4) pasanganDom.push(`${wilayahAktif}:${row.cells[1]}`)
+  }
+  pasanganDom.sort()
+  console.log('pasangan wilayah:kode di DB   :', pasanganDb.join(', '))
+  console.log('pasangan wilayah:kode di halaman:', pasanganDom.join(', '))
+  console.log('pasangan cocok:', JSON.stringify(pasanganDb) === JSON.stringify(pasanganDom))
 
   console.log('\nteks halaman (200 char):', JSON.stringify((await inPage(`return bodyText();`)).replace(/\s+/g, ' ').slice(0, 200)))
   close()

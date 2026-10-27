@@ -27,12 +27,23 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // versionCode 11: APK 1.0.3 yang sudah terbit di storage punya
-        // versionCode 10. Android HANYA menerima upgrade kalau versionCode
-        // yang baru LEBIH BESAR - dengan code <= 10 APK ini tidak bisa
-        // di-install di perangkat yang sudah pakai 1.0.3.
-        versionCode 11
-        versionName "1.0.2"
+        // versionCode 12 / versionName 1.0.4.
+        //
+        // APK 1.0.3 yang sudah terbit di storage punya versionCode 10.
+        // Android HANYA menerima upgrade kalau versionCode yang baru LEBIH
+        // BESAR - dengan code <= 10 APK ini tidak bisa di-install di
+        // perangkat yang sudah pakai 1.0.3.
+        //
+        // Kenapa versionName ikut naik ke 1.0.4 (bukan tetap 1.0.2):
+        // "versi terbaru" di server diambil dari label semver tertinggi di
+        // tabel app_versions (1.0.3). Kalau APK ini tetap bernama 1.0.2,
+        // perangkat yang sudah terpasang 1.0.3 akan selalu ditawari update
+        // (1.0.3 > 1.0.2) lalu ditolak Android karena versionCode-nya turun ->
+        // popup update muncul terus-menerus. versionName harus SAMA dengan
+        // label yang diterbitkan server supaya alurnya berhenti setelah
+        // update berhasil.
+        versionCode 12
+        versionName "1.0.4"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
