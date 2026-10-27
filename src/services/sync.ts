@@ -1,6 +1,7 @@
 import { Geolocation, type Position } from '@capacitor/geolocation'
 import { api, getApiBaseUrl as readApiBaseUrl } from './api'
 import { getStoredDermaga, getStoredRoutes, refreshBackendSession, renewSessionIfNeeded } from './auth'
+import { getLastKnownPosition } from './geofence'
 import {
   initLocalDb as initLocalDb,
   dbAll,
@@ -24,7 +25,10 @@ const FAST_RETRY_NETWORK_MS = 2_000
 const POLL_INTERVAL_MS = 20_000
 const LOCK_TIMEOUT_MS = 120_000
 const ITEM_TIMEOUT_MS = 90_000
-const GEO_TIMEOUT_MS = 8_000
+// Timeout permintaan GPS saat butuh koordinat fallback untuk kendaraan.
+// 8 detik -> sering gagal di lapangan (Timeout expired). 20 detik memberi
+// cukup waktu bagi GPS chipset lock, tanpa menggantung upload.
+const GEO_TIMEOUT_MS = 20_000
 const PING_TTL_MS = 2_500
 const PING_TIMEOUT_MS = 5_000
 const ONLINE_RETRY_ATTEMPTS = 3
@@ -590,10 +594,32 @@ export function resolveRoute(trip: Trip): { routeFrom: string | null; routeTo: s
 
 
 
+/**
+ * Ambil koordinat untuk kendaraan yang foto-nya tidak membawa GPS.
+ *
+ * PENTING: ini HANYA fallback. Koordinat asli diambil dari metadata foto
+ * (v.photoLatitude). Yang di sini hanya dipakai kalau foto tidak punya
+ * koordinat — jadi tidak boleh menunda pengiriman lebih dari perlu.
+ *
+ * urutan:
+ *   1. fix terakhir yang sudah diketahui (watch GPS / cache) -> instan,
+ *   2. permintaan GPS dengan timeout wajar.
+ */
 async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | null> {
+  // 1. Fix yang sudah ada di perangkat (watch GPS) -> tanpa jaringan.
+  const last = getLastKnownPosition()
+  if (last) return { lat: last.lat, lon: last.lng }
+
+  // 2. Permintaan GPS. Timeout 8 detik dulu -> sering "Timeout expired" di
+  //    lapangan. Sekarang 20 detik; batas luar (withTimeout) tetap menjaga
+  //    supaya upload tidak menggantung lebih lama dari itu.
   try {
     const pos: Position | null = await withTimeout<Position | null>(
-      Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: GEO_TIMEOUT_MS, maximumAge: 60_000 }),
+      Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: GEO_TIMEOUT_MS,
+        maximumAge: 60_000,
+      }),
       GEO_TIMEOUT_MS + 1_000,
       null,
     )
@@ -745,17 +771,28 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       }
     }
 
+    // 4xx = server menolak payload (permanen, retry tanpa ubah data tak akan
+    // menolong). 5xx = masalah server/sesi -> tetap retry.
     const permanent = !!code && /^4\d\d$/.test(code) && code !== '408' && code !== '401'
+
+    // Pesan galat server HARUS ikut ditampilkan utuh. Dulu_generic "Server
+    // menolak payload" membuat petugas tidak tahu apa yang salah; sekarang
+    // status HTTP + pesan server ikut dibawa ke UI.
+    const serverMessage = (res.error?.message ?? '').trim()
+    const error = serverMessage
+      ? `Server menolak (HTTP ${code ?? '?'}): ${serverMessage}`
+      : `Server menolak permintaan (HTTP ${code ?? '?'}) — data BELUM masuk dashboard admin`
+
     return {
       syncId,
       success: false,
-      error: res.error?.message ?? 'Server menolak payload',
+      error,
       code,
       permanent,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Gagal upload'
-    return { syncId, success: false, error: msg }
+    return { syncId, success: false, error: `Gagal mengirim trip: ${msg}` }
   }
 }
 
