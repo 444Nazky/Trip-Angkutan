@@ -276,7 +276,7 @@ function mergeVehicleList(
     let idx = prev.findIndex((p, j) => !used.has(j) && key && plateKey(p.plate) === key)
     if (idx < 0) {
       // Tanpa plat yang cocok -> pakai index kalau slotnya masih kosong.
-      idx = prev.findIndex((p, j) => !used.has(j) && j === i)
+      idx = prev.findIndex((_p, j) => !used.has(j) && j === i)
     }
     if (idx < 0) return v
     used.add(idx)
@@ -421,7 +421,7 @@ export async function addToSyncQueue(
 
   // Gabungkan dengan isi antrean lama: daftar kendaraan dan foto tidak boleh
   // pernah hilang hanya karena state yang dipakai hanya metadata.
-  const merged = mergeQueuedTrip(withPhotos, existing)
+  const merged = mergeQueuedTrip(withPhotos, existing ?? undefined)
 
   const item: SyncItem = {
     syncId: existing?.syncId ?? `trip:${trip.id}:${createdAt}`,
@@ -510,7 +510,7 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
     // daftar kendaraan — tanpa penggabungan ini, satu aksi "Simpan & Kirim"
     // akan menghapus kendaraan/foto dari antrean dan trip terkirim tanpa
     // dokumen (gejala "kendaraan menghilang" di dashboard admin).
-    const merged = mergeQueuedTrip(trip, existing)
+    const merged = mergeQueuedTrip(trip, existing ?? undefined)
     const item: SyncItem = {
       ...existing,
       trip: merged.trip,

@@ -4,6 +4,7 @@ import {
   applyEndpointInput,
   apiBaseCandidates,
   apiBaseCandidateLabel,
+  defaultApiBaseUrl,
   intranetApiBaseUrl,
   isIntranetBaseUrl,
   isLoopbackUrl,
@@ -19,6 +20,7 @@ import {
   validateEndpointInput,
 } from './api'
 import { otaAssetsBase } from './ota'
+import { environment } from '../environments/environment'
 
 // `native` = apakah aplikasi dianggap berjalan di WebView native (Capacitor).
 // Di native, halaman dimuat dari origin lokal https://localhost sehingga
@@ -94,6 +96,26 @@ describe('endpoint intranet tunggal', () => {
     // aset harus mengikuti base URL aktif.
     setApiBaseUrlOverride('http://192.168.1.123:3000/api')
     expect(otaAssetsBase()).toBe('http://192.168.1.123:3000/files/ota/')
+  })
+})
+
+describe('split-brain endpoint: mobile app & dashboard admin wajib server sama', () => {
+  it('apiBaseUrl dan intranetApiBaseUrl menunjuk server yang sama', () => {
+    // Dua slot ini dibaca kode yang berbeda (mobile & dashboard), jadi kalau
+    // satu menunjuk cloud dan satu intranet, aplikasi mobile menulis ke
+    // database yang TIDAK dibaca dashboard admin. Gejalanya: "berhasil
+    // terkirim" di aplikasi, trip tidak pernah muncul di dashboard.
+    expect(environment.apiBaseUrl).toBe(environment.intranetApiBaseUrl)
+  })
+
+  it('tidak ada endpoint cloud di environment', () => {
+    expect(environment.apiBaseUrl).not.toMatch(/supabase\.co/i)
+    expect(environment.intranetApiBaseUrl).not.toMatch(/supabase\.co/i)
+  })
+
+  it('default aplikasi menunjuk server kantor (host privat)', () => {
+    expect(isIntranetBaseUrl(environment.apiBaseUrl)).toBe(true)
+    expect(isIntranetBaseUrl(defaultApiBaseUrl())).toBe(true)
   })
 })
 

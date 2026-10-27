@@ -50,6 +50,11 @@ const h = vi.hoisted(() => {
       lastBody: null as FormData | null,
       /** Balasan error dari server (bisa diubah per test). */
       postError: { message: 'Server menolak payload', code: '500' } as { message: string; code: string },
+      /**
+       * Konfirmasi balasan server. `null` = pakai konfirmasi otomatis
+       * (dihitung dari payload yang dikirim, seperti server sungguhan).
+       */
+      ack: null as Record<string, unknown> | null,
       // JWT palsu: role officer + officerId cocok dengan sesi tersimpan
       token: `${enc({ alg: 'none' })}.${enc({ role: 'officer', officerId: 'off1', exp: 4102444800 })}.sig`,
       authenticated: true,
@@ -93,9 +98,18 @@ vi.mock('./api', () => ({
     postMultipart: async (_path: string, body: FormData) => {
       h.api.postCalls++
       h.api.lastBody = body
-      return h.api.postOk
-        ? { ok: true, data: { id: 'srv-1' } }
-        : { ok: false, error: h.api.postError }
+      if (!h.api.postOk) return { ok: false, error: h.api.postError }
+      // Server sungguhan mengonfirmasi trip tersimpan: nomor trip + jumlah
+      // kendaraan & foto yang benar-benar ditulis.
+      let vehicleCount = 0
+      try {
+        vehicleCount = (JSON.parse(String(body.get('payload'))) as { vehicles?: unknown[] }).vehicles?.length ?? 0
+      } catch { /* payload rusak -> 0 */ }
+      const photoCount = body.getAll('photos').length
+      return {
+        ok: true,
+        data: h.api.ack ?? { id: 'srv-1', noTrip: 'TRP-SRV-0001', vehicleCount, photoCount },
+      }
     },
   },
   getApiBaseUrl: () => 'http://api.test',
@@ -169,6 +183,7 @@ beforeEach(async () => {
   h.api.postCalls = 0
   h.api.lastBody = null
   h.api.postError = { message: 'Server menolak payload', code: '500' }
+  h.api.ack = null
   h.api.authenticated = true
 
   localStorage.clear()
@@ -503,5 +518,151 @@ describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
     await addToSyncQueue(makeTrip({ photoUrl: undefined, vehicles: [] }))
     expect(await readQueuedPhotos('TRP-2026-0001')).toBeNull()
     expect(await readQueuedPhotos('TRP-TIDAK-ADA')).toBeNull()
+  })
+})
+
+// ── 7. "Berhasil terkirim" TIDAK BOLEH bohong ────────────────────────────────
+// Regresi yang dilaporkan: aplikasi mobile memberi tahu "trip berhasil
+// terkirim", padahal data tidak pernah muncul di dashboard admin.
+//
+// Dua sumber falsehood:
+//   a) Server membalas 2xx tapi TIDAK mengonfirmasi trip (mis. endpoint yang
+//      salah membalas 200 dengan body kosong).
+//   b) Server mengonfirmasi tapi hanya sebagian kendaraan yang tersimpan
+//      (dashboard menampilkan trip dengan 0 kendaraan).
+
+describe('sukses upload hanya sah kalau server mengonfirmasi', () => {
+  it('2xx tanpa konfirmasi trip TIDAK dianggap terkirim (tetap di antrean)', async () => {
+    await addToSyncQueue(makeTrip())
+    // Endpoint yang salah / server yang membalas 200 tanpa isi.
+    h.api.ack = { id: 'srv-1' }
+
+    await processSyncQueue({ retryAll: true })
+
+    const rows = await pendingRows()
+    expect(rows, 'trip harus tetap di antrean kalau server tidak mengonfirmasi').toHaveLength(1)
+    expect(rows[0].lastErrorCode).toBe('NOT_CONFIRMED')
+    expect(rows[0].lastError).toMatch(/tidak mengonfirmasi/i)
+  })
+
+  it('2xx dengan body kosong juga tidak dianggap terkirim', async () => {
+    await addToSyncQueue(makeTrip())
+    h.api.ack = null
+    // Simulasikan respons tanpa body: postMultipart mengembalikan data undefined.
+    const mod = await import('./api')
+    const spy = vi.spyOn(mod.api, 'postMultipart').mockResolvedValue({ ok: true, data: undefined } as never)
+
+    await processSyncQueue({ retryAll: true })
+    spy.mockRestore()
+
+    const rows = await pendingRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].lastErrorCode).toBe('NOT_CONFIRMED')
+  })
+
+  it('server hanya menyimpan sebagian kendaraan -> upload dianggap gagal', async () => {
+    await addToSyncQueue(makeTrip())
+    h.api.ack = { id: 'srv-1', noTrip: 'TRP-SRV-0001', vehicleCount: 0, photoCount: 2 }
+
+    await processSyncQueue({ retryAll: true })
+
+    const rows = await pendingRows()
+    expect(rows, 'trip dengan 0 kendaraan tidak boleh dianggap terkirim').toHaveLength(1)
+    expect(rows[0].lastError).toMatch(/0 dari 1 kendaraan/i)
+  })
+
+  it('server hanya menyimpan sebagian foto -> upload dianggap gagal', async () => {
+    await addToSyncQueue(makeTrip())
+    h.api.ack = { id: 'srv-1', noTrip: 'TRP-SRV-0001', vehicleCount: 1, photoCount: 1 }
+
+    await processSyncQueue({ retryAll: true })
+
+    const rows = await pendingRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].lastError).toMatch(/foto dokumentasi/i)
+  })
+
+  it('konfirmasi lengkap -> trip keluar dari antrean dan ditandai terkirim', async () => {
+    await addToSyncQueue(makeTrip())
+    const synced: string[] = []
+    const off = onTripSynced(id => synced.push(id))
+
+    await processSyncQueue({ retryAll: true })
+    off()
+
+    expect(await pendingRows()).toHaveLength(0)
+    expect(synced).toEqual(['TRP-2026-0001'])
+  })
+})
+
+// ── 8. Kendaraan & fotonya tidak boleh hilang dari antrean ──────────────────
+// Regresi: "kendaraan menghilang" — daftar kendaraan pada trip yang-BARU
+// dibuat bisa lebih pendek dari yang sudah ada di antrean (state hanya
+// metadata), sehingga trip terkirim tanpa satu pun kendaraan.
+
+describe('kendaraan di antrean tidak pernah hilang', () => {
+  const TRIP_2_KENDARAAN = makeTrip({
+    vehicles: [
+      { plate: 'B 1111 AA', type: 'Truck Besar', category: 'Internal', tariff: 100_000, photoUrl: IMG },
+      { plate: 'B 2222 BB', type: 'Truck Sedang', category: 'Eksternal', tariff: 50_000, photoUrl: IMG_BARU },
+    ],
+  })
+
+  it('state tanpa kendaraan tidak menghapus kendaraan yang sudah di antrean', async () => {
+    await addToSyncQueue(TRIP_2_KENDARAAN)
+
+    // State setelah aplikasi dibuka ulang: cache metadata tanpa kendaraan.
+    const metadataOnly = makeTrip({ vehicles: [] })
+    await retrySyncItem(metadataOnly)
+
+    const rows = await pendingRows()
+    expect(rows[0].trip.vehicles, 'kendaraan tidak boleh hilang dari antrean').toHaveLength(2)
+    expect(rows[0].trip.vehicles?.map(v => v.plate)).toEqual(['B 1111 AA', 'B 2222 BB'])
+  })
+
+  it('foto kendaraan ikut dipertahankan saat state kehilangan kendaraan', async () => {
+    await addToSyncQueue(TRIP_2_KENDARAAN)
+    await retrySyncItem(makeTrip({ vehicles: [] }))
+
+    const rows = await pendingRows()
+    expect(rows[0].photos).toHaveLength(2)
+    expect(rows[0].photos[0].dataUrl).toBe(IMG)
+    expect(rows[0].photos[1].dataUrl).toBe(IMG_BARU)
+  })
+
+  it('kendaraan yang ditambah tetap terkirim lengkap ke server', async () => {
+    await addToSyncQueue(makeTrip())
+    await retrySyncItem(TRIP_2_KENDARAAN)
+
+    h.api.postCalls = 0
+    await processSyncQueue({ retryAll: true })
+
+    expect(h.api.postCalls).toBe(1)
+    const payload = JSON.parse(String(h.api.lastBody!.get('payload'))) as {
+      vehicles: Array<{ noPolisi: string; photoIndex: number }>
+    }
+    expect(payload.vehicles.map(v => v.noPolisi)).toEqual(['B 1111 AA', 'B 2222 BB'])
+    expect(payload.vehicles.every(v => v.photoIndex !== null)).toBe(true)
+  })
+
+  it('edit plat satu kendaraan tidak menggeser foto kendaraan lain', async () => {
+    await addToSyncQueue(TRIP_2_KENDARAAN)
+
+    // Petugas mengedit plat unit PERTAMA lewat Riwayat.
+    const edited = makeTrip({
+      vehicles: [
+        { plate: 'B 9999 ZZ', type: 'Truck Besar', category: 'Internal', tariff: 100_000 },
+        { plate: 'B 2222 BB', type: 'Truck Sedang', category: 'Eksternal', tariff: 50_000 },
+      ],
+    })
+    await retrySyncItem(edited)
+
+    const rows = await pendingRows()
+    const vehicles = rows[0].trip.vehicles ?? []
+    expect(vehicles.map(v => v.plate)).toEqual(['B 9999 ZZ', 'B 2222 BB'])
+    // Foto ikut unitnya: unit pertama tetap punya fotonya, unit kedua tidak
+    // tertukar dengan foto unit pertama.
+    expect(vehicles[0].photoUrl).toBe(IMG)
+    expect(vehicles[1].photoUrl).toBe(IMG_BARU)
   })
 })

@@ -12,7 +12,7 @@
     "dev": "ng serve",
     "status": "node scripts/dev-status.mjs",
     "cache:clean": "ng cache clean",
-    "build": "ng build && node scripts/organize-build.mjs",
+    "build": "ng build && node scripts/organize-build.mjs && node scripts/check-endpoint-consistency.mjs",
     "build:raw": "ng build",
     "ota:publish": "node scripts/publish-ota-server.mjs",
     "watch": "ng build --watch --configuration development",
