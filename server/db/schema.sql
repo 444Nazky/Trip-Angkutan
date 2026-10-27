@@ -207,6 +207,8 @@ CREATE TABLE IF NOT EXISTS device_versions (
 
 -- Index untuk lookup yang dipanggil API (bukan bagian dari OpenAPI).
 CREATE INDEX IF NOT EXISTS trips_client_trip_id_idx ON trips (client_trip_id);
+-- Lookup retry: client_trip_id selalu dibatasi per petugas (lihat trips.ts).
+CREATE INDEX IF NOT EXISTS trips_officer_client_trip_idx ON trips (officer_id, client_trip_id);
 CREATE INDEX IF NOT EXISTS trips_officer_created_idx ON trips (officer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS trips_created_at_idx ON trips (created_at DESC);
 CREATE INDEX IF NOT EXISTS vehicles_trip_id_idx ON vehicles (trip_id);
