@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addToSyncQueue,
   backoffMs,
+  onSyncFailure,
+  onTripSynced,
   probeServer,
   processSyncQueue,
   resolveRoute,
@@ -44,6 +46,8 @@ const h = vi.hoisted(() => {
       postOk: true,
       postCalls: 0,
       lastBody: null as FormData | null,
+      /** Balasan error dari server (bisa diubah per test). */
+      postError: { message: 'Server menolak payload', code: '500' } as { message: string; code: string },
       // JWT palsu: role officer + officerId cocok dengan sesi tersimpan
       token: `${enc({ alg: 'none' })}.${enc({ role: 'officer', officerId: 'off1', exp: 4102444800 })}.sig`,
       authenticated: true,
@@ -89,7 +93,7 @@ vi.mock('./api', () => ({
       h.api.lastBody = body
       return h.api.postOk
         ? { ok: true, data: { id: 'srv-1' } }
-        : { ok: false, error: { message: 'Server menolak payload', code: '500' } }
+        : { ok: false, error: h.api.postError }
     },
   },
   getApiBaseUrl: () => 'http://api.test',
@@ -162,6 +166,7 @@ beforeEach(async () => {
   h.api.postOk = true
   h.api.postCalls = 0
   h.api.lastBody = null
+  h.api.postError = { message: 'Server menolak payload', code: '500' }
   h.api.authenticated = true
 
   localStorage.clear()
@@ -352,5 +357,72 @@ describe('antrean sinkron', () => {
     const rows = await pendingRows()
     expect(rows).toHaveLength(1)
     expect(rows[0].attempts).toBe(0) // tidak membakar percobaan saat offline
+  })
+})
+
+// ── 4. Tidak ada pesan sukses palsu (HTTP 500 → data BELUM masuk) ───────────
+
+describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
+  it('HTTP 500: listener sukses tidak dipanggil, notifikasi gagal membawa pesan server', async () => {
+    const sukses: string[] = []
+    const gagal: Array<{ tripId: string; error: string; permanent: boolean }> = []
+    const offSukses = onTripSynced(id => sukses.push(id))
+    const offGagal = onSyncFailure(d => gagal.push(d))
+
+    try {
+      await addToSyncQueue(makeTrip())
+      h.api.postOk = false // server membalas HTTP 500
+
+      await processSyncQueue({ retryAll: true })
+
+      // 1. TIDAK ADA "berhasil terkirim" — jadi tidak ada toast palsu.
+      expect(sukses).toHaveLength(0)
+
+      // 2. Petugas diberi tahu, dengan status HTTP + pesan server.
+      expect(gagal).toHaveLength(1)
+      expect(gagal[0].tripId).toBe('TRP-2026-0001')
+      expect(gagal[0].error).toContain('500')
+      expect(gagal[0].error).toContain('Server menolak payload')
+
+      // 3. 5xx = masalah server, masih boleh dicoba ulang otomatis.
+      expect(gagal[0].permanent).toBe(false)
+
+      // 4. Data tetap aman di antrean (belum masuk dashboard admin).
+      const rows = await pendingRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].attempts).toBe(1)
+      expect(rows[0].lastError).toContain('500')
+    } finally {
+      offSukses()
+      offGagal()
+    }
+  })
+
+  it('HTTP 400 (payload ditolak permanen) menampilkan pesan server apa adanya', async () => {
+    const sukses: string[] = []
+    const gagal: Array<{ error: string; permanent: boolean }> = []
+    const offSukses = onTripSynced(id => sukses.push(id))
+    const offGagal = onSyncFailure(d => gagal.push(d))
+
+    try {
+      await addToSyncQueue(makeTrip())
+      h.api.postOk = false
+      h.api.postError = { message: 'Nomor plat kendaraan ke-1 wajib diisi', code: '400' }
+
+      await processSyncQueue({ retryAll: true })
+
+      expect(sukses).toHaveLength(0)
+      expect(gagal).toHaveLength(1)
+      expect(gagal[0].error).toContain('Nomor plat kendaraan ke-1 wajib diisi')
+      expect(gagal[0].permanent).toBe(true)
+
+      // Item tetap di antrean (tidak hilang), tapi ditandai butuh perhatian.
+      const rows = await pendingRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0].needsAttention).toBe(true)
+    } finally {
+      offSukses()
+      offGagal()
+    }
   })
 })

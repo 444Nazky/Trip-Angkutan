@@ -26,17 +26,17 @@ function longText(value: unknown): string {
 
 // ── Validasi UUID ─────────────────────────────────────────────────────────────
 //
-// Semua kolom FK di tabel trips/vehicles bertipe uuid. Kalau satu nilai
-// bukan UUID (mis. ID dermaga lawas "BADAU-D1", atau region kosong ""),
-// PostgreSQL menolak insert dengan "invalid input syntax for type uuid".
-// Handler lama melempar galat itu apa adanya -> PostgREST 400 -> router jadi
-// HTTP 500 tanpa penjelasan, dan petugas hanya melihat "gagal mengunggah".
+// Semua kolom FK di tabel trips/vehicles/dermagas bertipe uuid. Kalau satu
+// nilai bukan UUID (mis. ID dermaga lawas "BADAU-D1", atau region kosong ""),
+// PostgreSQL menolak insert dengan "invalid input syntax for type uuid"
+// (kode 22P02). Handler lama melempar galat itu apa adanya -> PostgREST 400
+// -> router jadi HTTP 500 tanpa penjelasan, dan petugas hanya melihat
+// "gagal mengunggah".
 //
 // Jadi: TIGA hal dilakukan di sini.
 //   1. Nilai yang TIDAK berbentuk uuid TIDAK PERNAH masuk ke query.
 //   2. Nilai yang wajib (officer) tidak valid -> 401/400 dengan pesan jelas.
 //   3. Nilai opsional (region/dermaga) tidak valid -> null, bukan error.
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isUuid(value: unknown): boolean {
@@ -47,6 +47,66 @@ export function isUuid(value: unknown): boolean {
 export function asUuidOrNull(value: unknown): string | null {
   const s = String(value ?? "").trim();
   return UUID_RE.test(s) ? s : null;
+}
+
+// ── Kode galat PostgreSQL ────────────────────────────────────────────────────
+
+const PG_INVALID_UUID = "22P02"; // invalid input syntax for type uuid
+const PG_FOREIGN_KEY = "23503"; // foreign key violation
+const PG_UNIQUE_VIOLATION = "23505"; // duplicate key
+
+function pgCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : "";
+}
+
+/**
+ * Ambil pesan galat dari berbagai bentuk error.
+ *
+ * PENTING: galat dari PostgREST itu objek biasa ({ message, details, hint,
+ * code }), BUKAN instance Error. Kalau dipanggil `String(error)`, hasilnya
+ * "[object Object]" — pesan aslinya hilang, jadi galat 22P02/23503 tidak
+ * pernah bisa dijelaskan ke petugas.
+ */
+export function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const msg = (error as { message?: unknown } | null)?.message;
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return String(error ?? "");
+}
+
+/**
+ * Terjemahkan galat PostgREST menjadi jawaban HTTP yang JELAS.
+ *
+ * Posisi server intranet: pesan galat PostgreSQL sangat membantu operator
+ * (bukan data sensitif), sedangkan "Failed to submit complete trip
+ * documentation" tidak memberi informasi apa pun. Petugas di lapangan
+ * minimal harus tahu itu masalah data, bukan masalah jaringan.
+ *
+ * Return null kalau galatnya tidak dikenali (biarkan jalur umum yang menanganinya).
+ */
+export function explainDbError(error: unknown): { status: number; message: string } | null {
+  const code = pgCode(error);
+  const raw = errorText(error);
+  if (code === PG_INVALID_UUID) {
+    return {
+      status: 400,
+      message: "ID pada data trip tidak valid (harus UUID). Petugas harus logout lalu login ulang.",
+    };
+  }
+  if (code === PG_FOREIGN_KEY) {
+    return {
+      status: 409,
+      message: `Database menolak data trip (${code}): ${raw.slice(0, 240)}`,
+    };
+  }
+  if (code === PG_UNIQUE_VIOLATION) {
+    return {
+      status: 409,
+      message: `Data trip bentrok di database (${code}): ${raw.slice(0, 240)}`,
+    };
+  }
+  return null;
 }
 
 /**
@@ -109,12 +169,63 @@ async function supportsColumn(table: string, column: string): Promise<boolean> {
 // punya cache sendiri per-instance (60 detik), jadi handler tidak perlu query
 // tariffs per kendaraan.
 
-async function resolveOfficerDermaga(officerId: string, regionId: string, bodyDermagaId: unknown): Promise<string | undefined> {
-  if (bodyDermagaId) return String(bodyDermagaId);
-  const { data: od } = await db.from("officer_dermagas").select("dermaga_id").eq("officer_id", officerId).limit(1);
-  if (od?.[0]) return od[0].dermaga_id;
-  const { data: d } = await db.from("dermagas").select("id").eq("region_id", regionId).limit(1);
-  return d?.[0]?.id;
+/**
+ * Apakah baris dengan id ini benar-benar ADA di tabelnya?
+ *
+ * Penjaga FK: kolom `region_id` / `dermaga_id` / `officer_id` punya
+ * REFERENCES. Kalau nilainya UUID yangvalid tapi barisnya sudah dihapus
+ * admin, PostgreSQL menjawab 23503 (foreign key violation) -> handler lama
+ * melemparnya -> HTTP 500. Di sini nilainya dibuang saja (null), supaya trip
+ * tetap tercatat albeit tanpa relasi itu.
+ */
+async function rowExists(table: string, id: string): Promise<boolean> {
+  if (!isUuid(id)) return false;
+  const { data, error } = await db.from(table).select("id").eq("id", id).limit(1);
+  if (error) return false;
+  return !!data?.[0];
+}
+
+/**
+ * Tentukan region & dermaga untuk trip.
+ *
+ * ATURAN: nilai yang bermasalah TIDAK BOLEH menggagalkan permintaan.
+ *   - bukan UUID        -> null (bukan error)
+ *   - UUID tapi hilang  -> null (bukan error FK)
+ * Yang wajib (officer) ditangani terpisah di handler.
+ */
+async function resolveTripReferences(
+  officerId: string,
+  regionIdRaw: unknown,
+  bodyDermagaId: unknown,
+): Promise<{ regionId: string | null; dermagaId: string | null }> {
+  const regionCandidate = asUuidOrNull(regionIdRaw);
+  const bodyDermaga = asUuidOrNull(bodyDermagaId);
+
+  // Prioritas 1: dermaga yang dipilih petugas (dikirim di form).
+  let dermagaId: string | null = null;
+  if (bodyDermaga && (await rowExists("dermagas", bodyDermaga))) dermagaId = bodyDermaga;
+
+  // Prioritas 2: dermaga yang ditugaskan ke petugas.
+  if (!dermagaId) {
+    const { data: od } = await db.from("officer_dermagas")
+      .select("dermaga_id").eq("officer_id", officerId).limit(1);
+    const candidate = asUuidOrNull(od?.[0]?.dermaga_id);
+    if (candidate && (await rowExists("dermagas", candidate))) dermagaId = candidate;
+  }
+
+  // Prioritas 3: dermaga pertama di region petugas.
+  if (!dermagaId && regionCandidate) {
+    const { data: d } = await db.from("dermagas")
+      .select("id").eq("region_id", regionCandidate).limit(1);
+    const candidate = asUuidOrNull(d?.[0]?.id);
+    if (candidate) dermagaId = candidate;
+  }
+
+  const regionId = regionCandidate && (await rowExists("regions", regionCandidate))
+    ? regionCandidate
+    : null;
+
+  return { regionId, dermagaId };
 }
 
 async function publicUrl(bucket: string, path: string): Promise<string> {
@@ -130,7 +241,7 @@ async function publicUrl(bucket: string, path: string): Promise<string> {
  * hanya melihat "gagal menyimpan" tanpa tahu harus minta apa ke operator.
  */
 function storageErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
+  const raw = errorText(error);
   if (/permission denied|EACCES|os error 13/i.test(raw)) {
     return "Server tidak bisa menyimpan berkas. Operator perlu memperbaiki " +
       "kepemilikan folder penyimpanan di PC kantor " +
@@ -155,7 +266,7 @@ async function insertVehicle(
   tripId: string,
   vehicle: any,
   photoPath: string,
-  regionId: string,
+  regionId: string | null,
 ): Promise<void> {
   const vehicleId = crypto.randomUUID();
 
@@ -207,7 +318,13 @@ async function insertVehicle(
   const { error } = await db.from("vehicles").insert(row).select("id").single();
   if (error) throw error;
 
-  await db.from("trip_vehicles").insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
+  // ponytail: galat di sini DILEWATI diam-diam (tidak diperiksa) sejak awal.
+  // Akibatnya kendaraan tercatat di tabel `vehicles` tapi TIDAK pernah
+  // terhubung ke trip -> dashboard admin menampilkan trip dengan 0 kendaraan
+  // padahal foto dan platnya sudah ada. Sekarang galatnya dilempar.
+  const { error: linkError } = await db.from("trip_vehicles")
+    .insert({ id: crypto.randomUUID(), trip_id: tripId, vehicle_id: vehicleId });
+  if (linkError) throw linkError;
 }
 
 // POST /trips/complete — multipart form: payload JSON + photos[]
@@ -243,8 +360,26 @@ export async function completeTrip(req: Request): Promise<Response> {
 
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
-    const officerId = ctx.officerId ?? "";
-    const regionId = String(ctx.regionId ?? "");
+
+    // Id officer WAJIB uuid yang benar-benar ada di tabel officers.
+    //
+    // Dulu: `officer_id: ctx.officerId ?? ""`. Kalau token tanpa id officer
+    // (mis. request tanpa header Authorization saat ADMIN_AUTH_DISABLED=1),
+    // atau id-nya bukan uuid, inserttrip gagal dengan 22P02 -> HTTP 500.
+    // Sekarang dicegat lebih awal dengan pesan yang bisa ditindaklanjuti.
+    const officerId = asUuidOrNull(ctx.officerId);
+    if (!officerId) {
+      return json(
+        { error: "Token tidak memuat id petugas yang valid — logout lalu login ulang" },
+        401,
+      );
+    }
+    if (!(await rowExists("officers", officerId))) {
+      return json(
+        { error: "Petugas tidak terdaftar di server — logout lalu login ulang" },
+        401,
+      );
+    }
 
     console.log("[trips/complete] officer", officerId, "trip", payload.clientTripId ?? "(new)");
 
@@ -286,7 +421,12 @@ export async function completeTrip(req: Request): Promise<Response> {
       return json({ error: "Payload harus menyertakan seluruh foto dokumentasi tepat satu kali" }, 400);
     }
 
-    const dermagaId = await resolveOfficerDermaga(officerId, regionId, form.get("dermagaId"));
+    // Region & dermaga: nilai bermasalah dibuang (null), TIDAK menggagalkan.
+    const { regionId, dermagaId } = await resolveTripReferences(
+      officerId,
+      ctx.regionId,
+      form.get("dermagaId"),
+    );
 
     // Upload photos BEFORE database inserts (so failure doesn't orphan rows).
     // ponytail: upload SEKUENSIAL dulu -> 4 foto = 4 round-trip ke Storage
@@ -351,13 +491,18 @@ export async function completeTrip(req: Request): Promise<Response> {
     return json({ id: tripId, noTrip }, 201);
   } catch (error) {
     console.error("Complete trip submission error:", error);
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorText(error);
     // Galat penyimpanan berkas punya penyebab yang jelas dan bisa diperbaiki
     // operator, jadi pesannya diteruskan apa adanya. Galat lain disamarkan
     // supaya detail internal server tidak bocor ke perangkat petugas.
     if (/tidak bisa menyimpan berkas|tidak bisa ditulis/i.test(message)) {
       return json({ error: message }, 500);
     }
+    // Galat database yang bisa dikenali (uuid/FK/duplikat) dikembalikan
+    // apa-adanya dengan status yang tepat (400/409). Sebelumnya semua ini
+    // jadi HTTP 500 generik, jadi petugas tidak pernah tahu penyebabnya.
+    const explained = explainDbError(error);
+    if (explained) return json({ error: explained.message }, explained.status);
     return json({ error: "Failed to submit complete trip documentation" }, 500);
   }
 }
@@ -369,8 +514,13 @@ export async function createTrip(req: Request): Promise<Response> {
     if (!ctx) return json({ error: "Invalid token" }, 401);
     const { statusMuatan, routeFrom, routeTo, keterangan, fotoKosongPath } =
       await req.json().catch(() => ({})) as any;
-    const officerId = ctx.officerId ?? "";
-    const regionId = String(ctx.regionId ?? "");
+    const officerId = asUuidOrNull(ctx.officerId);
+    if (!officerId) {
+      return json(
+        { error: "Token tidak memuat id petugas yang valid — logout lalu login ulang" },
+        401,
+      );
+    }
 
     if (!statusMuatan) return json({ error: "Status muatan wajib diisi" }, 400);
     if (!VALID_STATUS_MUATAN.has(String(statusMuatan).trim().toLowerCase())) {
@@ -380,24 +530,31 @@ export async function createTrip(req: Request): Promise<Response> {
     const tripId = crypto.randomUUID();
     const noTrip = generateTripNo();
 
-    const dermagaId = await resolveOfficerDermaga(officerId, regionId, undefined);
+    const { regionId, dermagaId } = await resolveTripReferences(
+      officerId,
+      ctx.regionId,
+      undefined,
+    );
 
-    await db.from("trips").insert({
+    const { error: insErr } = await db.from("trips").insert({
       id: tripId,
       no_trip: noTrip,
       officer_id: officerId,
       region_id: regionId,
-      dermaga_id: dermagaId || null,
+      dermaga_id: dermagaId,
       status_muatan: statusMuatan,
       route_from: routeFrom,
       route_to: routeTo,
       keterangan: keterangan,
       foto_kosong_path: fotoKosongPath,
     });
+    if (insErr) throw insErr;
 
     return json({ id: tripId, noTrip }, 201);
   } catch (error) {
     console.error("Create trip error:", error);
+    const explained = explainDbError(error);
+    if (explained) return json({ error: explained.message }, explained.status);
     return json({ error: "Failed to create trip" }, 500);
   }
 }

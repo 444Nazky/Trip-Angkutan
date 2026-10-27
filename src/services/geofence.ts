@@ -639,6 +639,20 @@ export function isValidGeofencePoint(p: GeofencePoint): string[] {
  * Mengembalikan null pada kegagalan (bukan throw).
  */
 const GPS_CACHE_TTL = 30_000
+
+// Timeout permintaan GPS.
+//
+// DULU 8 detik -> di lapangan (HP petugas di bawah naungan/beton, kondisi
+// sinyal GPS yang bersih) hampir selalu berakhir sebagai
+// `GeolocationPositionError { code: 3, message: 'Timeout expired' }`.
+// Akibatnya validasi rute terblokir padahal GPS sebenarnya bisa lock dalam
+// 10-25 detik.
+//
+// 30 detik untuk mode high-accuracy (GPS chipset butuh waktu mengunci),
+// 15 detik untuk mode jaringan (fallback, biasanya jauh lebih cepat).
+const GPS_HIGH_ACCURACY_TIMEOUT_MS = 30_000
+const GPS_NETWORK_TIMEOUT_MS = 15_000
+
 let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } | null> | null = null
 
 // ponytail: GPS watch Keeping cache tetap hangat. Dengan watch, layar "Pilih
@@ -646,11 +660,42 @@ let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } |
 // start). Watch hanya hidup selama aplikasi aktif.
 let _gpsWatchId: string | null = null
 
+/**
+ * Error GPS yang masih bisa dicoba dengan provider lain.
+ *
+ * Kode GeolocationPositionError:
+ *   1 = PERMISSION_DENIED  -> jangan dicoba ulang (izin sudah ditolak)
+ *   2 = POSITION_UNAVAILABLE -> coba provider jaringan
+ *   3 = TIMEOUT -> GPS belum lock -> coba provider jaringan
+ */
+function isRetryableFixError(error: unknown): boolean {
+  const code = (error as { code?: number } | null)?.code
+  return code === 2 || code === 3
+}
+
+/**
+ * Fix GPS terakhir yang diketahui (dari watch GPS atau cache), TANPA
+ * permintaan jaringan. Dipakai sebagai fallback terakhir supaya petugas
+ * tidak terblokir total hanya karena GPS belum lock.
+ */
+export function getLastKnownPosition():
+  | { lat: number; lng: number; accuracy?: number; timestamp: number }
+  | null {
+  const fix = getCachedGpsFix()
+  if (!fix) return null
+  return {
+    lat: fix.latitude,
+    lng: fix.longitude,
+    accuracy: fix.accuracy,
+    timestamp: fix.timestamp,
+  }
+}
+
 export function startGpsWatch(): void {
   if (_gpsWatchId) return
   try {
     void Geolocation.watchPosition(
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 3000 },
+      { enableHighAccuracy: true, timeout: GPS_HIGH_ACCURACY_TIMEOUT_MS, maximumAge: 3000 },
       (position: { coords?: { latitude: number; longitude: number; accuracy?: number } } | null) => {
         const c = position?.coords
         if (!c) return
@@ -682,14 +727,15 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
 
   const requestFix = (highAccuracy: boolean) => Geolocation.getCurrentPosition({
     enableHighAccuracy: highAccuracy,
-    timeout: 8000,
-    maximumAge: highAccuracy ? 15000 : 60000,
+    timeout: highAccuracy ? GPS_HIGH_ACCURACY_TIMEOUT_MS : GPS_NETWORK_TIMEOUT_MS,
+    maximumAge: highAccuracy ? 15_000 : 60_000,
   })
 
   pendingGpsRequest = requestFix(true)
-      // Timeout (code 3) = GPS tidak dapat fix; coba sekali pakai network fix.
+      // Timeout (code 3) / POSITION_UNAVAILABLE (code 2) = GPS belum lock;
+      // coba sekali pakai provider jaringan (biasanya jauh lebih cepat).
       .catch(error => {
-        if ((error as { code?: number } | null)?.code === 3) return requestFix(false)
+        if (isRetryableFixError(error)) return requestFix(false)
         throw error
       })
       .then(position => {
@@ -704,6 +750,14 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{
       })
       .catch(error => {
         console.warn('[geofence] Gagal mendapatkan GPS:', error)
+        // Fallback terakhir: pakai fix terakhir yang diketahui. Membiarkan
+        // petugas lanjut dengan posisi (sedikit) lama lebih baik daripada
+        // memblokir perjalanan hanya karena GPS belum lock.
+        const last = getLastKnownPosition()
+        if (last) {
+          console.warn('[geofence] Pakai fix GPS terakhir yang tersimpan (akurasi', last.accuracy, 'm)')
+          return { lat: last.lat, lng: last.lng, accuracy: last.accuracy }
+        }
         return null
       })
       .finally(() => { pendingGpsRequest = null })
