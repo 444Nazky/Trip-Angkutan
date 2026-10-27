@@ -4,7 +4,8 @@ import { api } from './api'
 
 export interface Dermaga {
   id: string
-  region_id: string
+  /** Wilayah pemilik dermaga. `null` = dermaga yatim (wilayahnya sudah dihapus). */
+  region_id: string | null
   name: string
   code: string
   region_name?: string
@@ -33,6 +34,18 @@ export async function fetchDermagas(): Promise<Dermaga[] | null> {
 
 export async function fetchRoutes(): Promise<Route[] | null> {
   return api.getOk<Route[]>('/routes')
+}
+
+
+export async function createDermaga(data: { region_id: string; name: string; code: string }): Promise<string | null> {
+  const result = await api.post<{ id: string }>('/dermagas', data)
+  return result.ok ? result.data?.id ?? null : null
+}
+
+
+export async function deleteDermaga(id: string): Promise<boolean> {
+  const result = await api.delete(`/dermagas/${id}`)
+  return result.ok
 }
 
 

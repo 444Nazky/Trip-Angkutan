@@ -38,18 +38,82 @@ const notes = []
 
 function fail(msg) { errors.push(msg) }
 
-/** Ekstrak nilai environment object dari bundle yang sudah di-minify. */
-function readEnvFromBundle(file) {
-  const src = fs.readFileSync(file, 'utf8')
-  const pick = (key) => {
-    const re = new RegExp(`${key}:\\s*[\`'"]((?:[^\`'"]|\`[^\`]*\`)*)[\`'"]`)
-    const m = re.exec(src)
-    return m ? m[1] : null
+/**
+ * Ekstrak nilai environment object dari bundle yang sudah di-minify.
+ *
+ * CATATAN PENTING: minifier sering "mengangkat" nilai yang dipakai berulang
+ * ke konstanta terpisah, jadi bentuknya tidak selalu literal:
+ *
+ *     Se$1=`http://192.168.1.123:3000/api`
+ *     B$1={production:!0,apiBaseUrl:Se$1,intranetApiBaseUrl:Se$1,...}
+ *
+ * Karena itu `pick` mencari nilai dalam dua tahap: literal dulu, kalau tidak
+ * ketemu lalu identifier yang dirujuk, lalu identifier itu cari definisinya.
+ * Tanpa tahap kedua, build yang SEBENARNYA benar akan dianggap gagal.
+ */
+function parseEnvFromSource(src) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const QUOTES = new Set(['"', "'", '`'])
+
+  /**
+   * Baca satu literal string pada posisi `i`. Returns null kalau bukan string.
+   * Menangani escape sequence supaya `http:\/\/` tidak terpotong.
+   */
+  const readStringAt = (i) => {
+    const q = src[i]
+    if (!QUOTES.has(q)) return null
+    let out = ''
+    for (let j = i + 1; j < src.length; j++) {
+      const c = src[j]
+      if (c === '\\') { out += src[j + 1] ?? ''; j++; continue }
+      if (c === q) return { value: out, end: j + 1 }
+      out += c
+    }
+    return null
   }
+
+  /** Nilai yang masuk akal untuk endpoint: URL http(s). */
+  const looksLikeUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim())
+
+  /**
+   * Ambil nilai sebuah key dari bundle minify:
+   *   1. literal langsung     -> apiBaseUrl:`http://...`
+   *   2. identifier ter-hoist -> apiBaseUrl:Se$1, lalu `Se$1=` dibaca
+   * Nilai yang bukan URL dianggap tidak ketemu (supaya tidak salah tangkap
+   * potongan kode lain yang kebetulan diawali nama key yang sama).
+   */
+  const pick = (key) => {
+    const k = esc(key)
+    const afterKey = new RegExp('(?<![\\w$])' + k + '\\s*:\\s*').exec(src)
+    if (!afterKey) return null
+    let i = afterKey.index + afterKey[0].length
+
+    // Tahap 1: literal langsung.
+    const lit = readStringAt(i)
+    if (lit && looksLikeUrl(lit.value)) return lit.value.trim()
+
+    // Tahap 2: identifier yang dirujuk (konstanta hasil hoisting minifier).
+    const idMatch = /^[A-Za-z_$][\w$]*/.exec(src.slice(i))
+    if (!idMatch) return null
+    const ident = idMatch[0]
+    const defRe = new RegExp('(?<![\\w$])' + esc(ident) + '\\s*=\\s*')
+    const def = defRe.exec(src)
+    if (!def) return null
+    const defStr = readStringAt(def.index + def[0].length)
+    if (defStr && looksLikeUrl(defStr.value)) return defStr.value.trim()
+
+    return null
+  }
+
   return {
     apiBaseUrl: pick('apiBaseUrl'),
     intranetApiBaseUrl: pick('intranetApiBaseUrl'),
   }
+}
+
+/** Baca bundle dari disk lalu parse isinya. */
+function readEnvFromBundle(file) {
+  return parseEnvFromSource(fs.readFileSync(file, 'utf8'))
 }
 
 function isPrivateHost(url) {
@@ -58,6 +122,45 @@ function isPrivateHost(url) {
     return /^127\.|^10\.|^172\.(1[6-9]|2\d|3[01])\.|^192\.168\.|^localhost$/i.test(host)
   } catch { return false }
 }
+
+/**
+ * Aturan split-brain dalam bentuk murni (tanpa I/O) supaya bisa diuji.
+ * Return daftar pesan error; array kosong = endpoint konsisten.
+ */
+export function checkEndpointConsistency(env) {
+  const problems = []
+
+  if (!env.apiBaseUrl || !env.intranetApiBaseUrl) {
+    problems.push('Environment bundle tidak lengkap — pola apiBaseUrl/intranetApiBaseUrl berubah. Perbarui script ini.')
+    return problems
+  }
+
+  // 1. Keduanya harus menunjuk server yang SAMA.
+  const norm = (u) => String(u).replace(/\/+$/, '').replace(/\/api$/, '')
+  if (norm(env.apiBaseUrl) !== norm(env.intranetApiBaseUrl)) {
+    problems.push(
+      `apiBaseUrl (${env.apiBaseUrl}) dan intranetApiBaseUrl (${env.intranetApiBaseUrl}) ` +
+      `menunjuk server BERBEDA. Aplikasi mobile dan dashboard admin akan menulis/membaca ` +
+      `database yang berbeda — trip "berhasil terkirim" tapi tidak muncul di dashboard.`,
+    )
+  }
+
+  // 2. Tidak boleh ada cloud default.
+  for (const [key, value] of Object.entries(env)) {
+    if (value && /\.supabase\.co/i.test(value)) {
+      problems.push(`${key} masih menunjuk ke Supabase cloud (${value}). Server cloud tidak dipakai lagi — data officer akan masuk ke database yang tidak dibaca dashboard.`)
+    }
+  }
+
+  // 3. Harus host jaringan privat (server kantor).
+  if (env.intranetApiBaseUrl && !isPrivateHost(env.intranetApiBaseUrl)) {
+    problems.push(`intranetApiBaseUrl (${env.intranetApiBaseUrl}) bukan host jaringan privat. Seharusnya menunjuk ke server kantor (192.168.x.x / 10.x.x.x).`)
+  }
+
+  return problems
+}
+
+export { readEnvFromBundle, isPrivateHost, parseEnvFromSource }
 
 function main() {
   if (!fs.existsSync(ASSET_JS)) {
@@ -79,28 +182,7 @@ function main() {
   if (!env.apiBaseUrl || !env.intranetApiBaseUrl) {
     fail('Environment bundle tidak lengkap — pola apiBaseUrl/intranetApiBaseUrl berubah. Perbarui script ini.')
   } else {
-    // 1. Both must point to the SAME server.
-    const norm = (u) => String(u).replace(/\/+$/, '').replace(/\/api$/, '')
-    if (norm(env.apiBaseUrl) !== norm(env.intranetApiBaseUrl)) {
-      fail(
-        `apiBaseUrl (${env.apiBaseUrl}) dan intranetApiBaseUrl (${env.intranetApiBaseUrl}) ` +
-        `menunjuk server BERBEDA. Aplikasi mobile dan dashboard admin akan menulis/membaca ` +
-        `database yang berbeda — trip "berhasil terkirim" tapi tidak muncul di dashboard.`,
-      )
-    }
-
-    // 2. No cloud default.
-    for (const [key, value] of Object.entries(env)) {
-      if (value && /\.supabase\.co/i.test(value)) {
-        fail(`${key} masih menunjuk ke Supabase cloud (${value}). Server cloud tidak dipakai lagi — data officer akan masuk ke database yang tidak dibaca dashboard.`)
-      }
-    }
-
-    // 3. Must be the LAN server.
-    const target = env.intranetApiBaseUrl
-    if (target && !isPrivateHost(target)) {
-      fail(`intranetApiBaseUrl (${target}) bukan host jaringan privat. Seharusnya menunjuk ke server kantor (192.168.x.x / 10.x.x.x).`)
-    }
+    for (const p of checkEndpointConsistency(env)) fail(p)
   }
 
   // Info tambahan: kalau folder admin-www hasil deploy lama masih ada,
@@ -129,4 +211,9 @@ function main() {
   console.log('✔ Endpoint konsisten: aplikasi mobile & dashboard admin memakai server yang sama.')
 }
 
-main()
+// Hanya jalankan pemeriksaan kalau file ini dipanggil langsung
+// (`node scripts/check-endpoint-consistency.mjs`), bukan saat di-import
+// oleh unit test.
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
+  main()
+}
