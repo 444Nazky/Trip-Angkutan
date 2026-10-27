@@ -254,9 +254,10 @@ function LockedInternalCell() {
 
 export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
   const [regions, setRegions] = useState<RegionTariffRow[]>([])
-  /** Region yang barisnya sedang dibuka (default: region pertama). */
+  /** Region yang barisnya sedang dibuka. Default: semua region terbuka. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const autoExpanded = useRef(false)
+  /** Id region yang sudah pernah diproses (supaya pilihan collapse user tidak ditimpa). */
+  const knownRegionIds = useRef<Set<string>>(new Set())
   const [filterRegion, setFilterRegion] = useState('')
   const [filterGolongan, setFilterGolongan] = useState('')
   const [filterType, setFilterType] = useState('')
@@ -358,17 +359,25 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     [orderedRegions, cellsFor, filterRegion, filterGolongan, filterType],
   )
 
-  /** Pilih region awal + buka region pertama sekali saja. */
+  /** Pilih region awal + buka semua accordion region secara default. */
   useEffect(() => {
     if (!orderedRegions.length) return
     if (!form.regionId) {
       const first = orderedRegions.find(isMasterRegion) ?? orderedRegions[0]
       setForm((f) => (f.regionId ? f : { ...f, regionId: first.id }))
     }
-    if (!autoExpanded.current) {
-      autoExpanded.current = true
-      setExpanded(new Set([orderedRegions[0].id]))
-    }
+    // Semua region langsung TERBUKA saat halaman dimuat - tidak perlu klik
+    // tombol "Tampilkan" satu per satu. Region yang baru muncul (mis. region
+    // tambahan) ikut dibuka, tapi region yang sengaja dik-collapse oleh user
+    // tidak dibuka lagi.
+    const fresh = orderedRegions.filter((r) => !knownRegionIds.current.has(r.id))
+    if (fresh.length === 0) return
+    for (const r of fresh) knownRegionIds.current.add(r.id)
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (const r of fresh) next.add(r.id)
+      return next
+    })
   }, [orderedRegions, form.regionId])
 
   const toggleRegion = (id: string) => {
