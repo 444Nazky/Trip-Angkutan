@@ -638,6 +638,27 @@ export function isValidGeofencePoint(p: GeofencePoint): string[] {
  * Coba dapat posisi GPS dari browser/device.
  * Mengembalikan null pada kegagalan (bukan throw).
  */
+/**
+ * Ambil posisi GPS.
+ *
+ * Mengembalikan null hanya kalau benar-benar TIDAK ADA posisi yang bisa
+ * dipakai - termasuk posisi lama (stale) yang masih dipakai sebagai
+ * cadangan. Field `stale` menandai bahwa koordinat bukan fix terbaru.
+ *
+ * Timeout Android untuk GPS cold start sering lebih dari 8 detik, jadi
+ * batas 8 detik guarantee kode 3 (Timeout expired) dan memblokir petugas
+ * di layar "Pilih Rute".
+ */
+export interface GpsPosition {
+  lat: number
+  lng: number
+  accuracy?: number
+  /** true = koordinat berasal dari fix lama, bukan permintaan terbaru. */
+  stale?: boolean
+  /** Umur fix dalam milidetik (hanya kalau stale). */
+  ageMs?: number
+}
+
 const GPS_CACHE_TTL = 30_000
 
 // Timeout permintaan GPS.
@@ -718,7 +739,7 @@ export function stopGpsWatch(): void {
   _gpsWatchId = null
 }
 
-export function getCurrentPosition(options: { force?: boolean } = {}): Promise<{ lat: number; lng: number; accuracy?: number } | null> {
+export function getCurrentPosition(options: { force?: boolean } = {}): Promise<GpsPosition | null> {
   const cached = getCachedGpsFix()
   if (!options.force && cached && Date.now() - cached.timestamp <= GPS_CACHE_TTL) {
     return Promise.resolve({ lat: cached.latitude, lng: cached.longitude, accuracy: cached.accuracy })

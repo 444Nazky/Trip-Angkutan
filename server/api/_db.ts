@@ -16,8 +16,10 @@
 
 import { join, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-const POSTGREST_URL = (Deno.env.get("POSTGREST_URL") || "http://127.0.0.1:3001").replace(/\/$/, "");
-const STORAGE_DIR = Deno.env.get("STORAGE_DIR") || "/data/storage";
+// Dibaca per pemakaian (bukan saat import) supaya uji bisa menyetel env dulu.
+const postgrestUrl = () =>
+  (Deno.env.get("POSTGREST_URL") || "http://127.0.0.1:3001").replace(/\/$/, "");
+const storageDir = () => Deno.env.get("STORAGE_DIR") || "/data/storage";
 
 /** Prefix URL untuk menyajikan berkas lokal. */
 export const FILES_PREFIX = "/files";
@@ -217,7 +219,7 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
   }
 
   private async execute(): Promise<DbResult<T>> {
-    const url = `${POSTGREST_URL}/${encodeURIComponent(this.table)}?${this.params.toString()}`;
+    const url = `${postgrestUrl()}/${encodeURIComponent(this.table)}?${this.params.toString()}`;
     const headers: Record<string, string> = { ...this.headers };
     if (this.returning || this.method === "POST" || this.method === "PATCH") {
       headers["Content-Type"] = "application/json";
@@ -294,7 +296,7 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
 
 function bucketDir(bucket: string): string {
   if (!/^[a-zA-Z0-9._-]+$/.test(bucket)) throw new Error(`Bucket tidak valid: ${bucket}`);
-  return join(STORAGE_DIR, bucket);
+  return join(storageDir(), bucket);
 }
 
 function objectPath(bucket: string, path: string): string {

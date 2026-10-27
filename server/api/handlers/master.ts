@@ -2,6 +2,9 @@
 import { db, json, auth, requireAdmin } from "../_shared.ts";
 import { invalidateTariffCache } from "./tariffRules.ts";
 
+/** Id region/dermaga bertipe uuid di database. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------- REGIONS ----------
 
 export async function getRegions(req: Request): Promise<Response> {
@@ -52,8 +55,19 @@ export async function createRegion(req: Request): Promise<Response> {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
     const { name, code } = await req.json().catch(() => ({})) as any;
-    const { data, error } = await db.from("regions").insert({ name, code }).select().single();
-    if (error) throw error;
+    const cleanName = String(name ?? "").trim();
+    const cleanCode = String(code ?? "").trim();
+    if (!cleanName) return json({ error: "Nama wilayah wajib diisi" }, 400);
+    if (!cleanCode) return json({ error: "Kode wilayah wajib diisi" }, 400);
+    const { data, error } = await db
+      .from("regions")
+      .insert({ name: cleanName, code: cleanCode })
+      .select()
+      .single();
+    if (error) {
+      console.error("Create region error:", error);
+      return json({ error: "Gagal membuat wilayah" }, 500);
+    }
     try {
       await seedRegionRowsFromMaster(String((data as any).id));
     } catch (seedError) {
@@ -129,8 +143,26 @@ export async function createDermaga(req: Request): Promise<Response> {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
     const { region_id, name, code } = await req.json().catch(() => ({})) as any;
-    const { data, error } = await db.from("dermagas").insert({ region_id, name, code }).select().single();
-    if (error) throw error;
+    const cleanName = String(name ?? "").trim();
+    const cleanCode = String(code ?? "").trim();
+    if (!cleanName) return json({ error: "Nama dermaga wajib diisi" }, 400);
+    if (!cleanCode) return json({ error: "Kode dermaga wajib diisi" }, 400);
+    // region_id bertipe uuid dan rekannya ke regions(id). Nilai kosong ->
+    // NULL (dermaga tanpa wilayah, sah); nilai bukan uuid -> tolong dengan
+    // 400, jangan dibiarkan jadi galat database yang tidak jelas.
+    const regionUuid = UUID_RE.test(String(region_id ?? "")) ? String(region_id) : null;
+    if (region_id && !regionUuid) {
+      return json({ error: "Wilayah tidak valid" }, 400);
+    }
+    const { data, error } = await db
+      .from("dermagas")
+      .insert({ region_id: regionUuid, name: cleanName, code: cleanCode })
+      .select()
+      .single();
+    if (error) {
+      console.error("Create dermaga error:", error);
+      return json({ error: "Gagal membuat dermaga" }, 500);
+    }
     return json(data, 201);
   } catch (error) {
     console.error("Create dermaga error:", error);
@@ -142,9 +174,21 @@ export async function updateDermaga(req: Request, id: string): Promise<Response>
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    const { name, code } = await req.json().catch(() => ({})) as any;
-    const { error } = await db.from("dermagas").update({ name, code }).eq("id", id);
-    if (error) throw error;
+    const { name, code, region_id } = await req.json().catch(() => ({})) as any;
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = String(name).trim();
+    if (code !== undefined) updateData.code = String(code).trim();
+    //(region bisa dipindah - tadinya tidak bisa sama sekali)
+    if (region_id !== undefined) {
+      const regionUuid = UUID_RE.test(String(region_id ?? "")) ? String(region_id) : null;
+      if (region_id && !regionUuid) return json({ error: "Wilayah tidak valid" }, 400);
+      updateData.region_id = regionUuid;
+    }
+    const { error } = await db.from("dermagas").update(updateData).eq("id", id);
+    if (error) {
+      console.error("Update dermaga error:", error);
+      return json({ error: "Gagal memperbarui dermaga" }, 500);
+    }
     return json({ success: true });
   } catch (error) {
     console.error("Update dermaga error:", error);
@@ -156,9 +200,22 @@ export async function deleteDermaga(req: Request, id: string): Promise<Response>
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    await db.from("routes").delete().eq("dermaga_id", id);
-    await db.from("officer_dermagas").delete().eq("dermaga_id", id);
-    await db.from("dermagas").delete().eq("id", id);
+    // Rute & akses petugas dihapus lebih dulu supaya tidak ada baris yatim.
+    const { error: routeError } = await db.from("routes").delete().eq("dermaga_id", id);
+    if (routeError) {
+      console.error("Delete dermaga (routes) error:", routeError);
+      return json({ error: "Gagal menghapus rute dermaga" }, 500);
+    }
+    const { error: accessError } = await db.from("officer_dermagas").delete().eq("dermaga_id", id);
+    if (accessError) {
+      console.error("Delete dermaga (access) error:", accessError);
+      return json({ error: "Gagal menghapus akses dermaga petugas" }, 500);
+    }
+    const { error } = await db.from("dermagas").delete().eq("id", id);
+    if (error) {
+      console.error("Delete dermaga error:", error);
+      return json({ error: "Gagal menghapus dermaga" }, 500);
+    }
     return json({ success: true });
   } catch (error) {
     console.error("Delete dermaga error:", error);

@@ -3,6 +3,9 @@ import bcryptjs from "npm:bcryptjs@2.4.3";
 import { db, json, auth, requireAdmin } from "../_shared.ts";
 import { groupOfficerExtras } from "../_officerExtras.ts";
 
+/** Id region/dermaga bertipe uuid di database. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Extras untuk BANYAK officer sekaligus — 2 query, bukan 2 per officer.
  *
@@ -150,25 +153,44 @@ export async function createOfficer(req: Request): Promise<Response> {
 
     const hashedPin = bcryptjs.hashSync(String(pin), 10);
     const id = crypto.randomUUID();
+    // Id region/dermaga harus uuid; nilai lain akan membuat INSERT gagal
+    // dengan "invalid input syntax for type uuid".
     const primaryRegionId = Array.isArray(regionIds) && regionIds.length > 0 ? regionIds[0] : regionId;
+    const regionUuid = UUID_RE.test(String(primaryRegionId ?? "")) ? String(primaryRegionId) : null;
+    const regionUuids = [...new Set((Array.isArray(regionIds) ? regionIds : [])
+      .map((v: unknown) => String(v ?? "").trim())
+      .filter((v: string) => UUID_RE.test(v)))];
+    const dermagaUuids = [...new Set((Array.isArray(dermagaIds) ? dermagaIds : [])
+      .map((v: unknown) => String(v ?? "").trim())
+      .filter((v: string) => UUID_RE.test(v)))];
 
     const { error: insertError } = await db.from("officers").insert({
       id,
       name: cleanName,
       username: candidate,
       pin: hashedPin,
-      region_id: primaryRegionId,
+      region_id: regionUuid,
     });
     if (insertError) throw insertError;
 
-    const ids = Array.isArray(regionIds) && regionIds.length > 0 ? regionIds : [primaryRegionId];
+    const ids = regionUuids.length > 0 ? regionUuids : (regionUuid ? [regionUuid] : []);
     if (ids.length) {
-      await db.from("officer_regions").upsert(ids.map((rid: string) => ({ officer_id: id, region_id: rid })));
+      const { error } = await db
+        .from("officer_regions")
+        .upsert(ids.map((rid: string) => ({ officer_id: id, region_id: rid })));
+      if (error) {
+        console.error("Create officer (regions) error:", error);
+        return json({ error: "Petugas dibuat, tetapi wilayah gagal disimpan" }, 500);
+      }
     }
-    if (Array.isArray(dermagaIds) && dermagaIds.length > 0) {
-      await db
+    if (dermagaUuids.length > 0) {
+      const { error } = await db
         .from("officer_dermagas")
-        .upsert(dermagaIds.filter(Boolean).map((dmId: string) => ({ officer_id: id, dermaga_id: dmId })));
+        .upsert(dermagaUuids.map((dmId: string) => ({ officer_id: id, dermaga_id: dmId })));
+      if (error) {
+        console.error("Create officer (dermagas) error:", error);
+        return json({ error: "Petugas dibuat, tetapi akses dermaga gagal disimpan" }, 500);
+      }
     }
 
     return json({ id, name: cleanName, username: candidate, regionIds: ids }, 201);
@@ -187,14 +209,47 @@ export async function updateOfficerDermagas(req: Request, officerId: string): Pr
     const { dermagaIds } = await req.json().catch(() => ({})) as any;
     if (!Array.isArray(dermagaIds)) return json({ error: "dermagaIds harus berupa array" }, 400);
 
-    await db.from("officer_dermagas").delete().eq("officer_id", officerId);
-    const links = dermagaIds.filter(Boolean).map((dmId: string) => ({
-      officer_id: officerId,
-      dermaga_id: String(dmId),
-    }));
-    if (links.length) await db.from("officer_dermagas").upsert(links);
+    // Id dermaga HARUS uuid - kolomnya bertipe uuid dan rekannya ke
+    // dermagas(id). Nilai bukan uuid (mis. id lawas "BADAU-D1") akan membuat
+    // INSERT gagal; kalau galatnya diabaikan, petugas kehilangan akses ke
+    // SEMUA dermaga tanpa ada pesan error.
+    const ids = [...new Set(dermagaIds
+      .map((v: unknown) => String(v ?? "").trim())
+      .filter((v: string) => UUID_RE.test(v)))];
 
-    return json({ success: true, dermagaIds: dermagaIds.filter(Boolean).map(String) });
+    // Urutan: TAMBAHKAN dulu, baru HAPUS yang tidak lagi dipilih. Kalau
+    // urutan dibalik (hapus dulu, lalu tambah) dan penambahan gagal, akses
+    // petugas hilang seluruhnya.
+    if (ids.length) {
+      const { error } = await db
+        .from("officer_dermagas")
+        .upsert(ids.map((dmId: string) => ({ officer_id: officerId, dermaga_id: dmId })));
+      if (error) {
+        console.error("Update officer dermagas (upsert) error:", error);
+        return json({ error: "Gagal menyimpan akses dermaga" }, 500);
+      }
+    }
+
+    const { data: current } = await db
+      .from("officer_dermagas")
+      .select("dermaga_id")
+      .eq("officer_id", officerId);
+    const stale = (current ?? [])
+      .map((r: any) => String(r.dermaga_id))
+      .filter((dmId: string) => !ids.includes(dmId));
+    for (const dmId of stale) {
+      const { error } = await db
+        .from("officer_dermagas")
+        .delete()
+        .eq("officer_id", officerId)
+        .eq("dermaga_id", dmId);
+      if (error) {
+        console.error("Update officer dermagas (delete) error:", error);
+        return json({ error: "Gagal menyimpan akses dermaga" }, 500);
+      }
+    }
+
+    return json({ success: true, dermagaIds: ids });
   } catch (error) {
     console.error("Update officer dermagas error:", error);
     return json({ error: "Failed to update officer dermagas" }, 500);
@@ -211,14 +266,49 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
     if (!Array.isArray(regionIds) || regionIds.length === 0) {
       return json({ error: "regionIds harus berupa array dan tidak kosong" }, 400);
     }
+    const ids = [...new Set(regionIds
+      .map((v: unknown) => String(v ?? "").trim())
+      .filter((v: string) => UUID_RE.test(v)))];
+    if (ids.length === 0) return json({ error: "Tidak ada region valid yang dipilih" }, 400);
 
-    await db.from("officer_regions").delete().eq("officer_id", officerId);
-    await db
+    // Tambah dulu, baru hapus yang lama (lihat updateOfficerDermagas).
+    const { error: upsertError } = await db
       .from("officer_regions")
-      .upsert(regionIds.map((rid: string) => ({ officer_id: officerId, region_id: String(rid) })));
-    await db.from("officers").update({ region_id: String(regionIds[0]) }).eq("id", officerId);
+      .upsert(ids.map((rid: string) => ({ officer_id: officerId, region_id: rid })));
+    if (upsertError) {
+      console.error("Update officer regions (upsert) error:", upsertError);
+      return json({ error: "Gagal menyimpan akses region" }, 500);
+    }
 
-    return json({ success: true, regionIds: regionIds.map(String) });
+    const { data: current } = await db
+      .from("officer_regions")
+      .select("region_id")
+      .eq("officer_id", officerId);
+    const stale = (current ?? [])
+      .map((r: any) => String(r.region_id))
+      .filter((rid: string) => !ids.includes(rid));
+    for (const rid of stale) {
+      const { error } = await db
+        .from("officer_regions")
+        .delete()
+        .eq("officer_id", officerId)
+        .eq("region_id", rid);
+      if (error) {
+        console.error("Update officer regions (delete) error:", error);
+        return json({ error: "Gagal menyimpan akses region" }, 500);
+      }
+    }
+
+    const { error: primaryError } = await db
+      .from("officers")
+      .update({ region_id: ids[0] })
+      .eq("id", officerId);
+    if (primaryError) {
+      console.error("Update officer regions (primary) error:", primaryError);
+      return json({ error: "Gagal menyimpan wilayah utama petugas" }, 500);
+    }
+
+    return json({ success: true, regionIds: ids });
   } catch (error) {
     console.error("Update officer regions error:", error);
     return json({ error: "Failed to update officer regions" }, 500);

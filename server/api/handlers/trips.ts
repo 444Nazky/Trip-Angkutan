@@ -48,6 +48,19 @@ export function asUuidOrNull(value: unknown): string | null {
   const s = String(value ?? "").trim();
   return UUID_RE.test(s) ? s : null;
 }
+/**
+ * Apakah payload ini instance yang sama dengan trip yang sudah tersimpan?
+ *
+ * Kunci idempoten: `completed_at`. Retry dari perangkat yang sama mengirim
+ * payload yang sama persis, jadi nilainya cocok. Trip yang berbeda pasti
+ * punya waktu selesai yang berbeda.
+ */
+function isSameTripInstance(existing: any, payload: any): boolean {
+  const a = String(existing?.completed_at ?? "");
+  const b = String(payload?.completedAt ?? "");
+  if (!a && !b) return true;
+  return a === b;
+}
 
 // ── Kode galat PostgreSQL ────────────────────────────────────────────────────
 
@@ -239,6 +252,12 @@ async function publicUrl(bucket: string, path: string): Promise<string> {
  * Kegagalan paling sering di kantor adalah direktori penyimpanan tidak
  * bisa ditulis (kepemilikan salah di host). Tanpa penerjemahan ini, petugas
  * hanya melihat "gagal menyimpan" tanpa tahu harus minta apa ke operator.
+ *
+ * CATATAN: klien database (server/api/_db.ts) mengembalikan objek galat
+ * biasa `{ message }`, BUKAN instance `Error`. Versi lama memakai
+ * `String(error)` sehingga hasilnya "[object Object]" dan pola
+ * "permission denied" TIDAK PERNAH cocok - artinya pesan yang bisa
+ * ditindaklanjuti tidak pernah sampai ke petugas.
  */
 function storageErrorMessage(error: unknown): string {
   const raw = errorText(error);
@@ -247,7 +266,7 @@ function storageErrorMessage(error: unknown): string {
       "kepemilikan folder penyimpanan di PC kantor " +
       "(sudo chown -R 1000:1000 data/storage).";
   }
-  return "Server gagal menyimpan berkas: " + raw;
+  return "Server gagal menyimpan berkas: " + (raw || "kesalahan tidak diketahui");
 }
 
 async function storePhoto(file: File): Promise<string> {
@@ -483,11 +502,22 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (clientTripId) {
       const { data } = await db
         .from("trips")
-        .select("id, no_trip")
+        .select("id, no_trip, completed_at")
         .eq("client_trip_id", clientTripId)
         .eq("officer_id", officerId)
         .limit(1);
-      existingTrip = data?.[0] ?? null;
+      const found = data?.[0] ?? null;
+      // Idempoten HANYA kalau itu benar-benar trip yang sama (waktu selesai
+      // sama). Kalau client_trip_id sama tapi isinya berbeda, itu trip BARU
+      // yang kebetulan memakai id yang sama - mis. petugas memakai perangkat
+      // lain, atau riwayat di perangkat lama dihapus sehingga penomoran mulai
+      // dari nol lagi.
+      //
+      // Versi lama selalu menganggapnya trip yang sama, lalu MENIMPA trip lama:
+      // baris trip baru tidak pernah dibuat, created_at tetap tanggal yang
+      // lama, dan petugas melihat "terkirim" padahal trip-nya tidak muncul
+      // di dashboard sebagai data baru.
+      if (found && isSameTripInstance(found, payload)) existingTrip = found;
     }
 
     const tripPhotoIndex = validPhotoIndex(payload.tripPhotoIndex, files.length);

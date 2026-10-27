@@ -46,6 +46,21 @@ export interface VehicleEntry {
 
 export interface Trip {
   id: string
+  /**
+   * Id trip yang dipakai SEBAGAI KUNCI IDEMPOTEN di server.
+   *
+   * Dulu server memakai `id` (format "TRP-2026-0001") sebagai kunci. Format
+   * itu dihitung dari daftar trip DI PERANGKAI, jadi nomor yang sama dipakai
+   * ulang ketika riwayat perangkat dihapus atau petugas memakai perangkat
+   * kedua. Server lalu menganggap trip itu "sama" dan MENIMPA trip lama:
+   * baris baru tidak pernah dibuat dan created_at tetap tanggal lama, jadi
+   * petugas melihat "terkirim" padahal trip-nya tidak muncul di dashboard.
+   *
+   * Sekarang `id` hanya untuk tampilan; kunci idempoten memakai UUID yang
+   * dibuat sekali saat trip dicatat dan ikut tersimpan di IndexedDB, jadi
+   * unik lintas perangkat dan tetap sama saat retry.
+   */
+  clientTripId?: string
   route: string
   routeCode?: string
   routeFrom?: string
@@ -300,13 +315,64 @@ export function vehicleTariff(vehicleType: string, category: string, load: 'load
 
 
 
+/**
+ * Nomor urut trip.
+ *
+ * Disimpan di localStorage TERPISAH dari daftar trip, supaya penomoran tidak
+ * reset ketika petugas menghapus riwayat ("Hapus Semua Riwayat"). Dulu
+ * penomoran dihitung dari daftar trip, jadi setelah riwayat dihapus nomor
+ * mulai dari 1 lagi - dan nomor yang sama dipakai untuk trip yang berbeda.
+ * Local memakai id sebagai kunci, jadi dua trip dengan id sama saling
+ * menimpa di riwayat, dan server ikut menganggapnya trip yang sama.
+ */
+const TRIP_SEQ_KEY = 'trip.seq.v1'
+
+function readTripSeq(): number {
+  try {
+    const raw = localStorage.getItem(TRIP_SEQ_KEY)
+    const n = Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : 0
+  } catch {
+    return 0
+  }
+}
+
+function writeTripSeq(value: number): void {
+  try { localStorage.setItem(TRIP_SEQ_KEY, String(value)) } catch { /* quota */ }
+}
+
 export function nextTripId(trips: Trip[]): string {
-  let max = 0
+  let max = readTripSeq()
   for (const t of trips) {
     const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)
     if (m) max = Math.max(max, parseInt(m[2], 10))
   }
-  return `TRP-${new Date().getFullYear()}-${String(max + 1).padStart(4, '0')}`
+  const next = max + 1
+  writeTripSeq(next)
+  const base = `TRP-${new Date().getFullYear()}-${String(next).padStart(4, '0')}`
+  // Pengaman: kalau id yang dihitung sudah dipakai (mis. localStorage
+  // dibersihkan tapi IndexedDB masih ada), tambahkan sufiks acak supaya
+  // riwayat lokal tidak menimpa trip sebelumnya.
+  if (trips.some(t => t.id === base)) {
+    const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
+    return `${base}-${suffix}`
+  }
+  return base
+}
+
+/**
+ * Kunci idempoten untuk trip: UUID, dibuat SEKALI saat trip dicatat.
+ *
+ * Berbeda dari `id` (yang hanya untuk tampilan), nilai ini ikut tersimpan
+ * di IndexedDB, jadi tetap sama saat retry dan tetap berbeda antar perangkat.
+ */
+export function newClientTripId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch { /* fallback di bawah */ }
+  return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 
@@ -787,7 +853,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     photos?: { dataUrl: string; mimeType: string }[],
     tripPhoto?: { dataUrl: string; mimeType: string },
   ) => {
-    const tripWithSync = { ...t, synced: false }
+    // Kunci idempoten dibuat SEKALI di sini. Kalau trip ini di-retry (mis.
+    // foto belum lengkap lalu dilengkapi), clientTripId yang sama dipakai
+    // lagi -> server tahu itu trip yang sama, bukan trip baru.
+    const tripWithSync: Trip = { ...t, clientTripId: t.clientTripId ?? newClientTripId(), synced: false }
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
     setDraft(emptyDraft)

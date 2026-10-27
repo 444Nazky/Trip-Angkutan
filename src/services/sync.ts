@@ -980,7 +980,10 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const { routeFrom, routeTo, routeCode } = resolveRoute(trip)
 
     const payload = {
-      clientTripId: trip.id,
+      // Kunci idempoten: UUID per trip (lihat Trip.clientTripId). Fallback ke
+      // id lama supaya trip yang dibuat sebelum perubahan ini tetap punya
+      // kunci.
+      clientTripId: trip.clientTripId ?? trip.id,
       statusMuatan: hasLoad ? 'muatan' : 'kosong',
       routeFrom,
       routeTo,
