@@ -127,7 +127,7 @@ const SWEEP_EVERY = 200;
 // ── Router ───────────────────────────────────────────────────────────────────
 
 async function route(req: Request, url: URL, parts: string[]): Promise<Response> {
-  const [a, b, c] = parts;
+  const [a, b, c, d] = parts;
   const notFound = () => json({ error: `Endpoint not found: ${req.method} /${parts.join("/")}` }, 404);
 
   // ---------------- /health ----------------
@@ -214,7 +214,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // ---------------- /region-tariffs ----------------
   if (a === "region-tariffs") {
     if (req.method === "GET" && !b) return await rt.getRegionTariffs(req);
+    if (req.method === "POST" && b === "bulk") return await rt.bulkUpdateRegionTariffRows(req);
     if (req.method === "PUT" && b) return await rt.updateRegionTariff(req, b, url);
+    // Hapus satu baris tarif: /region-tariffs/:regionId/rows/:vehicleType
+    if (req.method === "DELETE" && b && c === "rows" && d) {
+      return await rt.deleteRegionTariffRow(req, b, d);
+    }
     return notFound();
   }
 

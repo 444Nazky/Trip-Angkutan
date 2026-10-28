@@ -28,7 +28,9 @@ import {
 } from 'lucide-react'
 import {
   RegionTariffRow,
+  bulkUpsertRegionTariffRows,
   deleteAdminRegion,
+  deleteRegionTariffRow,
   fetchRegionTariffs,
   upsertRegionTariff,
   upsertRegionTariffRow,
@@ -63,6 +65,27 @@ interface Cell {
 /** Urutan baris mengikuti sketsa spreadsheet: motor .. truk besar. */
 const TYPE_ORDER = ['motor', 'mobil', 'truk kecil', 'truk sedang', 'truk besar']
 
+/**
+ * Daftar jenis kendaraan yang dikenal sistem.
+ *
+ * Dipakai sebagai pilihan (bukan input teks bebas) di form tarif, supaya
+ * ejaan jenis konsisten dengan yang dipakai aplikasi petugas. Daftar ini
+ * juga digabung dengan jenis yang sudah tersimpan di baris region.
+ */
+const SYSTEM_TYPES = [
+  'motor',
+  'mobil',
+  'truk kecil',
+  'truk sedang',
+  'truk besar',
+  'truk trailer',
+]
+
+/** Nilai khusus: form region = "semua region". */
+const ALL_REGIONS = '__all__'
+/** Nilai khusus: pilih "tambah jenis baru" di dropdown jenis kendaraan. */
+const NEW_TYPE = '__new__'
+
 const VEHICLE_CARDS = [
   { key: 'motor', label: '1. Motor', Icon: Bike, tone: 'text-blue-600' },
   { key: 'mobil', label: '2. Mobil', Icon: Car, tone: 'text-emerald-600' },
@@ -91,6 +114,15 @@ const typeOrderIndex = (t: string) => {
   const i = TYPE_ORDER.indexOf(normalizeType(t))
   return i === -1 ? TYPE_ORDER.length : i
 }
+
+/** "truk kecil" -> "Truk Kecil" (label tampilan). */
+const prettyType = (t: string) =>
+  String(t ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
 
 const fmtNum = (n: number) => Number(n || 0).toLocaleString('id-ID')
 const digits = (s: string) => Number(String(s).replace(/[^\d]/g, '')) || 0
@@ -156,7 +188,7 @@ function SheetCell({
     <td
       title={title}
       onClick={() => !editing && !pending && setEditing(true)}
-      className={`border-t border-slate-100 px-2 py-2 text-right text-[13px] tabular-nums ${
+      className={`border border-slate-200 px-2 py-2 text-right text-[13px] tabular-nums ${
         editing ? 'ring-2 ring-inset ring-blue-300' : 'cursor-cell hover:bg-amber-50/70'
       } ${pending ? 'animate-pulse text-slate-400' : 'text-slate-700'}`}
     >
@@ -200,7 +232,7 @@ function LockedInternalCell() {
   return (
     <td
       title="Kendaraan internal tidak ditagih (Rp 0)"
-      className="cursor-not-allowed border-t border-slate-100 bg-slate-50/60 px-2 py-2 select-none"
+      className="cursor-not-allowed border border-slate-200 bg-slate-50/60 px-2 py-2 select-none"
     >
       <span className="block text-center text-[12px] text-slate-400">–</span>
     </td>
@@ -216,6 +248,8 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
   const [filterRegion, setFilterRegion] = useState('')
   const [filterType, setFilterType] = useState('')
   const [form, setForm] = useState<TariffForm>(EMPTY_FORM)
+  /** True kalau admin memilih "tambah jenis baru" di dropdown jenis kendaraan. */
+  const [customType, setCustomType] = useState(false)
   /** Baris yang sedang diedit lewat panel kanan (null = mode tambah). */
   const [editTarget, setEditTarget] = useState<{ regionId: string; type: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -246,6 +280,35 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         typeOrderIndex(a) - typeOrderIndex(b) ||
         normalizeType(a).localeCompare(normalizeType(b)),
     )
+  }, [regions])
+
+  /**
+   * Katalog jenis kendaraan untuk form tarif: gabungan jenis yang sudah
+   * tersimpan di baris region + daftar sistem.
+   *
+   * Ejaan asli dari DB dipakai sebagai nilai simpan supaya tidak tercipta
+   * baris duplikat untuk region yang sama (mis. "Truk Kecil" vs "truk kecil").
+   */
+  const typeCatalog = useMemo(() => {
+    const map = new Map<string, { value: string; label: string }>()
+    for (const r of regions) {
+      for (const row of r.rows ?? []) {
+        const raw = String(row.vehicleType ?? '').trim()
+        if (!raw) continue
+        const key = normalizeType(raw)
+        if (!map.has(key)) map.set(key, { value: raw, label: prettyType(raw) })
+      }
+    }
+    for (const t of SYSTEM_TYPES) {
+      const key = normalizeType(t)
+      if (!map.has(key)) map.set(key, { value: t, label: prettyType(t) })
+    }
+    return [...map.entries()]
+      .sort(
+        (a, b) =>
+          typeOrderIndex(a[0]) - typeOrderIndex(b[0]) || a[1].label.localeCompare(b[1].label),
+      )
+      .map(([, v]) => v)
   }, [regions])
 
   /** Region urut nama. */
@@ -385,14 +448,19 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
   const resetForm = () => {
     setEditTarget(null)
+    setCustomType(false)
     setForm((f) => ({ ...EMPTY_FORM, regionId: f.regionId }))
   }
 
   const openEdit = (region: RegionTariffRow, cell: Cell) => {
     setEditTarget({ regionId: region.id, type: cell.type })
+    setCustomType(false)
     setForm({
       regionId: region.id,
-      type: cell.type,
+      // Tampilkan ejaan katalog (mis. "Truk Kecil"), bukan ejaan mentah di DB.
+      type:
+        typeCatalog.find((t) => normalizeType(t.value) === normalizeType(cell.type))?.value ??
+        cell.type,
       lokal: String(region.lokal_tariff ?? 0),
       muatan: String(cell.muatan),
       kosong: String(cell.kosong),
@@ -400,7 +468,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     setExpanded((prev) => new Set(prev).add(region.id))
   }
 
-  /** Ketik jenis → isi muatan/kosong dari baris region yang sudah ada. */
+  /** Pilih jenis kendaraan → isi muatan/kosong dari baris region yang ada. */
   const changeFormType = (v: string) => {
     const region = regions.find((r) => r.id === form.regionId)
     const row = region?.rows?.find((o) => normalizeType(o.vehicleType) === normalizeType(v))
@@ -412,18 +480,100 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }))
   }
 
+  /**
+   * Ganti region di form.
+   *
+   * - "Semua Region" → mode massal (bulk): tarif jenis yang dipilih diterapkan
+   *   ke semua region (tambah) atau ke semua region yang sudah punya baris
+   *   untuk jenis itu (edit).
+   * - Region biasa → mode satu region. Saat sedang edit, target edit ikut
+   *   pindah ke region yang dipilih untuk jenis yang sama.
+   */
   const changeFormRegion = (id: string) => {
+    if (id === ALL_REGIONS) {
+      setForm((f) => ({ ...f, regionId: ALL_REGIONS, lokal: '' }))
+      return
+    }
     const r = regions.find((x) => x.id === id)
+    if (editTarget) {
+      // Mode edit: pindah target ke region lain untuk jenis yang sama.
+      const row = r?.rows?.find((o) => normalizeType(o.vehicleType) === normalizeType(editTarget.type))
+      setEditTarget({ regionId: id, type: editTarget.type })
+      setForm((f) => ({
+        ...f,
+        regionId: id,
+        lokal: String(r?.lokal_tariff ?? 0),
+        muatan: row ? String(row.muatanTariff) : f.muatan,
+        kosong: row ? String(row.kosongTariff) : f.kosong,
+      }))
+      return
+    }
     setForm((f) => ({ ...f, regionId: id, lokal: String(r?.lokal_tariff ?? 0) }))
+  }
+
+  /** Hapus baris tarif (region + jenis kendaraan). */
+  const handleDeleteCell = async (region: RegionTariffRow, cell: Cell) => {
+    const label = prettyType(cell.type)
+    if (!confirm(`Hapus tarif "${label}" untuk region ${region.name || region.code}?`)) return
+    setSaving(true)
+    try {
+      const ok = await deleteRegionTariffRow(region.id, cell.type)
+      if (!ok) {
+        showToast('Gagal menghapus tarif kendaraan', 'error')
+        return
+      }
+      await reloadRegions()
+      showToast(`Tarif ${label} dihapus dari region ${region.name || region.code}`)
+      if (editTarget?.regionId === region.id && normalizeType(editTarget.type) === normalizeType(cell.type)) {
+        resetForm()
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   /** Simpan panel: upsert baris (region, jenis) + nominal lokal. */
   const submitForm = async () => {
-    const region = regions.find((r) => r.id === form.regionId)
-    if (!region) return showToast('Pilih region terlebih dahulu', 'error')
+    const isAll = form.regionId === ALL_REGIONS
+    const type = form.type.trim()
+    if (!type) return showToast('Jenis kendaraan wajib dipilih', 'error')
 
     const muatan = digits(form.muatan)
     const kosong = digits(form.kosong)
+
+    // ---- Mode "Semua Region": satu harga untuk banyak region ----
+    if (isAll) {
+      setSaving(true)
+      try {
+        // Tambah → semua region. Edit → hanya region yang sudah punya baris
+        // untuk jenis ini (agar jenis baru tidak muncul di region yang tak用它).
+        const scope = editTarget ? 'existing' : 'all'
+        const res = await bulkUpsertRegionTariffRows({
+          vehicleType: type,
+          muatanTariff: muatan,
+          kosongTariff: kosong,
+          scope,
+        })
+        if (!res.ok) {
+          showToast('Server menolak pembaruan tarif', 'error')
+          return
+        }
+        await reloadRegions()
+        showToast(
+          res.updated > 0
+            ? `Tarif ${prettyType(type)} tersimpan di ${res.updated} region`
+            : `Tidak ada region yang memakai tarif ${prettyType(type)}`,
+        )
+        resetForm()
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
+    const region = regions.find((r) => r.id === form.regionId)
+    if (!region) return showToast('Pilih region terlebih dahulu', 'error')
+
     const lokal = form.lokal.trim() === '' ? null : digits(form.lokal)
 
     if (editTarget) {
@@ -450,9 +600,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       resetForm()
       return
     }
-
-    const type = form.type.trim()
-    if (!type) return showToast('Jenis kendaraan wajib diisi', 'error')
 
     setSaving(true)
     try {
@@ -591,22 +738,22 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
               <thead>
                 <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
-                  <th className="border-b border-slate-200 px-4 py-2 text-left font-semibold">
+                  <th className="border border-slate-200 px-4 py-2 text-left font-semibold">
                     Jenis Kendaraan
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
                     Internal
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
                     Lokal
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
                     Ada Muatan
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
                     Kosong
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
                     Aksi
                   </th>
                 </tr>
@@ -620,7 +767,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                         className="cursor-pointer bg-slate-800 transition hover:bg-slate-700"
                         onClick={() => toggleRegion(region.id)}
                       >
-                        <td colSpan={6} className="px-4 py-2.5">
+                        <td colSpan={6} className="border-b border-slate-700 px-4 py-2.5">
                           <div className="flex flex-wrap items-center gap-2">
                             {open ? (
                               <ChevronDown size={15} className="text-slate-400" />
@@ -661,11 +808,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                               key={`${region.id}-${cell.type}-${i}`}
                               className={`${i % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-blue-50/30 transition-colors duration-150`}
                             >
-                              <td className="border-t border-slate-100 px-4 py-2">
+                              <td className="border border-slate-200 px-4 py-2">
                                 <div className="flex items-center gap-2">
                                   <Icon size={16} strokeWidth={1.7} className="text-slate-500" />
-                                  <span className="font-medium capitalize text-slate-700">
-                                    {cell.type || '—'}
+                                  <span className="font-medium text-slate-700">
+                                    {prettyType(cell.type) || '—'}
                                   </span>
                                   {cell.stored && (
                                     <span
@@ -691,7 +838,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                                 onCommit={(v) => commitCell(region, cell, 'kosong', v)}
                                 title="Tarif region ini: kendaraan kosong"
                               />
-                              <td className="border-t border-slate-100 px-2 py-1.5">
+                              <td className="border border-slate-200 px-2 py-1.5">
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     onClick={() => openEdit(region, cell)}
@@ -699,6 +846,18 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                                     className="rounded-md border border-blue-100 bg-blue-50 p-1 text-blue-600 transition hover:bg-blue-100"
                                   >
                                     <Pencil size={12} />
+                                  </button>
+                                  <button
+                                    onClick={() => void handleDeleteCell(region, cell)}
+                                    disabled={!cell.stored || saving}
+                                    title={
+                                      cell.stored
+                                        ? 'Hapus tarif kendaraan ini'
+                                        : 'Belum ada baris tarif untuk dihapus'
+                                    }
+                                    className="rounded-md border border-red-100 bg-red-50 p-1 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
+                                  >
+                                    <Trash2 size={12} />
                                   </button>
                                 </div>
                               </td>
@@ -746,10 +905,13 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                 <select
                   value={form.regionId}
                   onChange={(e) => changeFormRegion(e.target.value)}
-                  disabled={!!editTarget || saving}
+                  disabled={saving}
                   className={INPUT_CLS}
                 >
                   <option value="">Pilih Region</option>
+                  <option value={ALL_REGIONS}>
+                    Semua Region ({orderedRegions.length})
+                  </option>
                   {orderedRegions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name || r.code}
@@ -758,15 +920,62 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                 </select>
               </Field>
 
+              {form.regionId === ALL_REGIONS && (
+                <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[10.5px] leading-relaxed text-blue-800">
+                  Mode <b>Semua Region</b>: tarif untuk jenis kendaraan ini berlaku di{' '}
+                  {orderedRegions.length} region sekaligus
+                  {editTarget
+                    ? ' (hanya region yang sudah memakai jenis ini).'
+                    : ' (jenis baru ikut dibuat di semua region).'}
+                </p>
+              )}
+
               <Field label="Jenis Kendaraan" required>
-                <input
-                  list="tariff-type-options"
-                  value={form.type}
-                  onChange={(e) => changeFormType(e.target.value)}
-                  disabled={!!editTarget || saving}
-                  placeholder="Pilih jenis kendaraan"
-                  className={INPUT_CLS}
-                />
+                {customType ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={form.type}
+                      onChange={(e) => changeFormType(e.target.value)}
+                      disabled={saving}
+                      placeholder="Tulis jenis kendaraan baru"
+                      className={INPUT_CLS}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomType(false)
+                        setForm((f) => ({ ...f, type: '' }))
+                      }}
+                      disabled={saving}
+                      className={`${BTN_GHOST} shrink-0 px-3`}
+                    >
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={form.type}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === NEW_TYPE) {
+                        setCustomType(true)
+                        setForm((f) => ({ ...f, type: '' }))
+                        return
+                      }
+                      changeFormType(v)
+                    }}
+                    disabled={!!editTarget || saving}
+                    className={INPUT_CLS}
+                  >
+                    <option value="">Pilih jenis kendaraan</option>
+                    {typeCatalog.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                    <option value={NEW_TYPE}>+ Tambah jenis baru…</option>
+                  </select>
+                )}
               </Field>
 
               <div className="!mt-5 border-t border-slate-100 pt-3">
@@ -788,8 +997,19 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                       value={form.lokal}
                       onChange={(e) => setForm((f) => ({ ...f, lokal: e.target.value }))}
                       placeholder="Contoh: 15000"
+                      disabled={form.regionId === ALL_REGIONS}
+                      title={
+                        form.regionId === ALL_REGIONS
+                          ? 'Tarif lokal berlaku per wilayah, jadi tidak bisa disamakan ke semua region'
+                          : undefined
+                      }
                       className={INPUT_CLS}
                     />
+                    {form.regionId === ALL_REGIONS && (
+                      <span className="mt-1 block text-[10.5px] text-slate-400">
+                        Tarif lokal berlaku per wilayah — isi per region.
+                      </span>
+                    )}
                   </Field>
                   <Field label="Eksternal — Ada Muatan (Rp)" required>
                     <input
@@ -827,7 +1047,8 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
               {editTarget && (
                 <p className="text-[10.5px] leading-relaxed text-slate-400">
-                  Jenis dan region dikunci saat mengedit. Klik Batal untuk menambah baris baru.
+                  Jenis dikunci saat mengedit. Pilih <b>Semua Region</b> untuk menerapkan tarif ini ke
+                  semua region yang memakai jenis tersebut. Klik Batal untuk menambah baris baru.
                 </p>
               )}
             </div>
@@ -848,13 +1069,13 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           ditagih. Titik <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" /> =
           baris tarif region ini sudah tersimpan.
         </p>
+        <p>
+          Pilih <b className="text-slate-700">Semua Region</b> di form tarif untuk menulis satu
+          harga ke banyak region sekaligus — tidak perlu mengulang per region. Tombol{' '}
+          <Trash2 size={11} className="inline text-red-600" /> menghapus baris tarif kendaraan
+          tersebut pada region itu saja.
+        </p>
       </div>
-
-      <datalist id="tariff-type-options">
-        {allTypes.filter(Boolean).map((t) => (
-          <option key={t} value={t} />
-        ))}
-      </datalist>
     </div>
   )
 }

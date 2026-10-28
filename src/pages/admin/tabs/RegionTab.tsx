@@ -284,7 +284,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             type="button"
             disabled={saving}
             onClick={() => void handleDeleteDermaga(d)}
-            className="inline-flex items-center gap-1 text-red-500 font-semibold text-xs hover:underline disabled:opacity-40"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-600 disabled:opacity-40"
           >
             <Trash2 size={12} /> Hapus Dermaga
           </button>
@@ -304,17 +304,15 @@ export function RegionTab({ showToast }: RegionTabProps) {
         </div>
         <div className="flex items-center gap-3">
           <span
-            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
-              state === 'ready'
-                ? 'bg-emerald-50 text-emerald-600'
-                : state === 'offline'
-                  ? 'bg-amber-50 text-amber-600'
-                  : 'bg-slate-100 text-slate-500'
-            }`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600"
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'
+              className={`h-1.5 w-1.5 rounded-full ${
+                state === 'ready'
+                  ? 'bg-slate-900'
+                  : state === 'offline'
+                    ? 'bg-slate-400'
+                    : 'bg-slate-300 animate-pulse'
               }`}
             />
             {state === 'ready'
@@ -335,7 +333,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
       </div>
 
       {officers === null && state === 'ready' && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
           Daftar petugas tidak bisa dimuat, jadi penghapusan wilayah dimatikan sementara supaya tidak ada wilayah
           terhapus yang masih dipakai petugas. Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
         </div>
@@ -368,7 +366,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             type="button"
             disabled={saving}
             onClick={() => void handleCreateRegion()}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 inline-flex items-center justify-center gap-2"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
           >
             <Plus size={16} /> Tambah Region
           </button>
@@ -415,7 +413,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             type="button"
             disabled={saving}
             onClick={() => void handleCreateDermaga()}
-            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-40 inline-flex items-center justify-center gap-2"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
           >
             <Plus size={16} /> Tambah Dermaga
           </button>
@@ -436,7 +434,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             <tbody>
               {state === 'offline' && (
                 <tr>
-                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-amber-700">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-slate-500">
                     Server tidak bisa dihubungi, jadi data wilayah & dermaga belum bisa ditampilkan. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
@@ -456,24 +454,24 @@ export function RegionTab({ showToast }: RegionTabProps) {
                 const users = officersOfRegion(String(region.id))
                 return (
                   <Fragment key={region.id}>
-                    <tr className="bg-slate-800">
-                      <td className="border border-slate-700 px-3 py-2">
-                        <span className="font-bold text-white">{labelOf(region)}</span>{' '}
-                        <span className="text-[11px] text-slate-300">wilayah</span>
+                    <tr className="bg-slate-100">
+                      <td className="border border-slate-200 px-3 py-2">
+                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
+                        <span className="text-[11px] font-normal text-slate-400">wilayah</span>
                       </td>
-                      <td className="border border-slate-700 px-3 py-2 font-mono text-slate-300 text-[12px] uppercase">
+                      <td className="border border-slate-200 px-3 py-2 font-mono text-[12px] uppercase text-slate-500">
                         {region.code || '—'}
                       </td>
-                      <td className="border border-slate-700 px-3 py-2 text-[12px] text-slate-300">
+                      <td className="border border-slate-200 px-3 py-2 text-[12px] text-slate-500">
                         {own.length} dermaga{officers === null ? '' : ` · ${users.length} petugas`}
                       </td>
-                      <td className="border border-slate-700 px-3 py-2 text-right whitespace-nowrap">
+                      <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
                           disabled={saving || officers === null}
                           onClick={() => void handleDeleteRegion(region)}
                           title={officers === null ? 'Daftar petugas belum termuat' : undefined}
-                          className="inline-flex items-center gap-1 text-red-500 font-semibold text-xs hover:underline disabled:opacity-40"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-600 disabled:opacity-40"
                         >
                           <Trash2 size={12} /> Hapus Wilayah
                         </button>
@@ -494,9 +492,9 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
               {orphans.length > 0 && (
                 <Fragment>
-                  <tr className="bg-slate-800">
-                    <td colSpan={4} className="border border-slate-700 px-3 py-2">
-                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
+                  <tr className="bg-slate-100">
+                    <td colSpan={4} className="border border-slate-200 px-3 py-2">
+                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-slate-700">
                         <TriangleAlert size={14} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak ada
                         di database
                       </span>

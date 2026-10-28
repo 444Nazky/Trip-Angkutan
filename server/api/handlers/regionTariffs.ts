@@ -90,8 +90,7 @@ async function updateRegionRow(body: any, regionId: string): Promise<Response> {
 }
 
 /** Upsert tarif flat (lokal/eksternal) per region. */
-async function updateRegionFlat(body: any, regionId: string): Promise<Response> {
-  // Dua bentuk payload yang diterima:
+async function updateRegionFlat(body: any, regionId: string): Promise<Response> {  // Dua bentuk payload yang diterima:
   //   legacy : { tariffType: 'lokal'|'eksternal', nominalTariff, isActive }
   //   UI     : { lokal_tariff, lokal_active } | { eksternal_tariff, eksternal_active }
   let type: string | undefined = body.tariffType;  let nominal = body.nominalTariff;
@@ -150,5 +149,154 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
   } catch (error) {
     console.error("Update region tariff error:", error);
     return json({ error: "Failed to update region tariff" }, 500);
+  }
+}
+
+/** Normalisasi jenis kendaraan (sama dengan aturan resolver tarif). */
+const typeKey = (raw: unknown): string =>
+  String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/truck/g, "truk")
+    .replace(/[^a-z0-9]/g, "");
+
+/**
+ * Hapus satu baris tarif (region + jenis kendaraan).
+ *
+ * Cocokkan case-insensitive ("Truk Kecil" = "truk kecil") supaya baris yang
+ * ditulis dengan ejaan berbeda tetap ketemu.
+ */
+export async function deleteRegionTariffRow(
+  req: Request,
+  regionId: string,
+  vehicleType: string,
+): Promise<Response> {
+  try {
+    const ctx = await requireAdmin(req);
+    if (!ctx) return json({ error: "Admin access required" }, 403);
+    if (!isUuid(regionId)) return json({ error: "Region id tidak valid" }, 400);
+
+    let type = String(vehicleType ?? "").trim();
+    try {
+      type = decodeURIComponent(type);
+    } catch {
+      /* biarkan apa adanya kalau bukan URI-encoded */
+    }
+    if (!type) return json({ error: "Jenis kendaraan wajib diisi" }, 400);
+
+    const { error } = await db
+      .from("region_tariff_rows")
+      .delete()
+      .eq("region_id", regionId)
+      .ilike("vehicle_type", type);
+    if (error) {
+      console.error("Delete region tariff row failed:", error);
+      return json({ error: "Gagal menghapus baris tarif region" }, 500);
+    }
+
+    invalidateTariffCache();
+    return json({ success: true, regionId, vehicleType: type });
+  } catch (error) {
+    console.error("Delete region tariff row error:", error);
+    return json({ error: "Failed to delete region tariff row" }, 500);
+  }
+}
+
+/**
+ * Terapkan tarif satu jenis kendaraan ke BANYAK region sekaligus.
+ *
+ * Body:
+ *   {
+ *     vehicleType: string,
+ *     muatanTariff: number,
+ *     kosongTariff: number,
+ *     scope: "all" | "existing"
+ *   }
+ *
+ * scope "all"      -> semua region dapat baris (region yang belum punya
+ *                      baris untuk jenis ini dibuat dengan nominal ini).
+ * scope "existing" -> hanya region yang SUDAH punya baris untuk jenis ini
+ *                      yang diperbarui (dipakai saat edit massal).
+ *
+ * Baris yang sudah ada diupdate memakai ejaan vehicle_type yang tersimpan
+ * (bukan ejaan dari payload) supaya tidak tercipta baris duplikat untuk
+ * region yang sama.
+ */
+export async function bulkUpdateRegionTariffRows(req: Request): Promise<Response> {
+  try {
+    const ctx = await requireAdmin(req);
+    if (!ctx) return json({ error: "Admin access required" }, 403);
+
+    const body = await req.json().catch(() => ({} as any));
+    const vehicleType = String(body.vehicleType ?? body.vehicle_type ?? "").trim();
+    if (!vehicleType) return json({ error: "Jenis kendaraan wajib diisi" }, 400);
+
+    const muatan = asInt(body.muatanTariff);
+    const kosong = asInt(body.kosongTariff ?? body.kosong);
+    const scope = body.scope === "existing" ? "existing" : "all";
+    const key = typeKey(vehicleType);
+
+    const { data: regions, error: regionErr } = await db
+      .from("regions")
+      .select("id, name, code")
+      .order("name", { ascending: true });
+    if (regionErr) throw regionErr;
+    if (!regions || !regions.length) return json({ success: true, updated: 0, regions: [] });
+
+    const { data: existingRows, error: rowsErr } = await db
+      .from("region_tariff_rows")
+      .select("id, region_id, vehicle_type");
+    if (rowsErr) throw rowsErr;
+
+    // Baris existing per region (case-insensitive).
+    const existingByRegion = new Map<string, any>();
+    for (const r of existingRows ?? []) {
+      const rid = String(r.region_id);
+      if (typeKey(r.vehicle_type) !== key) continue;
+      if (!existingByRegion.has(rid)) existingByRegion.set(rid, r);
+    }
+
+    const targets: { id: string; vehicleType: string }[] = [];
+    for (const region of regions as any[]) {
+      const rid = String(region.id);
+      const row = existingByRegion.get(rid);
+      if (scope === "existing" && !row) continue;
+      // Pertahankan ejaan yang tersimpan di DB (hindari baris duplikat).
+      targets.push({ id: rid, vehicleType: row ? String(row.vehicle_type) : vehicleType });
+    }
+    if (!targets.length) {
+      return json({ success: true, updated: 0, regions: [], scope });
+    }
+
+    const now = new Date().toISOString();
+    const { error: upErr } = await db
+      .from("region_tariff_rows")
+      .upsert(
+        targets.map((t) => ({
+          region_id: t.id,
+          vehicle_type: t.vehicleType,
+          muatan_tariff: muatan,
+          kosong_tariff: kosong,
+          is_active: 1,
+          updated_at: now,
+        })),
+        { onConflict: "region_id,vehicle_type" },
+      );
+    if (upErr) {
+      console.error("Bulk upsert region tariff rows failed:", upErr);
+      return json({ error: "Gagal menyimpan tarif untuk semua region" }, 500);
+    }
+
+    invalidateTariffCache();
+    return json({
+      success: true,
+      updated: targets.length,
+      scope,
+      vehicleType,
+      regions: targets.map((t) => t.id),
+    });
+  } catch (error) {
+    console.error("Bulk update region tariff rows error:", error);
+    return json({ error: "Failed to update region tariff rows" }, 500);
   }
 }

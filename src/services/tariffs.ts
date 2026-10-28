@@ -118,6 +118,41 @@ export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionT
   return rows.find(r => String(r.id) === String(regionId)) ?? null
 }
 
+/**
+ * Hapus baris tarif (region + jenis kendaraan).
+ *
+ * Jenis kendaraan ikut di URL (di-encode), jadi "truk kecil" aman walau
+ * mengandung spasi.
+ */
+export async function deleteRegionTariffRow(regionId: string, vehicleType: string): Promise<boolean> {
+  const r = await api.delete(`/region-tariffs/${regionId}/rows/${encodeURIComponent(vehicleType)}`)
+  return r.ok
+}
+
+/**
+ * Terapkan tarif satu jenis kendaraan ke banyak region sekaligus.
+ *
+ * scope 'all'      -> semua region (region yang belum punya baris ikut dibuat).
+ * scope 'existing' -> hanya region yang sudah punya baris untuk jenis ini.
+ */
+export async function bulkUpsertRegionTariffRows(input: {
+  vehicleType: string
+  muatanTariff: number
+  kosongTariff: number
+  scope: 'all' | 'existing'
+}): Promise<{ ok: boolean; updated: number }> {
+  const res = await api.post<{ success: boolean; updated: number }>('/region-tariffs/bulk', {
+    vehicleType: input.vehicleType,
+    muatanTariff: input.muatanTariff,
+    kosongTariff: input.kosongTariff,
+    scope: input.scope,
+  })
+  return {
+    ok: res.ok && !!res.data?.success,
+    updated: res.data?.updated ?? 0,
+  }
+}
+
 export async function upsertRegionTariffDirect(input: {
   regionId: string
   tariffType: 'lokal' | 'eksternal'
