@@ -80,13 +80,11 @@ function pgCode(error: unknown): string {
  * code }), BUKAN instance Error. Kalau dipanggil `String(error)`, hasilnya
  * "[object Object]" — pesan aslinya hilang, jadi galat 22P02/23503 tidak
  * pernah bisa dijelaskan ke petugas.
+ *
+ * Implementasinya共用 di `_shared.ts` (dipakai juga handler master).
  */
-export function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  const msg = (error as { message?: unknown } | null)?.message;
-  if (typeof msg === "string" && msg.trim()) return msg;
-  return String(error ?? "");
-}
+export { errorText } from "../_shared.ts";
+import { errorText } from "../_shared.ts";
 
 /**
  * Terjemahkan galat PostgREST menjadi jawaban HTTP yang JELAS.
