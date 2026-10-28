@@ -256,8 +256,8 @@ export function failureReason(res: ApiResponse<unknown>, fallback: string): stri
  * Bungkus hasil request jadi `ActionResult` dengan alasan yang SUDAH
  * enak dibaca user (siap tampil di notifikasi).
  */
-export function toActionResult<T>(res: ApiResponse<T>, fallback: string): ActionResult<T> {
-  if (res.ok) return { ok: true, data: res.data }
+export function toActionResult<T>(res: ApiResponse<T>, fallback: string): ActionResult<void> {
+  if (res.ok) return { ok: true }
   return { ok: false, reason: failureReason(res, fallback) }
 }
 

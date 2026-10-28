@@ -1,4 +1,4 @@
-import { api, toActionResult, type ActionResult } from './api'
+import { api, toActionResult, failureReason, type ActionResult } from './api'
 
 
 
@@ -37,34 +37,46 @@ export async function fetchRoutes(): Promise<Route[] | null> {
 }
 
 
-export async function createDermaga(data: { region_id: string; name: string; code: string }): Promise<string | null> {
+export async function createDermaga(data: { region_id: string; name: string; code: string }): Promise<ActionResult<string>> {
   const result = await api.post<{ id: string }>('/dermagas', data)
-  return result.ok ? result.data?.id ?? null : null
+  if (!result.ok) {
+    return { ok: false, reason: failureReason(result, 'Dermaga gagal ditambahkan karena server menolak permintaan') }
+  }
+  const id = result.data?.id
+  return id
+    ? { ok: true, data: id }
+    : { ok: false, reason: 'Dermaga gagal ditambahkan karena server tidak mengembalikan id' }
 }
 
 
-export async function deleteDermaga(id: string): Promise<boolean> {
+export async function deleteDermaga(id: string): Promise<ActionResult> {
   const result = await api.delete(`/dermagas/${id}`)
-  return result.ok
+  return toActionResult(result, 'Dermaga gagal dihapus karena server menolak permintaan')
 }
 
 
 
-export async function createRoute(data: Omit<Route, 'id'>): Promise<string | null> {
+export async function createRoute(data: Omit<Route, 'id'>): Promise<ActionResult<string>> {
   const result = await api.post<{ id: string }>('/routes', data)
-  return result.ok ? result.data?.id ?? null : null
+  if (!result.ok) {
+    return { ok: false, reason: failureReason(result, 'Rute gagal ditambahkan karena server menolak permintaan') }
+  }
+  const id = result.data?.id
+  return id
+    ? { ok: true, data: id }
+    : { ok: false, reason: 'Rute gagal ditambahkan karena server tidak mengembalikan id' }
 }
 
 
 
-export async function updateRoute(id: string, data: Partial<Route>): Promise<boolean> {
+export async function updateRoute(id: string, data: Partial<Route>): Promise<ActionResult> {
   const result = await api.put(`/routes/${id}`, data)
-  return result.ok
+  return toActionResult(result, 'Rute gagal diperbarui karena server menolak permintaan')
 }
 
 
 
-export async function deleteRoute(id: string): Promise<boolean> {
+export async function deleteRoute(id: string): Promise<ActionResult> {
   const result = await api.delete(`/routes/${id}`)
-  return result.ok
+  return toActionResult(result, 'Rute gagal dihapus karena server menolak permintaan')
 }

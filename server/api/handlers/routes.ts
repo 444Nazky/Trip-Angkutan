@@ -1,5 +1,5 @@
 // Routes handlers (port of backend/src/routes/routes.js).
-import { db, json, auth, requireAdmin, type OfficerClaims } from "../_shared.ts";
+import { db, json, auth, requireAdmin, dbDetail, type OfficerClaims } from "../_shared.ts";
 
 /** Id dermaga bertipe uuid di database. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -100,12 +100,12 @@ export async function createRoute(req: Request): Promise<Response> {
       .single();
     if (error) {
       console.error("Create route error:", error);
-      return json({ error: "Gagal membuat rute" }, 500);
+      return json({ error: `Rute gagal ditambahkan karena database menolak: ${dbDetail(error)}` }, 500);
     }
     return json(data, 201);
   } catch (error) {
     console.error("Create route error:", error);
-    return json({ error: "Failed to create route" }, 500);
+    return json({ error: `Rute gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -122,7 +122,7 @@ export async function updateRoute(req: Request, id: string): Promise<Response> {
     return json({ success: true });
   } catch (error) {
     console.error("Update route error:", error);
-    return json({ error: "Failed to update route" }, 500);
+    return json({ error: `Rute gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -135,6 +135,6 @@ export async function deleteRoute(req: Request, id: string): Promise<Response> {
     return json({ success: true });
   } catch (error) {
     console.error("Delete route error:", error);
-    return json({ error: "Failed to delete route" }, 500);
+    return json({ error: `Rute gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }

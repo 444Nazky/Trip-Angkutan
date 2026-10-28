@@ -45,7 +45,7 @@ export async function createRegion(req: Request): Promise<Response> {
     return json(data, 201);
   } catch (error) {
     console.error("Create region error:", error);
-    return json({ error: "Failed to create region" }, 500);
+    return json({ error: `Wilayah gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -64,7 +64,7 @@ export async function updateRegion(req: Request, id: string): Promise<Response> 
     return json({ success: true });
   } catch (error) {
     console.error("Update region error:", error);
-    return json({ error: "Failed to update region" }, 500);
+    return json({ error: `Wilayah gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -151,7 +151,7 @@ export async function createDermaga(req: Request): Promise<Response> {
     return json(data, 201);
   } catch (error) {
     console.error("Create dermaga error:", error);
-    return json({ error: "Failed to create dermaga" }, 500);
+    return json({ error: `Dermaga gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -177,7 +177,7 @@ export async function updateDermaga(req: Request, id: string): Promise<Response>
     return json({ success: true });
   } catch (error) {
     console.error("Update dermaga error:", error);
-    return json({ error: "Failed to update dermaga" }, 500);
+    return json({ error: `Dermaga gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -268,7 +268,7 @@ export async function createTariff(req: Request): Promise<Response> {
     return json(data, 201);
   } catch (error) {
     console.error("Create tariff error:", error);
-    return json({ error: "Failed to create tariff" }, 500);
+    return json({ error: `Tarif gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -306,7 +306,7 @@ export async function updateTariff(req: Request, id: string): Promise<Response> 
     return json({ success: true });
   } catch (error) {
     console.error("Update tariff error:", error);
-    return json({ error: "Failed to update tariff" }, 500);
+    return json({ error: `Tarif gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -320,7 +320,7 @@ export async function deleteTariff(req: Request, id: string): Promise<Response> 
     return json({ success: true });
   } catch (error) {
     console.error("Delete tariff error:", error);
-    return json({ error: "Failed to delete tariff" }, 500);
+    return json({ error: `Tarif gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 

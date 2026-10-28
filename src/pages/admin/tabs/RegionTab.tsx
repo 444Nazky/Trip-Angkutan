@@ -154,8 +154,8 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
     setSaving(true)
     try {
-      const id = await createDermaga({ region_id: dermagaForm.regionId, name, code })
-      if (!id) return showToast('Server gagal menyimpan dermaga baru', 'error')
+      const res = await createDermaga({ region_id: dermagaForm.regionId, name, code })
+      if (!res.ok) return showToast(res.reason ?? 'Dermaga gagal ditambahkan karena server menolak permintaan', 'error')
       const fresh = await load()
       if (!fresh) return showToast('Dermaga tersimpan, tetapi gagal memuat ulang dari server', 'error')
       setDermagaForm({ regionId: '', name: '', code: '' })
@@ -169,24 +169,31 @@ export function RegionTab({ showToast }: RegionTabProps) {
     const routeCount = routeCountOfDermaga(dermaga.id)
     const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === dermaga.id))
 
+    // Server MENOLAK hapus dermaga yang masih punya rute atau masih dipakai
+    // petugas (FK cascade). Jadi dialog konfirmasi harus jujur soal itu —
+    // bukan menjanjikan "rute ikut terhapus".
     const lines = [`Hapus dermaga ${labelOf(dermaga)} (${dermaga.code}) dari database?`, '']
     lines.push(
       routeCount === null
-        ? '• Semua rute dermaga ini ikut terhapus, termasuk titik geofence-nya.'
-        : `• ${routeCount} rute dermaga ini ikut terhapus, termasuk titik geofence-nya.`,
+        ? '• Jumlah rute dermaga ini tidak bisa dipastikan (data rute tidak termuat).'
+        : routeCount > 0
+          ? `• Dermaga masih punya ${routeCount} rute — hapus rutenya dulu, dermaga baru bisa dihapus.`
+          : '• Dermaga tidak punya rute.',
     )
     if (officers === null) {
-      lines.push('• Akses petugas ke dermaga ini dihapus (jumlah petugas tidak bisa dipastikan).')
+      lines.push('• Akses petugas ke dermaga ini belum bisa dipastikan — kalau masih ada, dermaga tidak bisa dihapus.')
     } else if (users.length > 0) {
-      lines.push(`• ${users.length} petugas kehilangan akses: ${users.map((o) => o.name).join(', ')}.`)
+      lines.push(`• Masih dipakai ${users.length} petugas: ${users.map((o) => o.name).join(', ')} — cabut aksesnya dulu.`)
+    } else {
+      lines.push('• Tidak ada petugas yang memakai dermaga ini.')
     }
-    lines.push('• Riwayat trip lama tidak dihapus, tetapi tidak lagi terhubung ke dermaga ini.')
+    lines.push('• Riwayat trip lama tidak dihapus.')
     if (!confirm(lines.join('\n'))) return
 
     setSaving(true)
     try {
-      const ok = await deleteDermaga(dermaga.id)
-      if (!ok) return showToast('Server gagal menghapus dermaga', 'error')
+      const res = await deleteDermaga(dermaga.id)
+      if (!res.ok) return showToast(res.reason ?? 'Dermaga gagal dihapus karena server menolak permintaan', 'error')
       const fresh = await load()
       if (!fresh) return showToast('Dermaga terhapus, tetapi gagal memuat ulang dari server', 'error')
       showToast('Dermaga dihapus dari database')
@@ -281,7 +288,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
               <option value="">— Pilih Wilayah —</option>
               {orderedRegions.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {labelOf(r)} ({r.code})
+                  {labelOf(r)}
                 </option>
               ))}
             </select>

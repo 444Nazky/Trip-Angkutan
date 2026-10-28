@@ -1,5 +1,5 @@
 // Plates handlers (port of backend/src/routes/plates.js).
-import { db, json, auth, requireAdmin } from "../_shared.ts";
+import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 
 function normalizePlate(raw: unknown): string {
   return String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -85,7 +85,7 @@ export async function createPlate(req: Request): Promise<Response> {
     return json({ id: data.id, plate: data.plate, status: data.status }, 201);
   } catch (error) {
     console.error("Create plate error:", error);
-    return json({ error: "Failed to create plate" }, 500);
+    return json({ error: `Plat gagal didaftarkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -128,7 +128,7 @@ export async function updatePlate(req: Request, id: string): Promise<Response> {
     return json({ success: true });
   } catch (error) {
     console.error("Update plate error:", error);
-    return json({ error: "Failed to update plate" }, 500);
+    return json({ error: `Plat gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -143,7 +143,7 @@ export async function deletePlate(req: Request, id: string): Promise<Response> {
     return json({ success: true });
   } catch (error) {
     console.error("Delete plate error:", error);
-    return json({ error: "Failed to delete plate" }, 500);
+    return json({ error: `Plat gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 

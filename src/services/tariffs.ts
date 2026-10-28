@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, toActionResult, failureReason, type ActionResult } from './api'
 import type { TariffRow } from '../pages/admin/components/types'
 
 export interface ServerTariff {
@@ -88,12 +88,12 @@ export async function upsertRegionTariff(input: {
   tariffType: 'lokal' | 'eksternal'
   nominal: number
   aktif: boolean
-}): Promise<boolean> {
+}): Promise<ActionResult> {
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
     [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
     [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
   })
-  return r.ok
+  return toActionResult(r, 'Tarif wilayah gagal disimpan karena server menolak permintaan')
 }
 
 /** Upsert tarif (muatan+kosong) satu jenis kendaraan untuk region. */
@@ -102,14 +102,14 @@ export async function upsertRegionTariffRow(input: {
   vehicleType: string
   muatanTariff: number
   kosongTariff: number
-}): Promise<boolean> {
+}): Promise<ActionResult> {
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
     vehicleType: input.vehicleType,
     muatanTariff: input.muatanTariff,
     kosongTariff: input.kosongTariff,
     isActive: 1,
   })
-  return r.ok
+  return toActionResult(r, 'Tarif kendaraan gagal disimpan karena server menolak permintaan')
 }
 
 export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionTariffRow | null> {
@@ -124,9 +124,9 @@ export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionT
  * Jenis kendaraan ikut di URL (di-encode), jadi "truk kecil" aman walau
  * mengandung spasi.
  */
-export async function deleteRegionTariffRow(regionId: string, vehicleType: string): Promise<boolean> {
+export async function deleteRegionTariffRow(regionId: string, vehicleType: string): Promise<ActionResult> {
   const r = await api.delete(`/region-tariffs/${regionId}/rows/${encodeURIComponent(vehicleType)}`)
-  return r.ok
+  return toActionResult(r, 'Tarif kendaraan gagal dihapus karena server menolak permintaan')
 }
 
 /**
@@ -140,17 +140,21 @@ export async function bulkUpsertRegionTariffRows(input: {
   muatanTariff: number
   kosongTariff: number
   scope: 'all' | 'existing'
-}): Promise<{ ok: boolean; updated: number }> {
+}): Promise<{ ok: boolean; updated: number; reason?: string }> {
   const res = await api.post<{ success: boolean; updated: number }>('/region-tariffs/bulk', {
     vehicleType: input.vehicleType,
     muatanTariff: input.muatanTariff,
     kosongTariff: input.kosongTariff,
     scope: input.scope,
   })
-  return {
-    ok: res.ok && !!res.data?.success,
-    updated: res.data?.updated ?? 0,
+  if (!res.ok || !res.data?.success) {
+    return {
+      ok: false,
+      updated: res.data?.updated ?? 0,
+      reason: failureReason(res, 'Tarif gagal disimpan ke semua region karena server menolak permintaan'),
+    }
   }
+  return { ok: true, updated: res.data?.updated ?? 0 }
 }
 
 export async function upsertRegionTariffDirect(input: {
@@ -158,12 +162,12 @@ export async function upsertRegionTariffDirect(input: {
   tariffType: 'lokal' | 'eksternal'
   nominal: number
   aktif: boolean
-}): Promise<boolean> {
+}): Promise<ActionResult> {
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
     [input.tariffType === 'lokal' ? 'lokal_tariff' : 'eksternal_tariff']: input.nominal,
     [input.tariffType === 'lokal' ? 'lokal_active' : 'eksternal_active']: input.aktif ? 1 : 0,
   })
-  return r.ok
+  return toActionResult(r, 'Tarif wilayah gagal disimpan karena server menolak permintaan')
 }
 
 export async function fetchAdminRegions(): Promise<AdminRegionRow[] | null> {
@@ -190,9 +194,9 @@ export async function updateAdminRegion(
   return r.ok
 }
 
-export async function deleteAdminRegion(id: string): Promise<boolean> {
+export async function deleteAdminRegion(id: string): Promise<ActionResult> {
   const r = await api.delete(`/regions/${id}`)
-  return r.ok
+  return toActionResult(r, 'Wilayah gagal dihapus karena server menolak permintaan')
 }
 
 export interface AdminRegionRow {

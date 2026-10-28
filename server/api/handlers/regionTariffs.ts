@@ -5,7 +5,7 @@
 //             resolver cadangan & mode offline.
 //   - rows  : region_tariff_rows (muatan/kosong per jenis kendaraan) — tarif
 //             tiap wilayah; region tanpa baris = Rp 0.
-import { db, json, requireAdmin } from "../_shared.ts";
+import { db, json, requireAdmin, dbDetail } from "../_shared.ts";
 import { invalidateTariffCache } from "./tariffRules.ts";
 
 const isUuid = (s: string) =>
@@ -148,7 +148,7 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
     return await updateRegionFlat(body, regionId);
   } catch (error) {
     console.error("Update region tariff error:", error);
-    return json({ error: "Failed to update region tariff" }, 500);
+    return json({ error: `Tarif wilayah gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -209,7 +209,7 @@ export async function deleteRegionTariffRow(
     return json({ success: true, regionId, vehicleType: type, deleted: true });
   } catch (error) {
     console.error("Delete region tariff row error:", error);
-    return json({ error: "Failed to delete region tariff row" }, 500);
+    return json({ error: `Tarif kendaraan gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -308,6 +308,6 @@ export async function bulkUpdateRegionTariffRows(req: Request): Promise<Response
     });
   } catch (error) {
     console.error("Bulk update region tariff rows error:", error);
-    return json({ error: "Failed to update region tariff rows" }, 500);
+    return json({ error: `Tarif gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }

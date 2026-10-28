@@ -1,6 +1,6 @@
 // Officers handlers (port of backend/src/routes/officers.js).
 import bcryptjs from "npm:bcryptjs@2.4.3";
-import { db, json, auth, requireAdmin } from "../_shared.ts";
+import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 import { groupOfficerExtras } from "../_officerExtras.ts";
 
 /** Id region/dermaga bertipe uuid di database. */
@@ -196,7 +196,7 @@ export async function createOfficer(req: Request): Promise<Response> {
     return json({ id, name: cleanName, username: candidate, regionIds: ids }, 201);
   } catch (error) {
     console.error("Create officer error:", error);
-    return json({ error: "Failed to create officer" }, 500);
+    return json({ error: `Petugas gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -252,7 +252,7 @@ export async function updateOfficerDermagas(req: Request, officerId: string): Pr
     return json({ success: true, dermagaIds: ids });
   } catch (error) {
     console.error("Update officer dermagas error:", error);
-    return json({ error: "Failed to update officer dermagas" }, 500);
+    return json({ error: `Akses dermaga gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -311,7 +311,7 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
     return json({ success: true, regionIds: ids });
   } catch (error) {
     console.error("Update officer regions error:", error);
-    return json({ error: "Failed to update officer regions" }, 500);
+    return json({ error: `Wilayah petugas gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -330,7 +330,7 @@ export async function updateOfficerPin(req: Request, officerId: string): Promise
     return json({ success: true });
   } catch (error) {
     console.error("Update officer PIN error:", error);
-    return json({ error: "Failed to update PIN" }, 500);
+    return json({ error: `PIN gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -346,7 +346,7 @@ export async function updateOfficerStatus(req: Request, officerId: string): Prom
     return json({ success: true });
   } catch (error) {
     console.error("Update officer status error:", error);
-    return json({ error: "Failed to update status" }, 500);
+    return json({ error: `Status petugas gagal diubah karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -363,6 +363,6 @@ export async function deleteOfficer(req: Request, officerId: string): Promise<Re
     return json({ success: true });
   } catch (error) {
     console.error("Delete officer error:", error);
-    return json({ error: "Failed to delete officer" }, 500);
+    return json({ error: `Petugas gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }

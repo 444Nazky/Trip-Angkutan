@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions, type Region } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
-import { api } from '../../../services/api'
+import { api, failureReason } from '../../../services/api'
 import type { Officer, BackendOfficerRow, RouteRow, RouteDermaga } from '../components/types'
 
 
@@ -245,7 +245,14 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       regionIds: region ? [region.id] : undefined,
       dermagaIds: offForm.dermagaIds.length > 0 ? offForm.dermagaIds : undefined,
     })
-    if (!res.ok || !res.data) return showToast('Gagal tambah petugas', 'error')
+    if (!res.ok || !res.data) {
+      return showToast(
+        res.ok
+          ? 'Petugas gagal ditambahkan karena server tidak mengembalikan data petugas'
+          : failureReason(res, 'Petugas gagal ditambahkan karena server menolak permintaan'),
+        'error',
+      )
+    }
     await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
     setOffForm({ name: '', region: '', pin: '', device: '', dermagaIds: [] })
     setAddOff(false)
@@ -267,18 +274,18 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     // menolak (403/500) dan akses dermaga tidak berubah sama sekali.
     if (ids.length > 0) {
       const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
-      if (!res.ok) return showToast(res.error?.message ?? 'Gagal menyimpan wilayah', 'error')
+      if (!res.ok) return showToast(failureReason(res, 'Wilayah petugas gagal disimpan karena server menolak permintaan'), 'error')
     }
     const validDm = new Set(dermagaOptionsFor(chosen).map(d => d.id))
     const dmIds = editDermagaIds.filter(id => validDm.has(id))
     const dmRes = await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
-    if (!dmRes.ok) return showToast(dmRes.error?.message ?? 'Gagal menyimpan akses dermaga', 'error')
+    if (!dmRes.ok) return showToast(failureReason(dmRes, 'Akses dermaga gagal disimpan karena server menolak permintaan'), 'error')
 
     // ponytail: ambang PIN disamakan dengan create (≥4). Dulu hanya ==6 yang
     // dikirim sehingga PIN 4-5 digit "terupdate" di UI tapi tidak di DB.
     if (editOff.pin && editOff.pin.length >= 4) {
       const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
-      if (!pinRes.ok) return showToast(pinRes.error?.message ?? 'Gagal menyimpan PIN', 'error')
+      if (!pinRes.ok) return showToast(failureReason(pinRes, 'PIN gagal disimpan karena server menolak permintaan'), 'error')
     }
 
     await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
@@ -294,7 +301,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const be = findBackendOfficer(officer)
     if (be) {
       const res = await api.delete(`/officers/${be.id}`)
-      if (!res.ok) return showToast('Gagal hapus', 'error')
+      if (!res.ok) return showToast(failureReason(res, 'Petugas gagal dihapus karena server menolak permintaan'), 'error')
       await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
     }
     showToast('Petugas dihapus')
@@ -306,7 +313,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const be = findBackendOfficer(officer)
     if (be) {
       const res = await api.put(`/officers/${be.id}/status`, { isActive: newStatus === 'Aktif' })
-      if (!res.ok) return showToast('Gagal sync status', 'error')
+      if (!res.ok) return showToast(failureReason(res, 'Status petugas gagal diubah karena server menolak permintaan'), 'error')
       await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
     }
     showToast(`Status diubah ke ${newStatus}`)
@@ -360,7 +367,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                   </label>
                 ))}
               </div>
-            )}''
+            )}
 
           </div>
           <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label>

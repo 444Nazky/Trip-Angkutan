@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, toActionResult, failureReason, type ActionResult } from './api'
 import { getStoredOfficer } from './auth'
 import {
   findOfflinePlate,
@@ -146,21 +146,26 @@ export async function createPlate(input: {
   owner?: string
   originRegionId?: string | null
   status: PlateStatus
-}): Promise<string | null> {
+}): Promise<ActionResult<string>> {
   const res = await api.post<{ id: string }>('/plates', input)
-  if (res.ok && res.data) return res.data.id
-  return null
+  if (!res.ok) {
+    return { ok: false, reason: failureReason(res, 'Plat gagal didaftarkan karena server menolak permintaan') }
+  }
+  const id = res.data?.id
+  return id
+    ? { ok: true, data: id }
+    : { ok: false, reason: 'Plat gagal didaftarkan karena server tidak mengembalikan id' }
 }
 
 export async function updatePlate(
   id: string,
   input: { plate?: string; owner?: string; originRegionId?: string | null; status?: PlateStatus; isActive?: boolean },
-): Promise<boolean> {
+): Promise<ActionResult> {
   const res = await api.put(`/plates/${id}`, input)
-  return res.ok
+  return toActionResult(res, 'Plat gagal diperbarui karena server menolak permintaan')
 }
 
-export async function deletePlate(id: string): Promise<boolean> {
+export async function deletePlate(id: string): Promise<ActionResult> {
   const res = await api.delete(`/plates/${id}`)
-  return res.ok
+  return toActionResult(res, 'Plat gagal dihapus karena server menolak permintaan')
 }

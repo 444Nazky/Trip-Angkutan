@@ -1,5 +1,5 @@
 // Geofence handlers (port of backend/src/routes/geofences.js).
-import { db, json, auth, requireAdmin, type OfficerClaims } from "../_shared.ts";
+import { db, json, auth, requireAdmin, dbDetail, type OfficerClaims } from "../_shared.ts";
 
 export function numericCoordinate(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -173,7 +173,7 @@ export async function createGeofence(req: Request): Promise<Response> {
     return json({ id: data.id }, 201);
   } catch (error) {
     console.error("Create geofence error:", error);
-    return json({ error: "Failed to create geofence" }, 500);
+    return json({ error: `Titik geofence gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -223,7 +223,7 @@ export async function updateGeofence(req: Request, id: string): Promise<Response
     return json({ success: true });
   } catch (error) {
     console.error("Update geofence error:", error);
-    return json({ error: "Failed to update geofence" }, 500);
+    return json({ error: `Titik geofence gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
@@ -236,6 +236,6 @@ export async function deleteGeofence(req: Request, id: string): Promise<Response
     return json({ success: true });
   } catch (error) {
     console.error("Delete geofence error:", error);
-    return json({ error: "Failed to delete geofence" }, 500);
+    return json({ error: `Titik geofence gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }

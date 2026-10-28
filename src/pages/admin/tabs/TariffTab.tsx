@@ -385,14 +385,14 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
   const commitLokal = async (region: RegionTariffRow, v: number): Promise<boolean> => {
     setSaving(true)
     try {
-      const ok = await upsertRegionTariff({
+      const res = await upsertRegionTariff({
         regionId: region.id,
         tariffType: 'lokal',
         nominal: v,
         aktif: (region.lokal_active ?? 0) === 1 || v > 0,
       })
-      if (!ok) {
-        showToast('Server menolak tarif wilayah', 'error')
+      if (!res.ok) {
+        showToast(res.reason ?? 'Tarif wilayah gagal disimpan karena server menolak permintaan', 'error')
         return false
       }
       await reloadRegions()
@@ -411,14 +411,14 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
   ): Promise<boolean> => {
     setSaving(true)
     try {
-      const ok = await upsertRegionTariffRow({
+      const res = await upsertRegionTariffRow({
         regionId: region.id,
         vehicleType: cell.type,
         muatanTariff: field === 'muatan' ? v : cell.muatan,
         kosongTariff: field === 'kosong' ? v : cell.kosong,
       })
-      if (!ok) {
-        showToast('Server menolak tarif region', 'error')
+      if (!res.ok) {
+        showToast(res.reason ?? 'Tarif kendaraan gagal disimpan karena server menolak permintaan', 'error')
         return false
       }
       await reloadRegions()
@@ -432,9 +432,9 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     if (!confirm(`Hapus region ${r.name || r.code}?`)) return
     setSaving(true)
     try {
-      const ok = await deleteAdminRegion(r.id)
-      if (!ok) {
-        showToast('Gagal menghapus region', 'error')
+      const res = await deleteAdminRegion(r.id)
+      if (!res.ok) {
+        showToast(res.reason ?? 'Wilayah gagal dihapus karena server menolak permintaan', 'error')
         return
       }
       await reloadRegions()
@@ -517,9 +517,9 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     if (!confirm(`Hapus tarif "${label}" untuk region ${region.name || region.code}?`)) return
     setSaving(true)
     try {
-      const ok = await deleteRegionTariffRow(region.id, cell.type)
-      if (!ok) {
-        showToast('Gagal menghapus tarif kendaraan', 'error')
+      const res = await deleteRegionTariffRow(region.id, cell.type)
+      if (!res.ok) {
+        showToast(res.reason ?? 'Tarif kendaraan gagal dihapus karena server menolak permintaan', 'error')
         return
       }
       await reloadRegions()
@@ -555,7 +555,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           scope,
         })
         if (!res.ok) {
-          showToast('Server menolak pembaruan tarif', 'error')
+          showToast(res.reason ?? 'Tarif gagal disimpan ke semua region karena server menolak permintaan', 'error')
           return
         }
         await reloadRegions()
@@ -603,22 +603,22 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
     setSaving(true)
     try {
-      const ok = await upsertRegionTariffRow({
+      const res = await upsertRegionTariffRow({
         regionId: region.id,
         vehicleType: type,
         muatanTariff: muatan,
         kosongTariff: kosong,
       })
-      if (!ok) return showToast('Server menolak tarif region', 'error')
+      if (!res.ok) return showToast(res.reason ?? 'Tarif kendaraan gagal disimpan karena server menolak permintaan', 'error')
 
       if (lokal !== null && lokal !== Number(region.lokal_tariff ?? 0)) {
-        const lokalOk = await upsertRegionTariff({
+        const lokalRes = await upsertRegionTariff({
           regionId: region.id,
           tariffType: 'lokal',
           nominal: lokal,
           aktif: lokal > 0,
         })
-        if (!lokalOk) return showToast('Server menolak tarif wilayah', 'error')
+        if (!lokalRes.ok) return showToast(lokalRes.reason ?? 'Tarif wilayah gagal disimpan karena server menolak permintaan', 'error')
       }
 
       await reloadRegions()

@@ -99,14 +99,14 @@ vi.mock('../../../services/dermagas', async (importOriginal) => {
         name: input.name,
         code: input.code,
       })
-      return id
+      return { ok: true as const, data: id }
     }),
     deleteDermaga: vi.fn(async (id: string) => {
       const rows = db.dermagas as RowDermaga[]
       const left = rows.filter((d) => d.id !== id)
       const removed = left.length !== rows.length
       db.dermagas = left
-      return removed
+      return removed ? { ok: true as const } : { ok: false as const, reason: 'Dermaga gagal dihapus karena tidak ditemukan' }
     }),
   }
 })

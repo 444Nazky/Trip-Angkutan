@@ -112,8 +112,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     }
     const saved = editRouteId
       ? await updateRoute(editRouteId, payload)
-      : (await createRoute(payload)) !== null
-    if (!saved) return showToast('Server gagal', 'error')
+      : await createRoute(payload)
+    if (!saved.ok) return showToast(saved.reason ?? 'Rute gagal disimpan karena server menolak permintaan', 'error')
     showToast(editRouteId ? 'Rute diperbarui' : 'Rute ditambahkan')
     resetForm()
     const fresh = await fetchRoutes()
@@ -122,8 +122,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
   const handleDel = async (id: string) => {
     if (!confirm('Hapus rute ini?')) return
-    const ok = await deleteRoute(id)
-    if (!ok) return showToast('Server gagal', 'error')
+    const res = await deleteRoute(id)
+    if (!res.ok) return showToast(res.reason ?? 'Rute gagal dihapus karena server menolak permintaan', 'error')
     if (editRouteId === id) resetForm()
     showToast('Rute dihapus')
     const fresh = await fetchRoutes()
@@ -303,18 +303,18 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     if (id) {
       // Edit titik lama (mis. ubah koordinat): sekalian ikat ke dermaga rute ini
       // supaya data lama yang NULL ikut terrapikan, tanpa pernah mengosongkannya.
-      const ok = await updateGeofenceRule(id, {
+      const res = await updateGeofenceRule(id, {
         ...data,
         ...(routeDermagaId ? { dermagaId: routeDermagaId } : {}),
       })
-      if (!ok) {
-        showToast('Gagal update titik geofence', 'error')
+      if (!res.ok) {
+        showToast(res.reason ?? 'Titik geofence gagal diperbarui karena server menolak permintaan', 'error')
         return
       }
     } else {
-      const newId = await createRouteGeofencePoint(routeCode, data, { dermagaId: routeDermagaId })
-      if (!newId) {
-        showToast('Gagal tambah titik geofence', 'error')
+      const res = await createRouteGeofencePoint(routeCode, data, { dermagaId: routeDermagaId })
+      if (!res.ok) {
+        showToast(res.reason ?? 'Titik geofence gagal ditambahkan karena server menolak permintaan', 'error')
         return
       }
     }
@@ -330,9 +330,9 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       return
     }
     if (!confirm('Hapus titik geofence ini?')) return
-    const ok = await deleteGeofenceRule(point.id)
-    if (!ok) {
-      showToast('Gagal hapus titik geofence', 'error')
+    const res = await deleteGeofenceRule(point.id)
+    if (!res.ok) {
+      showToast(res.reason ?? 'Titik geofence gagal dihapus karena server menolak permintaan', 'error')
       return
     }
     showToast('Titik geofence dihapus')

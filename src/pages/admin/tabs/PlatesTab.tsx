@@ -46,11 +46,11 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
       status: plateForm.status,
     }
     if (editPlateId) {
-      const ok = await updatePlate(editPlateId, input)
-      if (!ok) return showToast('Server gagal', 'error')
+      const res = await updatePlate(editPlateId, input)
+      if (!res.ok) return showToast(res.reason ?? 'Plat gagal diperbarui karena server menolak permintaan', 'error')
     } else {
-      const id = await createPlate(input)
-      if (!id) return showToast('Server gagal', 'error')
+      const res = await createPlate(input)
+      if (!res.ok) return showToast(res.reason ?? 'Plat gagal didaftarkan karena server menolak permintaan', 'error')
     }
     const fresh = await fetchPlates()
     if (fresh) onPlatesChange(fresh)
@@ -60,8 +60,8 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
 
   const handleDel = async (id: string) => {
     if (!confirm('Hapus plat ini?')) return
-    const ok = await deletePlate(id)
-    if (!ok) return showToast('Server gagal', 'error')
+    const res = await deletePlate(id)
+    if (!res.ok) return showToast(res.reason ?? 'Plat gagal dihapus karena server menolak permintaan', 'error')
     onPlatesChange(plates.filter(p => p.id !== id))
     if (editPlateId === id) resetForm()
     showToast('Plat dihapus')

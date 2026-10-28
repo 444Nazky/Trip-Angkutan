@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, toActionResult, failureReason, type ActionResult } from './api'
 
 
 
@@ -35,7 +35,7 @@ export async function fetchGeofenceRules(): Promise<GeofenceRule[] | null> {
 
 export async function createGeofenceRule(
   data: Omit<GeofenceRule, 'id'>
-): Promise<string | null> {
+): Promise<ActionResult<string>> {
   const res = await api.post<{ id: string }>('/geofences', {
     locationName: data.locationName,
     // ponytail: dermagaId WAJIB ikut. Dulu field ini tidak pernah dikirim sehingga
@@ -51,7 +51,13 @@ export async function createGeofenceRule(
     description: data.description,
     ...(data.enabled === undefined ? {} : { enabled: data.enabled }),
   })
-  return res.data?.id ?? null
+  if (!res.ok) {
+    return { ok: false, reason: failureReason(res, 'Titik geofence gagal ditambahkan karena server menolak permintaan') }
+  }
+  const id = res.data?.id
+  return id
+    ? { ok: true, data: id }
+    : { ok: false, reason: 'Titik geofence gagal ditambahkan karena server tidak mengembalikan id' }
 }
 
 
@@ -59,16 +65,16 @@ export async function createGeofenceRule(
 export async function updateGeofenceRule(
   id: string,
   data: Partial<GeofenceRule>
-): Promise<boolean> {
+): Promise<ActionResult> {
   const res = await api.put(`/geofences/${id}`, data)
-  return res.ok
+  return toActionResult(res, 'Titik geofence gagal diperbarui karena server menolak permintaan')
 }
 
 
 
-export async function deleteGeofenceRule(id: string): Promise<boolean> {
+export async function deleteGeofenceRule(id: string): Promise<ActionResult> {
   const res = await api.delete(`/geofences/${id}`)
-  return res.ok
+  return toActionResult(res, 'Titik geofence gagal dihapus karena server menolak permintaan')
 }
 
 
@@ -104,7 +110,7 @@ export async function createRouteGeofencePoint(
   routeCode: string,
   data: Omit<GeofenceRule, 'id' | 'allowedRouteCodes' | 'allowedDirections'>,
   opts?: { dermagaId?: string | null }
-): Promise<string | null> {
+): Promise<ActionResult<string>> {
   return createGeofenceRule({
     ...data,
     dermagaId: opts?.dermagaId ?? data.dermagaId ?? null,
