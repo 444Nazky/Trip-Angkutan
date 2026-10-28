@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../../services/plates'
 import { fetchRegions, type Region } from '../../../services/regions'
+import { formatPlateNumber, sanitizePlateInput, validatePlate } from '../../../utils/plateFormatter'
 
 
 
@@ -38,9 +39,11 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
   }
 
   const handleSave = async () => {
-    if (!plateForm.plate.trim()) return showToast('Nomor plat wajib diisi!', 'error')
+    const plate = formatPlateNumber(sanitizePlateInput(plateForm.plate))
+    const check = validatePlate(plate)
+    if (!check.valid) return showToast(check.error ?? 'Format plat tidak valid', 'error')
     const input = {
-      plate: plateForm.plate.trim().toUpperCase(),
+      plate,
       owner: plateForm.owner.trim() || undefined,
       originRegionId: plateForm.originRegionId || null,
       status: plateForm.status,
@@ -90,8 +93,10 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
         <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
         <div className="grid grid-cols-4 gap-4 mb-4">
           <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
-            <input value={plateForm.plate} onChange={e => setPlateForm({...plateForm, plate: e.target.value.toUpperCase()})}
-              placeholder="B 1234 XY" className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" /></div>
+            <input value={plateForm.plate}
+              onChange={e => setPlateForm({ ...plateForm, plate: formatPlateNumber(sanitizePlateInput(e.target.value)) })}
+              placeholder="B 1234 XY" inputMode="text" maxLength={11}
+              className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide uppercase" /></div>
           <div><label className="text-[11px] text-slate-500 block mb-1">Pemilik (opsional)</label>
             <input value={plateForm.owner} onChange={e => setPlateForm({...plateForm, owner: e.target.value})}
               placeholder="Nama pemilik" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
@@ -137,7 +142,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span>
                 </td>
                 <td className="p-4 text-right">
-                  <button onClick={() => { setEditPlateId(p.id); setPlateForm({ plate: p.plate, owner: p.owner || '', originRegionId: p.origin_region_id || '', status: p.status }) }}
+                  <button onClick={() => { setEditPlateId(p.id); setPlateForm({ plate: formatPlateNumber(p.plate), owner: p.owner || '', originRegionId: p.origin_region_id || '', status: p.status }) }}
                     className="text-blue-600 font-bold text-sm mr-4">Edit</button>
                   <button onClick={() => void handleDel(p.id)} className="text-red-500 font-bold text-sm">Hapus</button>
                 </td>

@@ -5,6 +5,14 @@ function normalizePlate(raw: unknown): string {
   return String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+/** 1-2 huruf + 1-4 angka + 1-3 huruf, sama dengan plateFormatter mobile. */
+const PLATE_SHAPE = /^([A-Z]{1,2})([0-9]{1,4})([A-Z]{1,3})$/;
+
+function parsePlate(raw: unknown): { plate: string } | null {
+  const match = normalizePlate(raw).match(PLATE_SHAPE);
+  return match ? { plate: `${match[1]} ${match[2]} ${match[3]}` } : null;
+}
+
 /**
  * Pola ILIKE yang cocok dengan nomor plat berapa pun bentuk spasinya.
  *
@@ -58,8 +66,12 @@ export async function createPlate(req: Request): Promise<Response> {
     if (!ctx) return json({ error: "Admin access required" }, 403);
 
     const { plate, owner, originRegionId, status } = await req.json().catch(() => ({})) as any;
-    const norm = normalizePlate(plate);
-    if (!norm) return json({ error: "Nomor plat wajib diisi" }, 400);
+    if (!normalizePlate(plate)) return json({ error: "Nomor plat wajib diisi" }, 400);
+    const parsed = parsePlate(plate);
+    if (!parsed) {
+      return json({ error: "Format plat tidak valid. Contoh: B 1010 ABC" }, 400);
+    }
+    const norm = normalizePlate(parsed.plate);
 
     const { data: dupRows } = await db
       .from("vehicle_plates")
@@ -73,7 +85,7 @@ export async function createPlate(req: Request): Promise<Response> {
     const { data, error } = await db
       .from("vehicle_plates")
       .insert({
-        plate: String(plate).trim().toUpperCase(),
+        plate: parsed.plate,
         owner: owner || null,
         origin_region_id: originRegionId || null,
         status: st,
@@ -100,8 +112,12 @@ export async function updatePlate(req: Request, id: string): Promise<Response> {
     const { data: existing } = await db.from("vehicle_plates").select("*").eq("id", id).limit(1).single();
     if (!existing) return json({ error: "Plate not found" }, 404);
 
-    const norm = plate != null ? normalizePlate(plate) : null;
-    if (plate != null && !norm) return json({ error: "Nomor plat wajib diisi" }, 400);
+    const parsed = plate != null ? parsePlate(plate) : null;
+    if (plate != null && !normalizePlate(plate)) return json({ error: "Nomor plat wajib diisi" }, 400);
+    if (plate != null && !parsed) {
+      return json({ error: "Format plat tidak valid. Contoh: B 1010 ABC" }, 400);
+    }
+    const norm = parsed ? normalizePlate(parsed.plate) : null;
 
     if (norm) {
       const { data: dupRows } = await db
@@ -115,7 +131,7 @@ export async function updatePlate(req: Request, id: string): Promise<Response> {
     }
 
     const updateData: Record<string, unknown> = {};
-    if (plate !== undefined) updateData.plate = String(plate).trim().toUpperCase();
+    if (parsed) updateData.plate = parsed.plate;
     if (owner !== undefined) updateData.owner = owner || null;
     if (originRegionId !== undefined) updateData.origin_region_id = originRegionId || null;
     if (status !== undefined) {
