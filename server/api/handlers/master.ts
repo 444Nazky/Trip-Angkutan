@@ -105,6 +105,20 @@ export async function deleteRegion(req: Request, id: string): Promise<Response> 
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
+    // Wilayah yang masih dipakai tidak dihapus. Tanpa cek ini, `dermagas`
+    // akan jadi yatim (region_id NULL) dan petugas kehilangan wilayah.
+    const [dermagas, officers, officerRegions] = await Promise.all([
+      db.from("dermagas").select("id", { count: "exact", head: true }).eq("region_id", id),
+      db.from("officers").select("id", { count: "exact", head: true }).eq("region_id", id),
+      db.from("officer_regions").select("officer_id", { count: "exact", head: true }).eq("region_id", id),
+    ]);
+    if (dermagas.error || officers.error || officerRegions.error) throw dermagas.error ?? officers.error ?? officerRegions.error;
+    if ((dermagas.count ?? 0) > 0) {
+      return json({ error: "Wilayah masih punya dermaga. Hapus dermaganya dulu." }, 409);
+    }
+    if ((officers.count ?? 0) > 0 || (officerRegions.count ?? 0) > 0) {
+      return json({ error: "Wilayah masih dipakai petugas. Pindahkan petugasnya dulu." }, 409);
+    }
     const { error } = await db.from("regions").delete().eq("id", id);
     if (error) throw error;
     return json({ success: true });
@@ -200,16 +214,18 @@ export async function deleteDermaga(req: Request, id: string): Promise<Response>
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    // Rute & akses petugas dihapus lebih dulu supaya tidak ada baris yatim.
-    const { error: routeError } = await db.from("routes").delete().eq("dermaga_id", id);
-    if (routeError) {
-      console.error("Delete dermaga (routes) error:", routeError);
-      return json({ error: "Gagal menghapus rute dermaga" }, 500);
+    // Dermaga yang masih dipakai tidak dihapus. Dulu rute & akses petugas
+    // ikut terhapus diam-diam lewat cascade; itu kehilangan data.
+    const [routes, access] = await Promise.all([
+      db.from("routes").select("id", { count: "exact", head: true }).eq("dermaga_id", id),
+      db.from("officer_dermagas").select("officer_id", { count: "exact", head: true }).eq("dermaga_id", id),
+    ]);
+    if (routes.error || access.error) throw routes.error ?? access.error;
+    if ((routes.count ?? 0) > 0) {
+      return json({ error: "Dermaga masih punya rute. Hapus rutenya dulu." }, 409);
     }
-    const { error: accessError } = await db.from("officer_dermagas").delete().eq("dermaga_id", id);
-    if (accessError) {
-      console.error("Delete dermaga (access) error:", accessError);
-      return json({ error: "Gagal menghapus akses dermaga petugas" }, 500);
+    if ((access.count ?? 0) > 0) {
+      return json({ error: "Dermaga masih dipakai petugas. Pindahkan aksesnya dulu." }, 409);
     }
     const { error } = await db.from("dermagas").delete().eq("id", id);
     if (error) {
