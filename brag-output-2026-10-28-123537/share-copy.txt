@@ -1,0 +1,5 @@
+Trip Angkutan: aplikasi petugas lapangan + dashboard admin untuk pencatatan angkutan dan tarif trip plantation.
+
+Sinyal habis? Trip tetap tercatat — antrean nyantol di perangkat, kirim sendiri begitu ada jaringan. Bukti foto wajib, plat dibaca di perangkat, tarif ditulis per region (bisa sekali ke semua region), dan API-nya bisa jalan di server kantor tanpa internet.
+
+Offline bukan cadangan. #TripAngkutan #OfflineFirst

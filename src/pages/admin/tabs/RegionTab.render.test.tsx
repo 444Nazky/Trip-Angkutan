@@ -1,5 +1,5 @@
 /**
- * Render harness — tab "Master Region" (RegionTab).
+ * Render harness — tab "Master Dermaga" (RegionTab).
  *
  * Tab ini menulis langsung ke database lewat endpoint master
  * (`POST/DELETE /regions`, `POST/DELETE /dermagas`) dan selalu memuat ulang
@@ -21,7 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { RegionTab } from './RegionTab'
-import { createAdminRegion, deleteAdminRegion, fetchAdminRegions } from '../../../services/tariffs'
+import { fetchAdminRegions } from '../../../services/tariffs'
 import { createDermaga, deleteDermaga, fetchDermagas, fetchRoutes } from '../../../services/dermagas'
 import { api } from '../../../services/api'
 
@@ -233,32 +233,6 @@ describe('RegionTab (render harness)', () => {
     expect(fetchRoutes).toHaveBeenCalled()
   })
 
-  it('menambah wilayah: dikirim ke server, lalu tabel dimuat ulang dari database', async () => {
-    await renderTab()
-
-    await setValue(container.querySelector('input[placeholder="cth: Wilayah Cirebon"]') as HTMLInputElement, 'Wilayah Cirebon')
-    await setValue(container.querySelector('input[placeholder="cth: CRB"]') as HTMLInputElement, 'crb')
-    await click(buttonByText('Tambah Region'))
-
-    expect(createAdminRegion).toHaveBeenCalledWith({ name: 'Wilayah Cirebon', code: 'CRB' })
-    // Baris muncul dari hasil muat ulang server (mock menulis ke "database").
-    expect(container.textContent ?? '').toContain('Wilayah Cirebon')
-    expect(toasts.at(-1)?.msg).toBe('Wilayah ditambahkan ke database')
-  })
-
-  it('menyimpan wilayah yang gagal tidak menambah baris palsu', async () => {
-    vi.mocked(createAdminRegion).mockResolvedValueOnce(null)
-    await renderTab()
-
-    await setValue(container.querySelector('input[placeholder="cth: Wilayah Cirebon"]') as HTMLInputElement, 'Wilayah Gagal')
-    await setValue(container.querySelector('input[placeholder="cth: CRB"]') as HTMLInputElement, 'GGL')
-    await click(buttonByText('Tambah Region'))
-
-    expect(createAdminRegion).toHaveBeenCalled()
-    expect(container.textContent ?? '').not.toContain('Wilayah Gagal')
-    expect(toasts.at(-1)).toEqual({ msg: 'Server gagal menyimpan wilayah baru', type: 'error' })
-  })
-
   it('menambah dermaga ke wilayah terpilih dan menampilkannya setelah muat ulang', async () => {
     await renderTab()
 
@@ -312,20 +286,6 @@ describe('RegionTab (render harness)', () => {
     // Jumlah dermaga dihitung per wilayah, bukan dari kode yang bisa berulang.
     expect(rowByText('Wilayah Badau')?.textContent).toContain('1 dermaga')
     expect(rowByText('Wilayah Sindang')?.textContent).toContain('1 dermaga')
-  })
-
-  it('tidak menghapus wilayah yang masih punya dermaga', async () => {
-    await renderTab()
-
-    const row = rowByText('Wilayah Sindang')
-    const button = Array.from(row?.querySelectorAll('button') ?? []).find((b) =>
-      (b.textContent ?? '').includes('Hapus Wilayah'),
-    ) as HTMLButtonElement
-    await click(button)
-
-    expect(deleteAdminRegion).not.toHaveBeenCalled()
-    expect(toasts.at(-1)?.type).toBe('error')
-    expect(toasts.at(-1)?.msg).toContain('masih punya 1 dermaga')
   })
 
   it('menghapus dermaga di server lalu memuat ulang tabel', async () => {

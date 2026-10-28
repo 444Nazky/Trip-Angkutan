@@ -111,7 +111,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
-    { key: 'region', label: 'Master Region', Icon: Landmark },
+    { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
     { key: 'endpoint', label: 'Endpoint', Icon: Server },
     { key: 'settings', label: 'Pengaturan', Icon: Settings },

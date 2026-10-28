@@ -172,7 +172,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return () => { alive = false }
   }, [onSaveOfficers])
 
-  const regionCodes = regions.map(r => r.code).filter(c => !HIDDEN_REGION_CODES.includes(c))
+  const regionCodes = [...new Set(regions.map(r => r.code))].filter(c => !HIDDEN_REGION_CODES.includes(c))
   const officerRegionCodes = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
   const inRegionGroup = (o: Officer, group: string) =>

@@ -1,5 +1,6 @@
 /**
- * Tab "Master Region" — kelola wilayah (region) dan dermaga.
+ * Tab "Master Dermaga" — kelola dermaga. Wilayah (region) bersifat tetap
+ * (hardcoded lewat migrasi), tidak bisa ditambah/dihapus/diubah dari dashboard.
  *
  * Prinsip tab ini: DASHBOARD HARUS SAMA DENGAN DATABASE.
  *
@@ -9,17 +10,14 @@
  *   - Setiap tambah/hapus menulis ke server lebih dulu, lalu data dimuat ULANG
  *     dari server (`load()`). State lokal tidak pernah diubah sendiri, jadi
  *     yang tampil selalu apa yang tersimpan di database.
- *   - Wilayah yang masih dipakai (punya dermaga atau petugas) TIDAK dihapus
- *     dari dashboard. Di database, hapus wilayah membuat `dermagas.region_id`
- *     jadi NULL (ON DELETE SET NULL) sehingga dermaga menjadi yatim.
+ *   - Dermaga yang wilayahnya sudah tidak ada di database tetap ditampilkan
+ *     di bagian "tanpa wilayah" supaya tidak ada data yang tersembunyi.
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import {
   fetchAdminRegions,
-  createAdminRegion,
-  deleteAdminRegion,
   type AdminRegionRow,
 } from '../../../services/tariffs'
 import {
@@ -37,8 +35,8 @@ interface RegionTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
-/** Wilayah master (tarif induk) — sama dengan aturan di tab Master Tarif. */
-const MASTER_REGION_CODE = 'BADAU'
+/** Wilayah master (tarif induk) — selalu tampil paling atas. */
+const MASTER_REGION_NAME = 'BADAU'
 
 /** Kunci kelompok untuk dermaga yang wilayahnya sudah tidak ada di database. */
 const ORPHAN_KEY = '__orphan__'
@@ -58,7 +56,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const [officers, setOfficers] = useState<BackendOfficerRow[] | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'offline'>('loading')
   const [saving, setSaving] = useState(false)
-  const [regionForm, setRegionForm] = useState({ name: '', code: '' })
   const [dermagaForm, setDermagaForm] = useState({ regionId: '', name: '', code: '' })
 
   /**
@@ -104,11 +101,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [officers],
   )
 
-  const dermagasOfRegion = useCallback(
-    (regionId: string) => dermagas.filter((d) => String(d.region_id ?? '') === regionId),
-    [dermagas],
-  )
-
   const routeCountOfDermaga = useCallback(
     (dermagaId: string) => (routes === null ? null : routes.filter((r) => r.dermaga_id === dermagaId).length),
     [routes],
@@ -119,8 +111,8 @@ export function RegionTab({ showToast }: RegionTabProps) {
     () =>
       [...regions].sort(
         (a, b) =>
-          Number(String(b.code ?? '').toUpperCase() === MASTER_REGION_CODE) -
-            Number(String(a.code ?? '').toUpperCase() === MASTER_REGION_CODE) ||
+          Number(labelOf(b).toUpperCase() === MASTER_REGION_NAME) -
+            Number(labelOf(a).toUpperCase() === MASTER_REGION_NAME) ||
           labelOf(a).localeCompare(labelOf(b)),
       ),
     [regions],
@@ -138,69 +130,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
     return { byRegion: grouped, orphans: grouped.get(ORPHAN_KEY) ?? [] }
   }, [regions, dermagas])
-
-  const handleCreateRegion = async () => {
-    const name = regionForm.name.trim()
-    const code = regionForm.code.trim().toUpperCase()
-    if (!name) return showToast('Nama wilayah wajib diisi', 'error')
-    if (!CODE_RE.test(code)) {
-      return showToast('Kode wilayah 2–16 karakter tanpa spasi', 'error')
-    }
-    if (regions.some((r) => String(r.code ?? '').toUpperCase() === code)) {
-      return showToast(`Kode wilayah ${code} sudah dipakai`, 'error')
-    }
-
-    setSaving(true)
-    try {
-      const id = await createAdminRegion({ name, code })
-      if (!id) return showToast('Server gagal menyimpan wilayah baru', 'error')
-      const fresh = await load()
-      if (!fresh) return showToast('Wilayah tersimpan, tetapi gagal memuat ulang dari server', 'error')
-      setRegionForm({ name: '', code: '' })
-      showToast('Wilayah ditambahkan ke database')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDeleteRegion = async (region: AdminRegionRow) => {
-    if (String(region.code ?? '').toUpperCase() === MASTER_REGION_CODE) {
-      return showToast(`Wilayah ${MASTER_REGION_CODE} tidak bisa dihapus`, 'error')
-    }
-    const own = dermagasOfRegion(String(region.id))
-    if (own.length > 0) {
-      return showToast(
-        `Wilayah ${labelOf(region)} masih punya ${own.length} dermaga (${own
-          .map(labelOf)
-          .join(', ')}). Hapus dermaganya dulu.`,
-        'error',
-      )
-    }
-    if (officers === null) {
-      return showToast('Daftar petugas belum termuat — muat ulang sebelum menghapus wilayah', 'error')
-    }
-    const users = officersOfRegion(String(region.id))
-    if (users.length > 0) {
-      return showToast(
-        `Wilayah ${labelOf(region)} masih dipakai ${users.length} petugas (${users
-          .map((o) => o.name)
-          .join(', ')}). Pindahkan petugasnya dulu.`,
-        'error',
-      )
-    }
-    if (!confirm(`Hapus wilayah ${labelOf(region)} dari database?`)) return
-
-    setSaving(true)
-    try {
-      const ok = await deleteAdminRegion(String(region.id))
-      if (!ok) return showToast('Server gagal menghapus wilayah', 'error')
-      const fresh = await load()
-      if (!fresh) return showToast('Wilayah terhapus, tetapi gagal memuat ulang dari server', 'error')
-      showToast('Wilayah dihapus dari database')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const handleCreateDermaga = async () => {
     const name = dermagaForm.name.trim()
@@ -297,9 +226,9 @@ export function RegionTab({ showToast }: RegionTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Master Region</h3>
+          <h3 className="font-black text-slate-900 text-lg">Master Dermaga</h3>
           <p className="text-slate-500 text-[12px]">
-            Tambah / hapus wilayah dan dermaga — setiap perubahan langsung ditulis ke database
+            Tambah / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -334,90 +263,56 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
       {officers === null && state === 'ready' && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
-          Daftar petugas tidak bisa dimuat, jadi penghapusan wilayah dimatikan sementara supaya tidak ada wilayah
-          terhapus yang masih dipakai petugas. Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
+          Daftar petugas tidak bisa dimuat, jadi jumlah petugas pada konfirmasi hapus dermaga tidak bisa dipastikan.
+          Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <h3 className="font-bold mb-4">Tambah Region</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Nama Wilayah *</label>
-              <input
-                value={regionForm.name}
-                onChange={(e) => setRegionForm({ ...regionForm, name: e.target.value })}
-                placeholder="cth: Wilayah Cirebon"
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Kode Wilayah *</label>
-              <input
-                value={regionForm.code}
-                onChange={(e) => setRegionForm({ ...regionForm, code: e.target.value.toUpperCase() })}
-                placeholder="cth: CRB"
-                className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
-              />
-            </div>
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <h3 className="font-bold mb-4">Tambah Dermaga</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="text-[11px] text-slate-500 block mb-1">Wilayah *</label>
+            <select
+              value={dermagaForm.regionId}
+              onChange={(e) => setDermagaForm({ ...dermagaForm, regionId: e.target.value })}
+              className="w-full border rounded-xl px-3 py-2 text-sm"
+            >
+              <option value="">— Pilih Wilayah —</option>
+              {orderedRegions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {labelOf(r)} ({r.code})
+                </option>
+              ))}
+            </select>
           </div>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void handleCreateRegion()}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
-          >
-            <Plus size={16} /> Tambah Region
-          </button>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <h3 className="font-bold mb-4">Tambah Dermaga</h3>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Wilayah *</label>
-              <select
-                value={dermagaForm.regionId}
-                onChange={(e) => setDermagaForm({ ...dermagaForm, regionId: e.target.value })}
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              >
-                <option value="">— Pilih Wilayah —</option>
-                {orderedRegions.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {labelOf(r)} ({r.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Nama Dermaga *</label>
-              <input
-                value={dermagaForm.name}
-                onChange={(e) => setDermagaForm({ ...dermagaForm, name: e.target.value })}
-                placeholder="cth: Dermaga Badau"
-                className="w-full border rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Kode Dermaga *</label>
-              <input
-                value={dermagaForm.code}
-                onChange={(e) => setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })}
-                placeholder="cth: BDU"
-                className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
-              />
-            </div>
+          <div>
+            <label className="text-[11px] text-slate-500 block mb-1">Nama Dermaga *</label>
+            <input
+              value={dermagaForm.name}
+              onChange={(e) => setDermagaForm({ ...dermagaForm, name: e.target.value })}
+              placeholder="cth: Dermaga Badau"
+              className="w-full border rounded-xl px-3 py-2 text-sm"
+            />
           </div>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void handleCreateDermaga()}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
-          >
-            <Plus size={16} /> Tambah Dermaga
-          </button>
+          <div>
+            <label className="text-[11px] text-slate-500 block mb-1">Kode Dermaga *</label>
+            <input
+              value={dermagaForm.code}
+              onChange={(e) => setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })}
+              placeholder="cth: BDU"
+              className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
+            />
+          </div>
         </div>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void handleCreateDermaga()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
+        >
+          <Plus size={16} /> Tambah Dermaga
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -464,17 +359,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
                       </td>
                       <td className="border border-slate-200 px-3 py-2 text-[12px] text-slate-500">
                         {own.length} dermaga{officers === null ? '' : ` · ${users.length} petugas`}
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={saving || officers === null}
-                          onClick={() => void handleDeleteRegion(region)}
-                          title={officers === null ? 'Daftar petugas belum termuat' : undefined}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-600 disabled:opacity-40"
-                        >
-                          <Trash2 size={12} /> Hapus Wilayah
-                        </button>
                       </td>
                     </tr>
 
