@@ -81,17 +81,21 @@ export async function deleteRegion(req: Request, id: string): Promise<Response> 
     ]);
     if (dermagas.error || officers.error || officerRegions.error) throw dermagas.error ?? officers.error ?? officerRegions.error;
     if ((dermagas.count ?? 0) > 0) {
-      return json({ error: "Wilayah masih punya dermaga. Hapus dermaganya dulu." }, 409);
+      return json({ error: `Wilayah gagal dihapus karena masih punya ${dermagas.count} dermaga` }, 409);
     }
-    if ((officers.count ?? 0) > 0 || (officerRegions.count ?? 0) > 0) {
-      return json({ error: "Wilayah masih dipakai petugas. Pindahkan petugasnya dulu." }, 409);
+    const officerCount = (officers.count ?? 0) + (officerRegions.count ?? 0);
+    if (officerCount > 0) {
+      return json({ error: `Wilayah gagal dihapus karena masih dipakai ${officerCount} petugas` }, 409);
     }
     const { error } = await db.from("regions").delete().eq("id", id);
-    if (error) throw error;
+    if (error) {
+      console.error("Delete region error:", error);
+      return json({ error: `Wilayah gagal dihapus karena database menolak: ${dbDetail(error)}` }, 500);
+    }
     return json({ success: true });
   } catch (error) {
     console.error("Delete region error:", error);
-    return json({ error: "Failed to delete region" }, 500);
+    return json({ error: `Wilayah gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 

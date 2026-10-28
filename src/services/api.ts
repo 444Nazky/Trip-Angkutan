@@ -223,6 +223,20 @@ export function offlineReason(code: string | undefined): string {
 }
 
 /**
+ * Pesan server yang masih berbahasa Inggris -> kalimat Indonesia.
+ *
+ * Hanya untuk pesan yang DASAR (bukan pesan Domain). Kalau server sudah
+ * mengirim kalimat Domain ("Dermaga gagal dihapus karena ..."), pesan itu
+ * dipakai apa adanya.
+ */
+const SERVER_MSG_ID: Record<string, string> = {
+  'invalid token': 'Sesi sudah berakhir — silakan login ulang',
+  'admin access required': 'Akses ditolak — tindakan ini butuh hak admin',
+  'not authenticated': 'Sesi sudah berakhir — silakan login ulang',
+  'forbidden': 'Akses ditolak — tindakan ini butuh hak admin',
+}
+
+/**
  * Kalimat final untuk sebuah kegagalan: pakai alasan server kalau ada,
  * kalau tidak pakai penjelasan bawaan sesuai kode status.
  */
@@ -230,12 +244,21 @@ export function failureReason(res: ApiResponse<unknown>, fallback: string): stri
   const code = res.error?.code
   const msg = res.error?.message?.trim()
   // "HTTP 500" / "HTTP 409" tanpa penjelasan = server tidak mengirim alasan.
-  if (msg && !/^HTTP \d+$/i.test(msg) && !/^network error$/i.test(msg)) return msg
-  if (code === 'NETWORK' || code === 'TIMEOUT') return offlineReason(code)
-  if (msg && /^HTTP \d+$/i.test(msg)) {
-    return `${fallback} (${msg})`
+  if (msg && !/^HTTP \d+$/i.test(msg) && !/^network error$/i.test(msg)) {
+    return SERVER_MSG_ID[msg.toLowerCase()] ?? msg
   }
+  if (code === 'NETWORK' || code === 'TIMEOUT') return offlineReason(code)
+  if (msg && /^HTTP \d+$/i.test(msg)) return `${fallback} (${msg})`
   return fallback
+}
+
+/**
+ * Bungkus hasil request jadi `ActionResult` dengan alasan yang SUDAH
+ * enak dibaca user (siap tampil di notifikasi).
+ */
+export function toActionResult<T>(res: ApiResponse<T>, fallback: string): ActionResult<T> {
+  if (res.ok) return { ok: true, data: res.data }
+  return { ok: false, reason: failureReason(res, fallback) }
 }
 
 async function request<T>(
