@@ -244,7 +244,7 @@ export function formatReportDateTime(
 
 
 export function reportPlace(t: ReportTrip): string {
-  return t.region_name ? `${t.region_name}${t.region_code ? ` (${t.region_code})` : ''}` : '-'
+  return t.region_name || t.region_code || '-'
 }
 
 

@@ -99,7 +99,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
             <select value={plateForm.originRegionId} onChange={e => setPlateForm({...plateForm, originRegionId: e.target.value})}
               className="w-full border rounded-xl px-3 py-2 text-sm">
               <option value="">—</option>
-              {regions.map(r => <option key={r.id} value={r.id}>{r.name} ({r.code})</option>)}
+              {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select></div>
           <div><label className="text-[11px] text-slate-500 block mb-1">Status</label>
             <select value={plateForm.status} onChange={e => setPlateForm({...plateForm, status: e.target.value as PlateStatus})}
@@ -132,7 +132,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
               <tr key={p.id} className={`${i % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50 transition-colors duration-150`}>
                 <td className="p-4 font-mono font-bold tracking-wide">{p.plate}</td>
                 <td className="p-4">{p.owner || <span className="text-slate-300">—</span>}</td>
-                <td className="p-4">{p.origin_region_code || <span className="text-slate-300">—</span>}</td>
+                <td className="p-4">{p.origin_region_name || p.origin_region_code || <span className="text-slate-300">—</span>}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span>
                 </td>

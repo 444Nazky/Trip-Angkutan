@@ -83,7 +83,7 @@ export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: 
             <div className="flex-1 text-left">
               <p className="font-bold text-slate-900 text-[14px]">{dm.name}</p>
               <p className="text-[11px] text-slate-500">
-                {dm.region_name} ({dm.region_code})
+                {dm.region_name || dm.region_code}
               </p>
             </div>
             {selected === dm.id && (

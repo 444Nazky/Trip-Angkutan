@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS region_tariffs (
   tariff_type text,
   nominal_tariff integer DEFAULT 0,
   is_active integer DEFAULT 1
+  CONSTRAINT region_tariffs_region_type_key UNIQUE (region_id, tariff_type)
 );
 
 CREATE TABLE IF NOT EXISTS trips (

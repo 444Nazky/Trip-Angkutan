@@ -24,8 +24,8 @@ const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
   return rows.map(b => {
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
-    const region = b.regions?.[0]?.code ?? b.region_code ?? b.region_id
-    const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.code) : [region]
+    const region = b.regions?.[0]?.name ?? b.region_code ?? b.region_id
+    const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.name) : [region]
     const dermagaAccess = b.dermagas && b.dermagas.length > 0
       ? b.dermagas
       : old?.dermagaAccess && old.dermagaAccess.length > 0
@@ -137,7 +137,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const [loading, setLoading] = useState(true)
   const [addOff, setAddOff] = useState(false)
   const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
-  const [offForm, setOffForm] = useState({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] as string[] })
+  const [offForm, setOffForm] = useState({ name: '', region: '', pin: '', device: '', dermagaIds: [] as string[] })
   const [editOff, setEditOff] = useState<Officer | null>(null)
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
@@ -172,21 +172,21 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return () => { alive = false }
   }, [onSaveOfficers])
 
-  const regionCodes = [...new Set(regions.map(r => r.code))].filter(c => !HIDDEN_REGION_CODES.includes(c))
-  const officerRegionCodes = (o: Officer) =>
+  const regionNames = [...new Set(regions.filter(r => !HIDDEN_REGION_CODES.includes(r.code)).map(r => r.name))]
+  const officerRegions = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
   const inRegionGroup = (o: Officer, group: string) =>
     group === 'LAINNYA'
-      ? !officerRegionCodes(o).some(c => regionCodes.includes(c))
-      : officerRegionCodes(o).includes(group)
+      ? !officerRegions(o).some(n => regionNames.includes(n))
+      : officerRegions(o).includes(group)
 
   const officerGroups = [
-    ...regionCodes,
-    ...(localOfficers.some(o => !officerRegionCodes(o).some(c => regionCodes.includes(c))) ? ['LAINNYA'] : []),
+    ...regionNames,
+    ...(localOfficers.some(o => !officerRegions(o).some(n => regionNames.includes(n))) ? ['LAINNYA'] : []),
   ]
 
-  const regionCodeOfDermaga = (d: RouteDermaga) => d.region_code || regions.find(r => r.id === d.region_id)?.code || ''
-  const dermagaOptionsFor = (codes: string[]) => routeDermagas.filter(d => codes.includes(regionCodeOfDermaga(d)))
+  const regionNameOfDermaga = (d: RouteDermaga) => d.region_name || regions.find(r => r.id === d.region_id)?.name || ''
+  const dermagaOptionsFor = (names: string[]) => routeDermagas.filter(d => names.includes(regionNameOfDermaga(d)))
   const routesForOfficer = (o: Officer) => {
     const ids = new Set((o.dermagaAccess ?? []).map(d => d.id))
     return ids.size > 0 ? routeRows.filter(r => ids.has(r.dermaga_id)) : []
@@ -212,7 +212,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const parts: string[] = []
     for (const [dermagaId, dermagaRoutes] of byDermaga) {
       const dermaga = routeDermagas.find(d => d.id === dermagaId)
-      const dermagaLabel = dermaga ? `${dermaga.region_name || dermaga.code} ${dermaga.code}` : ''
+      const dermagaLabel = dermaga ? dermaga.region_name || dermaga.code : ''
       const routeLabels = dermagaRoutes.map(r => `${r.route_from} → ${r.route_to}`).join(' | ')
       parts.push(`${dermagaLabel ? dermagaLabel + ' · ' : ''}RUTE = ${routeLabels}`)
     }
@@ -235,7 +235,8 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const handleAddOff = async () => {
     if (!offForm.name || !offForm.pin) return showToast('Lengkapi form!', 'error')
     if (offForm.pin.length < 4) return showToast('PIN minimal 4 digit!', 'error')
-    const region = regions.find(r => r.code === offForm.region)
+    const region = regions.find(r => r.name === offForm.region)
+    if (!region) return showToast('Pilih wilayah', 'error')
     // ponytail: username dikirim eksplisit — rumus SAMA dengan fallback tampilan
     // (nama lowercase tanpa spasi) dan derivasi backend, jadi @ di tabel = login.
     const username = offForm.name.trim().toLowerCase().replace(/\s+/g, '')
@@ -246,7 +247,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     })
     if (!res.ok || !res.data) return showToast('Gagal tambah petugas', 'error')
     await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
-    setOffForm({ name: '', region: 'BADAU', pin: '', device: '', dermagaIds: [] })
+    setOffForm({ name: '', region: '', pin: '', device: '', dermagaIds: [] })
     setAddOff(false)
     showToast('Petugas ditambahkan')
   }
@@ -254,7 +255,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const handleUpdOff = async () => {
     if (!editOff) return
     const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
-    const ids = chosen.map(c => regions.find(r => r.code === c)?.id).filter(Boolean) as string[]
+    const ids = chosen.map(n => regions.find(r => r.name === n)?.id).filter(Boolean) as string[]
     const be = findBackendOfficer(editOff)
     if (!be) {
       showToast('Petugas ini belum ada di server — tidak bisa diperbarui', 'error')
@@ -341,7 +342,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
             <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value, dermagaIds: []})}
                 className="w-full border rounded-xl px-3 py-2 text-sm">
-                {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
+                {regionNames.map(n => <option key={n} value={n}>{n}</option>)}
               </select></div>
           </div>
 
@@ -381,11 +382,11 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                 className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
             <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1.5">
-                {regionCodes.map(c => (
-                  <label key={c} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
-                    <input type="checkbox" checked={editRegions.includes(c)}
-                      onChange={e => setEditRegions(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))} />
-                    {c}
+                {regionNames.map(n => (
+                  <label key={n} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
+                    <input type="checkbox" checked={editRegions.includes(n)}
+                      onChange={e => setEditRegions(prev => e.target.checked ? [...prev, n] : prev.filter(x => x !== n))} />
+                    {n}
                   </label>
                 ))}
 
@@ -401,7 +402,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                   <label key={d.id} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
                     <input type="checkbox" checked={editDermagaIds.includes(d.id)}
                       onChange={() => setEditDermagaIds(prev => toggleId(prev, d.id))} />
-                    {regionCodeOfDermaga(d)} · {d.name} ({d.code})
+                    {regionNameOfDermaga(d)} · {d.name} ({d.code})
                   </label>
                 ))}
               </div>
