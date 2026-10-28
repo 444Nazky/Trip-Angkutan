@@ -268,14 +268,22 @@ graphify update .  # Setelah modifikasi code
   Laporan, Master Tarif, Master Plat, Master Rute, Master Region, Petugas,
   Endpoint, plus sheet Laporan & Rekap) memakai token dari file ini.
 - **Pengecualian**: tab "Pengaturan" (`SettingsTab` + `ServerStatsPanel`)
-  tetap memakai tema terminal gelap - jangan di-token-kan ke `theme.ts`.
-- Token penting: `PAGE`, `PAGE_TITLE`, `PAGE_SUBTITLE`, `CARD`, `TABLE_WRAP`,
+  tetap memakai tema terminal gelap - jangan di-token-kan ke `theme.ts`.- Token penting: `PAGE`, `PAGE_TITLE`, `PAGE_SUBTITLE`, `CARD`, `TABLE_WRAP`,
   `TABLE_HEAD_ROW`, `TABLE_CELL`, `BTN_PRIMARY`, `BTN_SECONDARY`, `INPUT`,
   `LABEL`, `BADGE*`, `DOT*`, `PILL*`, `GROUP_ROW`, `FOOT_ROW`, `SHEET_BODY`,
-  `SHEET_HEADER`, `STAT_LABEL`, `STAT_VALUE`, `TOAST*`.
-- Palet: aksen biru (`blue-600`), status emerald / amber / red / slate,
-  permukaan putih di atas `slate-50`, garis `slate-200`. Warna lain
-  (mis. `violet-600`) dilarang di halaman admin.
+  `SHEET_HEADER`, `STAT_LABEL`, `STAT_VALUE`, `TOAST*`, `PAGE_HEADER*`.
+- Palet WAJIB (pilihan user, jangan ganti warna lain):
+  `#1E293B` (slate-800) bidang gelap, `#2563EB` (blue-600) aksen,
+  `#FFFFFF` permukaan, `#F8FAFC` (slate-50) latar. Turunan yang boleh:
+  slate-200/100 garis, slate-900/700/500/400 teks, blue-50/`#93C5FD`/`#DBEAFE`
+  tint biru, dan status emerald/amber/red/slate.
+- Dark band wajib: setiap halaman admin (kecuali Pengaturan) memakai
+  `PageHeader` (`src/pages/admin/components/PageHeader.tsx`) -> bidang gelap
+  slate-800 + garis aksen biru di tepi kiri. Jangan bikin halaman "polos full
+  putih". Sheet Laporan & Rekap = `SHEET_HEADER` (dark).
+- Pengecualian: tab "Pengaturan" (`SettingsTab` + `ServerStatsPanel`) tetap
+  tema terminal gelap, tapi warnanya mengikuti palet yang sama (dasar
+  `bg-slate-800`, kartu `bg-white/5`, aksen `#2563EB`).
 - Gotcha: saat menulis ulang `className="..."` menjadi
   `` className={`${TOKEN} ...`} ``, closing `}` WAJIB ada. Kalau hilang,
   JSX-nya tidak parse ("Expected "}" but found "."") dan pesan errornya menunjuk baris

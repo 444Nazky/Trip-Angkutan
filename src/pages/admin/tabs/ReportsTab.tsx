@@ -12,10 +12,8 @@ import {
   INPUT,
   LABEL,
   PAGE,
-  PAGE_SUBTITLE,
   STAT_LABEL,
   STAT_VALUE,
-  PAGE_TITLE,
   SECTION_TITLE,
   GROUP_ROW,
   GROUP_ROW_CELL,
@@ -24,6 +22,7 @@ import {
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 import { Fragment, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
@@ -254,11 +253,11 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   return (
     <div className={PAGE}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={PAGE_TITLE}>Laporan Trip</h3>
-          <p className={PAGE_SUBTITLE}>Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
-        </div>
+      <PageHeader
+        title="Laporan Trip"
+        subtitle="Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0)."
+        actions={
+          <>
         <div className="flex items-center gap-2">
           <span className={`${BADGE} ${
             reportState === 'ready' ? BADGE_OK : reportState === 'offline' ? BADGE_WARN : BADGE_MUTED
@@ -292,7 +291,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             <Download size={15} /> .xlsx
           </button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       <div className={`${CARD} flex flex-wrap items-end gap-4 p-4`}>
         <div><label className={`${LABEL} mb-1.5 block`}>Dari</label>
@@ -377,7 +378,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
               <div className="relative w-28 h-28 shrink-0 rounded-full"
-                style={{ background: `conic-gradient(#3B82F6 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
+                style={{ background: `conic-gradient(#2563EB 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
                 <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
                   <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{totalTrip}</span>
                   <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>

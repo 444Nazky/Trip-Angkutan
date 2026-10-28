@@ -33,12 +33,11 @@ import {
   INPUT,
   LABEL,
   PAGE,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
   TABLE_HEAD_ROW,
   TABLE_SUBHEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
@@ -730,31 +729,29 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   return (
     <div className={PAGE}>
       {/* Header halaman */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h3 className={PAGE_TITLE}>Master Tarif Jenis Kendaraan</h3>
-          <p className={`${PAGE_SUBTITLE} mt-0.5 max-w-2xl`}>
-            Kelola tarif untuk setiap jenis kendaraan pada setiap region.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRegionFormOpen(true)}
-            disabled={saving || regionFormOpen}
-            className={`${BTN_PRIMARY} px-3 py-1.5`}
-          >
-            <Plus size={13} /> Region
-          </button>
-          <span
-            className={`${BADGE} ${serverOk ? BADGE_OK : serverBad ? BADGE_ERROR : BADGE_WARN}`}
-          >
+      <PageHeader
+        title="Master Tarif Jenis Kendaraan"
+        subtitle="Kelola tarif untuk setiap jenis kendaraan pada setiap region."
+        actions={
+          <>
+            <button
+              onClick={() => setRegionFormOpen(true)}
+              disabled={saving || regionFormOpen}
+              className={`${BTN_PRIMARY} px-3 py-1.5`}
+            >
+              <Plus size={13} /> Region
+            </button>
             <span
-              className={`h-1.5 w-1.5 rounded-full ${serverOk ? DOT_OK : serverBad ? DOT_ERROR : DOT_WARN}`}
-            />
-            Server: {serverLabel}
-          </span>
-        </div>
-      </div>
+              className={`${BADGE} ${serverOk ? BADGE_OK : serverBad ? BADGE_ERROR : BADGE_WARN}`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${serverOk ? DOT_OK : serverBad ? DOT_ERROR : DOT_WARN}`}
+              />
+              Server: {serverLabel}
+            </span>
+          </>
+        }
+      />
 
       {/* Formulir region baru */}
       {regionFormOpen && (

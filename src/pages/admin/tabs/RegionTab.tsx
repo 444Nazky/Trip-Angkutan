@@ -28,14 +28,13 @@ import {
   INPUT,
   LABEL,
   PAGE,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
   SECTION_TITLE,
   TABLE_CELL,
   TABLE_HEAD_CELL,
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import {
@@ -317,44 +316,42 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
   return (
     <div className={PAGE}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={PAGE_TITLE}>Master Region</h3>
-          <p className={PAGE_SUBTITLE}>
-            Tambah / hapus wilayah dan dermaga — setiap perubahan langsung ditulis ke database
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={`${BADGE} ${
-              state === 'ready'
-                ? BADGE_OK
-                : state === 'offline'
-                  ? BADGE_WARN
-                  : BADGE_MUTED
-            }`}
-          >
+      <PageHeader
+        title="Master Region"
+        subtitle="Tambah / hapus wilayah dan dermaga — setiap perubahan langsung ditulis ke database"
+        actions={
+          <>
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                state === 'ready' ? DOT_OK : state === 'offline' ? DOT_WARN : DOT_MUTED
+              className={`${BADGE} ${
+                state === 'ready'
+                  ? BADGE_OK
+                  : state === 'offline'
+                    ? BADGE_WARN
+                    : BADGE_MUTED
               }`}
-            />
-            {state === 'ready'
-              ? `${regions.length} wilayah · ${dermagas.length} dermaga`
-              : state === 'offline'
-                ? 'Server tidak merespons'
-                : 'Memuat…'}
-          </span>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={state === 'loading' || saving}
-            className={`${BTN_SECONDARY} px-3 py-1.5`}
-          >
-            <RefreshCw size={12} /> Muat ulang
-          </button>
-        </div>
-      </div>
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  state === 'ready' ? DOT_OK : state === 'offline' ? DOT_WARN : DOT_MUTED
+                }`}
+              />
+              {state === 'ready'
+                ? `${regions.length} wilayah · ${dermagas.length} dermaga`
+                : state === 'offline'
+                  ? 'Server tidak merespons'
+                  : 'Memuat…'}
+            </span>
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={state === 'loading' || saving}
+              className={`${BTN_SECONDARY} px-3 py-1.5`}
+            >
+              <RefreshCw size={12} /> Muat ulang
+            </button>
+          </>
+        }
+      />
 
       {officers === null && state === 'ready' && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">

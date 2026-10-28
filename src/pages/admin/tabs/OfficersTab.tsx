@@ -5,14 +5,13 @@ import {
   INPUT,
   LABEL,
   PAGE,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
   SECTION_TITLE,
   TABLE_CELL,
   TABLE_HEAD_CELL,
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 import { useState, useEffect, useRef } from 'react'
 import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions, type Region } from '../../../services/regions'
@@ -301,16 +300,15 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
 
   return (
     <div className={PAGE}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={PAGE_TITLE}>Petugas</h3>
-          <p className={PAGE_SUBTITLE}>Kelola petugas lapangan, wilayah, dan akses dermaga</p>
-        </div>
-        <button onClick={() => setAddOff(true)}
-          className={BTN_PRIMARY}>
-          <Plus size={14} />Tambah Petugas
-        </button>
-      </div>
+      <PageHeader
+        title="Petugas"
+        subtitle="Kelola petugas lapangan, wilayah, dan akses dermaga"
+        actions={
+          <button onClick={() => setAddOff(true)} className={BTN_PRIMARY}>
+            <Plus size={14} />Tambah Petugas
+          </button>
+        }
+      />
 
       {addOff && (
         <div className={`${CARD} max-w-lg p-6`}>

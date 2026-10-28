@@ -21,6 +21,7 @@ import {
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 import { createPortal } from 'react-dom'
 import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check } from 'lucide-react'
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
@@ -369,18 +370,18 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
   return (
     <div className={PAGE}>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={PAGE_TITLE}>Master Rute</h3>
-          <p className={PAGE_SUBTITLE}>Rute per wilayah & Dermaga — nama rute bisa diubah dinamis</p>
-        </div>
-        <span className={`${BADGE} ${
-          routeState === 'ready' ? BADGE_OK : routeState === 'offline' ? BADGE_WARN : BADGE_MUTED
-        }`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${routeState === 'ready' ? DOT_OK : routeState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
-          {routeState === 'ready' ? 'Server: Tersambung' : routeState === 'offline' ? 'Offline' : 'Memuat...'}
-        </span>
-      </div>
+      <PageHeader
+        title="Master Rute"
+        subtitle="Rute per wilayah & Dermaga — nama rute bisa diubah dinamis"
+        actions={
+          <span className={`${BADGE} ${
+            routeState === 'ready' ? BADGE_OK : routeState === 'offline' ? BADGE_WARN : BADGE_MUTED
+          }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${routeState === 'ready' ? DOT_OK : routeState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
+            {routeState === 'ready' ? 'Server: Tersambung' : routeState === 'offline' ? 'Offline' : 'Memuat...'}
+          </span>
+        }
+      />
 
       <div className={`${CARD} max-w-4xl p-6`}>
         <h3 className={`${SECTION_TITLE} mb-4`}>{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>

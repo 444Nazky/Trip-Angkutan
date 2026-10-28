@@ -134,7 +134,7 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1]
 
   return (
-    <div className="flex min-h-40 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+    <div className="flex min-h-40 flex-1 flex-col rounded-xl border border-slate-700/60 bg-white/5 p-3">
       <div ref={wrapRef} className="relative min-h-[180px] w-full flex-1">
         {data.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-[11px] text-slate-500">
@@ -144,14 +144,14 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
           <svg width={width} height={H} className="block overflow-visible">
             <defs>
               <linearGradient id="trafficFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.45} />
-                <stop offset="55%" stopColor="#3B82F6" stopOpacity={0.16} />
-                <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#93C5FD" stopOpacity={0.45} />
+                <stop offset="55%" stopColor="#2563EB" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="trafficStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="60%" stopColor="#22D3EE" />
-                <stop offset="100%" stopColor="#A78BFA" />
+                <stop offset="0%" stopColor="#2563EB" />
+                <stop offset="60%" stopColor="#93C5FD" />
+                <stop offset="100%" stopColor="#DBEAFE" />
               </linearGradient>
               <filter id="trafficGlow" x="-20%" y="-40%" width="140%" height="180%">
                 <feGaussianBlur stdDeviation="3" result="blur" />
@@ -203,8 +203,8 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
             />
 
             {/* Titik terakhir */}
-            <circle cx={last.x} cy={last.y} r={9} fill="#22D3EE" fillOpacity={0.15} />
-            <circle cx={last.x} cy={last.y} r={3.5} fill="#22D3EE" stroke="#0F172A" strokeWidth={1.5} />
+            <circle cx={last.x} cy={last.y} r={9} fill="#93C5FD" fillOpacity={0.15} />
+            <circle cx={last.x} cy={last.y} r={3.5} fill="#93C5FD" stroke="#1E293B" strokeWidth={1.5} />
 
             {/* Label sumbu X */}
             <text x={PAD_L} y={H - 5} fontSize={9} fill="#64748B" fontFamily="monospace">
@@ -219,7 +219,7 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
 
       <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
         <span className="flex items-center gap-3">
-          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full bg-[#22D3EE]" /> request</span>
+          <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full bg-[#93C5FD]" /> request</span>
           <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: '#EF4444' }} /> error</span>
         </span>
         <span className="font-mono">
@@ -238,7 +238,7 @@ function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
   return (
     <div className="mt-3 overflow-x-auto rounded-xl border border-slate-700/60">
       <table className="w-full text-left text-[11px]">
-        <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
+        <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-3 py-2 font-semibold">Waktu</th>
             <th className="px-3 py-2 font-semibold">Request</th>
@@ -247,7 +247,7 @@ function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
             <th className="px-3 py-2 font-semibold">Success Rate</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800">
+        <tbody className="divide-y divide-white/10">
           {rows.map(b => {
             const rate = b.total ? Math.round((b.ok / b.total) * 100) : 100
             return (
@@ -276,12 +276,12 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
   const cpu = system.cpu
   const mem = system.memory
   const cpuPct = cpu.usagePercent ?? cpu.averageSinceBootPercent
-  const cpuColor = cpuPct >= 85 ? '#EF4444' : cpuPct >= 60 ? '#F59E0B' : '#22D3EE'
-  const memColor = mem.usedPercent >= 85 ? '#EF4444' : mem.usedPercent >= 60 ? '#F59E0B' : '#3B82F6'
+  const cpuColor = cpuPct >= 85 ? '#EF4444' : cpuPct >= 60 ? '#F59E0B' : '#93C5FD'
+  const memColor = mem.usedPercent >= 85 ? '#EF4444' : mem.usedPercent >= 60 ? '#F59E0B' : '#2563EB'
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-700/60 bg-slate-800/40 px-3 py-2 font-mono text-[10px] text-slate-400">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-700/60 bg-white/5 px-3 py-2 font-mono text-[10px] text-slate-400">
         <span className="flex items-center gap-1.5 text-slate-200">
           <Server size={12} /> {system.hostname}
         </span>
@@ -292,7 +292,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         {/* Processor */}
-        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+        <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
               <Cpu size={12} /> Processor
@@ -314,7 +314,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
         </div>
 
         {/* Memori */}
-        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+        <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
               <MemoryStick size={12} /> Memori (RAM)
@@ -336,7 +336,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
         </div>
 
         {/* Storage */}
-        <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+        <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
               <HardDrive size={12} /> Penyimpanan
@@ -409,7 +409,7 @@ export function ServerStatsPanel() {
   const m = stats?.metrics
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-slate-900 p-5">
+    <div className="flex min-h-screen w-full flex-col bg-slate-800 p-5">
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -429,7 +429,7 @@ export function ServerStatsPanel() {
           )}
           <button
             onClick={() => { setLoading(true); void load() }}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-white/10"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
             Muat ulang
@@ -439,7 +439,7 @@ export function ServerStatsPanel() {
 
       {/* Status koneksi */}
       {!stats && (
-        <div className={`rounded-xl border px-4 py-3 text-[12px] ${error ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-slate-700 bg-slate-800/40 text-slate-400'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-[12px] ${error ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-slate-700 bg-white/5 text-slate-400'}`}>
           {error
             ? `Server intranet tidak dapat dibaca: ${error}. Pastikan server port 3000 hidup dan URL di atas benar.`
             : 'Menghubungi server intranet port 3000…'}
@@ -450,33 +450,33 @@ export function ServerStatsPanel() {
         <div className="flex flex-1 flex-col gap-4">
           {/* Kartu metrik utama */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Total Requests" value={m.total.toLocaleString('id-ID')} hint={`${m.ok} sukses · ${m.clientError} 4xx · ${m.serverError} 5xx`} color="#3B82F6" />
+            <StatCard label="Total Requests" value={m.total.toLocaleString('id-ID')} hint={`${m.ok} sukses · ${m.clientError} 4xx · ${m.serverError} 5xx`} color="#2563EB" />
             <StatCard
               label="Success Rate"
               value={`${m.successRate}%`}
               hint={`${m.clientError + m.serverError} gagal dari ${m.total} request`}
               color={m.successRate >= 95 ? '#10B981' : m.successRate >= 80 ? '#F59E0B' : '#EF4444'}
             />
-            <StatCard label="Request / Menit" value={String(m.rpsLastMinute)} hint={`${m.requestsLastHour} request dalam 1 jam terakhir`} color="#22D3EE" />
-            <StatCard label="Latensi Rata-rata" value={formatMs(m.avgMs)} hint={`p95 ${formatMs(m.p95Ms)} · maks ${formatMs(m.maxMs)}`} color="#A78BFA" />
+            <StatCard label="Request / Menit" value={String(m.rpsLastMinute)} hint={`${m.requestsLastHour} request dalam 1 jam terakhir`} color="#93C5FD" />
+            <StatCard label="Latensi Rata-rata" value={formatMs(m.avgMs)} hint={`p95 ${formatMs(m.p95Ms)} · maks ${formatMs(m.maxMs)}`} color="#DBEAFE" />
           </div>
 
           {/* Bilah sumber daya + uptime */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+            <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                   <HardDrive size={12} /> Memori RSS
                 </span>
                 <span className="font-mono text-[11px] font-bold text-slate-200">{formatBytes(m.memory.rss)}</span>
               </div>
-              <Meter ratio={m.memory.rss / (512 * 1024 * 1024)} color="#3B82F6" />
+              <Meter ratio={m.memory.rss / (512 * 1024 * 1024)} color="#2563EB" />
               <p className="mt-1.5 text-[10px] text-slate-500">
                 Heap {formatBytes(m.memory.heapUsed)} / {formatBytes(m.memory.heapTotal)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+            <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                   <Cpu size={12} /> Uptime
@@ -489,7 +489,7 @@ export function ServerStatsPanel() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+            <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                   <Globe size={12} /> Klien Aktif
@@ -527,7 +527,7 @@ export function ServerStatsPanel() {
               </p>
               <div className="space-y-2">
                 {stats.components.map(c => (
-                  <div key={c.id} className="flex items-start gap-2.5 rounded-lg border border-slate-700/60 bg-slate-800/40 px-3 py-2">
+                  <div key={c.id} className="flex items-start gap-2.5 rounded-lg border border-slate-700/60 bg-white/5 px-3 py-2">
                     <span className="mt-0.5" style={{ color: STATUS_COLOR[c.status] }}>{statusIcon(c.status)}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
@@ -550,7 +550,7 @@ export function ServerStatsPanel() {
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Endpoint Teramai</p>
               <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700/60">
                 <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
+                  <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-3 py-2 font-semibold">Path</th>
                       <th className="px-3 py-2 font-semibold">Request</th>
@@ -559,7 +559,7 @@ export function ServerStatsPanel() {
                       <th className="px-3 py-2 font-semibold">Terakhir</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
+                  <tbody className="divide-y divide-white/10">
                     {m.topPaths.map(p => (
                       <tr key={p.path} className="text-slate-300">
                         <td className="px-3 py-1.5 font-mono text-[10px]">{p.path}</td>
@@ -598,7 +598,7 @@ function StatCard({
   color: string
 }) {
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
+    <div className="rounded-xl border border-slate-700/60 bg-white/5 p-3">
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-1 font-mono text-xl font-black" style={{ color }}>{value}</p>
       <p className="mt-0.5 text-[10px] text-slate-500">{hint}</p>

@@ -15,14 +15,13 @@ import {
   INPUT,
   LABEL,
   PAGE,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
   SECTION_TITLE,
   TABLE_CELL,
   TABLE_HEAD_CELL,
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
+import { PageHeader } from '../components/PageHeader'
 
 
 
@@ -95,18 +94,18 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
   return (
     <div className={PAGE}>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className={PAGE_TITLE}>Master Plat</h3>
-          <p className={PAGE_SUBTITLE}>Plat <b>internal</b> tidak dikenakan tarif saat discan</p>
-        </div>
-        <span className={`${BADGE} ${
-          plateState === 'ready' ? BADGE_OK : plateState === 'offline' ? BADGE_WARN : BADGE_MUTED
-        }`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${plateState === 'ready' ? DOT_OK : plateState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
-          {plateState === 'ready' ? 'Server: Tersambung' : plateState === 'offline' ? 'Offline' : 'Memuat...'}
-        </span>
-      </div>
+      <PageHeader
+        title="Master Plat"
+        subtitle={<>Plat <b>internal</b> tidak dikenakan tarif saat discan</>}
+        actions={
+          <span className={`${BADGE} ${
+            plateState === 'ready' ? BADGE_OK : plateState === 'offline' ? BADGE_WARN : BADGE_MUTED
+          }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${plateState === 'ready' ? DOT_OK : plateState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
+            {plateState === 'ready' ? 'Server: Tersambung' : plateState === 'offline' ? 'Offline' : 'Memuat...'}
+          </span>
+        }
+      />
 
       <div className={`${CARD} max-w-3xl p-6`}>
         <h3 className={`${SECTION_TITLE} mb-4`}>{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>

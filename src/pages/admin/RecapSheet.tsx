@@ -20,8 +20,8 @@ import {
   GROUP_ROW,
   INPUT,
   LABEL,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
+  PAGE_HEADER_SUB,
+  PAGE_HEADER_TITLE,
   SHEET_BODY,
   SHEET_HEADER,
   STAT_LABEL,
@@ -122,8 +122,8 @@ export default function RecapSheet() {
             <Table2 size={17} />
           </span>
           <div className="mr-auto">
-            <h1 className={PAGE_TITLE}>Rekap Trip</h1>
-            <p className={PAGE_SUBTITLE}>
+            <h1 className={PAGE_HEADER_TITLE}>Rekap Trip</h1>
+            <p className={PAGE_HEADER_SUB}>
               Ringkasan kendaraan dan pendapatan per golongan dan jenis kendaraan
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>

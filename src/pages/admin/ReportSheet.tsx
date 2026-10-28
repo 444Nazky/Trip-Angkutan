@@ -40,8 +40,8 @@ import {
   GROUP_ROW_CELL,
   INPUT,
   LABEL,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
+  PAGE_HEADER_SUB,
+  PAGE_HEADER_TITLE,
   PILL,
   PILL_NEUTRAL,
   PILL_OK,
@@ -387,8 +387,8 @@ export default function ReportSheet() {
             <Table2 size={17} />
           </span>
           <div className="mr-auto">
-            <h1 className={PAGE_TITLE}>Laporan Spreadsheet</h1>
-            <p className={PAGE_SUBTITLE}>
+            <h1 className={PAGE_HEADER_TITLE}>Laporan Spreadsheet</h1>
+            <p className={PAGE_HEADER_SUB}>
               Satu baris untuk satu unit kendaraan, dikelompokkan per tanggal - refresh otomatis tiap 15 detik
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
