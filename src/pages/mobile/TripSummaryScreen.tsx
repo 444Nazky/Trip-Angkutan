@@ -287,8 +287,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                   <Camera size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Foto Bukti</p>
-                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'ambil foto bukti trip sebelum submit'}</p>
+                  <p className="text-sm font-semibold text-slate-800">{draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip'}</p>
+                  <p className="text-[10px] text-slate-500">{hasTripPhoto ? 'tersimpan' : 'ambil foto bukti sebelum submit'}</p>
                 </div>
               </div>
               <button
