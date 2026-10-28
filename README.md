@@ -8,11 +8,7 @@ A field-officer app that captures every trip with photographic proof, a supervis
 dashboard that turns those trips into billing, and an API that runs inside the
 office LAN so the operation never stops working when the internet does.
 
-[![Trip Angkutan — 20-second overview](docs/media/trip-angkutan-launch.jpg)](docs/media/trip-angkutan-launch.mp4)
-
-**▶ [Play the 20-second overview](docs/media/trip-angkutan-launch.mp4)** —
-1920×1080 · 30 fps · H.264.
-*Music: "Happy Beats / Business Moves Vol. 1" by Sascha Ende (ende.app), CC BY 4.0.*
+![Trip Angkutan](docs/media/trip-angkutan-launch.gif)
 
 </div>
 
