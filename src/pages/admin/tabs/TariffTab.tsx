@@ -29,7 +29,6 @@ import {
 import {
   RegionTariffRow,
   bulkUpsertRegionTariffRows,
-  deleteAdminRegion,
   deleteRegionTariffRow,
   fetchRegionTariffs,
   upsertRegionTariffRow,
@@ -410,24 +409,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
   }
 
-  const handleDeleteRegion = async (r: RegionTariffRow) => {
-    if (!confirm(`Hapus region ${r.name || r.code}?`)) return
-    setSaving(true)
-    try {
-      const res = await deleteAdminRegion(r.id)
-      if (!res.ok) {
-        showToast(res.reason ?? 'Wilayah gagal dihapus karena server menolak permintaan', 'error')
-        return
-      }
-      await reloadRegions()
-      showToast('Region berhasil dihapus')
-      if (editTarget?.regionId === r.id) resetForm()
-      if (form.regionId === r.id) setForm((f) => ({ ...f, regionId: '' }))
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const resetForm = () => {
     setEditTarget(null)
     setCustomType(false)
@@ -757,17 +738,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                               {cells.length} jenis kendaraan
                             </span>
                             <span className="ml-auto flex items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void handleDeleteRegion(region)
-                                }}
-                                disabled={saving}
-                                title={`Hapus region ${region.code}`}
-                                className="rounded-md p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                              >
-                                <Trash2 size={13} />
-                              </button>
                               <span className="text-[11px] text-slate-300">
                                 {open ? 'Sembunyikan' : 'Tampilkan'}
                               </span>

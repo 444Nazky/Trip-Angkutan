@@ -323,7 +323,6 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
           <p className="text-slate-400 text-sm">Memuat data petugas...</p>
         </div>
       </div>
@@ -450,7 +449,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                 {groupOfficers.map((o, oIdx) => {
                   const localIdx = localOfficers.indexOf(o)
                   return (
-                    <tr key={o.id} className={`${oIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50 transition-colors duration-150`}>
+                    <tr key={o.id} className={`${oIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50`}>
                       <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
                       <td className="p-4">
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
