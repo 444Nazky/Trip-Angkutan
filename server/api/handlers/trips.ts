@@ -81,7 +81,7 @@ function pgCode(error: unknown): string {
  * "[object Object]" — pesan aslinya hilang, jadi galat 22P02/23503 tidak
  * pernah bisa dijelaskan ke petugas.
  *
- * Implementasinya共用 di `_shared.ts` (dipakai juga handler master).
+ * Implementasinya berada di `_shared.ts` (dipakai juga handler master).
  */
 export { errorText } from "../_shared.ts";
 import { errorText } from "../_shared.ts";
