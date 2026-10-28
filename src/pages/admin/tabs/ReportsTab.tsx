@@ -1,3 +1,29 @@
+import {
+  BADGE,
+  BADGE_MUTED,
+  BADGE_OK,
+  BADGE_WARN,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  CARD,
+  DOT_MUTED,
+  DOT_OK,
+  DOT_WARN,
+  INPUT,
+  LABEL,
+  PAGE,
+  PAGE_SUBTITLE,
+  STAT_LABEL,
+  STAT_VALUE,
+  PAGE_TITLE,
+  SECTION_TITLE,
+  GROUP_ROW,
+  GROUP_ROW_CELL,
+  PILL,
+  PILL_NEUTRAL,
+  TABLE_HEAD_ROW,
+  TABLE_WRAP,
+} from '../theme'
 import { Fragment, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
@@ -227,17 +253,17 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const maxDaily = Math.max(1, ...reportDaily.map(d => d.count))
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
-          <p className="text-slate-500 text-[12px]">Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
+          <h3 className={PAGE_TITLE}>Laporan Trip</h3>
+          <p className={PAGE_SUBTITLE}>Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 ${
-            reportState === 'ready' ? 'text-slate-600' : reportState === 'offline' ? 'text-amber-700 border-amber-200' : 'text-slate-500'
+          <span className={`${BADGE} ${
+            reportState === 'ready' ? BADGE_OK : reportState === 'offline' ? BADGE_WARN : BADGE_MUTED
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${reportState === 'ready' ? 'bg-emerald-500' : reportState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${reportState === 'ready' ? DOT_OK : reportState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
             {reportState === 'ready' ? 'Tersambung' : reportState === 'offline' ? 'Gagal memuat' : 'Memuat...'}
           </span>
           {reportState === 'offline' && reportError && (
@@ -246,76 +272,76 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             </span>
           )}
           <button onClick={() => void loadReports()} disabled={reportState === 'loading'}
-            className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
+            className={`${BTN_SECONDARY} px-3.5 py-2`}>
             Refresh
           </button>
 
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
             title="Buka spreadsheet live yang tersinkron langsung dari database"
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
+            className={BTN_PRIMARY}>
             <Table2 size={15} /> Buka Spreadsheet
           </button>
           <button onClick={() => window.open(`${window.location.pathname}#/sheet`, '_blank')} disabled={reportState !== 'ready'}
             title="Buka spreadsheet di tab baru" aria-label="Buka spreadsheet di tab baru"
-            className="border border-slate-200 text-slate-600 px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
+            className={`${BTN_SECONDARY} px-2.5 py-2`}>
             <ExternalLink size={15} />
           </button>
           <button onClick={handleExport} disabled={reportState !== 'ready'}
             title="Unduh berkas .xlsx (cara lama, opsional)"
-            className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
+            className={`${BTN_SECONDARY} px-3 py-2`}>
             <Download size={15} /> .xlsx
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
+      <div className={`${CARD} flex flex-wrap items-end gap-4 p-4`}>
+        <div><label className={`${LABEL} mb-1.5 block`}>Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Sampai</label>
+            className={INPUT} /></div>
+        <div><label className={`${LABEL} mb-1.5 block`}>Sampai</label>
           <input type="date" value={reportFilters.endDate || ''} onChange={e => applyReportFilter({ endDate: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
+            className={INPUT} /></div>
         <div className="flex gap-1.5">
           {[{ label: 'Hari Ini', days: 1 }, { label: '7 Hari', days: 7 }, { label: '30 Hari', days: 30 }].map(p => (
             <button key={p.label} onClick={() => applyDatePreset(p.days)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-500 hover:bg-slate-50">
+              className={`${BTN_SECONDARY} px-3 py-1.5`}>
               {p.label}
             </button>
           ))}
         </div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Golongan</label>
+        <div><label className={`${LABEL} mb-1.5 block`}>Golongan</label>
           <select value={reportFilters.golongan || ''} onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[140px] bg-white">
+            className={`${INPUT} min-w-[140px]`}>
             <option value="">Semua</option>
             {golonganOptions.map(g => <option key={g} value={g}>{g}</option>)}
           </select></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jenis Kendaraan</label>
+        <div><label className={`${LABEL} mb-1.5 block`}>Jenis Kendaraan</label>
           <select value={reportFilters.vehicleType || ''} onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[150px] bg-white">
+            className={`${INPUT} min-w-[150px]`}>
             <option value="">Semua</option>
             {jenisOptions.map(j => <option key={j} value={j}>{j}</option>)}
           </select></div>
-        <button onClick={clearReportFilters} className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50">Reset</button>
+        <button onClick={clearReportFilters} className={BTN_SECONDARY}>Reset</button>
         <span className="ml-auto text-[12px] text-slate-400 font-semibold">{totalTrip} trip</span>
       </div>
 
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
+          <div className={`${CARD} p-5 text-center`}>
+            <p className={STAT_LABEL}>Total Trip</p>
+            <p className={STAT_VALUE}>{totalTrip}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Muatan</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
+          <div className={`${CARD} p-5 text-center`}>
+            <p className={STAT_LABEL}>Muatan</p>
+            <p className={STAT_VALUE}>{muatanCount}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Unit</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{totalUnit}</p>
+          <div className={`${CARD} p-5 text-center`}>
+            <p className={STAT_LABEL}>Unit</p>
+            <p className={STAT_VALUE}>{totalUnit}</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
-            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
+          <div className={`${CARD} p-5 text-center`}>
+            <p className={STAT_LABEL}>Pendapatan</p>
+            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className={STAT_VALUE} />
           </div>
         </div>
       )}
@@ -323,10 +349,10 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       {reportState === 'ready' && totalTrip > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <div className={`${CARD} p-5 lg:col-span-2`}>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
-                <h4 className="font-bold text-slate-800 text-sm">Trip per Hari</h4>
+                <h4 className={SECTION_TITLE}>Trip per Hari</h4>
                 <p className="text-[11px] text-slate-400">maksimal 14 hari terakhir dalam rentang terpilih</p>
               </div>
               <span className="text-[11px] font-bold text-slate-400">puncak {maxDaily} trip/hari</span>
@@ -346,8 +372,8 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-            <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
+          <div className={`${CARD} p-5`}>
+            <h4 className={`${SECTION_TITLE}`}>Komposisi Muatan</h4>
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
               <div className="relative w-28 h-28 shrink-0 rounded-full"
@@ -383,14 +409,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
         </div>
       ), document.body)}
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className={TABLE_WRAP}>
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="bg-slate-50">
+            <tr className={TABLE_HEAD_ROW}>
               <th colSpan={11} className="px-4 py-3 border-b border-slate-200">
                 <div className="flex justify-end gap-2">
                   <button onClick={onToggleReveal}
-                    className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-blue-500 text-blue-600 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
+                    className={`${BTN_SECONDARY} px-3.5 py-2 ${revealed ? 'border-blue-500 text-blue-600' : ''}`}>
                     {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
                     {revealed ? 'Hide' : 'Show'} Nominal
                   </button>
@@ -415,13 +441,13 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                     setViewingPhotos(photos)
                   }}
                     disabled={reportState !== 'ready'}
-                    className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
+                    className={`${BTN_PRIMARY} px-3.5 py-2`}>
                     <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
                 </div>
               </th>
             </tr>
-            <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+            <tr className={TABLE_HEAD_ROW}>
               <th className="text-left px-4 py-2.5 border-b border-slate-200 w-8">#</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">No Trip</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Tanggal</th>
@@ -443,7 +469,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                   <p className="text-[12px] text-slate-400 mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
                   <button
                     onClick={() => void loadReports()}
-                    className="mt-3 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50"
+                    className={`${BTN_SECONDARY} mt-3 px-3.5 py-2`}
                   >
                     Coba Lagi
                   </button>
@@ -474,18 +500,18 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
                 return [
                   // Date group header row
-                  <tr key={`date-${date}`} className="bg-slate-800 text-white">
-                    <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
+                  <tr key={`date-${date}`} className={GROUP_ROW}>
+                    <td colSpan={3} className={`${GROUP_ROW_CELL} font-bold text-sm`}>
                       <span className="flex items-center gap-1">
                         <Calendar size={14} className="text-slate-400" />
                         {formattedDate}
                       </span>
                       <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip - {dayTotal} unit)</span>
                     </td>
-                    <td colSpan={5} className="px-3 py-2.5 text-right">
+                    <td colSpan={5} className={`${GROUP_ROW_CELL} text-right`}>
                       <span className="text-slate-300 text-xs">Total:</span>
                     </td>
-                    <td colSpan={2} className="px-4 py-2.5 text-right font-black text-sm">
+                    <td colSpan={2} className={`${GROUP_ROW_CELL} text-right font-black text-sm`}>
                       <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={dayRevenue} className="text-emerald-300" />
                     </td>
                     <td />
@@ -506,7 +532,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from || '-'}</td>
                           <td className="px-3 py-2.5 text-slate-600">{t.route_to_name || t.route_to || '-'}</td>
                           <td className="px-3 py-2.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
+                            <span className={`${PILL} ${t.status_muatan === 'muatan' ? PILL_NEUTRAL : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
                               {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
                             </span>
                           </td>

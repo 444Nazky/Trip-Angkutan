@@ -1,6 +1,7 @@
 import { X, Camera } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { CARD, SECTION_TITLE, BTN_ICON } from '../theme'
 
 interface Photo {
   id: string
@@ -53,7 +54,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
 
   if (photos.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
+      <div className={`${CARD} p-12 text-center`}>
         <Camera size={48} className="mx-auto text-slate-300 mb-3" />
         <p className="text-slate-500 font-semibold">Tidak ada foto dokumentasi</p>
         <p className="text-slate-400 text-sm mt-1">Foto dari mobile tampil di sini</p>
@@ -62,14 +63,14 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div className={CARD}>
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
         <div>
-          <p className="font-bold text-slate-800">Foto Dokumentasi</p>
+          <p className={SECTION_TITLE}>Foto Dokumentasi</p>
           <p className="text-xs text-slate-500">{photos.length} foto</p>
         </div>
-        <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-200 text-slate-500 transition-colors">
+        <button onClick={onClose} className={`${BTN_ICON} hover:bg-slate-200 hover:text-slate-700`} aria-label="Tutup">
           <X size={20} />
         </button>
       </div>

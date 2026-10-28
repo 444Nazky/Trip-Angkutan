@@ -1,3 +1,18 @@
+import {
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  CARD,
+  INPUT,
+  LABEL,
+  PAGE,
+  PAGE_SUBTITLE,
+  PAGE_TITLE,
+  SECTION_TITLE,
+  TABLE_CELL,
+  TABLE_HEAD_CELL,
+  TABLE_HEAD_ROW,
+  TABLE_WRAP,
+} from '../theme'
 import { useState, useEffect, useRef } from 'react'
 import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions, type Region } from '../../../services/regions'
@@ -285,30 +300,34 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className={PAGE}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className={PAGE_TITLE}>Petugas</h3>
+          <p className={PAGE_SUBTITLE}>Kelola petugas lapangan, wilayah, dan akses dermaga</p>
+        </div>
         <button onClick={() => setAddOff(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
+          className={BTN_PRIMARY}>
           <Plus size={14} />Tambah Petugas
         </button>
       </div>
 
       {addOff && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
-          <h3 className="font-bold mb-4">Tambah Petugas</h3>
+        <div className={`${CARD} max-w-lg p-6`}>
+          <h3 className={`${SECTION_TITLE} mb-4`}>Tambah Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
+            <div><label className={`${LABEL} mb-1 block`}>Nama</label>
               <input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})}
-                className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-            <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
+                className={INPUT} /></div>
+            <div><label className={`${LABEL} mb-1 block`}>Wilayah</label>
               <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value, dermagaIds: []})}
-                className="w-full border rounded-xl px-3 py-2 text-sm">
+                className={INPUT}>
                 {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
               </select></div>
           </div>
 
           <div className="mb-4">
-            <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga</label>
+            <label className={`${LABEL} mb-1.5 block`}>Dermaga</label>
             {dermagaOptionsFor([offForm.region]).length === 0 ? (
               <p className="text-[11px] text-slate-400">Belum ada dermaga</p>
             ) : (
@@ -324,24 +343,24 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
             )}''
 
           </div>
-          <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label>
+          <div className="mb-4"><label className={`${LABEL} mb-1 block`}>PIN</label>
             <input type="password" maxLength={6} value={offForm.pin} onChange={e => setOffForm({...offForm, pin: e.target.value})}
-              className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+              className={INPUT} /></div>
           <div className="flex gap-3">
-            <button onClick={() => setAddOff(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleAddOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Simpan</button>
+            <button onClick={() => setAddOff(false)} className={`${BTN_SECONDARY} flex-1 py-3`}>Batal</button>
+            <button onClick={handleAddOff} className={`${BTN_PRIMARY} flex-1 py-3`}>Simpan</button>
           </div>
         </div>
       )}
 
       {editOffIdx !== null && editOff && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
-          <h3 className="font-bold mb-4">Edit Petugas</h3>
+        <div className={`${CARD} max-w-lg p-6`}>
+          <h3 className={`${SECTION_TITLE} mb-4`}>Edit Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
+            <div><label className={`${LABEL} mb-1 block`}>Nama</label>
               <input value={editOff.name} onChange={e => setEditOff({...editOff, name: e.target.value})}
-                className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-            <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
+                className={INPUT} /></div>
+            <div><label className={`${LABEL} mb-1 block`}>Wilayah</label>
               <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1.5">
                 {regionCodes.map(c => (
                   <label key={c} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
@@ -354,7 +373,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
               </div></div>
           </div>
           <div className="mb-4">
-            <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga</label>
+            <label className={`${LABEL} mb-1.5 block`}>Dermaga</label>
             {dermagaOptionsFor(editRegions).length === 0 ? (
               <p className="text-[11px] text-slate-400">Centang wilayah dulu</p>
             ) : (
@@ -369,19 +388,19 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
               </div>
             )}
           </div>
-          <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN Baru</label>
+          <div className="mb-4"><label className={`${LABEL} mb-1 block`}>PIN Baru</label>
             <input type="password" maxLength={6} value={editOff.pin ?? ''} onChange={e => setEditOff({...editOff, pin: e.target.value})}
-              className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+              className={INPUT} /></div>
           <div className="flex gap-3">
             <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }}
-              className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
-            <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Update</button>
+              className={`${BTN_SECONDARY} flex-1 py-3`}>Batal</button>
+            <button onClick={handleUpdOff} className={`${BTN_PRIMARY} flex-1 py-3`}>Update</button>
           </div>
         </div>
       )}
 
       {localOfficers.length === 0 && !loading && (
-        <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
+        <div className={`${CARD} p-8 text-center`}>
           <p className="text-slate-500 font-semibold mb-1">Belum ada petugas</p>
           <p className="text-slate-400 text-sm">Klik "Tambah Petugas" untuk menambahkan petugas pertama</p>
         </div>
@@ -391,22 +410,22 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
         return (
-          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card stagger-item">
-            <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
-              <Lock size={14} className="text-blue-400" />
+          <div key={region} className={`${TABLE_WRAP} admin-card stagger-item`}>
+            <div className="flex items-center gap-2 bg-slate-100 px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide text-slate-600">
+              <Lock size={13} className="text-slate-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
+            <table className="w-full">
+              <thead className={TABLE_HEAD_ROW}>
+                <tr><th className={`${TABLE_HEAD_CELL} text-left`}>Nama</th><th className={`${TABLE_HEAD_CELL} text-left`}>Dermaga</th><th className={`${TABLE_HEAD_CELL} text-left`}>Rute</th><th className={`${TABLE_HEAD_CELL} text-left`}>Status</th><th className={`${TABLE_HEAD_CELL} text-left`}>Aksi</th></tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-100">
                 {groupOfficers.map((o) => {
                   const localIdx = localOfficers.indexOf(o)
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
-                      <td className="p-4">
+                    <tr key={o.id} className="admin-table-row hover:bg-slate-50/60">
+                      <td className={TABLE_CELL}><p className="text-[12.5px] font-bold text-slate-800">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
+                      <td className={TABLE_CELL}>
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
                           ? <span className="text-slate-300 text-xs">—</span>
                           : <span className="flex flex-wrap gap-1">
@@ -417,15 +436,15 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                         }
 
                       </td>
-                      <td className="p-4 text-[11px] text-slate-600 max-w-xs">
+                      <td className={`${TABLE_CELL} max-w-xs text-[11px] text-slate-600`}>
                         <span className="line-clamp-2" title={formatOfficerRoutes(o)}>
                           {formatOfficerRoutes(o)}
                         </span>
                       </td>
-                      <td className="p-4">
+                      <td className={TABLE_CELL}>
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
                       </td>
-                      <td className="p-4">
+                      <td className={TABLE_CELL}>
                         <ActionMenu
                           onEdit={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
                           onToggle={() => toggleOffStatus(localIdx)}

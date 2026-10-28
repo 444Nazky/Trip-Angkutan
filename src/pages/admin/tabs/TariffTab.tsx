@@ -18,6 +18,27 @@
  * tidak pernah mengubah BADAU maupun region lain.
  */
 
+import {
+  BADGE,
+  BADGE_ERROR,
+  BADGE_OK,
+  BADGE_WARN,
+  BTN_PRIMARY as BTN_PRIMARY_CLS,
+  BTN_SECONDARY,
+  CARD,
+  CARD_SUBTLE,
+  DOT_ERROR,
+  DOT_OK,
+  DOT_WARN,
+  INPUT,
+  LABEL,
+  PAGE,
+  PAGE_SUBTITLE,
+  PAGE_TITLE,
+  TABLE_HEAD_ROW,
+  TABLE_SUBHEAD_ROW,
+  TABLE_WRAP,
+} from '../theme'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
@@ -90,17 +111,16 @@ const VEHICLE_CARDS = [
   { key: 'motor', label: '1. Motor', Icon: Bike, tone: 'text-blue-600' },
   { key: 'mobil', label: '2. Mobil', Icon: Car, tone: 'text-emerald-600' },
   { key: 'truk kecil', label: '3. Truk Kecil', Icon: Truck, tone: 'text-amber-500' },
-  { key: 'truk sedang', label: '4. Truk Sedang', Icon: Truck, tone: 'text-violet-600' },
+  { key: 'truk sedang', label: '4. Truk Sedang', Icon: Truck, tone: 'text-cyan-600' },
   { key: 'truk besar', label: '5. Truk Besar', Icon: Truck, tone: 'text-red-500' },
   { key: 'truk trailer', label: '6. Truk Trailer', sub: '(Opsional)', Icon: Container, tone: 'text-slate-500' },
 ]
 
-const INPUT_CLS =
-  'w-full rounded-lg border border-slate-200 bg-[#F5F8FE] px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
-const BTN_PRIMARY =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
-const BTN_GHOST =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-[#F5F8FE] px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+// Class control diambil dari design token bersama (src/pages/admin/theme.ts)
+// supaya warnanya sama dengan halaman admin lainnya.
+const INPUT_CLS = INPUT
+const BTN_PRIMARY = BTN_PRIMARY_CLS
+const BTN_GHOST = BTN_SECONDARY
 
 const EMPTY_FORM: TariffForm = { regionId: '', golongan: '', type: '', lokal: '', muatan: '', kosong: '' }
 
@@ -159,7 +179,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold text-slate-600">
+      <span className={`${LABEL} mb-1 block`}>
         {label}
         {required && <span className="text-red-500"> *</span>}
       </span>
@@ -708,12 +728,12 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
   const serverBad = serverState === 'offline' || serverState === 'auth'
 
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       {/* Header halaman */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="text-lg font-black text-slate-900">Master Tarif Jenis Kendaraan</h3>
-          <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
+          <h3 className={PAGE_TITLE}>Master Tarif Jenis Kendaraan</h3>
+          <p className={`${PAGE_SUBTITLE} mt-0.5 max-w-2xl`}>
             Kelola tarif untuk setiap jenis kendaraan pada setiap region.
           </p>
         </div>
@@ -721,23 +741,15 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
           <button
             onClick={() => setRegionFormOpen(true)}
             disabled={saving || regionFormOpen}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
+            className={`${BTN_PRIMARY} px-3 py-1.5`}
           >
             <Plus size={13} /> Region
           </button>
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${
-              serverOk
-                ? 'bg-emerald-50 text-emerald-600'
-                : serverBad
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-amber-50 text-amber-600'
-            }`}
+            className={`${BADGE} ${serverOk ? BADGE_OK : serverBad ? BADGE_ERROR : BADGE_WARN}`}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                serverOk ? 'bg-emerald-500' : serverBad ? 'bg-red-500' : 'bg-amber-500'
-              }`}
+              className={`h-1.5 w-1.5 rounded-full ${serverOk ? DOT_OK : serverBad ? DOT_ERROR : DOT_WARN}`}
             />
             Server: {serverLabel}
           </span>
@@ -746,21 +758,21 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       {/* Formulir region baru */}
       {regionFormOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-3 py-2 shadow-sm">
+        <div className={`${CARD} flex flex-wrap items-center gap-2 px-3 py-2`}>
           <input
             autoFocus
             value={regionForm.name}
             placeholder="nama region"
             onChange={(e) => setRegionForm((f) => ({ ...f, name: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
-            className="min-w-[180px] flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[12px] outline-none focus:border-blue-400"
+            className={`${INPUT} min-w-[180px] flex-1 px-2 py-1.5 text-[12px]`}
           />
           <input
             value={regionForm.code}
             placeholder="kode"
             onChange={(e) => setRegionForm((f) => ({ ...f, code: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
-            className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-[12px] uppercase outline-none focus:border-blue-400"
+            className={`${INPUT} w-28 px-2 py-1.5 text-[12px] uppercase`}
           />
           <button onClick={() => void handleCreateRegion()} disabled={saving} className={BTN_PRIMARY}>
             Simpan
@@ -779,7 +791,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       )}
 
       {/* Filter */}
-      <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] p-3 shadow-sm">
+      <div className={`${CARD} p-3`}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
           <Field label="Region">
             <select
@@ -838,10 +850,10 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               key={v.key}
               onClick={() => setFilterType(active ? '' : v.key)}
               title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${v.label.replace(/^\d+\.\s*/, '')}`}
-              className={`flex flex-col items-center gap-2 rounded-2xl border bg-[#F2F6FC] px-2 py-4 transition ${
+              className={`flex flex-col items-center gap-2 rounded-2xl border bg-white px-2 py-4 transition ${
                 active
-                  ? 'border-blue-300 bg-[#E6EEFB] ring-2 ring-blue-100'
-                  : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
+                  ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
+                  : 'border-slate-200 hover:border-blue-300 hover:shadow-sm'
               }`}
             >
               <Icon size={34} strokeWidth={1.6} className={v.tone} />
@@ -858,11 +870,11 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Tabel tarif */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
+        <div className={TABLE_WRAP}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
               <thead>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
+                <tr className={TABLE_HEAD_ROW}>
                   <th rowSpan={3} className="border-b border-slate-200 px-4 py-2 text-left font-semibold">
                     Jenis Kendaraan
                   </th>
@@ -873,7 +885,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                     Aksi
                   </th>
                 </tr>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
+                <tr className={TABLE_HEAD_ROW}>
                   <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Internal
                   </th>
@@ -884,7 +896,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                     Eksternal
                   </th>
                 </tr>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
+                <tr className={TABLE_SUBHEAD_ROW}>
                   <th colSpan={2} className="border-b border-slate-200 px-2 py-1.5" />
                   <th className="border-b border-slate-200 px-2 py-1.5 text-center font-medium">
                     Ada Muatan
@@ -903,7 +915,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                   return (
                     <Fragment key={region.id}>
                       <tr
-                        className="cursor-pointer border-b border-slate-200 bg-[#DCE7F6] transition hover:bg-[#D2E0F4]"
+                        className="cursor-pointer border-b border-slate-200 bg-slate-100 transition hover:bg-slate-200/70"
                         onClick={() => toggleRegion(region.id)}
                       >
                         <td colSpan={6} className="px-4 py-2.5">
@@ -949,7 +961,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                       {open &&
                         golonganGroups.map(([golongan, groupCells]) => (
                           <Fragment key={`${region.id}-${golongan}`}>
-                            <tr className="bg-[#EAF0FA]">
+                            <tr className="bg-slate-50">
                               <td
                                 colSpan={6}
                                 className="border-b border-slate-100 px-5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"
@@ -1052,7 +1064,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
         {/* Panel tambah / edit */}
         <aside id="tariff-form" className="xl:sticky xl:top-6">
-          <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
+          <div className={CARD}>
             <div className="flex items-start gap-2 border-b border-slate-100 px-4 py-3.5">
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                 <Plus size={15} />
@@ -1182,7 +1194,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       </div>
 
       {/* Keterangan singkat */}
-      <div className="space-y-1 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-4 py-3 text-[11px] text-slate-500 shadow-sm">
+      <div className={`${CARD_SUBTLE} space-y-1 px-4 py-3 text-[11px] text-slate-500`}>
         <p>
           <b className="text-slate-700">{MASTER_CODE}</b> — master tarif. Tiap region punya salinan
           barisnya sendiri, jadi mengubah {MASTER_CODE} tidak mengubah region lain.

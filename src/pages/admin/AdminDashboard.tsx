@@ -23,6 +23,7 @@ import { OfficersTab } from './tabs/OfficersTab'
 import { ReportsTab } from './tabs/ReportsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
+import { ALERT_ERROR, BTN_COMPACT, TOAST, TOAST_ERROR } from './theme'
 
 
 
@@ -123,7 +124,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
     <div className="flex bg-slate-900 min-h-screen">
-        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+        <div className="w-64 bg-slate-900 min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
   <div className="p-6 border-b border-slate-800">
     <div className="flex items-center gap-4">
 
@@ -158,7 +159,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
         <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
           {(serverState === 'offline' || serverState === 'auth') && serverError && (
-            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+            <div className={`${ALERT_ERROR} mb-4 flex items-start gap-3`}>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-red-700">
                   {serverState === 'auth'
@@ -186,7 +187,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   }
                   window.location.reload()
                 }}
-                className="shrink-0 rounded-lg bg-white border border-red-200 px-3 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-100"
+                className={`${BTN_COMPACT} shrink-0 border-red-200 text-red-700 hover:bg-red-100`}
               >
                 {serverState === 'auth' ? 'Masuk Ulang' : 'Coba Lagi'}
               </button>
@@ -246,9 +247,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg ${
-          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
-        }`}>
+        <div className={toast.type === 'error' ? TOAST_ERROR : TOAST}>
           {toast.msg}
         </div>
       )}
