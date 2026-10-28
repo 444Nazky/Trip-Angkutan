@@ -3,9 +3,8 @@
 // Dua lapis tarif per region:
 //   - flat  : region_tariffs (lokal/eksternal nominal datar) — turtle lama utk
 //             resolver cadangan & mode offline.
-//   - rows  : region_tariff_rows (muatan/kosong per golongan+jenis) — override
-//             master BADAU per wilayah; region tanpa baris otomatis memakai
-//             master (lihat handlers/tariffRules.ts resolveTariff).
+//   - rows  : region_tariff_rows (muatan/kosong per jenis kendaraan) — tarif
+//             tiap wilayah; region tanpa baris = Rp 0.
 import { db, json, requireAdmin } from "../_shared.ts";
 import { invalidateTariffCache } from "./tariffRules.ts";
 
@@ -32,7 +31,7 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
       db.from("region_tariffs").select("*").in("region_id", regionIds),
       db
         .from("region_tariff_rows")
-        .select("region_id, golongan, vehicle_type, muatan_tariff, kosong_tariff, is_active")
+        .select("region_id, vehicle_type, muatan_tariff, kosong_tariff, is_active")
         .in("region_id", regionIds)
         .order("vehicle_type", { ascending: true }),
     ]);
@@ -54,7 +53,6 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
         eksternal_tariff: tariffsByRegion[String(r.id)]?.eksternal?.nominal_tariff ?? 0,
         eksternal_active: tariffsByRegion[String(r.id)]?.eksternal?.is_active ?? 0,
         rows: (rowsByRegion[String(r.id)] ?? []).map((x) => ({
-          golongan: x.golongan,
           vehicleType: x.vehicle_type,
           muatanTariff: x.muatan_tariff,
           kosongTariff: x.kosong_tariff,
@@ -68,9 +66,8 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
   }
 }
 
-/** Upsert satu baris override (golongan + jenis kendaraan) per region. */
+/** Upsert satu baris tarif per jenis kendaraan per region. */
 async function updateRegionRow(body: any, regionId: string): Promise<Response> {
-  const golongan = String(body.golongan ?? "").trim();
   const vehicleType = String(body.vehicleType ?? body.vehicle_type ?? "").trim();
   if (!vehicleType) return json({ error: "vehicleType wajib diisi" }, 400);
 
@@ -81,15 +78,15 @@ async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   const { error: upErr } = await db
     .from("region_tariff_rows")
     .upsert(
-      { region_id: regionId, golongan, vehicle_type: vehicleType, muatan_tariff: muatan, kosong_tariff: kosong, is_active: active, updated_at: new Date().toISOString() },
-      { onConflict: "region_id,golongan,vehicle_type" },
+      { region_id: regionId, vehicle_type: vehicleType, muatan_tariff: muatan, kosong_tariff: kosong, is_active: active, updated_at: new Date().toISOString() },
+      { onConflict: "region_id,vehicle_type" },
     );
   if (upErr) {
     console.error("Upsert region tariff row failed:", upErr);
     return json({ error: "Gagal menyimpan baris tarif region" }, 500);
   }
   invalidateTariffCache();
-  return json({ success: true, regionId, golongan, vehicleType, muatanTariff: muatan, kosongTariff: kosong });
+  return json({ success: true, regionId, vehicleType, muatanTariff: muatan, kosongTariff: kosong });
 }
 
 /** Upsert tarif flat (lokal/eksternal) per region. */
@@ -145,10 +142,9 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
     if (regionErr) throw regionErr;
     if (!region || !region.length) return json({ error: "Region not found" }, 404);
 
-    // Bentuk payload menentukan target: baris override (golongan+jenis) atau flat.
+    // Bentuk payload menentukan target: baris per jenis atau flat.
     const body = await req.json().catch(() => ({} as any));
-    const isRowPayload = body?.vehicleType !== undefined || body?.vehicle_type !== undefined ||
-      (body?.golongan !== undefined && (body?.muatanTariff !== undefined || body?.kosongTariff !== undefined));
+    const isRowPayload = body?.vehicleType !== undefined || body?.vehicle_type !== undefined;
     if (isRowPayload) return await updateRegionRow(body, regionId);
     return await updateRegionFlat(body, regionId);
   } catch (error) {

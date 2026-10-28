@@ -13,7 +13,6 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { TariffTab } from './TariffTab'
 import { fetchRegionTariffs } from '../../../services/tariffs'
-import type { TariffRow } from '../components/types'
 
 const regionRows = vi.hoisted(() => ({
   list: [] as unknown[],
@@ -30,17 +29,12 @@ vi.mock('../../../services/tariffs', async (importOriginal) => {
 // React 19 butuh penanda ini agar act() boleh dipakai di luar test renderer.
 ;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
-const MASTER_TARIFFS: TariffRow[] = [
-  { id: 't1', golongan: 'I', type: 'Motor', loaded: '8.000', loadedNum: 8000, empty: '5.000', emptyNum: 5000, desc: '' },
-  { id: 't2', golongan: 'II', type: 'Mobil Barang', loaded: '15.000', loadedNum: 15000, empty: '10.000', emptyNum: 10000, desc: '' },
-]
-
 const REGION_BADAU = {
   id: 'r-badau',
   name: 'Badau',
   code: 'BADAU',
-  lokal_tariff: null,
-  lokal_active: null,
+  lokal_tariff: 15000,
+  lokal_active: 1,
   eksternal_tariff: null,
   eksternal_active: null,
   rows: [],
@@ -54,8 +48,13 @@ const REGION_BELITUNG = {
   lokal_active: null,
   eksternal_tariff: null,
   eksternal_active: null,
-  rows: [],
+  rows: [
+    { vehicleType: 'motor', muatanTariff: 45000, kosongTariff: 40000 },
+  ],
 }
+
+/** Jumlah baris tarif yang tampil = 5 jenis standar untuk SEMUA region. */
+const TYPES_PER_REGION = 5
 
 describe('TariffTab (accordion per region)', () => {
   let container: HTMLDivElement
@@ -81,9 +80,7 @@ describe('TariffTab (accordion per region)', () => {
     await act(async () => {
       root.render(
         React.createElement(TariffTab, {
-          tariffs: MASTER_TARIFFS,
           serverState: 'online' as const,
-          onSaveTariffs: () => {},
           showToast: () => {},
         }),
       )
@@ -99,10 +96,10 @@ describe('TariffTab (accordion per region)', () => {
     ) as HTMLTableRowElement | undefined
   }
 
-  /** Baris "Golongan X" - hanya ada kalau accordion region tersebut TERBUKA. */
-  function golonganRows(): HTMLTableRowElement[] {
+  /** Baris tarif (punya tombol "Edit tarif"); hanya ada kalau region TERBUKA. */
+  function tariffRows(): HTMLTableRowElement[] {
     return Array.from(container.querySelectorAll('tbody tr')).filter((tr) =>
-      (tr.textContent ?? '').includes('Golongan'),
+      tr.querySelector('[title="Edit tarif"]'),
     ) as HTMLTableRowElement[]
   }
 
@@ -123,33 +120,42 @@ describe('TariffTab (accordion per region)', () => {
     expect(body).toContain('Region Badau')
     expect(body).toContain('Region Belitung')
 
-    // Tiap region punya 2 golongan master -> 4 baris "Golongan" harus tampil
-    // (2 region x 2 golongan). Kalau accordion masih tertutup, baris ini 0.
-    expect(golonganRows().length).toBe(4)
+    // Semua region menampilkan 5 jenis kendaraan -> 10 baris. Kalau accordion
+    // masih tertutup, baris ini 0.
+    expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
 
     // Kedua region berlabel "Sembunyikan" -> keduanya dalam kondisi TERBUKA.
     expect(regionHeader('Badau')?.textContent).toContain('Sembunyikan')
     expect(regionHeader('Belitung')?.textContent).toContain('Sembunyikan')
   })
 
+  it('region tanpa baris tampil Rp 0, yang punya baris memakai nominalnya', async () => {
+    await renderTab()
+    const text = container.textContent ?? ''
+    expect(text).toContain('45.000')
+    expect(text).toContain('40.000')
+    // Badau belum punya baris tarif -> kolom eksternal Rp 0.
+    expect(text).toContain('Rp 0')
+  })
+
   it('tombol toggle tetap bisa menutup region (collapse)', async () => {
     await renderTab()
-    expect(golonganRows().length).toBe(4)
+    expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
 
     // Klik header region -> accordion-nya menutup.
     await click(regionHeader('Belitung'))
-    expect(golonganRows().length).toBe(2)
+    expect(tariffRows().length).toBe(TYPES_PER_REGION)
 
     // Klik lagi -> terbuka kembali.
     await click(regionHeader('Belitung'))
-    expect(golonganRows().length).toBe(4)
+    expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
   })
 
   it('menutup hanya region yang diklik, region lain tetap terbuka', async () => {
     await renderTab()
 
     await click(regionHeader('Badau'))
-    expect(golonganRows().length).toBe(2)
+    expect(tariffRows().length).toBe(TYPES_PER_REGION)
     // Region yang tidak diklik tetap terbuka.
     expect(regionHeader('Belitung')?.textContent).toContain('Sembunyikan')
   })

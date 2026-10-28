@@ -1,21 +1,15 @@
 /**
  * Tab "Master Tarif Jenis Kendaraan" di admin dashboard.
  *
- * Tata letak mengikuti mockup admin:
- *   header -> filter (region/golongan) -> kartu jenis kendaraan
- *   -> tabel tarif per region (bisa dibuka/tutup) -> panel "Tambah / Edit Tarif".
- *
  * Sumber angka (resolver backend, handlers/tariffRules.ts -> resolveTariff):
  *
  *   1. Kategori Internal -> Rp 0 (kolom "internal" terkunci)
- *   2. Baris region        -> `region_tariff_rows` (golongan+jenis) milik
- *                             region itu sendiri; tiap region bisa beda harga
- *   3. Master tarif (BADAU) -> cadangan bila region belum punya baris tersebut
- *   4. Tarif region flat   -> kolom "lokal" (`region_tariffs`)
+ *   2. Baris wilayah `region_tariff_rows` -> satu baris per (region, jenis);
+ *      region tanpa baris = Rp 0 (tidak ada cadangan dari region lain)
+ *   3. Tarif wilayah flat -> kolom "lokal" (`region_tariffs`)
  *
  * Edit seperti spreadsheet: klik angka, ubah, Enter/blur = autosave.
- * BADAU menulis master `tariffs`; region lain menulis barisnya sendiri sehingga
- * tidak pernah mengubah BADAU maupun region lain.
+ * Semua region menulis barisnya sendiri.
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -32,56 +26,39 @@ import {
   Trash2,
   Truck,
 } from 'lucide-react'
-import type { TariffRow } from '../components/types'
 import {
   RegionTariffRow,
-  createAdminRegion,
-  createTariff,
   deleteAdminRegion,
-  deleteTariff,
   fetchRegionTariffs,
-  fetchTariffs,
-  updateTariff,
   upsertRegionTariff,
   upsertRegionTariffRow,
 } from '../../../services/tariffs'
 
 interface TariffTabProps {
-  tariffs: TariffRow[]
   /**
    * Status koneksi ke server API intranet.
    * `auth` berarti server hidup tetapi login admin ditolak.
    */
   serverState: 'connecting' | 'online' | 'offline' | 'auth'
-  onSaveTariffs: (t: TariffRow[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
-}
-
-interface AddRegionForm {
-  name: string
-  code: string
 }
 
 /** Isi panel "Tambah / Edit Tarif". Semua nominal berupa string mentah. */
 interface TariffForm {
   regionId: string
-  golongan: string
   type: string
   lokal: string
   muatan: string
   kosong: string
 }
 
-/** Nilai satu baris yang tampil di tabel region (override atau master). */
+/** Nilai satu jenis kendaraan di satu region. `stored` = baris ada di server. */
 interface Cell {
-  row: TariffRow
+  type: string
   muatan: number
   kosong: number
-  overridden: boolean
+  stored: boolean
 }
-
-const GOLONGAN_OPTIONS = ['I', 'II', 'III', 'IV', 'V']
-const MASTER_CODE = 'BADAU'
 
 /** Urutan baris mengikuti sketsa spreadsheet: motor .. truk besar. */
 const TYPE_ORDER = ['motor', 'mobil', 'truk kecil', 'truk sedang', 'truk besar']
@@ -96,13 +73,13 @@ const VEHICLE_CARDS = [
 ]
 
 const INPUT_CLS =
-  'w-full rounded-lg border border-slate-200 bg-[#F5F8FE] px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
 const BTN_PRIMARY =
   'inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
 const BTN_GHOST =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-[#F5F8FE] px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
 
-const EMPTY_FORM: TariffForm = { regionId: '', golongan: '', type: '', lokal: '', muatan: '', kosong: '' }
+const EMPTY_FORM: TariffForm = { regionId: '', type: '', lokal: '', muatan: '', kosong: '' }
 
 const normalizeType = (t: string) =>
   String(t ?? '')
@@ -116,15 +93,7 @@ const typeOrderIndex = (t: string) => {
 }
 
 const fmtNum = (n: number) => Number(n || 0).toLocaleString('id-ID')
-const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
 const digits = (s: string) => Number(String(s).replace(/[^\d]/g, '')) || 0
-
-const isMasterRegion = (r: RegionTariffRow) =>
-  String(r.code ?? '').toUpperCase() === MASTER_CODE
-
-/** Kunci baris override: golongan + jenis kendaraan (truck == truk). */
-const rowKey = (golongan: string, type: string) =>
-  `${String(golongan ?? '').trim().toUpperCase()}|${normalizeType(type)}`
 
 const iconForType = (type: string) => {
   const t = normalizeType(type)
@@ -132,20 +101,6 @@ const iconForType = (type: string) => {
   if (t.includes('mobil')) return Car
   if (t.includes('trailer')) return Container
   return Truck
-}
-
-/** Kelompokkan sel per golongan, urut I..V. */
-function groupByGolongan(cells: Cell[]): [string, Cell[]][] {
-  const groups = new Map<string, Cell[]>()
-  for (const c of cells) {
-    const g = String(c.row.golongan || '—').toUpperCase()
-    const list = groups.get(g)
-    if (list) list.push(c)
-    else groups.set(g, [c])
-  }
-  return [...groups.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0], undefined, { numeric: true }),
-  )
 }
 
 function Field({
@@ -252,23 +207,20 @@ function LockedInternalCell() {
   )
 }
 
-export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: TariffTabProps) {
+export function TariffTab({ serverState, showToast }: TariffTabProps) {
   const [regions, setRegions] = useState<RegionTariffRow[]>([])
   /** Region yang barisnya sedang dibuka. Default: semua region terbuka. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   /** Id region yang sudah pernah diproses (supaya pilihan collapse user tidak ditimpa). */
   const knownRegionIds = useRef<Set<string>>(new Set())
   const [filterRegion, setFilterRegion] = useState('')
-  const [filterGolongan, setFilterGolongan] = useState('')
   const [filterType, setFilterType] = useState('')
   const [form, setForm] = useState<TariffForm>(EMPTY_FORM)
   /** Baris yang sedang diedit lewat panel kanan (null = mode tambah). */
-  const [editTarget, setEditTarget] = useState<{ regionId: string; cell: Cell } | null>(null)
-  const [regionForm, setRegionForm] = useState<AddRegionForm>({ name: '', code: '' })
-  const [regionFormOpen, setRegionFormOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<{ regionId: string; type: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
-  /** Muat ulang region + tarif flat + override dari server. */
+  /** Muat ulang region + tarif flat + baris tarif dari server. */
   const reloadRegions = useCallback(async () => {
     const fresh = await fetchRegionTariffs()
     if (fresh) setRegions(fresh)
@@ -279,92 +231,69 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     void reloadRegions()
   }, [reloadRegions])
 
-  /** Baris master diurut sesuai sketsa: motor .. truk besar. */
-  const sortedRows = useMemo(
-    () =>
-      [...tariffs].sort(
-        (a, b) =>
-          typeOrderIndex(a.type) - typeOrderIndex(b.type) ||
-          normalizeType(a.type).localeCompare(normalizeType(b.type)) ||
-          String(a.golongan).localeCompare(b.golongan),
-      ),
-    [tariffs],
-  )
+  /** Semua jenis kendaraan: urutan sketsa dulu, lalu jenis lain dari server. */
+  const allTypes = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of TYPE_ORDER) map.set(normalizeType(t), t)
+    for (const r of regions) {
+      for (const row of r.rows ?? []) {
+        const key = normalizeType(row.vehicleType)
+        if (key && !map.has(key)) map.set(key, row.vehicleType)
+      }
+    }
+    return [...map.values()].sort(
+      (a, b) =>
+        typeOrderIndex(a) - typeOrderIndex(b) ||
+        normalizeType(a).localeCompare(normalizeType(b)),
+    )
+  }, [regions])
 
-  /** Region BADAU di atas, sisanya urut nama. */
+  /** Region urut nama. */
   const orderedRegions = useMemo(
     () =>
-      [...regions].sort(
-        (a, b) =>
-          Number(isMasterRegion(b)) - Number(isMasterRegion(a)) ||
-          String(a.name ?? a.code).localeCompare(String(b.name ?? b.code)),
+      [...regions].sort((a, b) =>
+        String(a.name ?? a.code).localeCompare(String(b.name ?? b.code)),
       ),
     [regions],
   )
 
-  /** Nilai tampil per region: override region bila ada, selain itu master. */
+  /** Nilai tampil per region: baris region bila ada, selain itu Rp 0. */
   const cellsFor = useCallback(
     (region: RegionTariffRow): Cell[] => {
-      const overrides = new Map<
-        string,
-        { golongan: string; type: string; muatan: number; kosong: number }
-      >()
-      for (const o of region.rows ?? []) {
-        overrides.set(rowKey(o.golongan, o.vehicleType), {
-          golongan: o.golongan,
-          type: o.vehicleType,
-          muatan: o.muatanTariff,
-          kosong: o.kosongTariff,
-        })
-      }
-      const cells: Cell[] = sortedRows.map((row) => {
-        const o = overrides.get(rowKey(row.golongan, row.type))
+      const overrides = new Map(region.rows?.map((o) => [normalizeType(o.vehicleType), o]) ?? [])
+      return allTypes.map((type) => {
+        const o = overrides.get(normalizeType(type))
         return {
-          row,
-          muatan: o ? o.muatan : row.loadedNum,
-          kosong: o ? o.kosong : row.emptyNum,
-          overridden: !!o,
+          type: o?.vehicleType ?? type,
+          muatan: o ? o.muatanTariff : 0,
+          kosong: o ? o.kosongTariff : 0,
+          stored: !!o,
         }
       })
-      // Baris override yang jenisnya tidak ada di master tetap ditampilkan.
-      for (const [key, o] of overrides) {
-        if (sortedRows.some((row) => rowKey(row.golongan, row.type) === key)) continue
-        cells.push({
-          row: { id: '', golongan: o.golongan, type: o.type, loaded: '', loadedNum: o.muatan, empty: '', emptyNum: o.kosong, desc: '' },
-          muatan: o.muatan,
-          kosong: o.kosong,
-          overridden: true,
-        })
-      }
-      return cells
     },
-    [sortedRows],
+    [allTypes],
   )
 
-  /** Tabel yang terlihat setelah filter region/golongan/jenis. */
+  /** Tabel yang terlihat setelah filter region/jenis. */
   const visibleGroups = useMemo(
     () =>
       orderedRegions
         .filter((r) => !filterRegion || r.id === filterRegion)
-        .map((region) => {
-          const cells = cellsFor(region).filter(
-            (c) =>
-              (!filterGolongan ||
-                String(c.row.golongan ?? '').toUpperCase() === filterGolongan) &&
-              (!filterType || normalizeType(c.row.type) === filterType),
-          )
-          return { region, cells }
-        })
+        .map((region) => ({
+          region,
+          cells: cellsFor(region).filter(
+            (c) => !filterType || normalizeType(c.type) === filterType,
+          ),
+        }))
         .filter((g) => g.cells.length > 0),
-    [orderedRegions, cellsFor, filterRegion, filterGolongan, filterType],
+    [orderedRegions, cellsFor, filterRegion, filterType],
   )
 
   /** Pilih region awal + buka semua accordion region secara default. */
   useEffect(() => {
     if (!orderedRegions.length) return
     if (!form.regionId) {
-      const first = orderedRegions.find(isMasterRegion) ?? orderedRegions[0]
-      setForm((f) => (f.regionId ? f : { ...f, regionId: first.id }))
+      setForm((f) => (f.regionId ? f : { ...f, regionId: orderedRegions[0].id }))
     }
     // Semua region langsung TERBUKA saat halaman dimuat - tidak perlu klik
     // tombol "Tampilkan" satu per satu. Region yang baru muncul (mis. region
@@ -389,39 +318,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     })
   }
 
-  const refreshMasterRows = async () => {
-    const fresh = await fetchTariffs()
-    if (fresh) onSaveTariffs(fresh)
-    else showToast('Gagal memuat ulang master tarif', 'error')
-  }
-
-  /** Simpan master tarif (BADAU): kolom muatan / kosong satu golongan. */
-  const commitMasterField = async (
-    row: TariffRow,
-    field: 'loadedNum' | 'emptyNum',
-    v: number,
-  ): Promise<boolean> => {
-    if (!row.id) return false
-    setSaving(true)
-    try {
-      const updated: TariffRow =
-        field === 'loadedNum'
-          ? { ...row, loadedNum: v, loaded: fmtRp(v) }
-          : { ...row, emptyNum: v, empty: fmtRp(v) }
-      const ok = await updateTariff(updated)
-      if (!ok) {
-        showToast('Server menolak perubahan tarif', 'error')
-        return false
-      }
-      await refreshMasterRows()
-      // Region yang belum punya override ikut berubah → segarkan tampilan.
-      await reloadRegions()
-      return true
-    } finally {
-      setSaving(false)
-    }
-  }
-
   /** Simpan nominal lokal (tarif wilayah flat) untuk satu region. */
   const commitLokal = async (region: RegionTariffRow, v: number): Promise<boolean> => {
     setSaving(true)
@@ -443,23 +339,18 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
   }
 
-  /** Simpan satu sel external: BADAU -> master, region lain -> override. */
+  /** Simpan satu sel: upsert baris (region, jenis) berisi muatan+kosong. */
   const commitCell = async (
     region: RegionTariffRow,
     cell: Cell,
     field: 'muatan' | 'kosong',
     v: number,
   ): Promise<boolean> => {
-    if (isMasterRegion(region)) {
-      return commitMasterField(cell.row, field === 'muatan' ? 'loadedNum' : 'emptyNum', v)
-    }
     setSaving(true)
     try {
-      // Override butuh pasangan muatan+kosong: pakai nilai lain yang tampil.
       const ok = await upsertRegionTariffRow({
         regionId: region.id,
-        golongan: cell.row.golongan,
-        vehicleType: cell.row.type,
+        vehicleType: cell.type,
         muatanTariff: field === 'muatan' ? v : cell.muatan,
         kosongTariff: field === 'kosong' ? v : cell.kosong,
       })
@@ -474,66 +365,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
   }
 
-  const handleDeleteRow = async (row: TariffRow) => {
-    if (!row.id) return showToast('Baris belum tersimpan di server', 'error')
-    if (!confirm(`Hapus baris golongan ${row.golongan || '-'} (${row.type})?`)) return
-    setSaving(true)
-    try {
-      const ok = await deleteTariff(row)
-      if (!ok) return showToast('Server gagal menghapus tarif', 'error')
-      await refreshMasterRows()
-      await reloadRegions()
-      showToast('Baris tarif dihapus')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCreateRegion = async () => {
-    const name = regionForm.name.trim()
-    const code = regionForm.code.trim().toUpperCase()
-    if (!name || !code) {
-      showToast('Nama dan kode region wajib diisi', 'error')
-      return
-    }
-    if (regions.some((r) => String(r.code ?? '').toUpperCase() === code)) {
-      showToast('Kode region sudah digunakan', 'error')
-      return
-    }
-    setSaving(true)
-    try {
-      const id = await createAdminRegion({ name, code })
-      if (!id) {
-        showToast('Gagal menyimpan region', 'error')
-        return
-      }
-      // Salin nilai master sekali, supaya region baru langsung punya harga
-      // sendiri dan tidak tampil "ikut BADAU" sampai tiap sel diedit.
-      if (code !== MASTER_CODE) {
-        for (const t of tariffs) {
-          await upsertRegionTariffRow({
-            regionId: id,
-            golongan: t.golongan,
-            vehicleType: t.type,
-            muatanTariff: t.loadedNum,
-            kosongTariff: t.emptyNum,
-          })
-        }
-      }
-      await reloadRegions()
-      setRegionForm({ name: '', code: '' })
-      setRegionFormOpen(false)
-      showToast('Region berhasil ditambahkan')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleDeleteRegion = async (r: RegionTariffRow) => {
-    if (isMasterRegion(r)) {
-      showToast('Region BADAU tidak bisa dihapus', 'error')
-      return
-    }
     if (!confirm(`Hapus region ${r.name || r.code}?`)) return
     setSaving(true)
     try {
@@ -551,35 +383,16 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     }
   }
 
-  /** Golongan default baris baru: yang belum terpakai di master. */
-  const nextGolongan = () => {
-    const used = new Set(tariffs.map((t) => String(t.golongan ?? '').toUpperCase()))
-    return GOLONGAN_OPTIONS.find((g) => !used.has(g)) ?? 'I'
-  }
-
-  /** Baris master yang cocok dengan isian form — dipakai untuk prefill. */
-  const masterFor = (golongan: string, type: string): TariffRow | undefined => {
-    const t = normalizeType(type)
-    if (!t) return undefined
-    const g = golongan.trim().toUpperCase()
-    return (
-      tariffs.find(
-        (x) => normalizeType(x.type) === t && String(x.golongan ?? '').toUpperCase() === g,
-      ) ?? tariffs.find((x) => normalizeType(x.type) === t)
-    )
-  }
-
   const resetForm = () => {
     setEditTarget(null)
     setForm((f) => ({ ...EMPTY_FORM, regionId: f.regionId }))
   }
 
   const openEdit = (region: RegionTariffRow, cell: Cell) => {
-    setEditTarget({ regionId: region.id, cell })
+    setEditTarget({ regionId: region.id, type: cell.type })
     setForm({
       regionId: region.id,
-      golongan: cell.row.golongan,
-      type: cell.row.type,
+      type: cell.type,
       lokal: String(region.lokal_tariff ?? 0),
       muatan: String(cell.muatan),
       kosong: String(cell.kosong),
@@ -587,15 +400,15 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     setExpanded((prev) => new Set(prev).add(region.id))
   }
 
-  /** Ketik jenis → isi muatan/kosong dari master yang sudah ada (bila kosong). */
+  /** Ketik jenis → isi muatan/kosong dari baris region yang sudah ada. */
   const changeFormType = (v: string) => {
-    const m = masterFor(form.golongan, v)
+    const region = regions.find((r) => r.id === form.regionId)
+    const row = region?.rows?.find((o) => normalizeType(o.vehicleType) === normalizeType(v))
     setForm((f) => ({
       ...f,
       type: v,
-      golongan: f.golongan || (m?.golongan ?? ''),
-      muatan: !f.muatan && m ? String(m.loadedNum) : f.muatan,
-      kosong: !f.kosong && m ? String(m.emptyNum) : f.kosong,
+      muatan: !f.muatan && row ? String(row.muatanTariff) : f.muatan,
+      kosong: !f.kosong && row ? String(row.kosongTariff) : f.kosong,
     }))
   }
 
@@ -604,7 +417,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     setForm((f) => ({ ...f, regionId: id, lokal: String(r?.lokal_tariff ?? 0) }))
   }
 
-  /** Simpan panel: mode edit (harga saja) atau tambah baris baru. */
+  /** Simpan panel: upsert baris (region, jenis) + nominal lokal. */
   const submitForm = async () => {
     const region = regions.find((r) => r.id === form.regionId)
     if (!region) return showToast('Pilih region terlebih dahulu', 'error')
@@ -616,9 +429,20 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
     if (editTarget) {
       const target = regions.find((r) => r.id === editTarget.regionId)
       if (!target) return showToast('Region tidak ditemukan', 'error')
-      const cell: Cell = { ...editTarget.cell, muatan, kosong }
-      if (muatan !== editTarget.cell.muatan && !(await commitCell(target, cell, 'muatan', muatan))) return
-      if (kosong !== editTarget.cell.kosong && !(await commitCell(target, cell, 'kosong', kosong))) return
+      const existing = target.rows?.find(
+        (o) => normalizeType(o.vehicleType) === normalizeType(editTarget.type),
+      )
+      const before: Cell = {
+        type: editTarget.type,
+        muatan: existing?.muatanTariff ?? 0,
+        kosong: existing?.kosongTariff ?? 0,
+        stored: !!existing,
+      }
+      if (muatan !== before.muatan && !(await commitCell(target, before, 'muatan', muatan))) return
+      if (kosong !== before.kosong) {
+        const nextCell: Cell = { ...before, muatan, kosong }
+        if (!(await commitCell(target, nextCell, 'kosong', kosong))) return
+      }
       if (lokal !== null && lokal !== Number(target.lokal_tariff ?? 0)) {
         if (!(await commitLokal(target, lokal))) return
       }
@@ -629,67 +453,30 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
     const type = form.type.trim()
     if (!type) return showToast('Jenis kendaraan wajib diisi', 'error')
-    const golongan =
-      form.golongan.trim().toUpperCase() || masterFor(form.golongan, type)?.golongan || nextGolongan()
-
-    const master = isMasterRegion(region)
-    const existing = master
-      ? tariffs.find(
-          (t) =>
-            normalizeType(t.type) === normalizeType(type) &&
-            String(t.golongan ?? '').toUpperCase() === golongan,
-        )
-      : undefined
 
     setSaving(true)
     try {
-      if (master) {
-        if (existing?.id) {
-          const ok = await updateTariff({
-            ...existing,
-            loadedNum: muatan,
-            loaded: fmtRp(muatan),
-            emptyNum: kosong,
-            empty: fmtRp(kosong),
-          })
-          if (!ok) return showToast('Server menolak perubahan tarif', 'error')
-        } else {
-          const id = await createTariff({
-            golongan,
-            type,
-            loaded: fmtRp(muatan),
-            loadedNum: muatan,
-            empty: fmtRp(kosong),
-            emptyNum: kosong,
-            desc: '',
-          })
-          if (!id) return showToast('Server menolak tarif baru', 'error')
-        }
-        await refreshMasterRows()
-      } else {
-        const ok = await upsertRegionTariffRow({
-          regionId: region.id,
-          golongan,
-          vehicleType: type,
-          muatanTariff: muatan,
-          kosongTariff: kosong,
-        })
-        if (!ok) return showToast('Server menolak tarif region', 'error')
-      }
+      const ok = await upsertRegionTariffRow({
+        regionId: region.id,
+        vehicleType: type,
+        muatanTariff: muatan,
+        kosongTariff: kosong,
+      })
+      if (!ok) return showToast('Server menolak tarif region', 'error')
 
       if (lokal !== null && lokal !== Number(region.lokal_tariff ?? 0)) {
-        const ok = await upsertRegionTariff({
+        const lokalOk = await upsertRegionTariff({
           regionId: region.id,
           tariffType: 'lokal',
           nominal: lokal,
           aktif: lokal > 0,
         })
-        if (!ok) return showToast('Server menolak tarif wilayah', 'error')
+        if (!lokalOk) return showToast('Server menolak tarif wilayah', 'error')
       }
 
       await reloadRegions()
       setExpanded((prev) => new Set(prev).add(region.id))
-      showToast(existing ? 'Tarif diperbarui' : 'Tarif ditambahkan')
+      showToast('Tarif ditambahkan')
       resetForm()
     } finally {
       setSaving(false)
@@ -717,70 +504,27 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
             Kelola tarif untuk setiap jenis kendaraan pada setiap region.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRegionFormOpen(true)}
-            disabled={saving || regionFormOpen}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40"
-          >
-            <Plus size={13} /> Region
-          </button>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+            serverOk
+              ? 'bg-emerald-50 text-emerald-600'
+              : serverBad
+                ? 'bg-red-50 text-red-600'
+                : 'bg-amber-50 text-amber-600'
+          }`}
+        >
           <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${
-              serverOk
-                ? 'bg-emerald-50 text-emerald-600'
-                : serverBad
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-amber-50 text-amber-600'
+            className={`h-1.5 w-1.5 rounded-full ${
+              serverOk ? 'bg-emerald-500' : serverBad ? 'bg-red-500' : 'bg-amber-500'
             }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                serverOk ? 'bg-emerald-500' : serverBad ? 'bg-red-500' : 'bg-amber-500'
-              }`}
-            />
-            Server: {serverLabel}
-          </span>
-        </div>
+          />
+          Server: {serverLabel}
+        </span>
       </div>
 
-      {/* Formulir region baru */}
-      {regionFormOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-3 py-2 shadow-sm">
-          <input
-            autoFocus
-            value={regionForm.name}
-            placeholder="nama region"
-            onChange={(e) => setRegionForm((f) => ({ ...f, name: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
-            className="min-w-[180px] flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[12px] outline-none focus:border-blue-400"
-          />
-          <input
-            value={regionForm.code}
-            placeholder="kode"
-            onChange={(e) => setRegionForm((f) => ({ ...f, code: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && void handleCreateRegion()}
-            className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-[12px] uppercase outline-none focus:border-blue-400"
-          />
-          <button onClick={() => void handleCreateRegion()} disabled={saving} className={BTN_PRIMARY}>
-            Simpan
-          </button>
-          <button
-            onClick={() => {
-              setRegionFormOpen(false)
-              setRegionForm({ name: '', code: '' })
-            }}
-            disabled={saving}
-            className={BTN_GHOST}
-          >
-            Batal
-          </button>
-        </div>
-      )}
-
       {/* Filter */}
-      <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] p-3 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto]">
           <Field label="Region">
             <select
               value={filterRegion}
@@ -794,21 +538,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               {orderedRegions.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name || r.code}
-                  {isMasterRegion(r) ? ' (Master)' : ''}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Golongan">
-            <select
-              value={filterGolongan}
-              onChange={(e) => setFilterGolongan(e.target.value)}
-              className={INPUT_CLS}
-            >
-              <option value="">Semua Golongan</option>
-              {GOLONGAN_OPTIONS.map((g) => (
-                <option key={g} value={g}>
-                  Golongan {g}
                 </option>
               ))}
             </select>
@@ -817,7 +546,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
             <button
               onClick={() => {
                 setFilterRegion('')
-                setFilterGolongan('')
                 setFilterType('')
               }}
               className={`${BTN_PRIMARY} h-[38px] w-full lg:w-auto`}
@@ -838,9 +566,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               key={v.key}
               onClick={() => setFilterType(active ? '' : v.key)}
               title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${v.label.replace(/^\d+\.\s*/, '')}`}
-              className={`flex flex-col items-center gap-2 rounded-2xl border bg-[#F2F6FC] px-2 py-4 transition ${
+              className={`flex flex-col items-center gap-2 rounded-2xl border bg-white px-2 py-4 transition ${
                 active
-                  ? 'border-blue-300 bg-[#E6EEFB] ring-2 ring-blue-100'
+                  ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
                   : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
               }`}
             >
@@ -858,87 +586,66 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Tabel tarif */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
               <thead>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
-                  <th rowSpan={3} className="border-b border-slate-200 px-4 py-2 text-left font-semibold">
+                <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+                  <th className="border-b border-slate-200 px-4 py-2 text-left font-semibold">
                     Jenis Kendaraan
                   </th>
-                  <th colSpan={4} className="border-b border-slate-200 px-2 py-1.5 text-center font-semibold">
-                    Golongan Tarif
-                  </th>
-                  <th rowSpan={3} className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
-                    Aksi
-                  </th>
-                </tr>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
                   <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Internal
                   </th>
                   <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Lokal
                   </th>
-                  <th colSpan={2} className="border-b border-slate-200 px-2 py-1.5 text-center font-semibold">
-                    Eksternal
-                  </th>
-                </tr>
-                <tr className="bg-[#E6EDF9] text-[11px] text-slate-600">
-                  <th colSpan={2} className="border-b border-slate-200 px-2 py-1.5" />
-                  <th className="border-b border-slate-200 px-2 py-1.5 text-center font-medium">
+                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Ada Muatan
                   </th>
-                  <th className="border-b border-slate-200 px-2 py-1.5 text-center font-medium">
+                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
                     Kosong
+                  </th>
+                  <th className="border-b border-slate-200 px-2 py-2 text-center font-semibold">
+                    Aksi
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {visibleGroups.map(({ region, cells }) => {
-                  const master = isMasterRegion(region)
                   const open = expanded.has(region.id)
-                  const golonganGroups = groupByGolongan(cells)
-                  const typeCount = new Set(cells.map((c) => normalizeType(c.row.type))).size
                   return (
                     <Fragment key={region.id}>
                       <tr
-                        className="cursor-pointer border-b border-slate-200 bg-[#DCE7F6] transition hover:bg-[#D2E0F4]"
+                        className="cursor-pointer bg-slate-800 transition hover:bg-slate-700"
                         onClick={() => toggleRegion(region.id)}
                       >
                         <td colSpan={6} className="px-4 py-2.5">
                           <div className="flex flex-wrap items-center gap-2">
                             {open ? (
-                              <ChevronDown size={15} className="text-slate-500" />
+                              <ChevronDown size={15} className="text-slate-400" />
                             ) : (
-                              <ChevronRight size={15} className="text-slate-500" />
+                              <ChevronRight size={15} className="text-slate-400" />
                             )}
-                            <span className="font-bold text-slate-800">
+                            <span className="font-bold text-white">
                               Region {region.name || region.code}
                             </span>
-                            <span className="text-[11px] text-slate-500">
-                              {golonganGroups.length} golongan • {typeCount} jenis kendaraan
+                            <span className="text-[11px] text-slate-300">
+                              {cells.length} jenis kendaraan
                             </span>
-                            {master && (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                                MASTER
-                              </span>
-                            )}
                             <span className="ml-auto flex items-center gap-2">
-                              {!master && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    void handleDeleteRegion(region)
-                                  }}
-                                  disabled={saving}
-                                  title={`Hapus region ${region.code}`}
-                                  className="rounded-md p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              )}
-                              <span className="text-[11px] text-slate-400">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleDeleteRegion(region)
+                                }}
+                                disabled={saving}
+                                title={`Hapus region ${region.code}`}
+                                className="rounded-md p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                              <span className="text-[11px] text-slate-300">
                                 {open ? 'Sembunyikan' : 'Tampilkan'}
                               </span>
                             </span>
@@ -947,92 +654,57 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                       </tr>
 
                       {open &&
-                        golonganGroups.map(([golongan, groupCells]) => (
-                          <Fragment key={`${region.id}-${golongan}`}>
-                            <tr className="bg-[#EAF0FA]">
-                              <td
-                                colSpan={6}
-                                className="border-b border-slate-100 px-5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"
-                              >
-                                Golongan {golongan}
+                        cells.map((cell, i) => {
+                          const Icon = iconForType(cell.type)
+                          return (
+                            <tr
+                              key={`${region.id}-${cell.type}-${i}`}
+                              className={`${i % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-blue-50/30 transition-colors duration-150`}
+                            >
+                              <td className="border-t border-slate-100 px-4 py-2">
+                                <div className="flex items-center gap-2">
+                                  <Icon size={16} strokeWidth={1.7} className="text-slate-500" />
+                                  <span className="font-medium capitalize text-slate-700">
+                                    {cell.type || '—'}
+                                  </span>
+                                  {cell.stored && (
+                                    <span
+                                      title="Baris tarif region ini tersimpan"
+                                      className="h-1.5 w-1.5 rounded-full bg-blue-500"
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                              <LockedInternalCell />
+                              <SheetCell
+                                value={region.lokal_tariff ?? 0}
+                                onCommit={(v) => commitLokal(region, v)}
+                                title="Tarif lokal wilayah ini"
+                              />
+                              <SheetCell
+                                value={cell.muatan}
+                                onCommit={(v) => commitCell(region, cell, 'muatan', v)}
+                                title="Tarif region ini: kendaraan bermuatan"
+                              />
+                              <SheetCell
+                                value={cell.kosong}
+                                onCommit={(v) => commitCell(region, cell, 'kosong', v)}
+                                title="Tarif region ini: kendaraan kosong"
+                              />
+                              <td className="border-t border-slate-100 px-2 py-1.5">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => openEdit(region, cell)}
+                                    title="Edit tarif"
+                                    className="rounded-md border border-blue-100 bg-blue-50 p-1 text-blue-600 transition hover:bg-blue-100"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
-                            {[...groupCells]
-                              .sort(
-                                (a, b) =>
-                                  typeOrderIndex(a.row.type) - typeOrderIndex(b.row.type) ||
-                                  normalizeType(a.row.type).localeCompare(normalizeType(b.row.type)),
-                              )
-                              .map((cell, i) => {
-                                const Icon = iconForType(cell.row.type)
-                                return (
-                                  <tr
-                                    key={`${region.id}-${golongan}-${cell.row.id || cell.row.type}-${i}`}
-                                    className="hover:bg-blue-50/30"
-                                  >
-                                    <td className="border-t border-slate-100 px-4 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <Icon size={16} strokeWidth={1.7} className="text-slate-500" />
-                                        <span className="font-medium capitalize text-slate-700">
-                                          {cell.row.type || '—'}
-                                        </span>
-                                        {cell.overridden && (
-                                          <span
-                                            title="Harga khusus region ini"
-                                            className="h-1.5 w-1.5 rounded-full bg-blue-500"
-                                          />
-                                        )}
-                                      </div>
-                                    </td>
-                                    <LockedInternalCell />
-                                    <SheetCell
-                                      value={region.lokal_tariff ?? 0}
-                                      onCommit={(v) => commitLokal(region, v)}
-                                      title="Tarif lokal wilayah ini"
-                                    />
-                                    <SheetCell
-                                      value={cell.muatan}
-                                      onCommit={(v) => commitCell(region, cell, 'muatan', v)}
-                                      title={
-                                        cell.overridden
-                                          ? 'Tarif region ini: kendaraan bermuatan'
-                                          : 'Sama dengan BADAU (bisa diubah): kendaraan bermuatan'
-                                      }
-                                    />
-                                    <SheetCell
-                                      value={cell.kosong}
-                                      onCommit={(v) => commitCell(region, cell, 'kosong', v)}
-                                      title={
-                                        cell.overridden
-                                          ? 'Tarif region ini: kendaraan kosong'
-                                          : 'Sama dengan BADAU (bisa diubah): kendaraan kosong'
-                                      }
-                                    />
-                                    <td className="border-t border-slate-100 px-2 py-1.5">
-                                      <div className="flex items-center justify-center gap-1">
-                                        <button
-                                          onClick={() => openEdit(region, cell)}
-                                          title="Edit tarif"
-                                          className="rounded-md border border-blue-100 bg-blue-50 p-1 text-blue-600 transition hover:bg-blue-100"
-                                        >
-                                          <Pencil size={12} />
-                                        </button>
-                                        {master && (
-                                          <button
-                                            onClick={() => void handleDeleteRow(cell.row)}
-                                            title="Hapus baris ini"
-                                            className="rounded-md border border-red-100 bg-red-50 p-1 text-red-500 transition hover:bg-red-100"
-                                          >
-                                            <Trash2 size={12} />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                          </Fragment>
-                        ))}
+                          )
+                        })}
                     </Fragment>
                   )
                 })}
@@ -1052,7 +724,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
         {/* Panel tambah / edit */}
         <aside id="tariff-form" className="xl:sticky xl:top-6">
-          <div className="rounded-2xl border border-slate-200 bg-[#F2F6FC] shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-start gap-2 border-b border-slate-100 px-4 py-3.5">
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                 <Plus size={15} />
@@ -1081,7 +753,6 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                   {orderedRegions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name || r.code}
-                      {isMasterRegion(r) ? ' (Master)' : ''}
                     </option>
                   ))}
                 </select>
@@ -1098,25 +769,9 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                 />
               </Field>
 
-              <Field label="Golongan" required>
-                <select
-                  value={form.golongan}
-                  onChange={(e) => setForm((f) => ({ ...f, golongan: e.target.value }))}
-                  disabled={!!editTarget || saving}
-                  className={INPUT_CLS}
-                >
-                  <option value="">Pilih Golongan</option>
-                  {GOLONGAN_OPTIONS.map((g) => (
-                    <option key={g} value={g}>
-                      Golongan {g}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
               <div className="!mt-5 border-t border-slate-100 pt-3">
                 <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
-                  Golongan Tarif
+                  Nominal Tarif
                 </p>
                 <div className="space-y-3">
                   <Field label="Internal (Rp)" required>
@@ -1172,8 +827,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
               {editTarget && (
                 <p className="text-[10.5px] leading-relaxed text-slate-400">
-                  Jenis, golongan, dan region dikunci saat mengedit. Klik Batal untuk menambah
-                  baris baru.
+                  Jenis dan region dikunci saat mengedit. Klik Batal untuk menambah baris baru.
                 </p>
               )}
             </div>
@@ -1182,30 +836,24 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
       </div>
 
       {/* Keterangan singkat */}
-      <div className="space-y-1 rounded-2xl border border-slate-200 bg-[#F2F6FC] px-4 py-3 text-[11px] text-slate-500 shadow-sm">
+      <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500 shadow-sm">
         <p>
-          <b className="text-slate-700">{MASTER_CODE}</b> — master tarif. Tiap region punya salinan
-          barisnya sendiri, jadi mengubah {MASTER_CODE} tidak mengubah region lain.
-        </p>
-        <p>
-          <b className="text-slate-700">Region lain</b> — ubah sel di tabel region itu sendiri
-          (mis. motor {MASTER_CODE} Rp 50.000, BELITUNG Rp 45.000). Hanya baris baru yang belum
-          pernah ada di region tersebut yang masih memakai nilai {MASTER_CODE}.
+          Tiap region punya baris tarifnya sendiri. Region yang belum punya baris untuk suatu jenis
+          kendaraan tampil <b className="text-slate-700">Rp 0</b> — isi selnya untuk menetapkan
+          harga.
         </p>
         <p>
           <b className="text-slate-700">lokal</b> — nominal flat per wilayah (`region_tariffs`).
           <b className="text-slate-700"> internal</b> terkunci Rp 0 — kendaraan internal tidak
           ditagih. Titik <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" /> =
-          harga khusus region tersebut.
+          baris tarif region ini sudah tersimpan.
         </p>
       </div>
 
       <datalist id="tariff-type-options">
-        {[...new Set([...TYPE_ORDER, ...tariffs.map((t) => t.type)])]
-          .filter(Boolean)
-          .map((t) => (
-            <option key={t} value={t} />
-          ))}
+        {allTypes.filter(Boolean).map((t) => (
+          <option key={t} value={t} />
+        ))}
       </datalist>
     </div>
   )

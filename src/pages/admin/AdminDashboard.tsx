@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landmark } from 'lucide-react'
-import { fetchTariffs } from '../../services/tariffs'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
 import type { AdminTab } from './components/types'
 import type { BackendOfficerRow } from './components/types'
-import type { TariffRow } from './components/types'
 import type { BackendTrip } from '../../services/trips'
 import type { PlateRecord } from '../../services/plates'
 import type { Officer } from './components/types'
@@ -27,7 +25,6 @@ import { EndpointTab } from './tabs/EndpointTab'
 
 
 export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
-  const [tariffs, setTariffs] = useState<TariffRow[]>([])
   const [officers, setOfficers] = useState<Officer[]>([])
   const [revealed, setRevealed] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -76,7 +73,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   // Dependency array WAJIB ada di sini. Tanpa itu, efek ini jalan ulang
   // setiap render -> setiap setState memicu render -> efek jalan lagi:
-  // request storm tak terbatas ke /tariffs, /trips, dan /officers.
+  // request storm tak terbatas ke /trips dan /officers.
   // `officers` sengaja TIDAK jadi dependency; state lama dipakai lewat
   // functional update supaya tidak memicu loop.
   useEffect(() => {
@@ -96,9 +93,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
       setServerError(null)
 
-      const [tarr, tri] = await Promise.all([fetchTariffs(), fetchTrips()])
+      const tri = await fetchTrips()
       if (!alive) return
-      if (tarr !== null && tarr.length > 0) setTariffs(tarr)
       if (tri !== null) setServerTrips(tri)
 
       const offs = await api.getOk<BackendOfficerRow[]>('/officers')
@@ -203,12 +199,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'tariff' && (
-            <TariffTab
-              tariffs={tariffs}
-              serverState={serverState}
-              onSaveTariffs={setTariffs}
-              showToast={showToast}
-            />
+            <TariffTab serverState={serverState} showToast={showToast} />
           )}
 
           {tab === 'plates' && (

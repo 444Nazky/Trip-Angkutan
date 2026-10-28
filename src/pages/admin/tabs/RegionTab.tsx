@@ -266,20 +266,20 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  const dermagaRow = (d: Dermaga, indented: boolean) => {
+  const dermagaRow = (d: Dermaga, indented: boolean, alt = false) => {
     const routeCount = routeCountOfDermaga(d.id)
     const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === d.id))
     return (
-      <tr key={d.id} className="admin-table-row hover:bg-slate-50/60">
-        <td className={`border border-slate-300 px-3 py-2 text-slate-700 ${indented ? 'pl-10' : ''}`}>
+      <tr key={d.id} className={`admin-table-row ${alt ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60 transition-colors duration-150`}>
+        <td className={`border border-slate-200 px-3 py-2 text-slate-700 ${indented ? 'pl-10' : ''}`}>
           <span className="font-semibold">{labelOf(d)}</span>
         </td>
-        <td className="border border-slate-300 px-3 py-2 font-mono text-slate-500 text-[12px]">{d.code || '—'}</td>
-        <td className="border border-slate-300 px-3 py-2 text-[12px] text-slate-500">
+        <td className="border border-slate-200 px-3 py-2 font-mono text-slate-500 text-[12px]">{d.code || '—'}</td>
+        <td className="border border-slate-200 px-3 py-2 text-[12px] text-slate-500">
           {routeCount === null ? 'rute: tidak termuat' : `${routeCount} rute`}
           {officers === null ? '' : ` · ${users.length} petugas`}
         </td>
-        <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
+        <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
           <button
             type="button"
             disabled={saving}
@@ -427,16 +427,16 @@ export function RegionTab({ showToast }: RegionTabProps) {
           <table className="w-full min-w-[820px] border-collapse text-[13px]">
             <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2.5 border border-slate-300 text-left">Wilayah / Dermaga</th>
-                <th className="px-3 py-2.5 border border-slate-300 text-left w-[140px]">Kode</th>
-                <th className="px-3 py-2.5 border border-slate-300 text-left w-[220px]">Dipakai</th>
-                <th className="px-3 py-2.5 border border-slate-300 text-right w-[170px]">Aksi</th>
+                <th className="px-3 py-2.5 border border-slate-200 text-left">Wilayah / Dermaga</th>
+                <th className="px-3 py-2.5 border border-slate-200 text-left w-[140px]">Kode</th>
+                <th className="px-3 py-2.5 border border-slate-200 text-left w-[220px]">Dipakai</th>
+                <th className="px-3 py-2.5 border border-slate-200 text-right w-[170px]">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {state === 'offline' && (
                 <tr>
-                  <td colSpan={4} className="border border-slate-300 px-3 py-8 text-center text-[12px] text-amber-700">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-amber-700">
                     Server tidak bisa dihubungi, jadi data wilayah & dermaga belum bisa ditampilkan. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
@@ -445,7 +445,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
               {state !== 'offline' && orderedRegions.length === 0 && orphans.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="border border-slate-300 px-3 py-8 text-center text-[12px] text-slate-400">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-slate-400">
                     {state === 'loading' ? 'Memuat data wilayah…' : 'Belum ada wilayah di database.'}
                   </td>
                 </tr>
@@ -456,18 +456,18 @@ export function RegionTab({ showToast }: RegionTabProps) {
                 const users = officersOfRegion(String(region.id))
                 return (
                   <Fragment key={region.id}>
-                    <tr className="bg-slate-100">
-                      <td className="border border-slate-300 px-3 py-2">
-                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
-                        <span className="text-[11px] text-slate-500">wilayah</span>
+                    <tr className="bg-slate-800">
+                      <td className="border border-slate-700 px-3 py-2">
+                        <span className="font-bold text-white">{labelOf(region)}</span>{' '}
+                        <span className="text-[11px] text-slate-300">wilayah</span>
                       </td>
-                      <td className="border border-slate-300 px-3 py-2 font-mono text-slate-600 text-[12px] uppercase">
+                      <td className="border border-slate-700 px-3 py-2 font-mono text-slate-300 text-[12px] uppercase">
                         {region.code || '—'}
                       </td>
-                      <td className="border border-slate-300 px-3 py-2 text-[12px] text-slate-500">
+                      <td className="border border-slate-700 px-3 py-2 text-[12px] text-slate-300">
                         {own.length} dermaga{officers === null ? '' : ` · ${users.length} petugas`}
                       </td>
-                      <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
+                      <td className="border border-slate-700 px-3 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
                           disabled={saving || officers === null}
@@ -482,21 +482,21 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
                     {own.length === 0 && (
                       <tr key={`${region.id}-empty`}>
-                        <td colSpan={4} className="border border-slate-300 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                        <td colSpan={4} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
                           Belum ada dermaga di wilayah ini
                         </td>
                       </tr>
                     )}
-                    {own.map((d) => dermagaRow(d, true))}
+                    {own.map((d, dIdx) => dermagaRow(d, true, dIdx % 2 === 1))}
                   </Fragment>
                 )
               })}
 
               {orphans.length > 0 && (
                 <Fragment>
-                  <tr className="bg-amber-50">
-                    <td colSpan={4} className="border border-slate-300 px-3 py-2">
-                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-amber-800">
+                  <tr className="bg-slate-800">
+                    <td colSpan={4} className="border border-slate-700 px-3 py-2">
+                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
                         <TriangleAlert size={14} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak ada
                         di database
                       </span>

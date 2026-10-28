@@ -184,13 +184,13 @@ export default function RecapSheet() {
           <div className="overflow-auto max-h-[calc(100vh-250px)]">
             <table className="w-full border-collapse text-[13px] min-w-[860px]">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-[#1f3864] text-[12px] font-bold text-white">
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left w-[120px]">Golongan</th>
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left">Jenis Kendaraan</th>
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Tanpa Muatan</th>
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Dengan Muatan</th>
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[140px]">Total Kendaraan</th>
-                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[180px]">Total Pendapatan (Rp)</th>
+                <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Golongan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-left">Jenis Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[150px]">Tanpa Muatan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[150px]">Dengan Muatan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[140px]">Total Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-slate-200 text-center w-[180px]">Total Pendapatan (Rp)</th>
                 </tr>
               </thead>
 
@@ -209,13 +209,13 @@ export default function RecapSheet() {
               ) : groups.map((group, gi) => (
                 <tbody key={`gol-${group.golongan}`}>
                   {gi > 0 && (
-                    <tr><td colSpan={6} className="bg-[#1f3864] border border-[#2e4a7d] h-[10px] p-0" /></tr>
+                    <tr><td colSpan={6} className="bg-slate-800 border border-slate-700 h-[10px] p-0" /></tr>
                   )}
                   {group.rows.map((row, idx) => (
-                    <tr key={`${group.golongan}-${row.jenis}`} className="hover:bg-slate-50/60">
+                    <tr key={`${group.golongan}-${row.jenis}`} className={`${idx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60 transition-colors duration-150`}>
                       {idx === 0 && (
                         <td rowSpan={group.rows.length}
-                          className="px-3 py-2 border border-slate-200 align-middle text-left font-semibold text-slate-900">
+                          className="px-3 py-2 border border-slate-200 bg-slate-100 align-middle text-left font-semibold text-slate-800">
                           {group.golongan}
                         </td>
                       )}
@@ -231,14 +231,14 @@ export default function RecapSheet() {
 
               {groups.length > 0 && (
                 <tfoot>
-                  <tr className="bg-[#1f3864] font-bold text-white">
-                    <td colSpan={2} className="px-3 py-3 border border-[#2e4a7d] uppercase tracking-wide text-[11px]">
+                  <tr className="bg-slate-100 font-bold text-slate-700">
+                    <td colSpan={2} className="px-3 py-3 border border-slate-200 uppercase tracking-wide text-[11px]">
                       Total All Golongan
                     </td>
-                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.empty}</td>
-                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.loaded}</td>
-                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.total}</td>
-                    <td className="px-3 py-3 border border-[#2e4a7d] text-right tabular-nums">{total.revenue}</td>
+                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.empty}</td>
+                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.loaded}</td>
+                    <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.total}</td>
+                    <td className="px-3 py-3 border border-slate-200 text-right tabular-nums">{total.revenue}</td>
                   </tr>
                 </tfoot>
               )}

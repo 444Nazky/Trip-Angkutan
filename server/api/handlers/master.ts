@@ -1,6 +1,6 @@
 // Master data handlers: regions, dermagas, tariffs.
 import { db, json, auth, requireAdmin } from "../_shared.ts";
-import { invalidateTariffCache } from "./tariffRules.ts";
+import { invalidateTariffCache, getMasterTariffs as getBadauMasterTariffs } from "./tariffRules.ts";
 
 /** Id region/dermaga bertipe uuid di database. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,33 +23,6 @@ export async function getRegions(req: Request): Promise<Response> {
   }
 }
 
-/**
- * Region baru mulai dengan salinan tarif master, tetapi barisnya milik region
- * itu sendiri. Jadi mengubah tarif region ini tidak menyentuh BADAU/region lain.
- */
-async function seedRegionRowsFromMaster(regionId: string): Promise<void> {
-  const { data: master, error } = await db
-    .from("tariffs")
-    .select("golongan, vehicle_type, loaded_tariff, empty_tariff")
-    .eq("is_active", 1);
-  if (error) throw error;
-  const rows = (master ?? [])
-    .filter((t: any) => t.vehicle_type)
-    .map((t: any) => ({
-      region_id: regionId,
-      golongan: String(t.golongan ?? ""),
-      vehicle_type: String(t.vehicle_type),
-      muatan_tariff: Number(t.loaded_tariff ?? 0),
-      kosong_tariff: Number(t.empty_tariff ?? 0),
-      is_active: 1,
-    }));
-  if (!rows.length) return;
-  const { error: seedError } = await db
-    .from("region_tariff_rows")
-    .upsert(rows, { onConflict: "region_id,golongan,vehicle_type" });
-  if (seedError) throw seedError;
-}
-
 export async function createRegion(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -67,12 +40,6 @@ export async function createRegion(req: Request): Promise<Response> {
     if (error) {
       console.error("Create region error:", error);
       return json({ error: "Gagal membuat wilayah" }, 500);
-    }
-    try {
-      await seedRegionRowsFromMaster(String((data as any).id));
-    } catch (seedError) {
-      // Region tetap dibuat; baris master masih dipakai sebagai cadangan.
-      console.error("Seed region tariff rows error:", seedError);
     }
     invalidateTariffCache();
     return json(data, 201);
@@ -429,18 +396,12 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
 }
 
 // Master tariffs for officers (athlete field: petugas HP caching).
+// Sumber: baris tarif BADAU (tarif tiap region dikelola di /region-tariffs).
 export async function getMasterTariffs(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
-    const { data, error } = await db
-      .from("tariffs")
-      .select("id, golongan, vehicle_type, loaded_tariff, empty_tariff, description")
-      .eq("is_active", 1)
-      .order("golongan", { ascending: true })
-      .order("vehicle_type", { ascending: true });
-    if (error) throw error;
-    return json(data);
+    return json(await getBadauMasterTariffs());
   } catch (error) {
     console.error("Get master tariffs error:", error);
     return json({ error: "Failed to fetch tariffs" }, 500);

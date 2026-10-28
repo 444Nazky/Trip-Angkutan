@@ -120,16 +120,16 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-            <tr><th className="text-left p-4">No. Plat</th><th className="text-left p-4">Pemilik</th><th className="text-left p-4">Region Asal</th><th className="text-left p-4">Status</th><th className="text-right p-4">Aksi</th></tr>
+          <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wide">
+            <tr><th className="text-left p-4 border-b border-slate-200">No. Plat</th><th className="text-left p-4 border-b border-slate-200">Pemilik</th><th className="text-left p-4 border-b border-slate-200">Region Asal</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-right p-4 border-b border-slate-200">Aksi</th></tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-slate-100">
             {plateState === 'loading' ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : plates.length === 0 ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada plat terdaftar</td></tr>
-            ) : plates.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50">
+            ) : plates.map((p, i) => (
+              <tr key={p.id} className={`${i % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50 transition-colors duration-150`}>
                 <td className="p-4 font-mono font-bold tracking-wide">{p.plate}</td>
                 <td className="p-4">{p.owner || <span className="text-slate-300">—</span>}</td>
                 <td className="p-4">{p.origin_region_code || <span className="text-slate-300">—</span>}</td>

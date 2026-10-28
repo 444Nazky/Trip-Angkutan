@@ -12,7 +12,6 @@ export interface ServerTariff {
 }
 
 export interface RegionTariffOverrideRow {
-  golongan: string
   vehicleType: string
   muatanTariff: number
   kosongTariff: number
@@ -27,7 +26,7 @@ export interface RegionTariffRow {
   lokal_active: number | null
   eksternal_tariff: number | null
   eksternal_active: number | null
-  /** Override master per golongan+jenis (kosong = pakai master). */
+  /** Baris tarif per jenis kendaraan (kosong = tarif Rp 0). */
   rows?: RegionTariffOverrideRow[] | null
 }
 
@@ -97,16 +96,14 @@ export async function upsertRegionTariff(input: {
   return r.ok
 }
 
-/** Upsert override master (muatan+kosong) satu golongan+jenis untuk region. */
+/** Upsert tarif (muatan+kosong) satu jenis kendaraan untuk region. */
 export async function upsertRegionTariffRow(input: {
   regionId: string
-  golongan: string
   vehicleType: string
   muatanTariff: number
   kosongTariff: number
 }): Promise<boolean> {
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
-    golongan: input.golongan,
     vehicleType: input.vehicleType,
     muatanTariff: input.muatanTariff,
     kosongTariff: input.kosongTariff,

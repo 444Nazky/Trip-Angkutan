@@ -18,6 +18,7 @@
     "watch": "ng build --watch --configuration development",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "docs:screenshots": "node scripts/capture-screenshots.mjs",
     "lint": "ng lint"
   },
   "private": true,

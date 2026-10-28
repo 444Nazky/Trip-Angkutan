@@ -429,24 +429,24 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             {/* Kelompokkan berdasarkan Region → Dermaga */}
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
-                <tr className="bg-slate-100">
-                  <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
-                    <span className="font-bold text-slate-800 text-[13px]">{regionName}</span>
+                <tr className="bg-slate-800">
+                  <td colSpan={7} className="px-3 py-2 border border-slate-700 text-left">
+                    <span className="font-bold text-white text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
-                    <tr className="bg-blue-50/50">
+                    <tr className="bg-slate-100">
                       <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
-                        <span className="font-semibold text-slate-700 text-xs flex items-center gap-2">
-                          <span className="w-1 h-1 rounded-full bg-blue-500" />
+                        <span className="font-semibold text-slate-600 text-xs flex items-center gap-2">
+                          <span className="w-1 h-1 rounded-full bg-slate-400" />
                           {dermagaName}
                           <span className="text-slate-400 font-normal">({routes.length} rute)</span>
                         </span>
                       </td>
                     </tr>
-                    {routes.map(r => (
-                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50/60'}`}>
+                    {routes.map((r, rIdx) => (
+                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : `${rIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60`}`}>
                         <td className="px-3 py-2 border border-slate-200 text-slate-500 text-[11px] font-semibold whitespace-nowrap">{r.dermaga_code || ''}</td>
                         <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>

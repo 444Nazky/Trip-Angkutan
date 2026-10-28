@@ -48,7 +48,7 @@ function put(payload: unknown): Request {
 
 Deno.test("PUT baris tarif region non-BADAU tersimpan (body dibaca sekali)", async () => {
   const res = await updateRegionTariff(
-    put({ golongan: "II", vehicleType: "motor", muatanTariff: 45000, kosongTariff: 40000 }),
+    put({ vehicleType: "motor", muatanTariff: 45000, kosongTariff: 40000 }),
     REGION_ID,
   );
   const body = await res.json();

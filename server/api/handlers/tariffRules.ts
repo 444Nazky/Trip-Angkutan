@@ -6,19 +6,13 @@
 //
 // Urutan prioritas harga (kebijakan disetujui owner):
 //   1. Kategori Internal            -> Rp 0 (kendaraan internal selalu gratis)
-//   2. Baris tarif region eksak     -> region_tariff_rows (region + golongan + jenis)
-//                                      loaded=? muatan_tariff, empty -> kosong_tariff
-//   (2b. Baris tarif region per jenis) -> fallback bila golongan tidak cocok
-//   3. Master tarif                 -> baris tariffs (golongan + jenis kendaraan)
-//                                      loaded_tariff untuk muatan, empty_tariff untuk kosong
-//   3b. Master tarif per jenis      -> fallback bila baris (golongan + jenis) tidak ada
-//   4. Tarif terpusat per region    -> region_tariffs (lokal / eksternal) bila master kosong
-//   5. Nol                          -> tidak ada sumber harga (ditandai "tanpa-tarif")
+//   2. Baris tarif region per jenis -> region_tariff_rows (region + jenis kendaraan)
+//                                      hasLoad -> muatan_tariff, kosong -> kosong_tariff
+//   3. Tarif terpusat per region    -> region_tariffs (lokal / eksternal)
+//   4. Nol                          -> tidak ada sumber harga (ditandai "tanpa-tarif")
 //
-// Kenapa baris region lebih dulu: baris region adalah override tersimpan yang
-// admin isi lewat panel REGION; kalau region belum mengisi baris (tanpa
-// override), resolver otomatis memakai master BADAU — sama dengan policy
-// "region baru tampil default sama dengan BADAU".
+// Setiap region punya barisnya sendiri (termasuk BADAU); tidak ada fallback
+// ke master. Region tanpa baris = tarif 0, dan admin mengisinya di tabel REGION.
 //
 // Catatan normalisasi: penulisan jenis kendaraan di admin bisa "Truck Besar"
 // sedangkan label UI mobile "Truk Besar". both dinormalisasi ke kunci yang sama
@@ -46,9 +40,6 @@ export interface FlatRegionTariff {
 export type TariffSource =
   | "internal"
   | "region-row"
-  | "region-row-jenis"
-  | "master"
-  | "master-jenis"
   | "region"
   | "tanpa-tarif";
 
@@ -75,22 +66,31 @@ export function invalidateTariffCache(): void {
   overrideCache = null;
 }
 
+/** Master tarif untuk mobile = baris tarif BADAU (sumber tunggal setelah golongan dihapus). */
 export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]> {
   if (!force && masterCache && Date.now() - masterCache.at < MASTER_TTL_MS) {
     return masterCache.rows;
   }
+  const { data: region } = await db
+    .from("regions")
+    .select("id")
+    .eq("code", "BADAU")
+    .limit(1);
+  const regionId = (region as any[] | null)?.[0]?.id;
+  if (!regionId) return masterCache?.rows ?? [];
   const { data, error } = await db
-    .from("tariffs")
-    .select("id, golongan, vehicle_type, loaded_tariff, empty_tariff, description, is_active")
+    .from("region_tariff_rows")
+    .select("id, vehicle_type, muatan_tariff, kosong_tariff, is_active")
+    .eq("region_id", regionId)
     .eq("is_active", 1);
   if (error || !data) return masterCache?.rows ?? [];
-  const rows = (data as MasterTariffRow[]).map((t) => ({
+  const rows = (data as any[]).map((t) => ({
     id: t.id,
-    golongan: String(t.golongan ?? ""),
+    golongan: "",
     vehicle_type: String(t.vehicle_type ?? ""),
-    loaded_tariff: Number(t.loaded_tariff ?? 0) || 0,
-    empty_tariff: Number(t.empty_tariff ?? 0) || 0,
-    description: t.description ?? null,
+    loaded_tariff: Number(t.muatan_tariff ?? 0) || 0,
+    empty_tariff: Number(t.kosong_tariff ?? 0) || 0,
+    description: null,
     is_active: t.is_active ?? 1,
   }));
   masterCache = { at: Date.now(), rows };
@@ -121,7 +121,6 @@ export async function getRegionTariffs(force = false): Promise<FlatRegionTariff[
 
 export interface OverrideTariffRow {
   region_id: string;
-  golongan: string;
   vehicle_type: string;
   muatan_tariff: number;
   kosong_tariff: number;
@@ -134,11 +133,10 @@ export async function getRegionTariffOverrides(force = false): Promise<OverrideT
   }
   const { data, error } = await db
     .from("region_tariff_rows")
-    .select("region_id, golongan, vehicle_type, muatan_tariff, kosong_tariff, is_active");
+    .select("region_id, vehicle_type, muatan_tariff, kosong_tariff, is_active");
   if (error || !data) return overrideCache?.rows ?? [];
   const rows = (data as any[]).map((r) => ({
     region_id: String(r.region_id ?? ""),
-    golongan: String(r.golongan ?? ""),
     vehicle_type: String(r.vehicle_type ?? ""),
     muatan_tariff: Number(r.muatan_tariff ?? 0) || 0,
     kosong_tariff: Number(r.kosong_tariff ?? 0) || 0,
@@ -165,15 +163,7 @@ export function normalizeCategory(raw: unknown): OperationalCategory | null {
   return null;
 }
 
-/** Golongan master tarif lawas (I..V) bukan kategori operasional. */
-export function isMasterGolongan(raw: unknown): boolean {
-  const s = String(raw ?? "").trim();
-  if (!s) return false;
-  return /^(i|ii|iii|iv|v)$/i.test(s);
-}
-
-/**
- * Kunci perbandingan jenis kendaraan.
+/** Kunci perbandingan jenis kendaraan.
  * "Truck Besar" / "TruckBesar" / "Truk Besar" -> "trukbesar"
  */
 export function normalizeVehicleType(raw: unknown): string {
@@ -200,7 +190,7 @@ export function normalizeGolongan(raw: unknown): string {
 export interface ResolveTariffInput {
   vehicleType: string;
   hasLoad: boolean;
-  /** Golongan master tarif (I..V) dari master tarif. */
+  /** @deprecated golongan sudah tidak dipakai; dipertahankan agar pemanggil lama tetap kompatibel. */
   golongan?: string | null;
   /** Kategori operasional kendaraan (Internal / Eksternal / Lokal). */
   kategori?: string | null;
@@ -217,7 +207,6 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
   const category = normalizeCategory(input.kategori);
   const vehicleType = String(input.vehicleType ?? "").trim();
   const hasLoad = !!input.hasLoad;
-  const wantGolongan = normalizeGolongan(input.golongan);
   const wantType = normalizeVehicleType(vehicleType);
 
   // 1. Internal selalu gratis.
@@ -225,60 +214,29 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
     return { amount: 0, source: "internal", loaded: 0, empty: 0, category };
   }
 
-  // 2. Baris override tarif region (region + golongan + jenis, lalu per jenis).
-  //    Region tanpa baris otomatis jatuh ke master BADAU di bawah, sehingga
-  //    region baru default-nya sama dengan BADAU tanpa perlu menyalin baris.
+  // 2. Baris tarif region untuk jenis kendaraan ini (satu baris per region+jenis).
   if (input.regionId) {
     const overrides = await getRegionTariffOverrides();
-    const mine = overrides.filter(
-      (o) => o.region_id === String(input.regionId) && o.is_active === 1 && (wantType ? normalizeVehicleType(o.vehicle_type) === wantType : true),
+    const hit = overrides.find(
+      (o) =>
+        o.region_id === String(input.regionId) &&
+        o.is_active === 1 &&
+        (wantType ? normalizeVehicleType(o.vehicle_type) === wantType : true),
     );
-    if (mine.length) {
-      const byRow = mine.find((o) => normalizeGolongan(o.golongan) === wantGolongan);
-      const hit = byRow ?? (mine.length === 1 ? mine[0] : undefined);
-      if (hit) {
-        const loaded = Number(hit.muatan_tariff ?? 0) || 0;
-        const empty = Number(hit.kosong_tariff ?? 0) || 0;
-        return {
-          amount: hasLoad ? loaded : empty,
-          source: byRow ? "region-row" : "region-row-jenis",
-          loaded,
-          empty,
-          category,
-        };
-      }
+    if (hit) {
+      const loaded = Number(hit.muatan_tariff ?? 0) || 0;
+      const empty = Number(hit.kosong_tariff ?? 0) || 0;
+      return {
+        amount: hasLoad ? loaded : empty,
+        source: "region-row",
+        loaded,
+        empty,
+        category,
+      };
     }
   }
 
-  const masters = await getMasterTariffs();
-
-  // 3. Master tarif baris eksak: jenis kendaraan + golongan.
-  const byGolongan = wantType
-    ? masters.find(
-      (t) => normalizeVehicleType(t.vehicle_type) === wantType &&
-        normalizeGolongan(t.golongan) === wantGolongan,
-    )
-    : undefined;
-
-  // 3. Master tarif per jenis kendaraan (fallback bila golongan tidak cocok).
-  const byType = wantType
-    ? masters.find((t) => normalizeVehicleType(t.vehicle_type) === wantType)
-    : undefined;
-
-  const master = byGolongan ?? byType;
-  if (master) {
-    const loaded = Number(master.loaded_tariff ?? 0) || 0;
-    const empty = Number(master.empty_tariff ?? 0) || 0;
-    return {
-      amount: hasLoad ? loaded : empty,
-      source: byGolongan ? "master" : "master-jenis",
-      loaded,
-      empty,
-      category,
-    };
-  }
-
-  // 4. Tarif terpusat per region (kategori lokal / eksternal, region aktif).
+  // 3. Tarif terpusat per region (kategori lokal / eksternal, region aktif).
   if (category && input.regionId) {
     const regions = await getRegionTariffs();
     const wanted = category === "Lokal" ? "lokal" : "eksternal";
@@ -293,7 +251,7 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
     }
   }
 
-  // 5. Tidak ada sumber harga.
+  // 4. Tidak ada sumber harga.
   return { amount: 0, source: "tanpa-tarif", loaded: 0, empty: 0, category };
 }
 

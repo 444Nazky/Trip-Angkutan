@@ -430,19 +430,19 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         if (groupOfficers.length === 0) return null
         return (
           <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card stagger-item">
-            <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
-              <Lock size={14} className="text-blue-400" />
+            <div className="px-6 py-3 bg-slate-800 text-white font-bold flex items-center gap-2">
+              <Lock size={14} className="text-slate-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
-                <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
+              <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wide">
+                <tr><th className="text-left p-4 border-b border-slate-200">Nama</th><th className="text-left p-4 border-b border-slate-200">Dermaga</th><th className="text-left p-4 border-b border-slate-200">Rute</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-left p-4 border-b border-slate-200">Aksi</th></tr>
               </thead>
-              <tbody className="divide-y">
-                {groupOfficers.map((o) => {
+              <tbody className="divide-y divide-slate-100">
+                {groupOfficers.map((o, oIdx) => {
                   const localIdx = localOfficers.indexOf(o)
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50">
+                    <tr key={o.id} className={`${oIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50 transition-colors duration-150`}>
                       <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
                       <td className="p-4">
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
