@@ -27,6 +27,7 @@ import {
   BTN_SECONDARY,
   CARD,
   CARD_SUBTLE,
+  groupTint,
   DOT_ERROR,
   DOT_OK,
   DOT_WARN,
@@ -109,9 +110,9 @@ const TYPE_ORDER = ['motor', 'mobil', 'truk kecil', 'truk sedang', 'truk besar']
 const VEHICLE_CARDS = [
   { key: 'motor', label: '1. Motor', Icon: Bike, tone: 'text-blue-600' },
   { key: 'mobil', label: '2. Mobil', Icon: Car, tone: 'text-emerald-600' },
-  { key: 'truk kecil', label: '3. Truk Kecil', Icon: Truck, tone: 'text-amber-500' },
+  { key: 'truk kecil', label: '3. Truk Kecil', Icon: Truck, tone: 'text-amber-600' },
   { key: 'truk sedang', label: '4. Truk Sedang', Icon: Truck, tone: 'text-cyan-600' },
-  { key: 'truk besar', label: '5. Truk Besar', Icon: Truck, tone: 'text-red-500' },
+  { key: 'truk besar', label: '5. Truk Besar', Icon: Truck, tone: 'text-violet-600' },
   { key: 'truk trailer', label: '6. Truk Trailer', sub: '(Opsional)', Icon: Container, tone: 'text-slate-500' },
 ]
 
@@ -839,7 +840,7 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
 
       {/* Kartu jenis kendaraan */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {VEHICLE_CARDS.map((v) => {
+        {VEHICLE_CARDS.map((v, vIdx) => {
           const active = filterType === v.key
           const Icon = v.Icon
           return (
@@ -847,10 +848,10 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
               key={v.key}
               onClick={() => setFilterType(active ? '' : v.key)}
               title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${v.label.replace(/^\d+\.\s*/, '')}`}
-              className={`flex flex-col items-center gap-2 rounded-2xl border bg-white px-2 py-4 transition ${
+              className={`flex flex-col items-center gap-2 rounded-2xl border px-2 py-4 transition ${
                 active
                   ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
-                  : 'border-slate-200 hover:border-blue-300 hover:shadow-sm'
+                  : `border-slate-200/80 ${groupTint(vIdx).sub} hover:border-blue-300 hover:shadow-sm`
               }`}
             >
               <Icon size={34} strokeWidth={1.6} className={v.tone} />
@@ -904,32 +905,35 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                 </tr>
               </thead>
               <tbody>
-                {visibleGroups.map(({ region, cells }) => {
+                {visibleGroups.map(({ region, cells }, regionIdx) => {
                   const master = isMasterRegion(region)
                   const open = expanded.has(region.id)
                   const golonganGroups = groupByGolongan(cells)
                   const typeCount = new Set(cells.map((c) => normalizeType(c.row.type))).size
+                  // Tiap region punya warna sendiri supaya blok tarifnya
+                  // kelihatan sebagai unit yang terpisah.
+                  const tint = groupTint(regionIdx)
                   return (
                     <Fragment key={region.id}>
                       <tr
-                        className="cursor-pointer border-b border-slate-200 bg-slate-100 transition hover:bg-slate-200/70"
+                        className={`cursor-pointer border-b border-slate-200 transition hover:brightness-[0.985] ${tint.row}`}
                         onClick={() => toggleRegion(region.id)}
                       >
-                        <td colSpan={6} className="px-4 py-2.5">
+                        <td colSpan={6} className={`px-4 py-2.5 ${tint.edge} pl-5`}>
                           <div className="flex flex-wrap items-center gap-2">
                             {open ? (
                               <ChevronDown size={15} className="text-slate-500" />
                             ) : (
                               <ChevronRight size={15} className="text-slate-500" />
                             )}
-                            <span className="font-bold text-slate-800">
+                            <span className={`font-bold ${tint.text}`}>
                               Region {region.name || region.code}
                             </span>
                             <span className="text-[11px] text-slate-500">
                               {golonganGroups.length} golongan • {typeCount} jenis kendaraan
                             </span>
                             {master && (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tint.chip}`}>
                                 MASTER
                               </span>
                             )}
@@ -958,12 +962,15 @@ export function TariffTab({ tariffs, serverState, onSaveTariffs, showToast }: Ta
                       {open &&
                         golonganGroups.map(([golongan, groupCells]) => (
                           <Fragment key={`${region.id}-${golongan}`}>
-                            <tr className="bg-slate-50">
+                            <tr className={tint.sub}>
                               <td
                                 colSpan={6}
-                                className="border-b border-slate-100 px-5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400"
+                                className="border-b border-slate-100 px-5 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-500"
                               >
-                                Golongan {golongan}
+                                <span className="flex items-center gap-1.5">
+                                  <span className={`h-1.5 w-1.5 rounded-full ${tint.accent}`} />
+                                  Golongan {golongan}
+                                </span>
                               </td>
                             </tr>
                             {[...groupCells]

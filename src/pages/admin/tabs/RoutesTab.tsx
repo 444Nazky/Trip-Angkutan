@@ -10,6 +10,7 @@ import {
   DOT_MUTED,
   DOT_OK,
   DOT_WARN,
+  groupTint,
   INPUT,
   LABEL,
   PAGE,
@@ -450,19 +451,21 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
               </td></tr>
             )}
             {/* Kelompokkan berdasarkan Region → Dermaga */}
-            {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
+            {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions], regionIdx) => {
+              const tint = groupTint(regionIdx)
+              return (
               <React.Fragment key={regionName}>
-                <tr className="bg-slate-100">
-                  <td colSpan={7} className={`${TABLE_CELL} text-left`}>
-                    <span className="font-bold text-slate-800 text-[13px]">{regionName}</span>
+                <tr className={tint.row}>
+                  <td colSpan={7} className={`${TABLE_CELL} text-left ${tint.edge} pl-5`}>
+                    <span className={`font-bold text-[13px] ${tint.text}`}>{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
-                    <tr className="bg-blue-50/50">
+                    <tr className={tint.sub}>
                       <td colSpan={7} className={`${TABLE_CELL} text-left`}>
                         <span className="font-semibold text-slate-700 text-xs flex items-center gap-2">
-                          <span className="w-1 h-1 rounded-full bg-blue-500" />
+                          <span className={`h-1.5 w-1.5 rounded-full ${tint.accent}`} />
                           {dermagaName}
                           <span className="text-slate-400 font-normal">({routes.length} rute)</span>
                         </span>
@@ -488,7 +491,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </React.Fragment>
                 ))}
               </React.Fragment>
-            ))}
+              )
+            })}
           </tbody>
         </table>
         </div>

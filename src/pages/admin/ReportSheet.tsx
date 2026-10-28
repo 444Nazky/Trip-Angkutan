@@ -38,6 +38,7 @@ import {
   FOOT_ROW,
   GROUP_ROW,
   GROUP_ROW_CELL,
+  groupTint,
   INPUT,
   LABEL,
   PAGE_SUBTITLE,
@@ -50,6 +51,7 @@ import {
   TABLE_CELL_GRID,
   TABLE_HEAD_CELL_GRID,
   TABLE_HEAD_ROW,
+  TABLE_ROW_ALT,
   TABLE_WRAP,
 } from './theme'
 
@@ -95,11 +97,11 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
           <div className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white text-xs font-semibold">
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold border-b border-slate-200">
               <span className="flex items-center gap-2">
                 <ImageIcon size={13} /> Dokumentasi {label ? ` - ${label}` : 'Kendaraan'}
               </span>
-              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded"><X size={14} /></button>
+              <button onClick={() => setOpen(false)} className="p-1 hover:bg-slate-200 rounded"><X size={14} /></button>
             </div>
             <div className="bg-slate-900 p-2 flex items-center justify-center">
               <img src={url} alt="kendaraan" className="max-h-[65vh] w-auto object-contain rounded-lg" />
@@ -510,19 +512,19 @@ export default function ReportSheet() {
                   <tr><td colSpan={COLUMNS.length} className={`${EMPTY_STATE} animate-pulse`}>Memuat laporan...</td></tr>
                 ) : dateGroups.length === 0 ? (
                   <tr><td colSpan={COLUMNS.length} className={EMPTY_STATE}>Tidak ada data pada filter ini</td></tr>
-                ) : dateGroups.map(group => (
+                ) : dateGroups.map((group, gi) => (
                   <Fragment key={`date-${group.key}`}>
-                    <tr className={GROUP_ROW}>
-                      <td colSpan={8} className={GROUP_ROW_CELL}>
-                        <span className="flex items-center gap-1.5 font-bold text-sm">
-                          <Calendar size={13} className="text-slate-400" />
+                    <tr className={`${GROUP_ROW} ${groupTint(gi).row}`}>
+                      <td colSpan={8} className={`${GROUP_ROW_CELL} ${groupTint(gi).edge} pl-5`}>
+                        <span className={`flex items-center gap-1.5 font-bold text-sm ${groupTint(gi).text}`}>
+                          <Calendar size={13} className="opacity-70" />
                           {group.label}
                         </span>
-                        <span className="ml-3 text-[11px] font-normal text-slate-300">
+                        <span className={`ml-3 text-[11px] font-normal ${groupTint(gi).muted}`}>
                           {group.tripCount} trip - {group.vehicleCount} unit
                         </span>
                       </td>
-                      <td colSpan={3} className={`${GROUP_ROW_CELL} text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300`}>
+                      <td colSpan={3} className={`${GROUP_ROW_CELL} text-right text-[11px] font-semibold uppercase tracking-wide ${groupTint(gi).muted}`}>
                         Subtotal
                       </td>
                       <td className={`${GROUP_ROW_CELL} text-right font-black tabular-nums`}>
@@ -534,7 +536,7 @@ export default function ReportSheet() {
                       const v = r.vehicle
                       const hasLoad = Number(v.has_load) > 0
                       return (
-                        <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : 'bg-slate-50/40'}>
+                        <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : TABLE_ROW_ALT}>
                           <td className={`${TABLE_CELL_GRID} font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap`}>{r.trip.no_trip}</td>
                           <td className={`${TABLE_CELL_GRID} text-[11px] text-slate-500 whitespace-nowrap`}>{r.date}</td>
                           <td className={`${TABLE_CELL_GRID} text-[11px] text-slate-500 tabular-nums whitespace-nowrap`}>{r.time}</td>

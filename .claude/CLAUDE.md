@@ -272,12 +272,20 @@ graphify update .  # Setelah modifikasi code
 - Token penting: `PAGE`, `PAGE_TITLE`, `PAGE_SUBTITLE`, `CARD`, `TABLE_WRAP`,
   `TABLE_HEAD_ROW`, `TABLE_CELL`, `BTN_PRIMARY`, `BTN_SECONDARY`, `INPUT`,
   `LABEL`, `BADGE*`, `DOT*`, `PILL*`, `GROUP_ROW`, `FOOT_ROW`, `SHEET_BODY`,
-  `SHEET_HEADER`, `STAT_LABEL`, `STAT_VALUE`, `TOAST*`, `PAGE_HEADER*`.
+  `SHEET_HEADER`, `STAT_LABEL`, `STAT_VALUE`, `TOAST*`, `PAGE_HEADER*`,
+  `GROUP_TINTS` + `groupTint(index)`.
 - Palet WAJIB (pilihan user, jangan ganti warna lain):
   `#1E293B` (slate-800) bidang gelap, `#2563EB` (blue-600) aksen,
   `#FFFFFF` permukaan, `#F8FAFC` (slate-50) latar. Turunan yang boleh:
   slate-200/100 garis, slate-900/700/500/400 teks, blue-50 tint biru,
   dan status emerald/amber/red/slate.
+- **Pengelompokan data** (semua tab, kecuali Pengaturan): pakai
+  `groupTint(i)` - `i` = urutan kelompok (tanggal/region/golongan/rute).
+  Setiap kelompok dapat warna sendiri: `row` (latar baris pengelompok),
+  `sub` (latar sub-kelompok), `edge` (garis aksen 4px di tepi kiri),
+  `text`/`muted` (teks), `chip`, `accent` (bar/dot kecil). Warnanya
+  rendah saturasi (tint -50 dengan opasitas 80%) - jangan pakai bidang
+  gelap untuk baris pengelompok; hanya sidebar boleh gelap.
 - Header halaman TETAP PUTIH (`PAGE_HEADER`) dengan garis aksen biru di tepi
   kiri - JANGAN pakai bidang gelap untuk header. Warna berasal dari aksen:
   sidebar (slate-800), menu aktif + kepala tabel (blue), tombol (blue).

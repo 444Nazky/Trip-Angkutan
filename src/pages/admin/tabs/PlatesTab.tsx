@@ -18,6 +18,7 @@ import {
   SECTION_TITLE,
   TABLE_CELL,
   TABLE_HEAD_CELL,
+  TABLE_ROW_ALT,
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
@@ -89,7 +90,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
   }
 
   const statusColor = (s: string) =>
-    s === 'internal' ? 'bg-slate-800 text-white' : s === 'lokal' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+    s === 'internal' ? 'bg-slate-200 text-slate-700' : s === 'lokal' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
 
   return (
     <div className={PAGE}>
@@ -149,8 +150,8 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
               <tr><td colSpan={5} className="p-6 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : plates.length === 0 ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada plat terdaftar</td></tr>
-            ) : plates.map(p => (
-              <tr key={p.id} className="admin-table-row hover:bg-slate-50/60">
+            ) : plates.map((p, i) => (
+              <tr key={p.id} className={`admin-table-row ${i % 2 === 1 ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
                 <td className={`${TABLE_CELL} font-mono font-bold tracking-wide`}>{p.plate}</td>
                 <td className={TABLE_CELL}>{p.owner || <span className="text-slate-300">—</span>}</td>
                 <td className={TABLE_CELL}>{p.origin_region_code || <span className="text-slate-300">—</span>}</td>

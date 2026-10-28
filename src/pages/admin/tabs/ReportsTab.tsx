@@ -17,8 +17,9 @@ import {
   SECTION_TITLE,
   GROUP_ROW,
   GROUP_ROW_CELL,
+  groupTint,
   PILL,
-  PILL_NEUTRAL,
+  PILL_OK,
   TABLE_HEAD_ROW,
   TABLE_WRAP,
 } from '../theme'
@@ -328,29 +329,36 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className={`${CARD} p-5 text-center`}>
-            <p className={STAT_LABEL}>Total Trip</p>
-            <p className={STAT_VALUE}>{totalTrip}</p>
-          </div>
-          <div className={`${CARD} p-5 text-center`}>
-            <p className={STAT_LABEL}>Muatan</p>
-            <p className={STAT_VALUE}>{muatanCount}</p>
-          </div>
-          <div className={`${CARD} p-5 text-center`}>
-            <p className={STAT_LABEL}>Unit</p>
-            <p className={STAT_VALUE}>{totalUnit}</p>
-          </div>
-          <div className={`${CARD} p-5 text-center`}>
-            <p className={STAT_LABEL}>Pendapatan</p>
-            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className={STAT_VALUE} />
-          </div>
+          {[
+            { label: 'Total Trip', tint: groupTint(0), node: <p className={STAT_VALUE}>{totalTrip}</p> },
+            { label: 'Muatan', tint: groupTint(1), node: <p className={STAT_VALUE}>{muatanCount}</p> },
+            { label: 'Unit', tint: groupTint(3), node: <p className={STAT_VALUE}>{totalUnit}</p> },
+            {
+              label: 'Pendapatan',
+              tint: groupTint(2),
+              node: (
+                <CurrencyDisplay
+                  revealed={revealed}
+                  onToggleReveal={onToggleReveal}
+                  amount={totalRevenue}
+                  className={STAT_VALUE}
+                />
+              ),
+            },
+          ].map(stat => (
+            <div key={stat.label} className={`${CARD} relative overflow-hidden p-5 text-center`}>
+              <span className={`absolute inset-x-0 top-0 h-1 ${stat.tint.accent}`} />
+              <p className={STAT_LABEL}>{stat.label}</p>
+              {stat.node}
+            </div>
+          ))}
         </div>
       )}
 
       {reportState === 'ready' && totalTrip > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          <div className={`${CARD} p-5 lg:col-span-2`}>
+          <div className={`${CARD} p-5 lg:col-span-2 ${groupTint(0).sub}`}>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
                 <h4 className={SECTION_TITLE}>Trip per Hari</h4>
@@ -373,7 +381,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             </div>
           </div>
 
-          <div className={`${CARD} p-5`}>
+          <div className={`${CARD} p-5 ${groupTint(3).sub}`}>
             <h4 className={`${SECTION_TITLE}`}>Komposisi Muatan</h4>
             <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
             <div className="flex items-center gap-5">
@@ -492,28 +500,31 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
               const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
               let globalIdx = 0
 
-              return sortedDates.flatMap(date => {
+              return sortedDates.flatMap((date, groupIdx) => {
                 const dayTrips = groupedByDate[date]
                 const dayTotal = dayTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
                 const dayRevenue = dayTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
                 const dateObj = new Date(date + 'T00:00:00')
                 const formattedDate = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+                // Setiap tanggal memakai tint kelompok sendiri supaya blok
+                // information mudah dipilah tanpa garis tebal.
+                const tint = groupTint(groupIdx)
 
                 return [
                   // Date group header row
-                  <tr key={`date-${date}`} className={GROUP_ROW}>
-                    <td colSpan={3} className={`${GROUP_ROW_CELL} font-bold text-sm`}>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={14} className="text-slate-400" />
+                  <tr key={`date-${date}`} className={`${GROUP_ROW} ${tint.row}`}>
+                    <td colSpan={3} className={`${GROUP_ROW_CELL} ${tint.edge} pl-5`}>
+                      <span className={`flex items-center gap-1 font-bold text-sm ${tint.text}`}>
+                        <Calendar size={14} className="opacity-70" />
                         {formattedDate}
                       </span>
-                      <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip - {dayTotal} unit)</span>
+                      <span className={`ml-3 text-xs font-normal ${tint.muted}`}>({dayTrips.length} trip - {dayTotal} unit)</span>
                     </td>
                     <td colSpan={5} className={`${GROUP_ROW_CELL} text-right`}>
-                      <span className="text-slate-300 text-xs">Total:</span>
+                      <span className={`text-xs ${tint.muted}`}>Total:</span>
                     </td>
                     <td colSpan={2} className={`${GROUP_ROW_CELL} text-right font-black text-sm`}>
-                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={dayRevenue} className="text-emerald-300" />
+                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={dayRevenue} className="text-emerald-700" />
                     </td>
                     <td />
                   </tr>,
@@ -533,7 +544,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from || '-'}</td>
                           <td className="px-3 py-2.5 text-slate-600">{t.route_to_name || t.route_to || '-'}</td>
                           <td className="px-3 py-2.5">
-                            <span className={`${PILL} ${t.status_muatan === 'muatan' ? PILL_NEUTRAL : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                            <span className={`${PILL} ${t.status_muatan === 'muatan' ? PILL_OK : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
                               {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
                             </span>
                           </td>
@@ -576,7 +587,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                           <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
                         </tr>
                         {open && (
-                    <tr className="bg-slate-50/80">
+                    <tr className="bg-slate-50/60">
                       <td colSpan={11} className="px-4 py-3">
                         <div className="text-[12px] text-slate-600 mb-3">
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
@@ -619,7 +630,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                         {t.vehicles.length > 0 && (
                           <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
                           <table className="w-full min-w-[680px] text-[13px] bg-white">
-                            <thead className="bg-slate-100 text-[10px] uppercase text-slate-500">
+                            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
                               <tr><th className="text-left p-3">Foto</th><th className="text-left p-3">Plat</th><th className="text-left p-3">Jenis</th><th className="text-left p-3">Kategori</th><th className="text-left p-3">Muatan</th><th className="text-right p-3">Tarif</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">

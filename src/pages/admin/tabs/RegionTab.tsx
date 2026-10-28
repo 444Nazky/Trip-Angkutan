@@ -25,6 +25,7 @@ import {
   DOT_MUTED,
   DOT_OK,
   DOT_WARN,
+  groupTint,
   INPUT,
   LABEL,
   PAGE,
@@ -32,6 +33,7 @@ import {
   TABLE_CELL,
   TABLE_HEAD_CELL,
   TABLE_HEAD_ROW,
+  TABLE_ROW_ALT,
   TABLE_WRAP,
 } from '../theme'
 import { PageHeader } from '../components/PageHeader'
@@ -287,11 +289,11 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  const dermagaRow = (d: Dermaga, indented: boolean) => {
+  const dermagaRow = (d: Dermaga, indented: boolean, alt = false) => {
     const routeCount = routeCountOfDermaga(d.id)
     const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === d.id))
     return (
-      <tr key={d.id} className="admin-table-row hover:bg-slate-50/60">
+      <tr key={d.id} className={`admin-table-row ${alt ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
         <td className={`${TABLE_CELL} text-slate-700 ${indented ? 'pl-10' : ''}`}>
           <span className="font-semibold">{labelOf(d)}</span>
         </td>
@@ -470,14 +472,17 @@ export function RegionTab({ showToast }: RegionTabProps) {
                 </tr>
               )}
 
-              {orderedRegions.map((region) => {
+              {orderedRegions.map((region, regionIdx) => {
                 const own = byRegion.get(String(region.id)) ?? []
                 const users = officersOfRegion(String(region.id))
+                // Tiap wilayah memakai warna pengelompok sendiri supaya blok
+                // wilayah + dermaganya jelas terpisah.
+                const tint = groupTint(regionIdx)
                 return (
                   <Fragment key={region.id}>
-                    <tr className={TABLE_HEAD_ROW}>
-                      <td className={TABLE_CELL}>
-                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
+                    <tr className={tint.row}>
+                      <td className={`${TABLE_CELL} ${tint.edge} pl-5`}>
+                        <span className={`font-bold ${tint.text}`}>{labelOf(region)}</span>{' '}
                         <span className="text-[11px] font-normal text-slate-500">wilayah</span>
                       </td>
                       <td className={`${TABLE_CELL} font-mono text-[12px] uppercase text-slate-600`}>
@@ -506,7 +511,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
                         </td>
                       </tr>
                     )}
-                    {own.map((d) => dermagaRow(d, true))}
+                    {own.map((d, dIdx) => dermagaRow(d, true, dIdx % 2 === 1))}
                   </Fragment>
                 )
               })}

@@ -2,6 +2,7 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   CARD,
+  groupTint,
   INPUT,
   LABEL,
   PAGE,
@@ -9,10 +10,12 @@ import {
   TABLE_CELL,
   TABLE_HEAD_CELL,
   TABLE_HEAD_ROW,
+  TABLE_ROW_ALT,
   TABLE_WRAP,
 } from '../theme'
 import { PageHeader } from '../components/PageHeader'
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions, type Region } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
@@ -64,26 +67,55 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
 
 
 
+const MENU_WIDTH = 160
+const MENU_HEIGHT = 132
+
 function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => void; onToggle: () => void; onDelete: () => void; isActive: boolean }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!open) return
     const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (menuRef.current?.contains(t) || btnRef.current?.contains(t)) return
+      setOpen(false)
     }
-    if (open) document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
+    const close = () => setOpen(false)
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('resize', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+    }
   }, [open])
 
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (open) return setOpen(false)
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    const left = Math.min(Math.max(8, r.right - MENU_WIDTH), window.innerWidth - MENU_WIDTH - 8)
+    const top = r.bottom + MENU_HEIGHT + 8 > window.innerHeight
+      ? Math.max(8, r.top - MENU_HEIGHT - 4)
+      : r.bottom + 4
+    setPos({ top, left })
+    setOpen(true)
+  }
+
   return (
-    <div ref={ref} className="relative">
-      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+    <>
+      <button ref={btnRef} onClick={toggle}
         className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500">
         <MoreVertical size={16} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 min-w-[140px]">
+      {open && createPortal(
+        <div ref={menuRef} style={{ top: pos.top, left: pos.left, width: MENU_WIDTH }}
+          className="fixed z-[1000] bg-white rounded-xl shadow-lg border border-slate-200 py-1 min-w-[140px]">
           <button onClick={() => { onEdit(); setOpen(false) }}
             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-50 text-slate-700">
             <Pencil size={14} /> Edit
@@ -96,9 +128,10 @@ function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => vo
             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-red-50 text-red-500">
             <Trash2 size={14} /> Hapus
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }
 
@@ -404,13 +437,15 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         </div>
       )}
 
-      {officerGroups.map(region => {
+      {officerGroups.map((region, groupIdx) => {
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
+        // Tiap kelompok wilayah punya warna sendiri.
+        const tint = groupTint(groupIdx)
         return (
           <div key={region} className={`${TABLE_WRAP} admin-card stagger-item`}>
-            <div className="flex items-center gap-2 bg-slate-100 px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide text-slate-600">
-              <Lock size={13} className="text-slate-400" />
+            <div className={`flex items-center gap-2 ${tint.row} ${tint.edge} px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide ${tint.text}`}>
+              <Lock size={13} className="opacity-60" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
             </div>
             <table className="w-full">
@@ -418,10 +453,10 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                 <tr><th className={`${TABLE_HEAD_CELL} text-left`}>Nama</th><th className={`${TABLE_HEAD_CELL} text-left`}>Dermaga</th><th className={`${TABLE_HEAD_CELL} text-left`}>Rute</th><th className={`${TABLE_HEAD_CELL} text-left`}>Status</th><th className={`${TABLE_HEAD_CELL} text-left`}>Aksi</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {groupOfficers.map((o) => {
+                {groupOfficers.map((o, oIdx) => {
                   const localIdx = localOfficers.indexOf(o)
                   return (
-                    <tr key={o.id} className="admin-table-row hover:bg-slate-50/60">
+                    <tr key={o.id} className={`admin-table-row ${oIdx % 2 === 1 ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
                       <td className={TABLE_CELL}><p className="text-[12.5px] font-bold text-slate-800">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
                       <td className={TABLE_CELL}>
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id

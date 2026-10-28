@@ -18,7 +18,9 @@
  * Aturan warna:
  *   - Header halaman TETAP PUTIH (lihat `PAGE_HEADER`). Warna come dari aksen
  *     biru di tepi kiri, bukan dari bidang gelap.
- *   - Only sidebar + baris pengelompok tabel yang boleh gelap.
+ *   - Hanya sidebar yang boleh gelap. Baris pengelompok memakai TINT
+ *     (lihat `GROUP_TINTS`), bukan bidang gelap, supaya tidak menusuk mata
+ *     di antara baris tabel yang putih.
  *
  * Turunan (tint dari palet di atas, boleh):
  *   - Garis pemisah : slate-200 (kartu) / slate-100 (isi tabel).
@@ -26,6 +28,8 @@
  *                      slate-400 (nonaktif).
  *   - Status        : emerald (aman), amber (perhatian), red (bahaya),
  *                      slate (belum siap).
+ *   - Pengelompok   : biru / emerald / amber / violet / cyan / slate pada
+ *                      intensitas -50 dengan opasitas ~80% (rendah saturasi).
  *
  * PENTING: jangan pakai CSS variable yang belum didefinisikan (mis.
  * `var(--admin-accent)`) - aturan itu sudah pernah menyebabkan grafik tidak
@@ -54,11 +58,12 @@ export const STAT_VALUE = 'mt-1 text-2xl font-black text-slate-900'
 export const LABEL = 'text-[11px] font-semibold text-slate-500'
 
 /** Kartu utama (permukaan putih di atas latar slate-50). */
-export const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
+export const CARD =
+  'rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
 
 /** Header halaman: permukaan putih dengan garis aksen biru di tepi kiri. */
 export const PAGE_HEADER =
-  'relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm'
+  'relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-6 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
 
 /** Garis aksen biru di tepi kiri header halaman. */
 export const PAGE_HEADER_BAR = 'absolute inset-y-0 left-0 w-1 bg-blue-600'
@@ -70,16 +75,17 @@ export const PAGE_HEADER_TITLE = 'text-lg font-black text-slate-900'
 export const PAGE_HEADER_SUB = 'mt-0.5 text-[12px] text-slate-500'
 
 /** Panel sekunder (latar sedikit lebih gelap dari kartu). */
-export const CARD_SUBTLE = 'rounded-2xl border border-slate-200 bg-slate-50'
+export const CARD_SUBTLE = 'rounded-2xl border border-slate-200/70 bg-slate-50/70'
 
 /** Wadah tabel: kartu + overflow tersembunyi + radius seragam. */
-export const TABLE_WRAP = 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm'
+export const TABLE_WRAP =
+  'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
 
 /** Baris kepala tabel: tint biru tipis (tint dari aksen #2563EB). */
-export const TABLE_HEAD_ROW = 'bg-blue-50 text-[10px] font-semibold uppercase tracking-wide text-slate-600'
+export const TABLE_HEAD_ROW = 'bg-blue-50/70 text-[10px] font-semibold uppercase tracking-wide text-slate-600'
 
 /** Baris kepala tabel tingkat kedua (mis. "Ada Muatan" / "Kosong"). */
-export const TABLE_SUBHEAD_ROW = 'bg-blue-50/60 text-[10px] font-medium text-slate-500'
+export const TABLE_SUBHEAD_ROW = 'bg-blue-50/40 text-[10px] font-medium text-slate-500'
 
 /** Sel kepala tabel. */
 export const TABLE_HEAD_CELL = 'border-b border-slate-200 px-3 py-2'
@@ -96,17 +102,122 @@ export const TABLE_CELL_GRID = 'border border-slate-200 px-3 py-2'
 /** Sel kepala tabel bergaya "grid". */
 export const TABLE_HEAD_CELL_GRID = 'border border-slate-200 px-3 py-2.5'
 
-/** Baris pengelompok (mis. per tanggal / per golongan): latar gelap. */
-export const GROUP_ROW = 'bg-slate-800 text-white'
+/**
+ * Palet pengelompok (grouping).
+ *
+ * Setiap blok data - per tanggal, per region, per golongan, per rute - boleh
+ * memakai warna sendiri supaya informasinya mudah dipilah tanpa perlu garis
+ * tebal. Warnanya sengaja rendah saturasi (warna -50 dengan opasitas 80%)
+ * supaya tetap terbaca sebagai pemisah, tapi tidak bersaing dengan isi
+ * tabel yang berwarna netral.
+ */
+export interface GroupTint {
+  /** Latar baris pengelompok. */
+  row: string
+  /** Latar baris anak (sub-kelompok di dalam kelompok utama). */
+  sub: string
+  /** Garis aksen tipis di tepi kiri. */
+  edge: string
+  /** Warna teks utama baris pengelompok. */
+  text: string
+  /** Warna teks sekunder di dalam baris pengelompok. */
+  muted: string
+  /** Chip kecil penanda kelompok. */
+  chip: string
+  /** Garis aksen (bar tipis) untuk penanda kelompok. */
+  accent: string
+}
+
+/** Warna-warna yang boleh dipakai untuk membedakan kelompok data. */
+export const GROUP_TINTS: GroupTint[] = [
+  {
+    row: 'bg-blue-50/80',
+    sub: 'bg-blue-50/40',
+    edge: 'border-l-4 border-l-blue-400',
+    text: 'text-blue-900',
+    muted: 'text-blue-700/70',
+    chip: 'bg-blue-100/80 text-blue-700',
+    accent: 'bg-blue-400',
+  },
+  {
+    row: 'bg-emerald-50/80',
+    sub: 'bg-emerald-50/40',
+    edge: 'border-l-4 border-l-emerald-400',
+    text: 'text-emerald-900',
+    muted: 'text-emerald-700/70',
+    chip: 'bg-emerald-100/80 text-emerald-700',
+    accent: 'bg-emerald-400',
+  },
+  {
+    row: 'bg-amber-50/80',
+    sub: 'bg-amber-50/40',
+    edge: 'border-l-4 border-l-amber-400',
+    text: 'text-amber-900',
+    muted: 'text-amber-700/70',
+    chip: 'bg-amber-100/80 text-amber-700',
+    accent: 'bg-amber-400',
+  },
+  {
+    row: 'bg-violet-50/80',
+    sub: 'bg-violet-50/40',
+    edge: 'border-l-4 border-l-violet-400',
+    text: 'text-violet-900',
+    muted: 'text-violet-700/70',
+    chip: 'bg-violet-100/80 text-violet-700',
+    accent: 'bg-violet-400',
+  },
+  {
+    row: 'bg-cyan-50/80',
+    sub: 'bg-cyan-50/40',
+    edge: 'border-l-4 border-l-cyan-400',
+    text: 'text-cyan-900',
+    muted: 'text-cyan-700/70',
+    chip: 'bg-cyan-100/80 text-cyan-700',
+    accent: 'bg-cyan-400',
+  },
+  {
+    row: 'bg-slate-100',
+    sub: 'bg-slate-50',
+    edge: 'border-l-4 border-l-slate-300',
+    text: 'text-slate-800',
+    muted: 'text-slate-500',
+    chip: 'bg-slate-200/80 text-slate-600',
+    accent: 'bg-slate-300',
+  },
+]
+
+/**
+ * Tint kelompok ke-`index`. Berulang (index >= jumlah warna akan kembali ke
+ * awal) supaya daftar kelompok yang panjang tetap aman.
+ */
+export function groupTint(index: number): GroupTint {
+  const n = GROUP_TINTS.length
+  return GROUP_TINTS[((index % n) + n) % n]
+}
+
+/**
+ * Baris pengelompok (mis. per tanggal / per golongan).
+ *
+ * Tidak lagi memakai latar gelap: kontras setinggi slate-800 di antara
+ * baris putih bikin tabel "berteriak". Sekarang warnanya datang dari tint
+ * kelompok (lihat `GROUP_TINTS`).
+ */
+export const GROUP_ROW = 'text-slate-800'
 
 /** Sel pada baris pengelompok. */
-export const GROUP_ROW_CELL = 'border border-slate-700 px-3 py-2.5'
+export const GROUP_ROW_CELL = 'border-b border-slate-200 px-3 py-2.5'
+
+/** Baris isi tabel berselang (baris genap diberi tint sangat tipis). */
+export const TABLE_ROW_ALT = 'bg-slate-50/50'
+
+/** Baris isi tabel yang sedang dibuka / disorot. */
+export const TABLE_ROW_ACTIVE = 'bg-blue-50/60'
 
 /** Baris total (footer tabel). */
-export const FOOT_ROW = 'bg-slate-100 font-bold text-slate-700'
+export const FOOT_ROW = 'bg-slate-50 font-bold text-slate-700'
 
 /** Sel pada baris total. */
-export const FOOT_CELL = 'border border-slate-300 px-3 py-3'
+export const FOOT_CELL = 'border border-slate-200 px-3 py-3'
 
 /** Label kecil sebaris (mis. golongan kendaraan, status muatan). */
 export const PILL = 'inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold'

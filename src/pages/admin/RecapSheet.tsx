@@ -17,7 +17,7 @@ import {
   EMPTY_STATE,
   FOOT_CELL,
   FOOT_ROW,
-  GROUP_ROW,
+  groupTint,
   INPUT,
   LABEL,
   PAGE_SUBTITLE,
@@ -230,16 +230,20 @@ export default function RecapSheet() {
                 <tbody>
                   <tr><td colSpan={6} className={EMPTY_STATE}>Tidak ada data pada filter ini</td></tr>
                 </tbody>
-              ) : groups.map((group, gi) => (
+              ) : groups.map((group, gi) => {
+                // Setiap golongan punya warna sendiri supaya blok rekap
+                // mudah dipilah.
+                const tint = groupTint(gi)
+                return (
                 <tbody key={`gol-${group.golongan}`}>
                   {gi > 0 && (
-                    <tr><td colSpan={6} className={`${GROUP_ROW} h-[10px] p-0`} /></tr>
+                    <tr><td colSpan={6} className={`${tint.row} h-[10px] p-0 ${tint.edge}`} /></tr>
                   )}
                   {group.rows.map((row, idx) => (
-                    <tr key={`${group.golongan}-${row.jenis}`} className="hover:bg-slate-50/60">
+                    <tr key={`${group.golongan}-${row.jenis}`} className={`hover:bg-slate-50/60 ${idx % 2 === 1 ? tint.sub : ''}`}>
                       {idx === 0 && (
                         <td rowSpan={group.rows.length}
-                          className={`${TABLE_CELL_GRID} align-middle text-left font-semibold text-slate-900`}>
+                          className={`${TABLE_CELL_GRID} align-middle text-left font-semibold ${tint.text} ${tint.row} ${tint.edge}`}>
                           {group.golongan}
                         </td>
                       )}
@@ -251,7 +255,8 @@ export default function RecapSheet() {
                     </tr>
                   ))}
                 </tbody>
-              ))}
+                )
+              })}
 
               {groups.length > 0 && (
                 <tfoot>
