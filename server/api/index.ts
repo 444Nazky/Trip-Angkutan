@@ -22,6 +22,7 @@ import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
 import * as imp from "./handlers/import.ts";
+import * as vts from "./handlers/vehicleTypes.ts";
 import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
@@ -72,6 +73,7 @@ function cacheRouteFor(parts: string[], method: string): string | null {
   if (a === "routes" && !b) return "/routes"; // /routes/mine -> b="mine" -> tidak dicache
   if (a === "tariffs" && !b) return "/tariffs";
   if (a === "master" && b === "tariffs") return "/master/tariffs";
+  if (a === "vehicle-types" && !b) return "/vehicle-types";
   if (a === "master" && b === "offline") return "/master/offline";
   if (a === "geofences" && !b) return "/geofences";
   return null;
@@ -113,6 +115,10 @@ function invalidationTargets(parts: string[], method: string): string[] {
       // Perubahan tarif region mempengaruhi paket offline & UI tabel region.
       // Invalidasi cache region tariffs supaya tabel selalu tampilkan nilai terbaru.
       return ["/region-tariffs", "/master/offline"];
+    case "vehicle-types":
+      // Daftar jenis kendaraan dipakai admin (form tarif), officer (form
+      // kendaraan), dan paket offline -> semua cache yang memuatnya dibuang.
+      return ["/vehicle-types", "/master/offline"];
     case "master":
       return b === "tariffs" ? ["/tariffs", "/master/tariffs"] : [];
     default:
@@ -197,6 +203,15 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "POST" && !b) return await mst.createTariff(req);
     if (req.method === "PUT" && b) return await mst.updateTariff(req, b);
     if (req.method === "DELETE" && b) return await mst.deleteTariff(req, b);
+    return notFound();
+  }
+
+  // ---------------- /vehicle-types (master jenis kendaraan) ----------------
+  if (a === "vehicle-types") {
+    if (req.method === "GET" && !b) return await vts.getVehicleTypes(req);
+    if (req.method === "POST" && !b) return await vts.createVehicleType(req);
+    if (req.method === "PUT" && b) return await vts.updateVehicleType(req, b);
+    if (req.method === "DELETE" && b) return await vts.deleteVehicleType(req, b);
     return notFound();
   }
 

@@ -33,6 +33,12 @@ import {
   fetchRegionTariffs,
   upsertRegionTariffRow,
 } from '../../../services/tariffs'
+import {
+  createVehicleType,
+  deleteVehicleType,
+  fetchVehicleTypes,
+  type VehicleType,
+} from '../../../services/vehicleTypes'
 
 interface TariffTabProps {
   /**
@@ -61,38 +67,8 @@ interface Cell {
   stored: boolean
 }
 
-/** Urutan baris mengikuti sketsa spreadsheet: motor .. truk besar. */
-const TYPE_ORDER = ['motor', 'mobil', 'truk kecil', 'truk sedang', 'truk besar']
-
-/**
- * Daftar jenis kendaraan yang dikenal sistem.
- *
- * Dipakai sebagai pilihan (bukan input teks bebas) di form tarif, supaya
- * ejaan jenis konsisten dengan yang dipakai aplikasi petugas. Daftar ini
- * juga digabung dengan jenis yang sudah tersimpan di baris region.
- */
-const SYSTEM_TYPES = [
-  'motor',
-  'mobil',
-  'truk kecil',
-  'truk sedang',
-  'truk besar',
-  'truk trailer',
-]
-
 /** Nilai khusus: form region = "semua region". */
 const ALL_REGIONS = '__all__'
-/** Nilai khusus: pilih "tambah jenis baru" di dropdown jenis kendaraan. */
-const NEW_TYPE = '__new__'
-
-const VEHICLE_CARDS = [
-  { key: 'motor', label: '1. Motor', Icon: Bike, tone: 'text-blue-600' },
-  { key: 'mobil', label: '2. Mobil', Icon: Car, tone: 'text-emerald-600' },
-  { key: 'truk kecil', label: '3. Truk Kecil', Icon: Truck, tone: 'text-amber-500' },
-  { key: 'truk sedang', label: '4. Truk Sedang', Icon: Truck, tone: 'text-violet-600' },
-  { key: 'truk besar', label: '5. Truk Besar', Icon: Truck, tone: 'text-red-500' },
-  { key: 'truk trailer', label: '6. Truk Trailer', sub: '(Opsional)', Icon: Container, tone: 'text-slate-500' },
-]
 
 const INPUT_CLS =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
@@ -109,9 +85,19 @@ const normalizeType = (t: string) =>
     .toLowerCase()
     .replace(/truck/g, 'truk')
 
-const typeOrderIndex = (t: string) => {
-  const i = TYPE_ORDER.indexOf(normalizeType(t))
-  return i === -1 ? TYPE_ORDER.length : i
+/**
+ * Ikon untuk jenis kendaraan.
+ *
+ * Dipilih dari kata kunci nama, bukan dari daftar hardcode. Jadi jenis baru
+ * yang ditambahkan admin di database tetap tampil dengan ikon yang masuk akal
+ * tanpa perlu mengubah kode.
+ */
+const iconForType = (type: string) => {
+  const t = normalizeType(type)
+  if (t.includes('motor') || t.includes('sepeda')) return Bike
+  if (t.includes('mobil') || t.includes('pickup') || t.includes('bus')) return Car
+  if (t.includes('trailer') || t.includes('container')) return Container
+  return Truck
 }
 
 /** "truk kecil" -> "Truk Kecil" (label tampilan). */
@@ -125,14 +111,6 @@ const prettyType = (t: string) =>
 
 const fmtNum = (n: number) => Number(n || 0).toLocaleString('id-ID')
 const digits = (s: string) => Number(String(s).replace(/[^\d]/g, '')) || 0
-
-const iconForType = (type: string) => {
-  const t = normalizeType(type)
-  if (t.includes('motor')) return Bike
-  if (t.includes('mobil')) return Car
-  if (t.includes('trailer')) return Container
-  return Truck
-}
 
 function Field({
   label,
@@ -247,8 +225,10 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
   const [filterRegion, setFilterRegion] = useState('')
   const [filterType, setFilterType] = useState('')
   const [form, setForm] = useState<TariffForm>(EMPTY_FORM)
-  /** True kalau admin memilih "tambah jenis baru" di dropdown jenis kendaraan. */
-  const [customType, setCustomType] = useState(false)
+  /** Master jenis kendaraan (dari database). */
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([])
+  /** Nama jenis baru yang sedang diketik di panel master. */
+  const [newTypeName, setNewTypeName] = useState('')
   /** Baris yang sedang diedit lewat panel kanan (null = mode tambah). */
   const [editTarget, setEditTarget] = useState<{ regionId: string; type: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -260,54 +240,89 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     else showToast('Gagal memuat tarif region', 'error')
   }, [showToast])
 
+  /** Muat ulang master jenis kendaraan dari database. */
+  const reloadTypes = useCallback(async () => {
+    const fresh = await fetchVehicleTypes(true)
+    if (fresh) setVehicleTypes(fresh)
+    else showToast('Gagal memuat daftar jenis kendaraan', 'error')
+  }, [showToast])
+
   useEffect(() => {
     void reloadRegions()
-  }, [reloadRegions])
+    void reloadTypes()
+  }, [reloadRegions, reloadTypes])
 
-  /** Semua jenis kendaraan: urutan sketsa dulu, lalu jenis lain dari server. */
+  /**
+   * Semua jenis kendaraan untuk tabel tarif.
+   *
+   * Sumbernya master di database (`vehicle_types`). Jenis yang hanya ada di
+   * baris tarif region tapi belum terdaftar di master ikut ditampilkan (supaya
+   * barisnya tidak "hilang"), dengan penanda bahwa jenis itu belum terdaftar.
+   */
   const allTypes = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const t of TYPE_ORDER) map.set(normalizeType(t), t)
+    const map = new Map<string, { name: string; sort: number }>()
+    for (const t of vehicleTypes) {
+      const key = normalizeType(t.name)
+      if (key) map.set(key, { name: t.name, sort: t.sortOrder })
+    }
     for (const r of regions) {
       for (const row of r.rows ?? []) {
         const key = normalizeType(row.vehicleType)
-        if (key && !map.has(key)) map.set(key, row.vehicleType)
+        if (key && !map.has(key)) {
+          map.set(key, { name: String(row.vehicleType), sort: 999 })
+        }
       }
     }
-    return [...map.values()].sort(
-      (a, b) =>
-        typeOrderIndex(a) - typeOrderIndex(b) ||
-        normalizeType(a).localeCompare(normalizeType(b)),
-    )
-  }, [regions])
+    return [...map.values()]
+      .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
+      .map((v) => v.name)
+  }, [regions, vehicleTypes])
 
   /**
-   * Katalog jenis kendaraan untuk form tarif: gabungan jenis yang sudah
-   * tersimpan di baris region + daftar sistem.
+   * Katalog jenis kendaraan untuk form tarif.
+   *
+   * `registered` = jenis ini ada di master database. Jenis yang belum
+   * terdaftar (baris tarif lama) tetap bisa dipilih, tapi ditandai supaya
+   * admin bisa mendaftarkannya ke master.
    *
    * Ejaan asli dari DB dipakai sebagai nilai simpan supaya tidak tercipta
    * baris duplikat untuk region yang sama (mis. "Truk Kecil" vs "truk kecil").
    */
   const typeCatalog = useMemo(() => {
-    const map = new Map<string, { value: string; label: string }>()
+    const map = new Map<string, { value: string; label: string; registered: boolean; sort: number }>()
+    for (const t of vehicleTypes) {
+      const key = normalizeType(t.name)
+      if (!key || map.has(key)) continue
+      map.set(key, { value: t.name, label: t.name, registered: true, sort: t.sortOrder })
+    }
     for (const r of regions) {
       for (const row of r.rows ?? []) {
         const raw = String(row.vehicleType ?? '').trim()
         if (!raw) continue
         const key = normalizeType(raw)
-        if (!map.has(key)) map.set(key, { value: raw, label: prettyType(raw) })
+        if (!key || map.has(key)) continue
+        map.set(key, { value: raw, label: prettyType(raw), registered: false, sort: 999 })
       }
     }
-    for (const t of SYSTEM_TYPES) {
-      const key = normalizeType(t)
-      if (!map.has(key)) map.set(key, { value: t, label: prettyType(t) })
+    return [...map.values()].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label))
+  }, [regions, vehicleTypes])
+
+  /** Jenis master (aktif) - sumber daftar kartu filter. */
+  const masterTypes = useMemo(
+    () => vehicleTypes.filter((t) => t.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    [vehicleTypes],
+  )
+
+  /** Berapa region yang memakai suatu jenis (untuk peringatan hapus). */
+  const usageByType = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const r of regions) {
+      for (const row of r.rows ?? []) {
+        const key = normalizeType(row.vehicleType)
+        map.set(key, (map.get(key) ?? 0) + 1)
+      }
     }
-    return [...map.entries()]
-      .sort(
-        (a, b) =>
-          typeOrderIndex(a[0]) - typeOrderIndex(b[0]) || a[1].label.localeCompare(b[1].label),
-      )
-      .map(([, v]) => v)
+    return map
   }, [regions])
 
   /** Region urut nama. */
@@ -411,13 +426,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
   const resetForm = () => {
     setEditTarget(null)
-    setCustomType(false)
     setForm((f) => ({ ...EMPTY_FORM, regionId: f.regionId }))
   }
 
   const openEdit = (region: RegionTariffRow, cell: Cell) => {
     setEditTarget({ regionId: region.id, type: cell.type })
-    setCustomType(false)
     setForm({
       regionId: region.id,
       // Tampilkan ejaan katalog (mis. "Truk Kecil"), bukan ejaan mentah di DB.
@@ -587,6 +600,53 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
   }
 
+  /** Jenis yang dipakai di baris tarif tapi belum terdaftar di master. */
+  const unregisteredTypes = useMemo(
+    () => typeCatalog.filter((t) => !t.registered),
+    [typeCatalog],
+  )
+
+  /** Tambah jenis kendaraan ke master (langsung ke database). */
+  const handleAddType = async () => {
+    const name = newTypeName.trim()
+    if (!name) return
+    setSaving(true)
+    try {
+      const res = await createVehicleType(name)
+      if (!res.ok) {
+        showToast(res.reason ?? 'Jenis kendaraan gagal ditambahkan karena server menolak permintaan', 'error')
+        return
+      }
+      setNewTypeName('')
+      await reloadTypes()
+      showToast(`Jenis kendaraan "${name}" ditambahkan ke master`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Hapus jenis kendaraan dari master (baris tarif ikut terhapus). */
+  const handleDeleteType = async (t: VehicleType) => {
+    const used = usageByType.get(normalizeType(t.name)) ?? 0
+    const warn = used > 0
+      ? `\n\n${used} baris tarif untuk jenis ini juga akan dihapus. Riwayat trip lama tidak berubah.`
+      : '\n\nRiwayat trip lama tidak berubah.'
+    if (!confirm(`Hapus jenis kendaraan "${t.name}" dari master?${warn}`)) return
+    setSaving(true)
+    try {
+      const res = await deleteVehicleType(t.id)
+      if (!res.ok) {
+        showToast(res.reason ?? 'Jenis kendaraan gagal dihapus karena server menolak permintaan', 'error')
+        return
+      }
+      await Promise.all([reloadTypes(), reloadRegions()])
+      if (normalizeType(form.type) === normalizeType(t.name)) resetForm()
+      showToast(`Jenis kendaraan "${t.name}" dihapus dari master`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const serverLabel =
     serverState === 'online'
       ? 'Tersambung'
@@ -606,11 +666,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           <h3 className="text-lg font-black text-slate-900">Master Tarif Jenis Kendaraan</h3>
           <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
             Kelola tarif untuk setiap jenis kendaraan pada setiap region.
-          </p>
-          <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
-            <strong>Perubahan tarif hanya berlaku ke depan.</strong> Trip yang sudah
-            terkirim memakai harga tarif yang berlaku saat trip itu dikirim — nilai
-            di laporan tidak ikut berubah ketika tarif diedit di sini.
           </p>
         </div>
         <span
@@ -665,28 +720,98 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         </div>
       </div>
 
-      {/* Kartu jenis kendaraan */}
+      {/* Master jenis kendaraan - sumber tunggal, disimpan di database */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-[13px] font-bold text-slate-800">Master Jenis Kendaraan</h4>
+            <p className="text-[11px] text-slate-500">
+              Daftar ini disimpan di database dan dipakai bersama oleh dashboard admin dan
+              aplikasi petugas - jadi pilihan di kedua aplikasi selalu sama.
+            </p>
+          </div>
+          <div className="flex w-full max-w-md gap-2 sm:w-auto">
+            <input
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleAddType()
+              }}
+              placeholder="Contoh: Truk Ringan"
+              className={INPUT_CLS}
+            />
+            <button
+              type="button"
+              onClick={() => void handleAddType()}
+              disabled={saving || !newTypeName.trim()}
+              className={`${BTN_PRIMARY} shrink-0`}
+            >
+              <Plus size={14} /> Tambah
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {masterTypes.length === 0 && (
+            <p className="text-[11px] text-slate-400">
+              Belum ada jenis kendaraan di master. Tambahkan lewat kolom di atas - jenis ini
+              langsung tersimpan ke database dan langsung muncul di aplikasi petugas.
+            </p>
+          )}
+          {masterTypes.map((t) => {
+            const used = usageByType.get(normalizeType(t.name)) ?? 0
+            return (
+              <span
+                key={t.id}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11.5px] font-medium text-slate-700"
+              >
+                {t.name}
+                <span className="text-[10px] font-normal text-slate-400">
+                  {used > 0 ? `${used} baris tarif` : 'belum dipakai'}
+                </span>
+                <button
+                  type="button"
+                  title={`Hapus jenis ${t.name} dari master`}
+                  disabled={saving}
+                  onClick={() => void handleDeleteType(t)}
+                  className="rounded-full p-0.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </span>
+            )
+          })}
+        </div>
+
+        {unregisteredTypes.length > 0 && (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+            Ada baris tarif untuk jenis yang belum terdaftar di master:{' '}
+            <b>{unregisteredTypes.map((t) => t.label).join(', ')}</b>. Daftarkan dulu supaya jenis ini
+            muncul sebagai pilihan yang sama di aplikasi petugas.
+          </p>
+        )}
+      </div>
+
+      {/* Kartu jenis kendaraan (dari master database) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {VEHICLE_CARDS.map((v) => {
-          const active = filterType === v.key
-          const Icon = v.Icon
+        {masterTypes.map((t, i) => {
+          const key = normalizeType(t.name)
+          const active = filterType === key
+          const Icon = iconForType(t.name)
           return (
             <button
-              key={v.key}
-              onClick={() => setFilterType(active ? '' : v.key)}
-              title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${v.label.replace(/^\d+\.\s*/, '')}`}
+              key={t.id}
+              onClick={() => setFilterType(active ? '' : key)}
+              title={active ? 'Tampilkan semua jenis' : `Filter jenis: ${t.name}`}
               className={`flex flex-col items-center gap-2 rounded-2xl border bg-white px-2 py-4 transition ${
                 active
                   ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
                   : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
               }`}
             >
-              <Icon size={34} strokeWidth={1.6} className={v.tone} />
+              <Icon size={34} strokeWidth={1.6} className="text-slate-500" />
               <span className="text-center text-[12px] font-semibold leading-tight text-slate-700">
-                {v.label}
-                {v.sub && (
-                  <span className="block text-[10px] font-normal text-slate-400">{v.sub}</span>
-                )}
+                {i + 1}. {t.name}
               </span>
             </button>
           )
@@ -882,51 +1007,25 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
               )}
 
               <Field label="Jenis Kendaraan" required>
-                {customType ? (
-                  <div className="flex gap-2">
-                    <input
-                      value={form.type}
-                      onChange={(e) => changeFormType(e.target.value)}
-                      disabled={saving}
-                      placeholder="Tulis jenis kendaraan baru"
-                      className={INPUT_CLS}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomType(false)
-                        setForm((f) => ({ ...f, type: '' }))
-                      }}
-                      disabled={saving}
-                      className={`${BTN_GHOST} shrink-0 px-3`}
-                    >
-                      Batal
-                    </button>
-                  </div>
-                ) : (
-                  <select
-                    value={form.type}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (v === NEW_TYPE) {
-                        setCustomType(true)
-                        setForm((f) => ({ ...f, type: '' }))
-                        return
-                      }
-                      changeFormType(v)
-                    }}
-                    disabled={!!editTarget || saving}
-                    className={INPUT_CLS}
-                  >
-                    <option value="">Pilih jenis kendaraan</option>
-                    {typeCatalog.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                    <option value={NEW_TYPE}>+ Tambah jenis baru…</option>
-                  </select>
-                )}
+                <select
+                  value={form.type}
+                  onChange={(e) => changeFormType(e.target.value)}
+                  disabled={!!editTarget || saving}
+                  className={INPUT_CLS}
+                >
+                  <option value="">Pilih jenis kendaraan</option>
+                  {typeCatalog.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                      {t.registered ? '' : ' (belum terdaftar di master)'}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[10.5px] text-slate-400">
+                  Daftar jenis diambil dari master di database. Tambah jenis baru lewat panel
+                  &ldquo;Master Jenis Kendaraan&rdquo; di atas supaya langsung tersedia di aplikasi
+                  petugas.
+                </span>
               </Field>
 
               <div className="!mt-5 border-t border-slate-100 pt-3">

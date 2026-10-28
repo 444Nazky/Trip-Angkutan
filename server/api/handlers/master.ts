@@ -352,14 +352,19 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
 
-    const [regionsRes, platesRes, tariffsRes] = await Promise.all([
+    const [regionsRes, platesRes, tariffsRes, typesRes] = await Promise.all([
       db.from("regions").select("id, name, code"),
       db.from("vehicle_plates").select("plate, status, origin_region_id").eq("is_active", 1),
       db.from("region_tariffs").select("region_id, tariff_type, nominal_tariff, is_active"),
+      // Master jenis kendaraan: satu-satunya daftar yang sah. HP memakainya
+      // untuk dropdown jenis kendaraan supaya sama persis dengan dashboard
+      // admin (dulu keduanya punya daftar hardcode yang berbeda).
+      db.from("vehicle_types").select("id, name, key, sort_order, is_active").eq("is_active", 1),
     ]);
     if (regionsRes.error) throw regionsRes.error;
     if (platesRes.error) throw platesRes.error;
     if (tariffsRes.error) throw tariffsRes.error;
+    if (typesRes.error) throw typesRes.error;
 
     const regions = (regionsRes.data ?? []) as any[];
     const codeById = new Map<string, string>();
@@ -386,8 +391,19 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
       }))
       .filter((t) => t.regionId && t.tariffType);
 
+    const vehicleTypes = ((typesRes.data ?? []) as any[])
+      .map((t) => ({
+        id: String(t.id ?? ""),
+        name: String(t.name ?? ""),
+        key: String(t.key ?? ""),
+        sortOrder: Number(t.sort_order ?? 0) || 0,
+      }))
+      .filter((t) => t.name)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
     return json({
       pulledAt: Date.now(),
+      vehicleTypes,
       regions: regions.map((r) => ({
         id: String(r.id),
         name: String(r.name ?? ""),
