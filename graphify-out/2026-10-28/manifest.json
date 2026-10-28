@@ -125,8 +125,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793073467.514109,
-    "ast_hash": "74c2dbd4a3161b0ae11a9044c556b66e",
+    "mtime": 1793161235.7402265,
+    "ast_hash": "21cac3d0febbd999b5148880bafbb7ac",
     "semantic_hash": ""
   },
   "postcss.config.js": {
@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/AdminDashboard.tsx": {
-    "mtime": 1793156880.8853538,
-    "ast_hash": "b0015346a3c3b5e6c5c43cdc97e36f5a",
+    "mtime": 1793161040.4935095,
+    "ast_hash": "ab7fb29ceaf919010cedeee5348f9974",
     "semantic_hash": ""
   },
   "src/pages/admin/ReportSheet.tsx": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/TariffTab.tsx": {
-    "mtime": 1793158371.9815998,
-    "ast_hash": "00149964ca40b1613ff6c4ee179d6466",
+    "mtime": 1793162466.5864584,
+    "ast_hash": "3a3314c2464a33742f70a9ff70ad185e",
     "semantic_hash": ""
   },
   "src/pages/data.ts": {
@@ -315,8 +315,8 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/OfficerSwitchScreen.tsx": {
-    "mtime": 1792129921.8591506,
-    "ast_hash": "448339c94f7d64fc8598c738bc7f7f5b",
+    "mtime": 1793160000.2872295,
+    "ast_hash": "ae587dd8aa6a30ddc6bf4fa778488f68",
     "semantic_hash": ""
   },
   "src/pages/mobile/PinVerifyScreen.tsx": {
@@ -535,8 +535,8 @@
     "semantic_hash": ""
   },
   "src/services/tariffs.ts": {
-    "mtime": 1793083367.0232136,
-    "ast_hash": "4613be743f6da1759adf13566bee280f",
+    "mtime": 1793162353.9688652,
+    "ast_hash": "f224a3ab742e1838a7873ed06054ae4c",
     "semantic_hash": ""
   },
   "src/services/theme.ts": {
@@ -1149,19 +1149,14 @@
     "ast_hash": "087748b4148150db2273610a74ba22a8",
     "semantic_hash": ""
   },
-  "OTA-UPDATE-SYSTEM.md": {
-    "mtime": 1792993935.2329638,
-    "ast_hash": "4bf042ac78481a89d341f8643a8aafed",
-    "semantic_hash": ""
-  },
   "PRD.md": {
     "mtime": 1791004345.3978622,
     "ast_hash": "c945adf41517e55fe4b6a9502d08f8d1",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792467750.0884793,
-    "ast_hash": "27cac6c043f05ccfa2f949b560335d85",
+    "mtime": 1793161423.1784208,
+    "ast_hash": "18e0335c068838abcad986444914961d",
     "semantic_hash": ""
   },
   "SUPABASE_SECURITY_ADVISOR_FIX.md": {
@@ -1177,11 +1172,6 @@
   "System-Design.md": {
     "mtime": 1792467532.465859,
     "ast_hash": "3426ede2e44d413929b28943910e313f",
-    "semantic_hash": ""
-  },
-  "UPDATE-SYSTEM-ARCHITECTURE.md": {
-    "mtime": 1792993935.2334402,
-    "ast_hash": "b516421dc309d61bad6b8e5b8d387150",
     "semantic_hash": ""
   },
   "android/README.md": {
@@ -2039,11 +2029,6 @@
     "ast_hash": "38a53e95ded880782190ddf2f2810317",
     "semantic_hash": ""
   },
-  "PROJECT_DOCUMENTATION.md": {
-    "mtime": 1792566706.2868764,
-    "ast_hash": "f15a20a4217b0fc9eee3fd597d1cf7db",
-    "semantic_hash": ""
-  },
   ".claude/CLAUDE.md": {
     "mtime": 1793156880.883566,
     "ast_hash": "8e462bc4d180232de79aee870db727b0",
@@ -2060,37 +2045,37 @@
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-CmQo6LiH.js": {
-    "mtime": 1793158455.3344114,
+    "mtime": 1793164194.440155,
     "ast_hash": "e5f53843d0adef21254df8a67c526a45",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-D706g1zh.js": {
-    "mtime": 1793158455.3344114,
+    "mtime": 1793164194.440155,
     "ast_hash": "74ee9ab2252ec58a2f39e1fbd4d41d11",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DCH68MUC.js": {
-    "mtime": 1793158455.3344114,
+    "mtime": 1793164194.440155,
     "ast_hash": "fbc490badb6b43e5e53fb71754db705b",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DLeADuY_.js": {
-    "mtime": 1793158455.3344114,
+    "mtime": 1793164194.440155,
     "ast_hash": "fbc989489ed3581d6bda44384e05464a",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DXbIOCYn.js": {
-    "mtime": 1793158455.3354113,
+    "mtime": 1793164194.440155,
     "ast_hash": "a6ee6aced1ce16246dc9ce9211584ab1",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-Q8s093ay.js": {
-    "mtime": 1793158455.3354113,
+    "mtime": 1793164194.440155,
     "ast_hash": "b5c4526d96f910f3179edf04544278f6",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-V1_x9wlm.js": {
-    "mtime": 1793158455.3354113,
+    "mtime": 1793164194.440155,
     "ast_hash": "53901727a07760e009a6a8103e8f580f",
     "semantic_hash": ""
   },
@@ -2100,33 +2085,28 @@
     "semantic_hash": ""
   },
   "admin-www/index.html": {
-    "mtime": 1793158455.3304112,
-    "ast_hash": "4439e731dd54561a8b8e8d0d0ce01813",
+    "mtime": 1793164194.4366803,
+    "ast_hash": "a6bd49e654e547b7c98357bf098aa95b",
     "semantic_hash": ""
   },
   "admin-www/assets/guest-profile.jpeg": {
-    "mtime": 1793158455.3314111,
+    "mtime": 1793164194.4386804,
     "ast_hash": "cbec492d4782f13b244c119b8fecaee1",
     "semantic_hash": ""
   },
   "admin-www/assets/icon/favicon.png": {
-    "mtime": 1793158455.3328319,
+    "mtime": 1793164194.440155,
     "ast_hash": "988be98f12b400c41a22b59b82cfeab6",
     "semantic_hash": ""
   },
   "admin-www/assets/karyamas_clean.png": {
-    "mtime": 1793158455.3354113,
+    "mtime": 1793164194.440155,
     "ast_hash": "4bc4f3743c7e0b4a2435888ecd5a735e",
     "semantic_hash": ""
   },
   "admin-www/assets/karyamasv.svg": {
-    "mtime": 1793158455.3354113,
+    "mtime": 1793164194.440155,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
-    "semantic_hash": ""
-  },
-  "USER_GUIDE_OTA_UPDATE.md": {
-    "mtime": 1792568024.2658663,
-    "ast_hash": "d857250dd30ec71afa537bf3a9bec562",
     "semantic_hash": ""
   },
   "src/services/prefetch.ts": {
@@ -2282,8 +2262,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793087247.301535,
-    "ast_hash": "fcf589f8cbd931f2a9a47656a846bf40",
+    "mtime": 1793164224.95022,
+    "ast_hash": "ae19ac3f9194568a8d47e6b36cc1e14c",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2297,7 +2277,7 @@
     "semantic_hash": ""
   },
   "admin-www/Assets/karyamasv.svg": {
-    "mtime": 1793158455.3364112,
+    "mtime": 1793164194.4416804,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
     "semantic_hash": ""
   },
@@ -2417,8 +2397,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/master.ts": {
-    "mtime": 1793156721.9271746,
-    "ast_hash": "fef1fdaf43cd7593c1547b199ca5583c",
+    "mtime": 1793160611.29358,
+    "ast_hash": "b9428150c44312e7b8c98947bf5e83c0",
     "semantic_hash": ""
   },
   "server/api/handlers/officers.ts": {
@@ -2432,8 +2412,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/regionTariffs.ts": {
-    "mtime": 1793085600.6642895,
-    "ast_hash": "95e184b187f924caf66d2f6ad8a936ee",
+    "mtime": 1793162660.3351321,
+    "ast_hash": "ede61bb5db84d65f953cc2cd772d16ae",
     "semantic_hash": ""
   },
   "server/api/handlers/reports.ts": {
@@ -2452,8 +2432,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/tariffRules.ts": {
-    "mtime": 1793008672.907855,
-    "ast_hash": "6ccb6de93292307d95930aec221cfc59",
+    "mtime": 1793160227.7982929,
+    "ast_hash": "1f2c31e27af4b550a0571ada6b137ebd",
     "semantic_hash": ""
   },
   "server/api/handlers/trips.test.ts": {
@@ -2467,8 +2447,8 @@
     "semantic_hash": ""
   },
   "server/api/index.ts": {
-    "mtime": 1793071483.9677114,
-    "ast_hash": "afb192dce41fe1d4e7d8ab478e7b74b7",
+    "mtime": 1793162342.8740513,
+    "ast_hash": "e6eaca99b6eb2a22b2008ba7ce0d76da",
     "semantic_hash": ""
   },
   "server/api/local_server.ts": {
@@ -2487,13 +2467,13 @@
     "semantic_hash": ""
   },
   "server/api/handlers/regionTariffs.test.ts": {
-    "mtime": 1793085636.5535512,
-    "ast_hash": "d1adaf55431d5912ab43b5a3c20fbf6b",
+    "mtime": 1793161210.7522326,
+    "ast_hash": "d37c1170c4a3260628e4365b92f61a1e",
     "semantic_hash": ""
   },
   "server/api/handlers/tariffRules.test.ts": {
-    "mtime": 1793085694.150982,
-    "ast_hash": "674d61d3a03ebd586ba6cbd47ff26265",
+    "mtime": 1793161050.5578485,
+    "ast_hash": "6265120c8d5923a2dc5906948cb93be6",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.render.test.tsx": {
@@ -2502,8 +2482,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.tsx": {
-    "mtime": 1793158145.2170026,
-    "ast_hash": "edec478a7bb3b733635ad1b69fca4872",
+    "mtime": 1793162559.2950225,
+    "ast_hash": "a94f4f7c7e3303e083e29c6bd0bdacfe",
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {
@@ -2527,28 +2507,73 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/TariffTab.render.test.tsx": {
-    "mtime": 1793091758.2096684,
-    "ast_hash": "f76c00ba28d1c172c30dcac364e0b7a6",
+    "mtime": 1793162814.070138,
+    "ast_hash": "2d9939fc69fc1b05be8340a4194b7afa",
     "semantic_hash": ""
   },
-  "admin-www/assets/js/chunk-Dxt77QXH.js": {
-    "mtime": 1793158455.3354113,
-    "ast_hash": "2481de4776581a962e7081ed9a605a2d",
+  "admin-www/assets/js/chunk-Dcz5ckLz.js": {
+    "mtime": 1793164194.440155,
+    "ast_hash": "ca11caa8f73fb72762f887bffe0c8467",
     "semantic_hash": ""
   },
-  "admin-www/assets/js/chunk-TIeViW14.js": {
-    "mtime": 1793158455.3354113,
-    "ast_hash": "f0324299975e286bf5eb794b717f846d",
+  "admin-www/assets/js/chunk-DekF1D1h.js": {
+    "mtime": 1793164194.440155,
+    "ast_hash": "8c9c818734601765cb66fc21de00b1f7",
     "semantic_hash": ""
   },
-  "admin-www/assets/js/chunk-yHEA3tQ2.js": {
-    "mtime": 1793158455.3354113,
-    "ast_hash": "c27389b45c4d5d88f16c91a9ad3249a0",
+  "admin-www/assets/js/chunk-DnPqDswI.js": {
+    "mtime": 1793164194.440155,
+    "ast_hash": "dbf20c2448e4ad92460c37c326f021e1",
     "semantic_hash": ""
   },
-  "admin-www/assets/js/main-GOLZGJIM.js": {
-    "mtime": 1793158455.3344114,
-    "ast_hash": "3644fa0dc6501f0d1c5e8eb8e3e5164c",
+  "admin-www/assets/js/main-EYWHXVOC.js": {
+    "mtime": 1793164194.440155,
+    "ast_hash": "0fff4b61c97a01e3e9cd2f60d2d4a883",
+    "semantic_hash": ""
+  },
+  "scripts/capture-screenshots.mjs": {
+    "mtime": 1793161250.6847615,
+    "ast_hash": "92e0f7f7e29514786ce3955a524cd70b",
+    "semantic_hash": ""
+  },
+  "server/api/handlers/regionTariffsBulk.test.ts": {
+    "mtime": 1793162665.2042234,
+    "ast_hash": "0f552689d0155950ee7dc812b8b3c13e",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-laporan-rekap.png": {
+    "mtime": 1793161350.585146,
+    "ast_hash": "e78960208412cbd72178c3a85c09291a",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-laporan-spreadsheet.png": {
+    "mtime": 1793161344.4769478,
+    "ast_hash": "1a37ac742e2283ceedaa6089fa3de150",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-laporan.png": {
+    "mtime": 1793161307.8707376,
+    "ast_hash": "c2b5df973b59efffe8f1b5e47931db63",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-master-region.png": {
+    "mtime": 1793161328.1854143,
+    "ast_hash": "1755a974d11dcc7d3bff93569a2ad238",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-master-tarif.png": {
+    "mtime": 1793161318.046078,
+    "ast_hash": "892a6d83199be240d9ead155c637d2d9",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/admin-petugas.png": {
+    "mtime": 1793161338.310747,
+    "ast_hash": "b29878af5d4821e5dd3594ef492a9f85",
+    "semantic_hash": ""
+  },
+  "docs/screenshots/mobile-login.png": {
+    "mtime": 1793161356.693343,
+    "ast_hash": "0157f6a09137fd1de3f03426381fa465",
     "semantic_hash": ""
   }
 }

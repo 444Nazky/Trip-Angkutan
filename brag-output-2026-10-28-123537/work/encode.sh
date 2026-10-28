@@ -18,7 +18,7 @@ ffmpeg -y -hide_banner -loglevel error -framerate $FPS -i "$FRAMES/f%04d.png" \
   -c:a aac -b:a 192k -shortest "$TMP/video.mp4"
 
 echo "== poster frame $POSTER_IDX (t=${POSTER_T}s) =="
-cp "$FRAMES/f$(printf '%04d' $POSTER_IDX).png" "$RUN/brag.jpg"
+convert "$FRAMES/f$(printf '%04d' $POSTER_IDX).png" -quality 92 "$RUN/brag.jpg"
 
 echo "== bake poster sebagai frame 0 =="
 ffmpeg -y -hide_banner -loglevel error \

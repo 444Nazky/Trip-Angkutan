@@ -2,49 +2,109 @@
 
 # Trip Angkutan
 
-**Offline-first field operations platform for plantation transport fleets** — a Capacitor mobile app for field officers, a real-time admin dashboard, and a self-hosted API that keeps working when the internet does not.
+**Transport operations for plantation fleets — recorded in the field, billed from the office.**
 
-![Admin dashboard — trip reports](docs/screenshots/admin-laporan.png)
+A field-officer app that captures every trip with photographic proof, a supervisor
+dashboard that turns those trips into billing, and an API that runs inside the
+office LAN so the operation never stops working when the internet does.
+
+[![Trip Angkutan — 20-second overview](docs/media/trip-angkutan-launch.jpg)](docs/media/trip-angkutan-launch.mp4)
+
+**▶ [Play the 20-second overview](docs/media/trip-angkutan-launch.mp4)** —
+1920×1080 · 30 fps · H.264.
+*Music: "Happy Beats / Business Moves Vol. 1" by Sascha Ende (ende.app), CC BY 4.0.*
 
 </div>
 
 ---
 
-## Table of contents
+## The operation
 
-- [Overview](#overview)
-- [Screenshots](#screenshots)
-- [What the platform does](#what-the-platform-does)
-- [Architecture](#architecture)
-- [Engineering highlights](#engineering-highlights)
-- [Tech stack](#tech-stack)
-- [Repository layout](#repository-layout)
-- [Development](#development)
-- [Quality](#quality)
-- [Further documentation](#further-documentation)
+A plantation transport fleet runs trucks between regions and dermaga. Every
+movement has to be recorded — who carried what, in which vehicle, and how much
+it is worth — because the trip *is* the invoice.
+
+Two things make that hard in the field:
+
+- **There is no signal.** A trip between two remote blocks can be an hour
+  without a single bar, and a paper logbook is the only thing that survives.
+- **The billing rules are not uniform.** Each region has its own tariff matrix,
+  and a vehicle's price depends on its class, its load state, and whether it is
+  an internal, local, or external truck.
+
+Trip Angkutan removes the paper logbook and the spreadsheet. The same system
+captures the trip on the handset, queues it when the network is gone, and turns
+it into a priced, exportable record on the supervisor's desk.
 
 ---
 
-## Overview
+## Three surfaces, one system
 
-Trip Angkutan is an end-to-end system for a transport operation spread across
-remote plantation areas, where connectivity is unreliable and every trip has to
-be documented with photographic evidence of the vehicle.
+### For the field officer — a trip that cannot be lost
 
-The product ships as two front-ends from a single codebase:
+- **A trip is only a trip once it has a photo.** The camera frame is mandatory,
+  so billing always has evidence behind it and disputes have something to
+  point at.
+- **The plate is read on the handset.** On-device OCR (Tesseract.js) matches
+  the plate against the registry and classifies the vehicle automatically —
+  internal, local, or external — which is what decides the price. No typing,
+  no office round-trip.
+- **The signal can vanish mid-trip.** Every master dataset and every pending
+  trip is stored locally; the sync queue retries with backoff and reconciles
+  on reconnect. The radio can be off for the whole shift.
+- **Trips are filed where they happened.** A GPS watch against per-dermaga
+  geofences means a trip can only be submitted inside the authorised area.
+- **Built for shared handsets.** Username/password or 6-digit PIN, silent token
+  renewal, and quick officer switching.
 
-- a **Capacitor/Android app** used by field officers in the field — login by
-  username/password or 6-digit PIN, trip creation, camera capture, licence-plate
-  OCR, geofence validation, and a local queue that survives dead zones;
-- a **React admin dashboard** for supervisors — master data (tariffs, routes,
-  regions, plates, officers), live trip reporting with spreadsheet-style views,
-  and Excel export.
+### For the supervisor — one screen for the whole operation
 
-The backend is a **Deno REST API** that talks to **PostgreSQL through
-PostgREST**, deployed as an **intranet server inside the office LAN**
-(Docker Compose, port `3000`) so daily operations never depend on an internet
-uplink. The mobile app points at it by default and can be re-pointed at any
-compatible endpoint at runtime from *Profile → Server*.
+- **Live trip reporting** — filter by date range, vehicle class, and vehicle
+  type; expand a trip for its per-vehicle breakdown; see load composition and
+  revenue at a glance, with a privacy toggle that masks nominal figures until
+  they are needed.
+- **The ledger view** — the same data as a spreadsheet-style trip sheet, plus a
+  per-class recap, both exportable to `.xlsx` for finance.
+- **Master data that matches reality** — routes grouped by region → dermaga,
+  regions and dermaga, the vehicle plate registry, and officer accounts scoped
+  per region and per dermaga.
+- **One tariff matrix, many regions** — a master region every other region
+  inherits from, per-region overrides, and a bulk write that pushes one vehicle
+  type to every region at once.
+- **The servers are visible** — endpoint status, request rate, latency, and
+  live CPU, RAM, disk, and load telemetry for the office machine, surfaced in
+  the dashboard itself. No external monitoring stack to keep running.
+
+### For the office — billing that survives a bad connection
+
+- **The API lives next to the database.** The Deno service, PostgreSQL, and
+  PostgREST run together in Docker Compose on the office machine; daily
+  operations do not depend on an internet uplink.
+- **One codebase, two deployments.** The same handler serves the public
+  endpoint and the office intranet server. The mobile app switches between
+  them at runtime from *Profile → Server*, and a shared `JWT_SECRET` keeps
+  sessions valid across the switch.
+- **Media stays local.** Trip photos, OTA bundles, and the APK are written to
+  an object store on the API host, persisted in a Docker volume, and served
+  back by the API itself.
+- **Deployments cannot half-work.** The build verifies every chunk reference in
+  the generated bundle and fails hard on a broken artefact, so a bad bundle
+  never reaches the field.
+
+---
+
+## What each capability replaces
+
+| Capability | The manual problem it removes |
+|---|---|
+| Photo-mandatory trip capture | Paper trip sheets — and bills nobody can evidence |
+| On-device plate OCR | Re-typing plates into a spreadsheet, one row at a time |
+| Geofence validation | "Which region was that trip in?" |
+| Per-region tariff matrix | One spreadsheet maintained for every region at once |
+| Bulk tariff write | Copying dozens of rows for every new region |
+| Offline queue with retry | A day of trips lost to one missed bar of signal |
+| Office-LAN API | "The system is down" whenever the ISP is |
+| Live server telemetry | Flying to the server room to check a disk |
 
 ---
 
@@ -67,62 +127,12 @@ compatible endpoint at runtime from *Profile → Server*.
 | ![Mobile login](docs/screenshots/mobile-login.png) |
 
 > Screenshots are regenerated from the running application with
-> `node scripts/capture-screenshots.mjs` (headless Chromium over the DevTools
-> Protocol — no extra dependency beyond the `ws` module already in the repo).
+> `npm run docs:screenshots` (headless Chromium over the DevTools Protocol —
+> no extra dependency beyond the `ws` module already in the repo).
 
 ---
 
-## What the platform does
-
-### Field officer app (Capacitor + Android)
-
-- **Identity & access** — username/password or 6-digit PIN, JWT sessions with
-  silent renewal, per-device credential sync, and officer switching for shared
-  handsets.
-- **Trip capture** — a guided flow: choose *empty* or *loaded*, pick the route,
-  register the vehicle (plate, type, class), add condition notes, and attach a
-  mandatory camera photo. A trip cannot be submitted without photographic
-  evidence.
-- **Plate OCR** — on-device OCR (Tesseract.js) reads the plate from the camera
-  frame and matches it against the plate registry to classify the vehicle as
-  *internal*, *local*, or *external* — which decides how it is billed.
-- **Geofencing** — GPS watch against configurable per-dermaga geofences, so a
-  trip can only be filed inside the authorised area.
-- **Offline-first** — every master-data set and every pending trip is stored
-  locally (IndexedDB + Capacitor SQLite). The sync queue retries with
-  exponential backoff and reconciles on reconnect; the server stays the source
-  of truth.
-
-### Admin dashboard (React)
-
-- **Trip reports** — filterable by date range, vehicle class and vehicle type;
-  expandable trip rows with per-vehicle breakdown, load composition charts, and
-  a "show nominal" privacy toggle for revenue figures.
-- **Spreadsheet & recap views** — the same data rendered as a ledger-style
-  sheet and as a per-class recap, both exportable to `.xlsx`.
-- **Master data** — per-region tariff matrices (with a master region that
-  everything else inherits from), routes grouped by region → dermaga, regions
-  and dermaga, vehicle plate registry, and officer accounts with per-region and
-  per-dermaga access.
-- **Operations** — endpoint configuration, server health and hardware telemetry
-  (CPU, RAM, disk, load, request rate), plus in-app theme and density
-  preferences.
-
-### Backend & infrastructure
-
-- **One API, two deployments** — the same Deno handler serves the public
-  endpoint and the office intranet server; the mobile app switches between them
-  at runtime from *Profile → Server*.
-- **Self-hosted data plane** — PostgreSQL 16 + PostgREST + the API service,
-  orchestrated by Docker Compose with health checks, idempotent migrations and
-  persistent volumes for uploaded media.
-- **Observability** — request metrics (rate, success ratio, latency, per-minute
-  buckets, hot paths) and hardware telemetry collected by the API itself and
-  surfaced in the admin dashboard.
-
----
-
-## Architecture
+## How it is built
 
 ```
 ┌───────────────────────────┐        ┌───────────────────────────┐
@@ -150,10 +160,10 @@ compatible endpoint at runtime from *Profile → Server*.
 | Layer | Technology | Notes |
 |---|---|---|
 | Mobile shell | Capacitor 8 (Android) | camera, geolocation, filesystem, network state |
-| Frontend | React 19 + TypeScript + Tailwind CSS | one codebase, two shells (`/` mobile, `/admin` desktop) |
+| Frontend | React 19 + TypeScript 6 + Tailwind CSS | one codebase, two shells (`/` mobile, `/admin` desktop) |
 | Build | Angular application builder (esbuild) | output normalised into `www/`, verified before deploy |
 | API | Deno + `Deno.serve` | REST, JWT auth, bcrypt, rate limiting, CORS hardening |
-| Data | PostgreSQL 16 + PostgREST 12 | migrations in `server/db/migrations/` |
+| Data | PostgreSQL 16 + PostgREST 12 | idempotent SQL migrations in `server/db/migrations/` |
 | Storage | local object store on the API host (trip photos, APK, OTA bundles) | served by the API, persisted in a Docker volume |
 | Packaging | Docker Compose | `web`, `api-intranet`, `db`, `rest` |
 
@@ -161,13 +171,12 @@ compatible endpoint at runtime from *Profile → Server*.
 
 ## Engineering highlights
 
-- **The API runs where the work happens.** The Deno service is deployed next to
-  the office database, not behind a public cloud, and the mobile app switches
-  to it at runtime. A shared `JWT_SECRET` keeps tokens valid across endpoints,
-  so moving between them never logs an officer out.
 - **Offline is the default, not a fallback.** Master data is prefetched and
-  cached, trips are queued locally with retry/backoff, and reconciliation
+  cached, trips are queued locally with retry and backoff, and reconciliation
   happens on reconnect. The app is fully usable with the radio off.
+- **The API runs where the work happens.** It is deployed next to the office
+  database, not behind a public cloud, and the mobile app switches to it at
+  runtime — so moving between endpoints never logs an officer out.
 - **Tariff resolution without row copying.** A region's price is resolved in a
   defined order — internal (Rp 0) → per-region override → master tariff → flat
   regional rate → free. A new region inherits the master tariff automatically
@@ -175,12 +184,10 @@ compatible endpoint at runtime from *Profile → Server*.
 - **Evidence-first billing.** A trip is locked until a photo exists, and the
   captured frame is OCR'd to classify the vehicle, which drives the tariff
   applied to that trip.
-- **Deploy safety net.** The build script re-verifies every chunk reference in
-  the generated bundle and fails hard on a broken artefact, so a bad bundle can
-  never reach the field.
 - **Observable from the dashboard.** The API measures itself and reports CPU,
-  memory, disk and request rate to the admin UI — no external monitoring stack
-  required.
+  memory, disk, and request rate to the admin UI.
+- **Deploy safety net.** The build re-verifies every chunk reference in the
+  generated bundle and fails hard on a broken artefact.
 
 ---
 
@@ -192,8 +199,8 @@ compatible endpoint at runtime from *Profile → Server*.
 | Mobile | Capacitor 8 (Android), Capacitor SQLite, Tesseract.js (OCR), service worker + OTA updater |
 | Backend | Deno, standard `Request`/`Response` handlers, JWT (24 h), bcrypt, custom rate limiter |
 | Database | PostgreSQL 16, PostgREST 12, SQL migrations |
-| Infrastructure | Docker Compose, nginx, health checks, persistent volumes |
-| Quality | Vitest (33 test files), ESLint, `tsc --noEmit`, Deno test runner for the API |
+| Infrastructure | Docker Compose, health checks, persistent volumes, idempotent migrations |
+| Quality | Vitest (27 test files), ESLint, `tsc --noEmit`, Deno test runner for the API |
 
 ---
 
@@ -209,7 +216,7 @@ server/
   api/                   Deno API: handlers, metrics, system telemetry
   db/                    schema.sql + timestamped SQL migrations
 scripts/                 build helpers, OTA publisher, screenshot capture
-docs/                    deployment notes, incident reports, screenshots
+docs/                    deployment notes, incident reports, screenshots, media
 android/                 Capacitor Android project
 admin-www/               built admin dashboard served on port 8000
 ```
@@ -221,15 +228,15 @@ admin-www/               built admin dashboard served on port 8000
 ```bash
 npm install
 
-npm run start          # dev server for the app (port 5173)
-npm run build          # production build + bundle verification
-npm run test:unit      # unit tests
-npm run lint           # ESLint
-npm run docs:screenshots # regenerate README screenshots
+npm run start             # dev server for the app (port 5173)
+npm run build             # production build + bundle verification
+npm run test:unit         # unit tests
+npm run lint              # ESLint
+npm run docs:screenshots  # regenerate README screenshots
 npx tsc --noEmit -p tsconfig.app.json
 ```
 
-Run the full stack (admin dashboard, intranet API, database) with:
+Run the full stack (admin dashboard, intranet API, database, object store) with:
 
 ```bash
 docker compose build api-intranet web
@@ -250,7 +257,7 @@ intranet API on `3000`, and the mobile dev server on `5173`.
 | Check | Command |
 |---|---|
 | Unit tests (frontend + API) | `npm run test:unit` |
-| API tests (Deno) | `deno test --allow-env --allow-net --allow-read --allow-write server/api/` |
+| API tests (Deno) | `deno test --allow-env --allow-net --allow-read --allow-write --allow-sys --allow-run=df --allow-run=cat server/api/` |
 | Types | `npx tsc --noEmit -p tsconfig.app.json` |
 | Lint | `npm run lint` |
 | Bundle integrity | `npm run build` (fails hard on broken chunk references) |
