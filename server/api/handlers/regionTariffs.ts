@@ -1,10 +1,10 @@
 // Region tariffs (admin). Port of backend/src/routes/region-tariffs.js.
 //
 // Dua lapis tarif per region:
-//   - flat  : region_tariffs (lokal/eksternal nominal datar) — turtle lama utk
-//             resolver cadangan & mode offline.
-//   - rows  : region_tariff_rows (muatan/kosong per jenis kendaraan) — tarif
-//             tiap wilayah; region tanpa baris = Rp 0.
+//   - flat  : region_tariffs (lokal/eksternal nominal datar) — nilai cadangan
+//             kalau baris per jenis belum punya lokal sendiri.
+//   - rows  : region_tariff_rows (lokal/muatan/kosong per jenis kendaraan) —
+//             tarif tiap wilayah; region tanpa baris = Rp 0.
 import { db, json, requireAdmin, dbDetail } from "../_shared.ts";
 import { invalidateTariffCache } from "./tariffRules.ts";
 
@@ -31,7 +31,7 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
       db.from("region_tariffs").select("*").in("region_id", regionIds),
       db
         .from("region_tariff_rows")
-        .select("region_id, vehicle_type, muatan_tariff, kosong_tariff, is_active")
+        .select("region_id, vehicle_type, lokal_tariff, muatan_tariff, kosong_tariff, is_active")
         .in("region_id", regionIds)
         .order("vehicle_type", { ascending: true }),
     ]);
@@ -54,6 +54,7 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
         eksternal_active: tariffsByRegion[String(r.id)]?.eksternal?.is_active ?? 0,
         rows: (rowsByRegion[String(r.id)] ?? []).map((x) => ({
           vehicleType: x.vehicle_type,
+          lokalTariff: Number(x.lokal_tariff ?? 0) || 0,
           muatanTariff: x.muatan_tariff,
           kosongTariff: x.kosong_tariff,
           isActive: x.is_active,
@@ -75,12 +76,23 @@ async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   const kosong = asInt(body.kosongTariff ?? body.kosong);
   const active = body.isActive === undefined ? 1 : body.isActive ? 1 : 0;
 
+  // lokal_tariff hanya dikirim kalau memang diubah. Upsert bulk (semua region)
+  // tidak menyertakannya, jadi nilai yang sudah diisi per jenis tidak terhapus.
+  const payload: Record<string, unknown> = {
+    region_id: regionId,
+    vehicle_type: vehicleType,
+    muatan_tariff: muatan,
+    kosong_tariff: kosong,
+    is_active: active,
+    updated_at: new Date().toISOString(),
+  };
+  if (body.lokalTariff !== undefined || body.lokal_tariff !== undefined) {
+    payload.lokal_tariff = asInt(body.lokalTariff ?? body.lokal_tariff);
+  }
+
   const { error: upErr } = await db
     .from("region_tariff_rows")
-    .upsert(
-      { region_id: regionId, vehicle_type: vehicleType, muatan_tariff: muatan, kosong_tariff: kosong, is_active: active, updated_at: new Date().toISOString() },
-      { onConflict: "region_id,vehicle_type" },
-    );
+    .upsert(payload, { onConflict: "region_id,vehicle_type" });
   if (upErr) {
     console.error("Upsert region tariff row failed:", upErr);
     return json({ error: "Gagal menyimpan baris tarif region" }, 500);

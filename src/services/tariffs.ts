@@ -13,6 +13,8 @@ export interface ServerTariff {
 
 export interface RegionTariffOverrideRow {
   vehicleType: string
+  /** Tarif lokal jenis kendaraan ini (0 = pakai tarif lokal wilayah). */
+  lokalTariff: number
   muatanTariff: number
   kosongTariff: number
   isActive: number
@@ -102,11 +104,13 @@ export async function upsertRegionTariffRow(input: {
   vehicleType: string
   muatanTariff: number
   kosongTariff: number
+  lokalTariff?: number
 }): Promise<ActionResult> {
   const r = await api.put(`/region-tariffs/${input.regionId}`, {
     vehicleType: input.vehicleType,
     muatanTariff: input.muatanTariff,
     kosongTariff: input.kosongTariff,
+    ...(input.lokalTariff === undefined ? {} : { lokalTariff: input.lokalTariff }),
     isActive: 1,
   })
   return toActionResult(r, 'Tarif kendaraan gagal disimpan karena server menolak permintaan')

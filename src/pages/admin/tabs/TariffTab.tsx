@@ -4,9 +4,9 @@
  * Sumber angka (resolver backend, handlers/tariffRules.ts -> resolveTariff):
  *
  *   1. Kategori Internal -> Rp 0 (kolom "internal" terkunci)
- *   2. Baris wilayah `region_tariff_rows` -> satu baris per (region, jenis);
- *      region tanpa baris = Rp 0 (tidak ada cadangan dari region lain)
- *   3. Tarif wilayah flat -> kolom "lokal" (`region_tariffs`)
+ *   2. Baris wilayah `region_tariff_rows` -> satu baris per (region, jenis):
+ *      `lokal_tariff` untuk kategori Lokal, muatan/kosong untuk Eksternal.
+ *   3. Tarif wilayah flat `region_tariffs` -> cadangan untuk lokal yang masih 0
  *
  * Edit seperti spreadsheet: klik angka, ubah, Enter/blur = autosave.
  * Semua region menulis barisnya sendiri.
@@ -32,7 +32,6 @@ import {
   deleteAdminRegion,
   deleteRegionTariffRow,
   fetchRegionTariffs,
-  upsertRegionTariff,
   upsertRegionTariffRow,
 } from '../../../services/tariffs'
 
@@ -57,6 +56,7 @@ interface TariffForm {
 /** Nilai satu jenis kendaraan di satu region. `stored` = baris ada di server. */
 interface Cell {
   type: string
+  lokal: number
   muatan: number
   kosong: number
   stored: boolean
@@ -328,6 +328,8 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         const o = overrides.get(normalizeType(type))
         return {
           type: o?.vehicleType ?? type,
+          // Baris yang belum tersimpan masih memakai tarif lokal wilayah.
+          lokal: o ? o.lokalTariff : (region.lokal_tariff ?? 0),
           muatan: o ? o.muatanTariff : 0,
           kosong: o ? o.kosongTariff : 0,
           stored: !!o,
@@ -381,32 +383,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     })
   }
 
-  /** Simpan nominal lokal (tarif wilayah flat) untuk satu region. */
-  const commitLokal = async (region: RegionTariffRow, v: number): Promise<boolean> => {
-    setSaving(true)
-    try {
-      const res = await upsertRegionTariff({
-        regionId: region.id,
-        tariffType: 'lokal',
-        nominal: v,
-        aktif: (region.lokal_active ?? 0) === 1 || v > 0,
-      })
-      if (!res.ok) {
-        showToast(res.reason ?? 'Tarif wilayah gagal disimpan karena server menolak permintaan', 'error')
-        return false
-      }
-      await reloadRegions()
-      return true
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  /** Simpan satu sel: upsert baris (region, jenis) berisi muatan+kosong. */
+  /** Simpan satu sel: upsert baris (region, jenis) berisi lokal/muatan/kosong. */
   const commitCell = async (
     region: RegionTariffRow,
     cell: Cell,
-    field: 'muatan' | 'kosong',
+    field: 'lokal' | 'muatan' | 'kosong',
     v: number,
   ): Promise<boolean> => {
     setSaving(true)
@@ -416,6 +397,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         vehicleType: cell.type,
         muatanTariff: field === 'muatan' ? v : cell.muatan,
         kosongTariff: field === 'kosong' ? v : cell.kosong,
+        ...(field === 'lokal' ? { lokalTariff: v } : {}),
       })
       if (!res.ok) {
         showToast(res.reason ?? 'Tarif kendaraan gagal disimpan karena server menolak permintaan', 'error')
@@ -461,7 +443,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       type:
         typeCatalog.find((t) => normalizeType(t.value) === normalizeType(cell.type))?.value ??
         cell.type,
-      lokal: String(region.lokal_tariff ?? 0),
+      lokal: String(cell.lokal),
       muatan: String(cell.muatan),
       kosong: String(cell.kosong),
     })
@@ -475,6 +457,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     setForm((f) => ({
       ...f,
       type: v,
+      lokal: row ? String(row.lokalTariff) : String(region?.lokal_tariff ?? 0),
       muatan: !f.muatan && row ? String(row.muatanTariff) : f.muatan,
       kosong: !f.kosong && row ? String(row.kosongTariff) : f.kosong,
     }))
@@ -502,7 +485,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       setForm((f) => ({
         ...f,
         regionId: id,
-        lokal: String(r?.lokal_tariff ?? 0),
+        lokal: row ? String(row.lokalTariff) : String(r?.lokal_tariff ?? 0),
         muatan: row ? String(row.muatanTariff) : f.muatan,
         kosong: row ? String(row.kosongTariff) : f.kosong,
       }))
@@ -584,6 +567,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       )
       const before: Cell = {
         type: editTarget.type,
+        lokal: existing ? existing.lokalTariff : (target.lokal_tariff ?? 0),
         muatan: existing?.muatanTariff ?? 0,
         kosong: existing?.kosongTariff ?? 0,
         stored: !!existing,
@@ -593,8 +577,9 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         const nextCell: Cell = { ...before, muatan, kosong }
         if (!(await commitCell(target, nextCell, 'kosong', kosong))) return
       }
-      if (lokal !== null && lokal !== Number(target.lokal_tariff ?? 0)) {
-        if (!(await commitLokal(target, lokal))) return
+      if (lokal !== null && lokal !== before.lokal) {
+        const nextCell: Cell = { ...before, muatan, kosong }
+        if (!(await commitCell(target, nextCell, 'lokal', lokal))) return
       }
       showToast('Tarif diperbarui')
       resetForm()
@@ -608,18 +593,9 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         vehicleType: type,
         muatanTariff: muatan,
         kosongTariff: kosong,
+        ...(lokal === null ? {} : { lokalTariff: lokal }),
       })
       if (!res.ok) return showToast(res.reason ?? 'Tarif kendaraan gagal disimpan karena server menolak permintaan', 'error')
-
-      if (lokal !== null && lokal !== Number(region.lokal_tariff ?? 0)) {
-        const lokalRes = await upsertRegionTariff({
-          regionId: region.id,
-          tariffType: 'lokal',
-          nominal: lokal,
-          aktif: lokal > 0,
-        })
-        if (!lokalRes.ok) return showToast(lokalRes.reason ?? 'Tarif wilayah gagal disimpan karena server menolak permintaan', 'error')
-      }
 
       await reloadRegions()
       setExpanded((prev) => new Set(prev).add(region.id))
@@ -824,9 +800,9 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                               </td>
                               <LockedInternalCell />
                               <SheetCell
-                                value={region.lokal_tariff ?? 0}
-                                onCommit={(v) => commitLokal(region, v)}
-                                title="Tarif lokal wilayah ini"
+                                value={cell.lokal}
+                                onCommit={(v) => commitCell(region, cell, 'lokal', v)}
+                                title="Tarif lokal jenis kendaraan ini"
                               />
                               <SheetCell
                                 value={cell.muatan}
@@ -1000,14 +976,14 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                       disabled={form.regionId === ALL_REGIONS}
                       title={
                         form.regionId === ALL_REGIONS
-                          ? 'Tarif lokal berlaku per wilayah, jadi tidak bisa disamakan ke semua region'
+                          ? 'Tarif lokal berlaku per wilayah dan jenis kendaraan, jadi tidak bisa disamakan ke semua region'
                           : undefined
                       }
                       className={INPUT_CLS}
                     />
                     {form.regionId === ALL_REGIONS && (
                       <span className="mt-1 block text-[10.5px] text-slate-400">
-                        Tarif lokal berlaku per wilayah — isi per region.
+                        Tarif lokal berlaku per wilayah dan jenis kendaraan — isi per region.
                       </span>
                     )}
                   </Field>
@@ -1061,10 +1037,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         <p>
           Tiap region punya baris tarifnya sendiri. Region yang belum punya baris untuk suatu jenis
           kendaraan tampil <b className="text-slate-700">Rp 0</b> — isi selnya untuk menetapkan
-          harga.
+          harga. Sel lokal yang masih 0 memakai tarif lokal wilayah.
         </p>
         <p>
-          <b className="text-slate-700">lokal</b> — nominal flat per wilayah (`region_tariffs`).
+          <b className="text-slate-700">lokal</b> — harga per jenis kendaraan; isi 0 untuk memakai
+          tarif lokal wilayah.
           <b className="text-slate-700"> internal</b> terkunci Rp 0 — kendaraan internal tidak
           ditagih. Titik <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" /> =
           baris tarif region ini sudah tersimpan.

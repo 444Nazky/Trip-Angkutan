@@ -7,7 +7,8 @@
 // Urutan prioritas harga (kebijakan disetujui owner):
 //   1. Kategori Internal            -> Rp 0 (kendaraan internal selalu gratis)
 //   2. Baris tarif region per jenis -> region_tariff_rows (region + jenis kendaraan)
-//                                      hasLoad -> muatan_tariff, kosong -> kosong_tariff
+//                                      Eksternal: hasLoad -> muatan_tariff,
+//                                      kosong -> kosong_tariff. Lokal: lokal_tariff.
 //   3. Tarif terpusat per region    -> region_tariffs (lokal / eksternal)
 //   4. Nol                          -> tidak ada sumber harga (ditandai "tanpa-tarif")
 //
@@ -122,6 +123,7 @@ export async function getRegionTariffs(force = false): Promise<FlatRegionTariff[
 export interface OverrideTariffRow {
   region_id: string;
   vehicle_type: string;
+  lokal_tariff: number;
   muatan_tariff: number;
   kosong_tariff: number;
   is_active: number;
@@ -133,11 +135,12 @@ export async function getRegionTariffOverrides(force = false): Promise<OverrideT
   }
   const { data, error } = await db
     .from("region_tariff_rows")
-    .select("region_id, vehicle_type, muatan_tariff, kosong_tariff, is_active");
+    .select("region_id, vehicle_type, lokal_tariff, muatan_tariff, kosong_tariff, is_active");
   if (error || !data) return overrideCache?.rows ?? [];
   const rows = (data as any[]).map((r) => ({
     region_id: String(r.region_id ?? ""),
     vehicle_type: String(r.vehicle_type ?? ""),
+    lokal_tariff: Number(r.lokal_tariff ?? 0) || 0,
     muatan_tariff: Number(r.muatan_tariff ?? 0) || 0,
     kosong_tariff: Number(r.kosong_tariff ?? 0) || 0,
     is_active: Number(r.is_active ?? 0) || 0,
@@ -223,7 +226,13 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
         o.is_active === 1 &&
         (wantType ? normalizeVehicleType(o.vehicle_type) === wantType : true),
     );
-    if (hit) {
+    if (hit && category === "Lokal") {
+      // Tarif lokal per jenis. 0 = belum diisi -> pakai nilai flat di langkah 3.
+      const lokal = Number(hit.lokal_tariff ?? 0) || 0;
+      if (lokal > 0) {
+        return { amount: lokal, source: "region-row", loaded: lokal, empty: lokal, category };
+      }
+    } else if (hit) {
       const loaded = Number(hit.muatan_tariff ?? 0) || 0;
       const empty = Number(hit.kosong_tariff ?? 0) || 0;
       return {

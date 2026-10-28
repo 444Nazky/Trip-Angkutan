@@ -13,6 +13,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 const BADAU = "11111111-1111-4111-8111-111111111111";
 const BELITUNG = "22222222-2222-4222-8222-222222222222";
 const LAIN = "33333333-3333-4333-8333-333333333333";
+const FALLBACK = "44444444-4444-4444-8444-444444444444";
 
 const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, (req) => {
   const url = new URL(req.url);
@@ -22,6 +23,7 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
       {
         region_id: BADAU,
         vehicle_type: "motor",
+        lokal_tariff: 15000,
         muatan_tariff: 50000,
         kosong_tariff: 45000,
         is_active: 1,
@@ -29,13 +31,32 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
       {
         region_id: BELITUNG,
         vehicle_type: "motor",
+        lokal_tariff: 12000,
         muatan_tariff: 45000,
         kosong_tariff: 40000,
         is_active: 1,
       },
+      {
+        // lokal_tariff 0 -> pakai tarif flat wilayah.
+        region_id: FALLBACK,
+        vehicle_type: "motor",
+        lokal_tariff: 0,
+        muatan_tariff: 30000,
+        kosong_tariff: 25000,
+        is_active: 1,
+      },
     ]);
   }
-  if (url.pathname === "/region_tariffs") return Response.json([]);
+  if (url.pathname === "/region_tariffs") {
+    return Response.json([
+      {
+        region_id: FALLBACK,
+        tariff_type: "lokal",
+        nominal_tariff: 9000,
+        is_active: 1,
+      },
+    ]);
+  }
   return Response.json({ message: `unexpected ${url.pathname}` }, { status: 400 });
 });
 
@@ -80,6 +101,32 @@ Deno.test("BADAU memakai barisnya sendiri 50.000", async () => {
   });
   assertEquals(res.amount, 50000);
   assertEquals(res.source, "region-row");
+});
+
+Deno.test("tarif lokal memakai lokal_tariff milik jenis kendaraan itu", async () => {
+  invalidateTariffCache();
+  const res = await resolveTariff({
+    regionId: BELITUNG,
+    vehicleType: "motor",
+    hasLoad: true,
+    golongan: "II",
+    kategori: "Lokal",
+  });
+  assertEquals(res.amount, 12000);
+  assertEquals(res.source, "region-row");
+});
+
+Deno.test("lokal_tariff 0 jatuh ke tarif flat wilayah", async () => {
+  invalidateTariffCache();
+  const res = await resolveTariff({
+    regionId: FALLBACK,
+    vehicleType: "motor",
+    hasLoad: true,
+    golongan: "II",
+    kategori: "Lokal",
+  });
+  assertEquals(res.amount, 9000);
+  assertEquals(res.source, "region");
 });
 
 Deno.test("cleanup", () => server.shutdown());
