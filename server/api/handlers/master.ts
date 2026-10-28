@@ -1,5 +1,5 @@
 // Master data handlers: regions, dermagas, tariffs.
-import { db, json, auth, requireAdmin } from "../_shared.ts";
+import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 import { invalidateTariffCache, getMasterTariffs as getBadauMasterTariffs } from "./tariffRules.ts";
 
 /** Id region/dermaga bertipe uuid di database. */
