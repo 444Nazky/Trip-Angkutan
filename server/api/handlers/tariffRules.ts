@@ -42,7 +42,11 @@ export type TariffSource =
   | "internal"
   | "region-row"
   | "region"
-  | "tanpa-tarif";
+  | "tanpa-tarif"
+  // Harga yang SUDAH TERSIMPAN di vehicles.tariff_amount (snapshot saat trip
+  // dikirim). Dipakai laporan supaya perubahan tarif admin tidak mengubah
+  // trip lama — lihat reports.snapshotTariff.
+  | "snapshot";
 
 export interface TariffResult {
   amount: number;
@@ -57,8 +61,11 @@ let masterCache: { at: number; rows: MasterTariffRow[] } | null = null;
 let regionCache: { at: number; rows: FlatRegionTariff[] } | null = null;
 let overrideCache: { at: number; rows: OverrideTariffRow[] } | null = null;
 
-const MASTER_TTL_MS = 60_000;
-const REGION_TTL_MS = 60_000;
+// TTL cache sengaja pendek: admin yang baru saja mengubah tarif harus
+// langsung terpakai untuk trip BERIKUTNYA. Cache 60 detik masih bisa membuat
+// trip yang dikirim sesaat setelah perubahan ikut memakai harga lama.
+const MASTER_TTL_MS = 10_000;
+const REGION_TTL_MS = 10_000;
 
 /** Buang cache tarif (dipanggil setelah admin mengubah master tarif). */
 export function invalidateTariffCache(): void {

@@ -607,6 +607,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
             Kelola tarif untuk setiap jenis kendaraan pada setiap region.
           </p>
+          <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+            <strong>Perubahan tarif hanya berlaku ke depan.</strong> Trip yang sudah
+            terkirim memakai harga tarif yang berlaku saat trip itu dikirim — nilai
+            di laporan tidak ikut berubah ketika tarif diedit di sini.
+          </p>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${

@@ -65,6 +65,19 @@ Tariff model (do not regress):
 - Gotcha: a Deno `Request` body can be read only once. Parse `req.json()`
   once in a handler and pass the parsed object into helpers — a second read
   throws and silently degrades to `{}`.
+- SNAPSHOT HARGA (aturan owner, jangan regresi): perubahan tarif di admin
+  hanya berlaku untuk trip SELANJUTNYA. Trip yang sudah terkirim memakai
+  harga yang tercatat saat dikirim (`vehicles.tariff_amount` +
+  `vehicles.tarif_source`). Laporan (`server/api/handlers/reports.ts` →
+  `snapshotTariff`) TIDAK boleh menghitung ulang tarif dari master/region
+  yang berlaku sekarang; recompute hanya untuk baris lawas tanpa harga
+  tersimpan. Resolver dipakai saat INSERT trip (`trips.ts` →
+  `insertVehicleRow`).
+  Backfill baris lawas (sekali jalan, idempoten): dijalankan OTOMATIS oleh
+  `restart-all-ubuntu.sh` (langkah "backfill snapshot", setelah migrasi DB).
+  Manual kalau perlu: `docker compose exec api-intranet deno run --allow-env
+  --allow-net --node-modules-dir=none api/scripts/backfill_tariff_snapshot.ts`
+  (tambah `--dry-run=1` untuk melihat rencana dulu).
 - Migrations for this: `server/db/migrations/20261026000000_region_tariff_rows.sql`
   and `20261027000000_seed_region_tariff_rows.sql`; apply them to the office DB
   before deploying. Rebuild containers after backend changes:

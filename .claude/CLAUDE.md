@@ -238,6 +238,19 @@ graphify update .  # Setelah modifikasi code
    mengirim 60 bucket kontinu (lama -> baru, jarak tepat 1 menit, menit sepi
    diisi 0). Kalau grafik masih kosong, cek `metrics.buckets` dari
    `/api/server-stats`, bukan UI.
+19. **Harga trip lama ikut berubah saat tarif diedit**: laporan
+   (`server/api/handlers/reports.ts`) dulu MENGHITUNG ULANG tarif setiap
+   kendaraan dengan master/region yang berlaku saat laporan dibuka, jadi
+   perubahan tarif di admin ikut mengubah trip lama (mis. tarif 50.000 ->
+   75.000 => semua trip lama ikut jadi 75.000). Sekarang harga yang
+   ditampilkan = harga yang TERSIMPAN saat trip dikirim
+   (`vehicles.tariff_amount` + `vehicles.tarif_source`); resolver tarif hanya
+   dipakai saat insert trip. Baris lawas tanpa harga tersimpan di-backfill
+   otomatis oleh `restart-all-ubuntu.sh` (langkah "backfill snapshot", lewat
+   `server/api/scripts/backfill_tariff_snapshot.ts` - idempoten, aman
+   dijalankan setiap restart).
+   Cache tarif juga diturunkan dari 60 detik ke 10 detik supaya perubahan
+   tarif cepat berlaku untuk trip berikutnya.
 
 ---
 

@@ -163,6 +163,14 @@ const TABLES: Record<string, FakeTable> = {
     ]),
     rows: [],
   },
+  // Baris tarif per region per jenis kendaraan (sumber harga saat insert).
+  region_tariff_rows: {
+    columns: new Set([
+      "id", "region_id", "golongan", "vehicle_type", "lokal_tariff",
+      "muatan_tariff", "kosong_tariff", "is_active", "updated_at",
+    ]),
+    rows: [],
+  },
 };
 
 /** Kolom yang nilainya harus UUID (FK). */
@@ -486,4 +494,44 @@ Deno.test("error penyimpanan berkas diteruskan dengan pesan yang bisa ditindakla
   } finally {
     await Deno.chmod(bucketDir, 0o700);
   }
+});
+
+Deno.test("harga saat trip dikirim tersimpan sebagai snapshot (perubahan tarif tidak menimpa)", async () => {
+  resetTables();
+  const { completeTrip } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const { invalidateTariffCache } = await import("./tariffRules.ts");
+  // Cache tarif bisa saja sudah terisi dari file uji lain -> bersihkan dulu.
+  invalidateTariffCache();
+
+  // Region + baris tarif: Truck bermuatan 50.000.
+  TABLES.regions.rows.push({ id: REGION_ID, name: "BADAU", code: "BADAU" });
+  TABLES.region_tariff_rows.rows.push({
+    id: "aaaaaaaa-1111-4111-8111-111111111111",
+    region_id: REGION_ID,
+    vehicle_type: "Truk Besar",
+    lokal_tariff: 0,
+    muatan_tariff: 50_000,
+    kosong_tariff: 45_000,
+    is_active: 1,
+  });
+
+  const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
+  const payload = basePayload("TRP-2026-0002");
+  payload.vehicles[0].kategori = "Eksternal";
+  payload.vehicles[0].vehicleType = "Truk Besar";
+  payload.vehicles[0].tariffAmount = 0;
+
+  const res = await completeTrip(requestFor(payload, 3, DERMAGA_ID, token));
+  assertEquals(res.status, 201, `harus 201, dapat ${res.status}: ${await res.clone().text()}`);
+
+  // Harga yang tercatat = harga tarif SAAT INI (saat trip dikirim).
+  const vehicles = TABLES.vehicles.rows;
+  assertEquals(vehicles.length, 1);
+  assertEquals(vehicles[0].tariff_amount, 50_000, "harga harus mengikuti tarif saat trip dikirim");
+  assertEquals(vehicles[0].tarif_source, "region-row", "sumber harga harus tercatat");
+
+  // Admin mengubah tarif -> baris yang sudah tersimpan TIDAK boleh ikut berubah.
+  TABLES.region_tariff_rows.rows[0].muatan_tariff = 75_000;
+  assertEquals(vehicles[0].tariff_amount, 50_000, "harga trip lama tidak boleh ikut berubah");
 });

@@ -72,14 +72,42 @@ CREATE TABLE IF NOT EXISTS tariffs (
   created_at timestamptz DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Master jenis kendaraan (satu-satunya daftar yang sah).
+--
+-- Dulu daftar jenis kendaraan hidup di dua tempat sekaligus: hardcode di
+-- dashboard admin ("motor, mobil, truk kecil, ...") dan hardcode di aplikasi
+-- petugas ("Motor, Mobil, Truck Kecil, ...") - ejaan dan isinya berbeda,
+-- sehingga pilihan di admin dan di HP tidak sinkron. Sekarang jenis
+-- kendaraan disimpan di database; admin dan HP membacanya dari tabel ini.
+--
+-- `key` = bentuk normalisasi (tanpa spasi, "truck" -> "truk") supaya
+-- "Truk Kecil", "truk kecil", dan "Truck Kecil" dianggap jenis yang sama.
+CREATE TABLE IF NOT EXISTS vehicle_types (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  key text NOT NULL UNIQUE,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active integer NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS region_tariffs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   region_id uuid CONSTRAINT region_tariffs_region_id_fkey REFERENCES regions(id) ON DELETE CASCADE,
   tariff_type text,
   nominal_tariff integer DEFAULT 0,
   is_active integer DEFAULT 1
-  CONSTRAINT region_tariffs_region_type_key UNIQUE (region_id, tariff_type)
 );
+
+-- Constraint UNIQUE (region_id, tariff_type) sengaja TIDAK ditulis inline di
+-- sini. PostgREST memakai `on_conflict=region_id,tariff_type` untuk upsert
+-- tarif wilayah, jadi constraint-nya wajib ada - tapi menambahkannya inline
+-- di dalam CREATE TABLE pernah menggagalkan seluruh skrip (koma yang hilang),
+-- yang membuat instalasi database BARU berakhir tanpa tabel sama sekali.
+-- Constraint-nya dibuat oleh migrasi
+-- server/db/migrations/20261029010000_region_tariffs_unique_region_type.sql
+-- (idempoten, aman untuk database yang sudah ada).
 
 CREATE TABLE IF NOT EXISTS trips (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

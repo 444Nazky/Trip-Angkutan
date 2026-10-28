@@ -94,21 +94,54 @@ function matchesGolongan(raw: unknown, target: string): boolean {
 
 // ── Perhitungan tarif laporan ────────────────────────────────────────────────
 //
-// Laporan TIDAK lagi memakai peta tarif handmade (yang hanya match persis
-// "vehicle_type|golongan" dan meleset kalau ejaan beda). Semua tarif di
-// laporan dihitung ulang lewat resolver yang SAMA dengan yang dipakai saat
-// insert trip (handlers/tariffRules.ts), sehingga:
-//   - laporan selalu mengikuti Master Tarif terkini,
-//   - tarif terpusat per region tetap terpakai sebagai fallback,
-//   - kategori Internal selalu Rp 0.
+// ATURAN HARGA LAPORAN: harga yang ditampilkan untuk sebuah trip ADALAH harga
+// yang tercatat ketika trip itu dikirim (snapshot di vehicles.tariff_amount).
 //
-// Bila resolver tidak menemukan sumber harga ("tanpa-tarif"), nominal lama
-// yang tersimpan di vehicles.tariff_amount dipakai — supaya laporan tidak
-// ikut jadi Rp 0 hanya karena master tarif belum diisi.
+// Admin boleh mengubah tarif kapan saja, tetapi perubahan itu hanya berlaku
+// untuk trip SELANJUTNYA. Trip yang sudah terkirim tetap memakai harga
+// lamanya.
+//
+// Contoh: tarif 50.000 berlaku sampai 31 Desember. 2 Januari admin mengubahnya
+// jadi 75.000. Trip yang dikirim 1 Januari tetap tercatat Rp 50.000; trip yang
+// dikirim 2 Januari tercatat Rp 75.000.
+//
+// Karena itu laporan TIDAK lagi menghitung ulang tarif memakai master/region
+// yang berlaku SEKARANG. Tarif terkini hanya dipakai:
+//   - saat INSERT trip (menentukan harga snapshot), dan
+//   - untuk baris lawas yang sama sekali tidak punya harga tersimpan
+//     (fallback supaya laporan tidak ikut jadi Rp 0).
 
 interface EffectiveTariff {
   amount: number;
   source: TariffSource;
+}
+
+/**
+ * Ambil harga snapshot yang tersimpan pada baris kendaraan.
+ *
+ * Mengembalikan null HANYA kalau baris itu benar-benar tidak punya informasi
+ * harga (data lawas sebelum tarif_amount terisi) — pemanggil lalu memakai
+ * tarif yang berlaku sekarang sebagai gantinya.
+ */
+export function snapshotTariff(vehicle: any): EffectiveTariff | null {
+  const stored = Number(vehicle?.tariff_amount ?? 0) || 0;
+  const raw = String(vehicle?.tarif_source ?? "").trim();
+  const source = raw as TariffSource;
+
+  // Harga tersimpan > 0 -> inilah harga saat trip dikirim. Dipakai apa adanya,
+  // berapa pun harga master/region yang berlaku sekarang.
+  if (stored > 0) {
+    // "tanpa-tarif" + nominal > 0 berarti nominalnya datang dari perangkat
+    // petugas (server tidak punya sumber harga) -> tetap harga saat dikirim.
+    return {
+      amount: stored,
+      source: source && source !== "tanpa-tarif" ? source : "snapshot",
+    };
+  }
+  // Harga 0 yang sudah berlabel (mis. "internal") -> memang gratis / tanpa
+  // tarif ketika trip dikirim. Jangan diisi ulang dengan tarif yang lebih baru.
+  if (source) return { amount: 0, source };
+  return null;
 }
 
 /**
@@ -219,18 +252,28 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       return { ...v, kategori: fromColumn ?? fromScan ?? stored };
     });
 
-    // Tarif dihitung ulang untuk SEMUA kendaraan (bukan hanya yang 0) memakai
-    // resolver yang sama dengan saat insert -> laporan selalu mengikuti
-    // Master Tarif terkini. Region diambil dari trip induknya supaya tarif
-    // terpusat per region bisa dipakai sebagai fallback.
+    // Harga yang ditampilkan = harga yang tercatat saat trip dikirim.
+    // Master/region yang berlaku SEKARANG tidak boleh menimpa harga trip
+    // lama; perubahan tarif hanya berlaku untuk trip selanjutnya.
+    // Row lawas tanpa harga tersimpan -> pakai tarif terkini (fallback).
     const regionByTrip = new Map<string, string>(
       (trips ?? []).map((t: any) => [t.id, String(t.region_id ?? "")]),
     );
 
     vehicles = await Promise.all(vehicles.map(async (v) => {
+      const snap = snapshotTariff(v);
+      if (snap) {
+        return {
+          ...v,
+          tariff_amount: snap.amount,
+          tarif_source: snap.source,
+          // Nilai master saat trip dicatat (audit trail).
+          tariff_amount_saved: v.tariff_amount ?? null,
+        };
+      }
+      // Tidak ada sumber harga -> pertahankan nominal lama (bukan 0).
       const calc = await effectiveTariff(v, regionByTrip.get(v.trip_id) ?? null, v.kategori);
       if (!calc) {
-        // Tidak ada sumber harga -> pertahankan nominal lama (bukan 0).
         return { ...v, tarif_source: "tanpa-tarif" };
       }
       return {

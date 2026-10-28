@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/AdminDashboard.tsx": {
-    "mtime": 1793168331.2647007,
-    "ast_hash": "402ca80472dcfa089ade56da5e442dbb",
+    "mtime": 1793171561.1370177,
+    "ast_hash": "c0b758eab223123797d5d0857676577d",
     "semantic_hash": ""
   },
   "src/pages/admin/ReportSheet.tsx": {
@@ -235,13 +235,13 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/OfficersTab.tsx": {
-    "mtime": 1793170136.3689337,
-    "ast_hash": "bf5716a04ac985ab69023888a2e78f1c",
+    "mtime": 1793175975.2180927,
+    "ast_hash": "bfdaf8f9bf6c9cd1b0f8931217436006",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/PlatesTab.tsx": {
-    "mtime": 1793158017.8511086,
-    "ast_hash": "97ad89d0700ecbddab88c17b00900625",
+    "mtime": 1793173803.988365,
+    "ast_hash": "656d7c9f5e5f2a570ddb34de25286714",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.tsx": {
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RoutesTab.tsx": {
-    "mtime": 1793158182.9949057,
-    "ast_hash": "d7ef35127ad642edc82ed4b759c8ba4e",
+    "mtime": 1793172511.239284,
+    "ast_hash": "042414cd0aa969e10e8c524671da8010",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/SettingsTab.tsx": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/TariffTab.tsx": {
-    "mtime": 1793162466.5864584,
-    "ast_hash": "3a3314c2464a33742f70a9ff70ad185e",
+    "mtime": 1793179722.2629325,
+    "ast_hash": "755b47d2f33bd970f49c84f64a847873",
     "semantic_hash": ""
   },
   "src/pages/data.ts": {
@@ -275,8 +275,8 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/DermagaSelectScreen.tsx": {
-    "mtime": 1792982162.0021415,
-    "ast_hash": "776c535beae0f6d2c8edbf097d215994",
+    "mtime": 1793171753.9247422,
+    "ast_hash": "fe62fe90a154864feabf0f7b2f47de6b",
     "semantic_hash": ""
   },
   "src/pages/mobile/FloatingBottomNav.tsx": {
@@ -375,8 +375,8 @@
     "semantic_hash": ""
   },
   "src/services/api.ts": {
-    "mtime": 1792996264.9177892,
-    "ast_hash": "a3aa7dd100edf406505e5ce486b9dad7",
+    "mtime": 1793172628.3254879,
+    "ast_hash": "ca74280a954e739d8bc32905beb61731",
     "semantic_hash": ""
   },
   "src/services/apkInstaller.ts": {
@@ -410,8 +410,8 @@
     "semantic_hash": ""
   },
   "src/services/dermagas.ts": {
-    "mtime": 1793074435.8926954,
-    "ast_hash": "17e816603344c5e834f45f84dd3ce6f6",
+    "mtime": 1793172640.9668036,
+    "ast_hash": "11895211927772faaa721682e65fb13b",
     "semantic_hash": ""
   },
   "src/services/geo.test.ts": {
@@ -435,8 +435,8 @@
     "semantic_hash": ""
   },
   "src/services/geofences.ts": {
-    "mtime": 1792122253.0,
-    "ast_hash": "1f87f9bc87b35c0472e3a4d26575341a",
+    "mtime": 1793172654.2141287,
+    "ast_hash": "e1c5ff874a72f68e24d873b4411da356",
     "semantic_hash": ""
   },
   "src/services/localDb.test.ts": {
@@ -495,8 +495,8 @@
     "semantic_hash": ""
   },
   "src/services/plates.ts": {
-    "mtime": 1792644245.1948032,
-    "ast_hash": "d370a1900692fa6ccc3b1e89e13772c2",
+    "mtime": 1793172648.382149,
+    "ast_hash": "febd42684f46490c6de4c0fdc1a9ea59",
     "semantic_hash": ""
   },
   "src/services/regions.ts": {
@@ -535,8 +535,8 @@
     "semantic_hash": ""
   },
   "src/services/tariffs.ts": {
-    "mtime": 1793162353.9688652,
-    "ast_hash": "f224a3ab742e1838a7873ed06054ae4c",
+    "mtime": 1793173393.036151,
+    "ast_hash": "beeb71ff4f32af46a467aa83f00a2681",
     "semantic_hash": ""
   },
   "src/services/theme.ts": {
@@ -545,8 +545,8 @@
     "semantic_hash": ""
   },
   "src/services/trips.ts": {
-    "mtime": 1792994161.5927284,
-    "ast_hash": "11960f80c19cc41118da783bf0e575f7",
+    "mtime": 1793179712.9953117,
+    "ast_hash": "807ffc44dd817184262e48b35217f0a8",
     "semantic_hash": ""
   },
   "src/services/updateFlow.test.ts": {
@@ -1155,8 +1155,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793170819.6609457,
-    "ast_hash": "69e866aba3a2be5eebb889926407d8ca",
+    "mtime": 1793172320.4177203,
+    "ast_hash": "3b75e71925e6d2af2593ab3cc4df3976",
     "semantic_hash": ""
   },
   "SUPABASE_SECURITY_ADVISOR_FIX.md": {
@@ -2030,8 +2030,8 @@
     "semantic_hash": ""
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793156880.883566,
-    "ast_hash": "8e462bc4d180232de79aee870db727b0",
+    "mtime": 1793180407.2049522,
+    "ast_hash": "063dbd15b7fc10e26e3120ae9af003f8",
     "semantic_hash": ""
   },
   "restart-all-ubuntu.sh": {
@@ -2262,8 +2262,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793164224.95022,
-    "ast_hash": "ae19ac3f9194568a8d47e6b36cc1e14c",
+    "mtime": 1793180197.1507506,
+    "ast_hash": "450640974b8489be89d78e7049fbaa67",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2367,8 +2367,8 @@
     "semantic_hash": ""
   },
   "server/api/_shared.ts": {
-    "mtime": 1792995322.9679363,
-    "ast_hash": "70d492e803787b5419fdaf560e415270",
+    "mtime": 1793172290.6267178,
+    "ast_hash": "e89fa81a5ab2079e4be40c5e1cf85a2e",
     "semantic_hash": ""
   },
   "server/api/handlers/appVersion.ts": {
@@ -2387,8 +2387,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/geofences.ts": {
-    "mtime": 1792418417.8133843,
-    "ast_hash": "216b62ac1afc2c11abf2e09eec1907ee",
+    "mtime": 1793172829.9131894,
+    "ast_hash": "4e6effe0e629591c6501a9ae9ccd2e2b",
     "semantic_hash": ""
   },
   "server/api/handlers/import.ts": {
@@ -2397,33 +2397,33 @@
     "semantic_hash": ""
   },
   "server/api/handlers/master.ts": {
-    "mtime": 1793160611.29358,
-    "ast_hash": "b9428150c44312e7b8c98947bf5e83c0",
+    "mtime": 1793172806.7292998,
+    "ast_hash": "48a7e434e56c041f8d1d81d6b5b9deea",
     "semantic_hash": ""
   },
   "server/api/handlers/officers.ts": {
-    "mtime": 1793084771.706401,
-    "ast_hash": "8bb0e3bbc882e6190b878fa3ee9ac4c4",
+    "mtime": 1793172829.9136329,
+    "ast_hash": "0b041f41cea7ba2d9a39cdf579f41496",
     "semantic_hash": ""
   },
   "server/api/handlers/plates.ts": {
-    "mtime": 1792644102.8991067,
-    "ast_hash": "5b0bb966503df94bf6586baf60f63df0",
+    "mtime": 1793173812.5962708,
+    "ast_hash": "c616d9b3c79c2b785c0bd71f192c4b67",
     "semantic_hash": ""
   },
   "server/api/handlers/regionTariffs.ts": {
-    "mtime": 1793162660.3351321,
-    "ast_hash": "ede61bb5db84d65f953cc2cd772d16ae",
+    "mtime": 1793173374.0200694,
+    "ast_hash": "22d8c88b90a7693f295f8526faa58194",
     "semantic_hash": ""
   },
   "server/api/handlers/reports.ts": {
-    "mtime": 1792639299.9326017,
-    "ast_hash": "eb8e2fe44ae504deaaf8043d0ff71179",
+    "mtime": 1793179652.0528207,
+    "ast_hash": "4463629e72f356aac3f6d7b9b566c7f4",
     "semantic_hash": ""
   },
   "server/api/handlers/routes.ts": {
-    "mtime": 1793084771.7064645,
-    "ast_hash": "f98a80a770b8f486cb19260530995ca7",
+    "mtime": 1793172829.9126728,
+    "ast_hash": "d530ed90985ead61566c107c2836e159",
     "semantic_hash": ""
   },
   "server/api/handlers/serverStats.ts": {
@@ -2432,18 +2432,18 @@
     "semantic_hash": ""
   },
   "server/api/handlers/tariffRules.ts": {
-    "mtime": 1793160227.7982929,
-    "ast_hash": "1f2c31e27af4b550a0571ada6b137ebd",
+    "mtime": 1793179618.7880526,
+    "ast_hash": "2d1b1ce909cfde5187defad45b9064d2",
     "semantic_hash": ""
   },
   "server/api/handlers/trips.test.ts": {
-    "mtime": 1793084825.1858041,
-    "ast_hash": "295ee99912b543ca0c4b8432f32a0c11",
+    "mtime": 1793180020.1799555,
+    "ast_hash": "d4f42340c060cd4d717644fcb83e5050",
     "semantic_hash": ""
   },
   "server/api/handlers/trips.ts": {
-    "mtime": 1793084825.185977,
-    "ast_hash": "5500c2224e82d119c34ec51d37d63527",
+    "mtime": 1793172308.6902504,
+    "ast_hash": "14e8f9d7457c5c49446221311ffb3d83",
     "semantic_hash": ""
   },
   "server/api/index.ts": {
@@ -2472,18 +2472,18 @@
     "semantic_hash": ""
   },
   "server/api/handlers/tariffRules.test.ts": {
-    "mtime": 1793161050.5578485,
-    "ast_hash": "6265120c8d5923a2dc5906948cb93be6",
+    "mtime": 1793173517.0391047,
+    "ast_hash": "61287176d6579ef9417c79fccc728731",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.render.test.tsx": {
-    "mtime": 1793169897.7414463,
-    "ast_hash": "45251ecf0d3a0be4ef6cb8bf277e71f7",
+    "mtime": 1793172710.4614468,
+    "ast_hash": "c2f7f66f8b65f1137bf13e4ed6eb02a7",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.tsx": {
-    "mtime": 1793168397.1424956,
-    "ast_hash": "111d9c2f180ff05d3fcfd72a9f19c158",
+    "mtime": 1793172868.2077556,
+    "ast_hash": "a3126e8368a3f45c3c2aa25e1c4ce03f",
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {
@@ -5704,6 +5704,31 @@
   "docs/media/trip-angkutan-launch.mp4": {
     "mtime": 1793170638.0824008,
     "ast_hash": "d6d6d1e35f14d35fbcc420bc4282ff21",
+    "semantic_hash": ""
+  },
+  "server/api/handlers/reports.tariff.test.ts": {
+    "mtime": 1793179836.4879172,
+    "ast_hash": "0c51a18fd08174654154b39ee3c44f96",
+    "semantic_hash": ""
+  },
+  "server/api/scripts/backfill_tariff_snapshot.ts": {
+    "mtime": 1793179705.749638,
+    "ast_hash": "e5bc3c08c8a87f68af255adff8625432",
+    "semantic_hash": ""
+  },
+  "src/utils/plateFormatter.test.ts": {
+    "mtime": 1793173820.700677,
+    "ast_hash": "b4454f701b07b509c562018cc41342eb",
+    "semantic_hash": ""
+  },
+  "docs/media/WhatsApp Image 2026-10-28 at 10.32.55.jpeg": {
+    "mtime": 1793173896.021815,
+    "ast_hash": "d729b81f0dd47e52cf6749f2c9e5e64e",
+    "semantic_hash": ""
+  },
+  "docs/media/trip-angkutan-launch.gif": {
+    "mtime": 1793172224.530068,
+    "ast_hash": "749bf1b02877dc8f898249281d2dc482",
     "semantic_hash": ""
   }
 }

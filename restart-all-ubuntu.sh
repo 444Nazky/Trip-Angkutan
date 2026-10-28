@@ -334,6 +334,37 @@ if [ -d "$MIGRATIONS_DIR" ]; then
     done
 fi
 
+# ── Backfill snapshot harga tarif (sekali jalan, idempoten) ──────────────────
+#
+# ATURAN: perubahan tarif di admin hanya berlaku untuk trip SELANJUTNYA. Trip
+# yang sudah terkirim memakai harga yang tercatat saat dikirim
+# (vehicles.tariff_amount + vehicles.tarif_source).
+#
+# Baris kendaraan yang dibuat SEBELUM kolom tarif_source ada belum punya
+# penanda harga, jadi nilainya dibekukan satu kali di sini:
+#   - yang sudah punya harga  -> ditandai "snapshot" (tidak pernah dihitung
+#     ulang dengan tarif yang lebih baru),
+#   - yang masih Rp 0          -> diisi harga yang berlaku sekarang, lalu
+#     ditandai (tanpa ini baris ini ikut berubah setiap kali tarif diedit).
+#
+# Script-nya ada di server/api/scripts/backfill_tariff_snapshot.ts (ikut COPY
+# ke dalam image API, jadi tidak perlu disalin ke host). Sifatnya idempoten,
+# jadi aman dijalankan setiap restart - tidak ada yang berubah kalau datanya
+# sudah rapi.
+
+echo "[*] Membekukan harga tarif trip lama (backfill snapshot)..."
+BACKFILL_OUT="$($DOCKER compose -f "$COMPOSE_FILE" exec -T api-intranet \
+    deno run --allow-env --allow-net --node-modules-dir=none \
+    api/scripts/backfill_tariff_snapshot.ts 2>&1)"
+BACKFILL_STATUS=$?
+if [ $BACKFILL_STATUS -eq 0 ]; then
+    ok "backfill snapshot tarif selesai"
+    printf '%s\n' "$BACKFILL_OUT" | grep -E "Selesai" | sed 's/^/    /' || true
+else
+    warn "Backfill snapshot tarif gagal - cek log di atas."
+    printf '%s\n' "$BACKFILL_OUT" | tail -5 | sed 's/^/    /'
+fi
+
 # ── Verifikasi ────────────────────────────────────────────────────────────────
 
 echo "[*] Menunggu layanan merespons (maks 60 detik)..."

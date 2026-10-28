@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/AdminDashboard.tsx": {
-    "mtime": 1793161040.4935095,
-    "ast_hash": "ab7fb29ceaf919010cedeee5348f9974",
+    "mtime": 1793168331.2647007,
+    "ast_hash": "402ca80472dcfa089ade56da5e442dbb",
     "semantic_hash": ""
   },
   "src/pages/admin/ReportSheet.tsx": {
@@ -235,8 +235,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/OfficersTab.tsx": {
-    "mtime": 1793158040.3698108,
-    "ast_hash": "a332e6e9a21c416c558c4e1b3440f2f7",
+    "mtime": 1793170136.3689337,
+    "ast_hash": "bf5716a04ac985ab69023888a2e78f1c",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/PlatesTab.tsx": {
@@ -1155,8 +1155,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793161423.1784208,
-    "ast_hash": "18e0335c068838abcad986444914961d",
+    "mtime": 1793170819.6609457,
+    "ast_hash": "69e866aba3a2be5eebb889926407d8ca",
     "semantic_hash": ""
   },
   "SUPABASE_SECURITY_ADVISOR_FIX.md": {
@@ -2477,13 +2477,13 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.render.test.tsx": {
-    "mtime": 1793156880.8880832,
-    "ast_hash": "5fabbaf8267129a23733e094c3536ee7",
+    "mtime": 1793169897.7414463,
+    "ast_hash": "45251ecf0d3a0be4ef6cb8bf277e71f7",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.tsx": {
-    "mtime": 1793162559.2950225,
-    "ast_hash": "a94f4f7c7e3303e083e29c6bd0bdacfe",
+    "mtime": 1793168397.1424956,
+    "ast_hash": "111d9c2f180ff05d3fcfd72a9f19c158",
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {
@@ -2574,6 +2574,3136 @@
   "docs/screenshots/mobile-login.png": {
     "mtime": 1793161356.693343,
     "ast_hash": "0157f6a09137fd1de3f03426381fa465",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/audio.sh": {
+    "mtime": 1793170081.4361613,
+    "ast_hash": "4c7bf957ae734db5d39ccecbe3f3d63e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/cdp.mjs": {
+    "mtime": 1793165752.1505938,
+    "ast_hash": "871bbdea4c40dccc6be8b79884107645",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/contact-sheet.sh": {
+    "mtime": 1793167470.1725838,
+    "ast_hash": "465eb54e92585ebad0cd1735732dcf8d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/encode.sh": {
+    "mtime": 1793170381.8335698,
+    "ast_hash": "74c7731b447248d0cc19039043be5ee0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/inspect.mjs": {
+    "mtime": 1793166827.600924,
+    "ast_hash": "3972bec8b848669bf84d8fe9d34d09c9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/paint.js": {
+    "mtime": 1793169926.3689806,
+    "ast_hash": "ee8f446a961f7dbfbb29004f30b886a6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/render.mjs": {
+    "mtime": 1793166767.0331385,
+    "ast_hash": "c9df7d8c5d7fc2d73bda574fd75064cf",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/verify.mjs": {
+    "mtime": 1793166855.310286,
+    "ast_hash": "5014e0f0423c478d10eb831ed7d857f4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/verify2.mjs": {
+    "mtime": 1793166891.7187636,
+    "ast_hash": "e139f10496451fe4982aa44591b53e11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/brag-plan.md": {
+    "mtime": 1793170081.4041965,
+    "ast_hash": "8b70f9ae950991e2d66f1829253864e5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/share-copy.txt": {
+    "mtime": 1793170023.3351831,
+    "ast_hash": "e64b7e201f4d419a1c5d6c28d3a764c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/p1.html": {
+    "mtime": 1793166482.157575,
+    "ast_hash": "ee8403ccfc08bd8669735da36d0713a8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/p2.html": {
+    "mtime": 1793169915.0654812,
+    "ast_hash": "277e272b2b463fc0f0fe7f66a89b0571",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/p3.html": {
+    "mtime": 1793169915.0660634,
+    "ast_hash": "4259c09abed9024457a82c3e1161d1a3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/p4.html": {
+    "mtime": 1793166606.2430968,
+    "ast_hash": "fba9ae1a06da9fd3ee8aa0e8beff5063",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/scene.html": {
+    "mtime": 1793169936.923129,
+    "ast_hash": "b744c8dd33fc6a9c070af443b27045c8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/brag.jpg": {
+    "mtime": 1793170422.9523516,
+    "ast_hash": "418fc3a2711d758cde9a967e3ab4fb73",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/contact-sheet.jpg": {
+    "mtime": 1793170348.7892416,
+    "ast_hash": "1ef7162e3bc1fc255881a692aabe8a88",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0000.png": {
+    "mtime": 1793170120.8347154,
+    "ast_hash": "c74598cd40db5382e01f0c7dade20b74",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0001.png": {
+    "mtime": 1793170121.237721,
+    "ast_hash": "46b1317d99a5956672c6bd86022944c9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0002.png": {
+    "mtime": 1793170121.6317265,
+    "ast_hash": "231861815d1652c47a8db4902c3ad10e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0003.png": {
+    "mtime": 1793170122.013732,
+    "ast_hash": "16a33dc43566947a6f70a18b89cfb1c8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0004.png": {
+    "mtime": 1793170122.3967373,
+    "ast_hash": "8377202937e3e34b5a1a5c45984b08bc",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0005.png": {
+    "mtime": 1793170122.7817426,
+    "ast_hash": "df41b998c642dc2d6858c624a68a8e01",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0006.png": {
+    "mtime": 1793170123.159748,
+    "ast_hash": "c3ee9f3254fcf841da6c40c23185df92",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0007.png": {
+    "mtime": 1793170123.5617537,
+    "ast_hash": "a99b5283fe5c0bb12a9d28ea3dcc19c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0008.png": {
+    "mtime": 1793170123.9617593,
+    "ast_hash": "ef6886e8322a163f115caa4a2ac1f42b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0009.png": {
+    "mtime": 1793170124.3567648,
+    "ast_hash": "d4dd3de6b9526d9cb60dba46c41b081c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0010.png": {
+    "mtime": 1793170124.7477703,
+    "ast_hash": "960f1e9dd3f3323e8c9d6de3b4ada390",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0011.png": {
+    "mtime": 1793170125.157776,
+    "ast_hash": "f4b85a48dda3b2027a1c5f605fb6cc89",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0012.png": {
+    "mtime": 1793170125.567782,
+    "ast_hash": "00592b214ef15cf0b57070700498a7ce",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0013.png": {
+    "mtime": 1793170125.994788,
+    "ast_hash": "978236ce353532d35b31f91cddd60df5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0014.png": {
+    "mtime": 1793170126.3927934,
+    "ast_hash": "72171202967b92f3edf5bceca3cb2914",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0015.png": {
+    "mtime": 1793170126.8027992,
+    "ast_hash": "eafe227a98bbd19d6e37e64755e07cdd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0016.png": {
+    "mtime": 1793170127.204805,
+    "ast_hash": "41e64cabea94d538f2d386e7f2ad159e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0017.png": {
+    "mtime": 1793170127.5958104,
+    "ast_hash": "0e3d4f4eb333541d57ad41e26067e3c9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0018.png": {
+    "mtime": 1793170127.991816,
+    "ast_hash": "eedd40036cbd1ac50a12694996c91550",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0019.png": {
+    "mtime": 1793170128.3718214,
+    "ast_hash": "a600940dfa8b08396d317d96a58675aa",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0020.png": {
+    "mtime": 1793170128.7468266,
+    "ast_hash": "05c9d790ffe59a637550eaebe1087420",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0021.png": {
+    "mtime": 1793170129.139832,
+    "ast_hash": "021ccb34b952f0effd1ca49bed015251",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0022.png": {
+    "mtime": 1793170129.5258374,
+    "ast_hash": "8bc1a85c6fa39e6c8197364f34749414",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0023.png": {
+    "mtime": 1793170129.9078429,
+    "ast_hash": "c797f9f4cdc937dc6afa1f72647fcca2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0024.png": {
+    "mtime": 1793170130.2868483,
+    "ast_hash": "5efd11e4ee149e2ec4c6bd8ee7339f34",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0025.png": {
+    "mtime": 1793170130.6738536,
+    "ast_hash": "b6e5ff9276ff5d4e9593ee9cdaace231",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0026.png": {
+    "mtime": 1793170131.052859,
+    "ast_hash": "0fed6b8318dbc861c7b9abf46adb15d6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0027.png": {
+    "mtime": 1793170131.4428644,
+    "ast_hash": "673a102fd3a4909636f24826e50a2a9e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0028.png": {
+    "mtime": 1793170131.83987,
+    "ast_hash": "d8fd1d2a4619f77b575627090f6d8f4c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0029.png": {
+    "mtime": 1793170132.2298756,
+    "ast_hash": "605fd4e715238fccc55541ae5785a8d8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0030.png": {
+    "mtime": 1793170132.6328812,
+    "ast_hash": "2a801cbdb114555371ffab069815caee",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0031.png": {
+    "mtime": 1793170133.0288868,
+    "ast_hash": "9cf205a46bd12d57910d2c9c4f56a772",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0032.png": {
+    "mtime": 1793170133.457893,
+    "ast_hash": "468052bc17a83ecc51d99b6ae031c2ce",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0033.png": {
+    "mtime": 1793170133.8408983,
+    "ast_hash": "4d816182eaaa843c98e6a35612299d1e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0034.png": {
+    "mtime": 1793170134.2159035,
+    "ast_hash": "41a581ed1ab33091cc156cf3cbed7d4a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0035.png": {
+    "mtime": 1793170134.5979087,
+    "ast_hash": "d61e7e9465a6b8417b491b71f0f6282d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0036.png": {
+    "mtime": 1793170134.980914,
+    "ast_hash": "96e498a15db0688dff48ed466e138433",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0037.png": {
+    "mtime": 1793170135.3629196,
+    "ast_hash": "6c74f127e5f00b6015e9d9355d504a32",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0038.png": {
+    "mtime": 1793170135.7639253,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0039.png": {
+    "mtime": 1793170136.1589308,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0040.png": {
+    "mtime": 1793170136.5409362,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0041.png": {
+    "mtime": 1793170136.9259415,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0042.png": {
+    "mtime": 1793170137.2969468,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0043.png": {
+    "mtime": 1793170137.6829522,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0044.png": {
+    "mtime": 1793170138.0639577,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0045.png": {
+    "mtime": 1793170138.451963,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0046.png": {
+    "mtime": 1793170138.8489687,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0047.png": {
+    "mtime": 1793170139.2639744,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0048.png": {
+    "mtime": 1793170139.6529799,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0049.png": {
+    "mtime": 1793170140.0349853,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0050.png": {
+    "mtime": 1793170140.430991,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0051.png": {
+    "mtime": 1793170140.8349965,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0052.png": {
+    "mtime": 1793170141.229002,
+    "ast_hash": "95f3cd0085d6ba1c58e9ab19112abd2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0053.png": {
+    "mtime": 1793170141.6270077,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0054.png": {
+    "mtime": 1793170142.011013,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0055.png": {
+    "mtime": 1793170142.4040186,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0056.png": {
+    "mtime": 1793170142.7970243,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0057.png": {
+    "mtime": 1793170143.1880298,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0058.png": {
+    "mtime": 1793170143.5710351,
+    "ast_hash": "39fea5fafc450901eee99cb7d0392d6f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0059.png": {
+    "mtime": 1793170143.9470403,
+    "ast_hash": "c1fadff1b5e3d4e2414bdfad0438f8fb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0060.png": {
+    "mtime": 1793170144.346046,
+    "ast_hash": "c1fadff1b5e3d4e2414bdfad0438f8fb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0061.png": {
+    "mtime": 1793170144.7300513,
+    "ast_hash": "c1fadff1b5e3d4e2414bdfad0438f8fb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0062.png": {
+    "mtime": 1793170145.1190567,
+    "ast_hash": "c1fadff1b5e3d4e2414bdfad0438f8fb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0063.png": {
+    "mtime": 1793170145.499062,
+    "ast_hash": "9045f94143f95155f598dd50983fb0c2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0064.png": {
+    "mtime": 1793170145.8900676,
+    "ast_hash": "9045f94143f95155f598dd50983fb0c2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0065.png": {
+    "mtime": 1793170146.281073,
+    "ast_hash": "9045f94143f95155f598dd50983fb0c2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0066.png": {
+    "mtime": 1793170146.6660786,
+    "ast_hash": "9045f94143f95155f598dd50983fb0c2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0067.png": {
+    "mtime": 1793170147.049084,
+    "ast_hash": "28ed4d26ee9aef8e11c3ca52b9b509a2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0068.png": {
+    "mtime": 1793170147.4290893,
+    "ast_hash": "28ed4d26ee9aef8e11c3ca52b9b509a2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0069.png": {
+    "mtime": 1793170147.8100946,
+    "ast_hash": "28ed4d26ee9aef8e11c3ca52b9b509a2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0070.png": {
+    "mtime": 1793170148.1760998,
+    "ast_hash": "885535744e189209b912ea6bc33e51b9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0071.png": {
+    "mtime": 1793170148.5591052,
+    "ast_hash": "0d8dd7107fd32803dec832035e7cbe2b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0072.png": {
+    "mtime": 1793170148.9621108,
+    "ast_hash": "ef60c09f4c3d1c43d25cfd4e233991f9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0073.png": {
+    "mtime": 1793170149.3801167,
+    "ast_hash": "471aba9c247ff38b9a957373e5feab57",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0074.png": {
+    "mtime": 1793170149.7881224,
+    "ast_hash": "0dd26aae2cb9678616cbb99cfb888a95",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0075.png": {
+    "mtime": 1793170150.1661277,
+    "ast_hash": "c1af0b8bcd6a9959e4d7a5d8e06efc15",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0076.png": {
+    "mtime": 1793170150.5751336,
+    "ast_hash": "3a4c01b4689016d25dcfc135d83389c0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0077.png": {
+    "mtime": 1793170150.976139,
+    "ast_hash": "3a4c01b4689016d25dcfc135d83389c0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0078.png": {
+    "mtime": 1793170151.379145,
+    "ast_hash": "d0ccc1cfbab6bff3a25dc47870f627d7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0079.png": {
+    "mtime": 1793170151.75315,
+    "ast_hash": "554dca17927d06984e8686fd39f112d7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0080.png": {
+    "mtime": 1793170152.1201553,
+    "ast_hash": "df1d9babebea01261e6efe42dc47bb4b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0081.png": {
+    "mtime": 1793170152.4981606,
+    "ast_hash": "d6d6d7ff271dc68eead39e4314c07ed5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0082.png": {
+    "mtime": 1793170152.8511655,
+    "ast_hash": "ff247455baf35a5246af885c72537332",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0083.png": {
+    "mtime": 1793170153.16117,
+    "ast_hash": "e3ef4d0ddaa9bc536bb3515aeb612f76",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0084.png": {
+    "mtime": 1793170153.4951746,
+    "ast_hash": "3da5f88d12441a6d9db40f6a71a809f6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0085.png": {
+    "mtime": 1793170153.8211792,
+    "ast_hash": "1a4138b7ae1f19e9c7de36efb1528e03",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0086.png": {
+    "mtime": 1793170154.1331835,
+    "ast_hash": "04335f527482e1f42c168ba8669e86db",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0087.png": {
+    "mtime": 1793170154.443188,
+    "ast_hash": "98a79fdbcdbea4c17e0646d9522d4954",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0088.png": {
+    "mtime": 1793170154.741192,
+    "ast_hash": "dda1d597632dce954ddfa0d2ff9e7a67",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0089.png": {
+    "mtime": 1793170155.0451963,
+    "ast_hash": "432f6b3bd52a8cc396a53f8ab126b71e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0090.png": {
+    "mtime": 1793170155.3512008,
+    "ast_hash": "0ffe20d29695d9a786d6691da98c0454",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0091.png": {
+    "mtime": 1793170155.658205,
+    "ast_hash": "1298a90494f15ac242c82467004abe93",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0092.png": {
+    "mtime": 1793170155.9532092,
+    "ast_hash": "8858e544c66dd7fc6586370476ce7e40",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0093.png": {
+    "mtime": 1793170156.2602134,
+    "ast_hash": "3f020f7e76ca7a39fa3c28d8ff9e245f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0094.png": {
+    "mtime": 1793170156.5682178,
+    "ast_hash": "8819e15c35be3b1e5a5c465145a79020",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0095.png": {
+    "mtime": 1793170156.870222,
+    "ast_hash": "82841b1dd078385f9ad7ef4fa385e646",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0096.png": {
+    "mtime": 1793170157.1832263,
+    "ast_hash": "74f2f8a50ec1e55c688b360272d92a3c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0097.png": {
+    "mtime": 1793170157.495231,
+    "ast_hash": "4ed02257e7470e7d4d863d2ae802387e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0098.png": {
+    "mtime": 1793170157.800235,
+    "ast_hash": "d388ee9c9c81af0ea6f1edeb3bea49f0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0099.png": {
+    "mtime": 1793170158.0992393,
+    "ast_hash": "0e230aee5ed44aa42809f08da85508d6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0100.png": {
+    "mtime": 1793170158.3972435,
+    "ast_hash": "77df29ad7c44c6e3bb73ff4e2717f29a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0101.png": {
+    "mtime": 1793170158.7022479,
+    "ast_hash": "f48e16a8be383f23138ab62f0de3093b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0102.png": {
+    "mtime": 1793170159.0222523,
+    "ast_hash": "b2a18749546975625622e810512ff4d3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0103.png": {
+    "mtime": 1793170159.3202565,
+    "ast_hash": "fd39422af85a07f388c1b223a32975c1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0104.png": {
+    "mtime": 1793170159.6202607,
+    "ast_hash": "91780b30d1044eeb6ce5bf2e461ea7e7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0105.png": {
+    "mtime": 1793170159.921265,
+    "ast_hash": "5d9fdd5f0e6ad8703de87cd19cfe7774",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0106.png": {
+    "mtime": 1793170160.213269,
+    "ast_hash": "252277429672a0cda9fc212bd94452e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0107.png": {
+    "mtime": 1793170160.5152733,
+    "ast_hash": "739e3ce72802570fe899d7ec909f5a17",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0108.png": {
+    "mtime": 1793170160.8192775,
+    "ast_hash": "ca752d271e1a299c1f22c900e2b2bc89",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0109.png": {
+    "mtime": 1793170161.1212819,
+    "ast_hash": "28ca91d0ae2f9673daf1a055674e2203",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0110.png": {
+    "mtime": 1793170161.4402864,
+    "ast_hash": "2976345186e474a840255fa9ba81a1a5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0111.png": {
+    "mtime": 1793170161.7412906,
+    "ast_hash": "ff5c555537b2af96c259176778a9ff42",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0112.png": {
+    "mtime": 1793170162.040295,
+    "ast_hash": "dfdebef2153fa648e9b3471998a0d90f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0113.png": {
+    "mtime": 1793170162.336299,
+    "ast_hash": "1c90441a571473d9efa90007066387f0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0114.png": {
+    "mtime": 1793170162.6513033,
+    "ast_hash": "7b2a48e12a844745de02feb4cc251079",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0115.png": {
+    "mtime": 1793170162.9543076,
+    "ast_hash": "768c13970a35a3c0806a8d34fe91f8ae",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0116.png": {
+    "mtime": 1793170163.259312,
+    "ast_hash": "958afc29f051b191eba0d8cceeeeeee4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0117.png": {
+    "mtime": 1793170163.554316,
+    "ast_hash": "dce04419c9bfe8bd5fc731bd68cde37d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0118.png": {
+    "mtime": 1793170163.8643205,
+    "ast_hash": "3e72ab6f21f008ef6fb21dda23323503",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0119.png": {
+    "mtime": 1793170164.1673248,
+    "ast_hash": "a175290bc1444fed5cb0eed39736a682",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0120.png": {
+    "mtime": 1793170164.471329,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0121.png": {
+    "mtime": 1793170164.7853334,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0122.png": {
+    "mtime": 1793170165.0843375,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0123.png": {
+    "mtime": 1793170165.3893418,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0124.png": {
+    "mtime": 1793170165.689346,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0125.png": {
+    "mtime": 1793170165.9853504,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0126.png": {
+    "mtime": 1793170166.2833545,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0127.png": {
+    "mtime": 1793170166.6023588,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0128.png": {
+    "mtime": 1793170166.895363,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0129.png": {
+    "mtime": 1793170167.2003675,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0130.png": {
+    "mtime": 1793170167.5043716,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0131.png": {
+    "mtime": 1793170167.7973757,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0132.png": {
+    "mtime": 1793170168.10238,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0133.png": {
+    "mtime": 1793170168.4003842,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0134.png": {
+    "mtime": 1793170168.7003884,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0135.png": {
+    "mtime": 1793170168.9953926,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0136.png": {
+    "mtime": 1793170169.2993968,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0137.png": {
+    "mtime": 1793170169.592401,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0138.png": {
+    "mtime": 1793170169.877405,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0139.png": {
+    "mtime": 1793170170.1704092,
+    "ast_hash": "1ecdff4c64c9ba64bf3bf2dd0b591bd7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0140.png": {
+    "mtime": 1793170170.4994137,
+    "ast_hash": "4576cd8c8c8795249f4ddf1e07fa4c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0141.png": {
+    "mtime": 1793170170.7974179,
+    "ast_hash": "4576cd8c8c8795249f4ddf1e07fa4c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0142.png": {
+    "mtime": 1793170171.1094222,
+    "ast_hash": "4576cd8c8c8795249f4ddf1e07fa4c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0143.png": {
+    "mtime": 1793170171.4144266,
+    "ast_hash": "4576cd8c8c8795249f4ddf1e07fa4c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0144.png": {
+    "mtime": 1793170171.7424312,
+    "ast_hash": "4576cd8c8c8795249f4ddf1e07fa4c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0145.png": {
+    "mtime": 1793170172.0524356,
+    "ast_hash": "15f938164e028acfc069c6e4aac9dab1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0146.png": {
+    "mtime": 1793170172.3524399,
+    "ast_hash": "15f938164e028acfc069c6e4aac9dab1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0147.png": {
+    "mtime": 1793170172.6554441,
+    "ast_hash": "15f938164e028acfc069c6e4aac9dab1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0148.png": {
+    "mtime": 1793170172.9694486,
+    "ast_hash": "15f938164e028acfc069c6e4aac9dab1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0149.png": {
+    "mtime": 1793170173.2694526,
+    "ast_hash": "15f938164e028acfc069c6e4aac9dab1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0150.png": {
+    "mtime": 1793170173.573457,
+    "ast_hash": "23f1b7acb40adfae4dd3a50b6ddbd3ae",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0151.png": {
+    "mtime": 1793170173.8774612,
+    "ast_hash": "23f1b7acb40adfae4dd3a50b6ddbd3ae",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0152.png": {
+    "mtime": 1793170174.1944656,
+    "ast_hash": "23f1b7acb40adfae4dd3a50b6ddbd3ae",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0153.png": {
+    "mtime": 1793170174.50147,
+    "ast_hash": "1a6b46f11fa9bc4b8dca53752e214383",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0154.png": {
+    "mtime": 1793170174.8184745,
+    "ast_hash": "1a6b46f11fa9bc4b8dca53752e214383",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0155.png": {
+    "mtime": 1793170175.1344788,
+    "ast_hash": "1a6b46f11fa9bc4b8dca53752e214383",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0156.png": {
+    "mtime": 1793170175.437483,
+    "ast_hash": "20fd1e8e6edac2b9c75e9c2405679ec3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0157.png": {
+    "mtime": 1793170175.7344873,
+    "ast_hash": "20fd1e8e6edac2b9c75e9c2405679ec3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0158.png": {
+    "mtime": 1793170176.0474918,
+    "ast_hash": "20fd1e8e6edac2b9c75e9c2405679ec3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0159.png": {
+    "mtime": 1793170176.3674963,
+    "ast_hash": "20fd1e8e6edac2b9c75e9c2405679ec3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0160.png": {
+    "mtime": 1793170176.6865008,
+    "ast_hash": "016e904a78c684abe9a51cd2b794af0e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0161.png": {
+    "mtime": 1793170176.9945052,
+    "ast_hash": "016e904a78c684abe9a51cd2b794af0e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0162.png": {
+    "mtime": 1793170177.3175097,
+    "ast_hash": "74b23b8508956e10944bffa70aeda3c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0163.png": {
+    "mtime": 1793170177.625514,
+    "ast_hash": "74b23b8508956e10944bffa70aeda3c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0164.png": {
+    "mtime": 1793170177.9425185,
+    "ast_hash": "74b23b8508956e10944bffa70aeda3c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0165.png": {
+    "mtime": 1793170178.2485228,
+    "ast_hash": "67eeda8af5f8c7b6b08c1a9f0ea2228d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0166.png": {
+    "mtime": 1793170178.553527,
+    "ast_hash": "67eeda8af5f8c7b6b08c1a9f0ea2228d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0167.png": {
+    "mtime": 1793170178.8525312,
+    "ast_hash": "67eeda8af5f8c7b6b08c1a9f0ea2228d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0168.png": {
+    "mtime": 1793170179.1645355,
+    "ast_hash": "c2b7fa03386b3b8520254b1fa96f9d74",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0169.png": {
+    "mtime": 1793170179.46554,
+    "ast_hash": "c2b7fa03386b3b8520254b1fa96f9d74",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0170.png": {
+    "mtime": 1793170179.7745442,
+    "ast_hash": "c2b7fa03386b3b8520254b1fa96f9d74",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0171.png": {
+    "mtime": 1793170180.0675483,
+    "ast_hash": "c4167839c933ac3ca6160b476e3d66c6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0172.png": {
+    "mtime": 1793170180.3665526,
+    "ast_hash": "c4167839c933ac3ca6160b476e3d66c6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0173.png": {
+    "mtime": 1793170180.6635566,
+    "ast_hash": "bdec3dfb74091c1fa028dcf2d1ca4127",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0174.png": {
+    "mtime": 1793170180.9725611,
+    "ast_hash": "bdec3dfb74091c1fa028dcf2d1ca4127",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0175.png": {
+    "mtime": 1793170181.2685652,
+    "ast_hash": "bdec3dfb74091c1fa028dcf2d1ca4127",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0176.png": {
+    "mtime": 1793170181.5805695,
+    "ast_hash": "3b937db522a96821ee68fbcdb5e8f4d6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0177.png": {
+    "mtime": 1793170181.961575,
+    "ast_hash": "90d7e2c4dd3a6692b6f87ae34c1aed4b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0178.png": {
+    "mtime": 1793170182.3415804,
+    "ast_hash": "799e39d86780f6589f4bd4c51c7d3aac",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0179.png": {
+    "mtime": 1793170182.7205856,
+    "ast_hash": "7495adfc2b1d32d628fb31852743ef57",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0180.png": {
+    "mtime": 1793170183.0985909,
+    "ast_hash": "2408215a4afa6b416e81cef3d23b86c4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0181.png": {
+    "mtime": 1793170183.4975965,
+    "ast_hash": "3a4c01b4689016d25dcfc135d83389c0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0182.png": {
+    "mtime": 1793170183.900602,
+    "ast_hash": "f767255e2e2bf22ecd7e0a9d0e43a89e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0183.png": {
+    "mtime": 1793170184.2926078,
+    "ast_hash": "bfb78acacd82a66398f4110b4746339c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0184.png": {
+    "mtime": 1793170184.671613,
+    "ast_hash": "88c9bd0b92053d6590fa6decd47eb192",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0185.png": {
+    "mtime": 1793170185.0616186,
+    "ast_hash": "41ee1d75cb6be2f634df0915228f6eb3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0186.png": {
+    "mtime": 1793170185.4856246,
+    "ast_hash": "6797384125e1747182bd30da653b734b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0187.png": {
+    "mtime": 1793170185.8956304,
+    "ast_hash": "7722e0a80ca68a3d8f4bdd7f406d82ba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0188.png": {
+    "mtime": 1793170186.301636,
+    "ast_hash": "e910b0eb7137a093b1ade0e220a0ac96",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0189.png": {
+    "mtime": 1793170186.7096417,
+    "ast_hash": "ed17ad0c9101d0f251f68d97d8ac9799",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0190.png": {
+    "mtime": 1793170187.1106474,
+    "ast_hash": "3f9e436224f61b5f732755a571bea8a7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0191.png": {
+    "mtime": 1793170187.511653,
+    "ast_hash": "4e44d4fab0160046af21d98cd83ff1e3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0192.png": {
+    "mtime": 1793170187.9176588,
+    "ast_hash": "82861999035a6d9eab0381a9b1ee14c0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0193.png": {
+    "mtime": 1793170188.308664,
+    "ast_hash": "ee92db321215240eecf1e66668ca28c5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0194.png": {
+    "mtime": 1793170188.7076697,
+    "ast_hash": "ef9e7c9d2fed37590b730f7c9117384d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0195.png": {
+    "mtime": 1793170189.1076753,
+    "ast_hash": "78a001be91c63da3ba76070bb6949c83",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0196.png": {
+    "mtime": 1793170189.5216813,
+    "ast_hash": "5203ed165ea65d2da48aa0d6652a1adb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0197.png": {
+    "mtime": 1793170189.9006865,
+    "ast_hash": "4a0662769531ab4c94497081299f61a6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0198.png": {
+    "mtime": 1793170190.285692,
+    "ast_hash": "6d62584607de02ebde66f6ca09d18621",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0199.png": {
+    "mtime": 1793170190.6776974,
+    "ast_hash": "5aa46e2b287121fa5da13e15ac7c4a30",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0200.png": {
+    "mtime": 1793170191.0727031,
+    "ast_hash": "c1b2277531ea526082c7b18f9f5bacd0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0201.png": {
+    "mtime": 1793170191.4577084,
+    "ast_hash": "8fb07bad99e5315b729b3cce18d60345",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0202.png": {
+    "mtime": 1793170191.859714,
+    "ast_hash": "59421645b7f58faa58243d72821d81ca",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0203.png": {
+    "mtime": 1793170192.2457197,
+    "ast_hash": "9c6f59eff0d1f3028032b1f9d795cd5b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0204.png": {
+    "mtime": 1793170192.638725,
+    "ast_hash": "e5d850d63d9f62d087e47713894426f2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0205.png": {
+    "mtime": 1793170193.0167303,
+    "ast_hash": "329bbfd2680314de4e39d9ccb77201c8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0206.png": {
+    "mtime": 1793170193.4077358,
+    "ast_hash": "8b4faef49891ab2d1d4a1bec1602189b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0207.png": {
+    "mtime": 1793170193.7927413,
+    "ast_hash": "02a2b337725f14cb2fc1d3423c012cef",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0208.png": {
+    "mtime": 1793170194.1667466,
+    "ast_hash": "aa5ce80b69c8996aa82df3f886b615ab",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0209.png": {
+    "mtime": 1793170194.551752,
+    "ast_hash": "224f55b716aefcf54f32005a670da776",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0210.png": {
+    "mtime": 1793170194.9447575,
+    "ast_hash": "5265561a02946d8b10eabc1ae2a952e8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0211.png": {
+    "mtime": 1793170195.344763,
+    "ast_hash": "f9c8e12e82a934451efe0ea9a3d7fe5a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0212.png": {
+    "mtime": 1793170195.7477689,
+    "ast_hash": "6de0cd4f4ddeaac5467eeeccad41b758",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0213.png": {
+    "mtime": 1793170196.179775,
+    "ast_hash": "f77df0cf55a1afbf2c6fca5628bf7d87",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0214.png": {
+    "mtime": 1793170196.5687804,
+    "ast_hash": "a6dbb3f72f9b8d529549b4a17b5a3aa9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0215.png": {
+    "mtime": 1793170196.962786,
+    "ast_hash": "2e55be81473e73ce1e217e159a707619",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0216.png": {
+    "mtime": 1793170197.3527913,
+    "ast_hash": "c93a7561e2455c4a60c435261ab867dd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0217.png": {
+    "mtime": 1793170197.7287967,
+    "ast_hash": "ed4edf9b937ba3b8ba75bc1771672928",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0218.png": {
+    "mtime": 1793170198.1278024,
+    "ast_hash": "1e4ff7204be41e373f1f6923e9637561",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0219.png": {
+    "mtime": 1793170198.532808,
+    "ast_hash": "990cf4a530c4f58717e47b0c25be8132",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0220.png": {
+    "mtime": 1793170198.9288135,
+    "ast_hash": "dc9ead7ad2059eec6bcade66c48642d9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0221.png": {
+    "mtime": 1793170199.313819,
+    "ast_hash": "c26db00afd0d0e5b137e38fd319d0b05",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0222.png": {
+    "mtime": 1793170199.6988244,
+    "ast_hash": "cbe5a29973cf97b3323c7b40987f2b86",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0223.png": {
+    "mtime": 1793170200.0908298,
+    "ast_hash": "46c5a6a6dfeec99c1dcec4734a9d6979",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0224.png": {
+    "mtime": 1793170200.4748354,
+    "ast_hash": "84a297c31e28ae2a4b9f6d716f859455",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0225.png": {
+    "mtime": 1793170200.875841,
+    "ast_hash": "11ba7c886d2dae16a9400b2e8535411a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0226.png": {
+    "mtime": 1793170201.2848468,
+    "ast_hash": "5ce847fafe583c4c8e300efffa9d7556",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0227.png": {
+    "mtime": 1793170201.6748521,
+    "ast_hash": "ae65bad131646df2cb67c2dd1858afb0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0228.png": {
+    "mtime": 1793170202.0718577,
+    "ast_hash": "ae65bad131646df2cb67c2dd1858afb0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0229.png": {
+    "mtime": 1793170202.4618633,
+    "ast_hash": "ae65bad131646df2cb67c2dd1858afb0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0230.png": {
+    "mtime": 1793170202.8528688,
+    "ast_hash": "1cdf60e270984520117864083ce44f0a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0231.png": {
+    "mtime": 1793170203.2508743,
+    "ast_hash": "1cdf60e270984520117864083ce44f0a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0232.png": {
+    "mtime": 1793170203.64888,
+    "ast_hash": "1cdf60e270984520117864083ce44f0a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0233.png": {
+    "mtime": 1793170204.0618858,
+    "ast_hash": "1ef2dfeec3cec96c14e5ab255afbf50c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0234.png": {
+    "mtime": 1793170204.4538913,
+    "ast_hash": "057d755fb79f5c5dbbd8c4efa055a281",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0235.png": {
+    "mtime": 1793170204.8568969,
+    "ast_hash": "2f756cfca5403db34e497b08e0683a63",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0236.png": {
+    "mtime": 1793170205.2389023,
+    "ast_hash": "6f4a5c9b9cd89d575d0736fb7368852d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0237.png": {
+    "mtime": 1793170205.6249077,
+    "ast_hash": "191481574d576a140a1334122ff6a5b5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0238.png": {
+    "mtime": 1793170206.0259132,
+    "ast_hash": "2b750dc05496583b4efe146369137b3d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0239.png": {
+    "mtime": 1793170206.4129188,
+    "ast_hash": "643784503cd4708f0db857d765b4eb20",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0240.png": {
+    "mtime": 1793170206.8109243,
+    "ast_hash": "0875628b43e08f19f74006f93d553c0e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0241.png": {
+    "mtime": 1793170207.21593,
+    "ast_hash": "9d6890dc6f545e24e0d544802ab0670a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0242.png": {
+    "mtime": 1793170207.6189358,
+    "ast_hash": "7246b03e72ea0ae2a68a37d781da2a3a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0243.png": {
+    "mtime": 1793170208.0429418,
+    "ast_hash": "ee31d0f9014552f3bf5daf33d9ce6437",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0244.png": {
+    "mtime": 1793170208.4579475,
+    "ast_hash": "ee31d0f9014552f3bf5daf33d9ce6437",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0245.png": {
+    "mtime": 1793170208.8359528,
+    "ast_hash": "66bb280b48061586ab5cd81a58d24cf3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0246.png": {
+    "mtime": 1793170209.2299583,
+    "ast_hash": "66bb280b48061586ab5cd81a58d24cf3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0247.png": {
+    "mtime": 1793170209.6209638,
+    "ast_hash": "66bb280b48061586ab5cd81a58d24cf3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0248.png": {
+    "mtime": 1793170210.0019693,
+    "ast_hash": "ec5cd395675bf636c88f89786d74785b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0249.png": {
+    "mtime": 1793170210.3879747,
+    "ast_hash": "ec5cd395675bf636c88f89786d74785b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0250.png": {
+    "mtime": 1793170210.77498,
+    "ast_hash": "ec5cd395675bf636c88f89786d74785b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0251.png": {
+    "mtime": 1793170211.1789858,
+    "ast_hash": "38ebd66f61e82727c28674254d9208ef",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0252.png": {
+    "mtime": 1793170211.5609913,
+    "ast_hash": "38ebd66f61e82727c28674254d9208ef",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0253.png": {
+    "mtime": 1793170211.9499967,
+    "ast_hash": "fa17bab764a521b18ec1414ffd95a02e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0254.png": {
+    "mtime": 1793170212.3420022,
+    "ast_hash": "fa17bab764a521b18ec1414ffd95a02e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0255.png": {
+    "mtime": 1793170212.7320077,
+    "ast_hash": "fa17bab764a521b18ec1414ffd95a02e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0256.png": {
+    "mtime": 1793170213.1270132,
+    "ast_hash": "7e0e6d0260ac7c1380df5eea9c709e97",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0257.png": {
+    "mtime": 1793170213.5220187,
+    "ast_hash": "2de11b83ac4509f043d99ab97a5c39a3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0258.png": {
+    "mtime": 1793170213.899024,
+    "ast_hash": "039aed7ee5257cc8e7b3db89b06f8b26",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0259.png": {
+    "mtime": 1793170214.2970297,
+    "ast_hash": "2732336c7df5e2271eadafe37f9bf19f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0260.png": {
+    "mtime": 1793170214.6880352,
+    "ast_hash": "3e8f213107fd08b7d8c4af69f9c4fecd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0261.png": {
+    "mtime": 1793170215.0770407,
+    "ast_hash": "4be17b86cb1d757b2e699ea90d54af48",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0262.png": {
+    "mtime": 1793170215.4650462,
+    "ast_hash": "c74156d40d96befb944f9671347a779d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0263.png": {
+    "mtime": 1793170215.8550515,
+    "ast_hash": "75dd6cc2b1a92d2b406b0c672824c4f3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0264.png": {
+    "mtime": 1793170216.239057,
+    "ast_hash": "511c4fc87abf76fc365097c8d055df63",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0265.png": {
+    "mtime": 1793170216.6440628,
+    "ast_hash": "75ec2fdc645843b55230157729cfdecd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0266.png": {
+    "mtime": 1793170217.0430684,
+    "ast_hash": "1db88cb38bd9ae8bed0b1e0fd05d5de7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0267.png": {
+    "mtime": 1793170217.4340737,
+    "ast_hash": "01772d0c28bbf6f9ddf83a5d675bc21e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0268.png": {
+    "mtime": 1793170217.8240793,
+    "ast_hash": "01772d0c28bbf6f9ddf83a5d675bc21e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0269.png": {
+    "mtime": 1793170218.1980846,
+    "ast_hash": "01772d0c28bbf6f9ddf83a5d675bc21e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0270.png": {
+    "mtime": 1793170218.5800898,
+    "ast_hash": "0e7192f501f8058e0b766831f5a9db1d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0271.png": {
+    "mtime": 1793170218.9660954,
+    "ast_hash": "0e7192f501f8058e0b766831f5a9db1d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0272.png": {
+    "mtime": 1793170219.3621008,
+    "ast_hash": "0e7192f501f8058e0b766831f5a9db1d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0273.png": {
+    "mtime": 1793170219.7591064,
+    "ast_hash": "1f270c4651e5ea5b7c3ef9817d4a599f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0274.png": {
+    "mtime": 1793170220.146112,
+    "ast_hash": "1f270c4651e5ea5b7c3ef9817d4a599f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0275.png": {
+    "mtime": 1793170220.5361173,
+    "ast_hash": "1f270c4651e5ea5b7c3ef9817d4a599f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0276.png": {
+    "mtime": 1793170220.928123,
+    "ast_hash": "b618b76379084f9e1b4090c4c1ce31de",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0277.png": {
+    "mtime": 1793170221.3081284,
+    "ast_hash": "b618b76379084f9e1b4090c4c1ce31de",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0278.png": {
+    "mtime": 1793170221.7061338,
+    "ast_hash": "b618b76379084f9e1b4090c4c1ce31de",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0279.png": {
+    "mtime": 1793170222.0791392,
+    "ast_hash": "b618b76379084f9e1b4090c4c1ce31de",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0280.png": {
+    "mtime": 1793170222.4731448,
+    "ast_hash": "bde387b65f5d54e347cd2870f77f1339",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0281.png": {
+    "mtime": 1793170222.8771503,
+    "ast_hash": "8f7066b0290b1ea7e1b662d67b44f70b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0282.png": {
+    "mtime": 1793170223.2951562,
+    "ast_hash": "86912b86121e3204de454704907d0e1e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0283.png": {
+    "mtime": 1793170223.6911619,
+    "ast_hash": "7383e04e528da80c86f7f9754c8c051d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0284.png": {
+    "mtime": 1793170224.0801673,
+    "ast_hash": "0122dd39a55fba310c33c26a7a5e67e9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0285.png": {
+    "mtime": 1793170224.4471724,
+    "ast_hash": "a9b6dc88c18c446c7837acb309166c9d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0286.png": {
+    "mtime": 1793170224.840178,
+    "ast_hash": "bf8e69afe0688f2c5c0490947dbd6014",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0287.png": {
+    "mtime": 1793170225.2201834,
+    "ast_hash": "bf8e69afe0688f2c5c0490947dbd6014",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0288.png": {
+    "mtime": 1793170225.617189,
+    "ast_hash": "a9b6dc88c18c446c7837acb309166c9d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0289.png": {
+    "mtime": 1793170225.9951942,
+    "ast_hash": "f0d2dbced6447e90093f0c7f6858722d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0290.png": {
+    "mtime": 1793170226.3661995,
+    "ast_hash": "17caf3d700e470fc82fcec57460f16af",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0291.png": {
+    "mtime": 1793170226.7382047,
+    "ast_hash": "b5ff77d6026237c6e830e78ddd323719",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0292.png": {
+    "mtime": 1793170227.0972097,
+    "ast_hash": "57324f6e62eefe9f6bb0718c68f5a993",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0293.png": {
+    "mtime": 1793170227.478215,
+    "ast_hash": "4b82e51dc6bf6c1cdbf32449d2e36cfe",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0294.png": {
+    "mtime": 1793170227.8652205,
+    "ast_hash": "663128e502029ae0b2640b75f36fc980",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0295.png": {
+    "mtime": 1793170228.2462258,
+    "ast_hash": "d7e9d8f156815da7f981294519b248c9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0296.png": {
+    "mtime": 1793170228.6652317,
+    "ast_hash": "f2540d210ff1f1f7494143dc6bac67a4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0297.png": {
+    "mtime": 1793170229.0542371,
+    "ast_hash": "96397db75a4ffeff5efcd0bac2c84071",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0298.png": {
+    "mtime": 1793170229.4192424,
+    "ast_hash": "8143bdff01fb9b4a54c53f47cf353ae8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0299.png": {
+    "mtime": 1793170229.7842474,
+    "ast_hash": "1dde063fe45f41c93809a4d0206cf2f7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0300.png": {
+    "mtime": 1793170230.1312523,
+    "ast_hash": "6a9f0a5998831cc08c7e8c6c34e1c0ce",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0301.png": {
+    "mtime": 1793170230.4832573,
+    "ast_hash": "6cecf2eb1a29e98147f0c3645aeaf556",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0302.png": {
+    "mtime": 1793170230.831262,
+    "ast_hash": "6dede7cb1c9ea6872019204ff3930842",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0303.png": {
+    "mtime": 1793170231.2232678,
+    "ast_hash": "648f4096a73f1b4d5fb424260a12f7e4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0304.png": {
+    "mtime": 1793170231.5642724,
+    "ast_hash": "4f11f0ab1c3e653fe872d50510cca4e6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0305.png": {
+    "mtime": 1793170231.9152775,
+    "ast_hash": "ee3e19a923416448f25b187b724805ef",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0306.png": {
+    "mtime": 1793170232.2522821,
+    "ast_hash": "5d7a3af64f577d490a472c5fe08c5f94",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0307.png": {
+    "mtime": 1793170232.5882869,
+    "ast_hash": "6eb246916b49b90f3d985bae923b2e2b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0308.png": {
+    "mtime": 1793170232.9262917,
+    "ast_hash": "b8b394bd3b47617ec9bd76ce199c37b7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0309.png": {
+    "mtime": 1793170233.2582963,
+    "ast_hash": "35838b8af9728a4adf5e4be76348996d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0310.png": {
+    "mtime": 1793170233.5733008,
+    "ast_hash": "aa43fc741df683b8278d8b221c1c9649",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0311.png": {
+    "mtime": 1793170233.952306,
+    "ast_hash": "fc62ed7ece2df4e7944950470dd241e2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0312.png": {
+    "mtime": 1793170234.2733107,
+    "ast_hash": "52591266d6cd7b96e616764b5ac28b8d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0313.png": {
+    "mtime": 1793170234.5953152,
+    "ast_hash": "09f3e6ed4b10fce8ae0501aa0103d1fd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0314.png": {
+    "mtime": 1793170234.9553201,
+    "ast_hash": "4abf23a19f1a2b84f892a3fea7946c5d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0315.png": {
+    "mtime": 1793170235.2833247,
+    "ast_hash": "514d305f2fd51dd7f88eb7185bc74248",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0316.png": {
+    "mtime": 1793170235.6093295,
+    "ast_hash": "12efbedde5f89eae7cf377f3e912fdee",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0317.png": {
+    "mtime": 1793170235.9603343,
+    "ast_hash": "c0b85ca3774872223fc85533f72f4933",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0318.png": {
+    "mtime": 1793170236.3043392,
+    "ast_hash": "dbb9bed4334b98deb626e087e4b23f39",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0319.png": {
+    "mtime": 1793170236.637344,
+    "ast_hash": "ef0311aef4d32ecb177ca62c434e8ec4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0320.png": {
+    "mtime": 1793170236.9733486,
+    "ast_hash": "2d48df5889af8ef836cf2d82353d49e2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0321.png": {
+    "mtime": 1793170237.3283536,
+    "ast_hash": "7954968ab6e28bfd115f944364acf5be",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0322.png": {
+    "mtime": 1793170237.6733584,
+    "ast_hash": "51ce31ee6980c88177982ed1d7c16d65",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0323.png": {
+    "mtime": 1793170238.0063632,
+    "ast_hash": "a9485d287c4bb11183d2f991a7ed913e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0324.png": {
+    "mtime": 1793170238.3293676,
+    "ast_hash": "82a509c68e338524f05e155e56caf947",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0325.png": {
+    "mtime": 1793170238.6613724,
+    "ast_hash": "7f69da0cf5665d5bd876e2f521c9b1df",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0326.png": {
+    "mtime": 1793170239.0113773,
+    "ast_hash": "eecf8a9e7c65b36322bdbd2d6f01d353",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0327.png": {
+    "mtime": 1793170239.3693824,
+    "ast_hash": "c76553911349c2150c46bb957fe86526",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0328.png": {
+    "mtime": 1793170239.7263873,
+    "ast_hash": "23097f1f982f347216bd82de115be783",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0329.png": {
+    "mtime": 1793170240.071392,
+    "ast_hash": "8c827fed984e05094494fbefc6d07760",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0330.png": {
+    "mtime": 1793170240.408397,
+    "ast_hash": "459335ac702564cbaa3055fddffe056a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0331.png": {
+    "mtime": 1793170240.763402,
+    "ast_hash": "b0324f95a5c81229ec809185de4209b3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0332.png": {
+    "mtime": 1793170241.1104069,
+    "ast_hash": "90ca5cb23cb3fec5d58c03245b1efe85",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0333.png": {
+    "mtime": 1793170241.4574115,
+    "ast_hash": "644e629453740992266b08894b26cd87",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0334.png": {
+    "mtime": 1793170241.8124166,
+    "ast_hash": "047b0ddb8b658b95b8a1fb96c24f18a5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0335.png": {
+    "mtime": 1793170242.1634216,
+    "ast_hash": "090d79bb647efd8398effb4edaf4253c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0336.png": {
+    "mtime": 1793170242.544427,
+    "ast_hash": "db616d3ecccba40d0b6a096a384d7678",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0337.png": {
+    "mtime": 1793170242.8824317,
+    "ast_hash": "8f4ffadfe16230fc4c08573ff3f2c36f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0338.png": {
+    "mtime": 1793170243.2264366,
+    "ast_hash": "8f4ffadfe16230fc4c08573ff3f2c36f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0339.png": {
+    "mtime": 1793170243.5554411,
+    "ast_hash": "b131edbba9bafdd793971ebba7a026ca",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0340.png": {
+    "mtime": 1793170243.911446,
+    "ast_hash": "12617f3ff81ed25741dc3046909e747a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0341.png": {
+    "mtime": 1793170244.249451,
+    "ast_hash": "b6d3895a1d124809876204c994ddb3a4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0342.png": {
+    "mtime": 1793170244.5714555,
+    "ast_hash": "92d91244a83b8251ec9d118b2c59e7ca",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0343.png": {
+    "mtime": 1793170244.89446,
+    "ast_hash": "78ec50b837c3648ec18d7328b2bc8af1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0344.png": {
+    "mtime": 1793170245.2294648,
+    "ast_hash": "22daf785b24cebf80b16a780b745ed98",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0345.png": {
+    "mtime": 1793170245.5694695,
+    "ast_hash": "ff60a01c0c33efbe7af3121baa65670c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0346.png": {
+    "mtime": 1793170245.888474,
+    "ast_hash": "ff60a01c0c33efbe7af3121baa65670c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0347.png": {
+    "mtime": 1793170246.2224786,
+    "ast_hash": "0d9495440f11452ab1303681d0d07b73",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0348.png": {
+    "mtime": 1793170246.5704834,
+    "ast_hash": "8ab4a397861766d85bf1a0a1565f2b00",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0349.png": {
+    "mtime": 1793170246.9094882,
+    "ast_hash": "fe46675a9536de20906023f40d4e44bb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0350.png": {
+    "mtime": 1793170247.2494915,
+    "ast_hash": "4455f70b4970a338cfd9f1127790310e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0351.png": {
+    "mtime": 1793170247.5824926,
+    "ast_hash": "80316bf6395278cffdc4e357771d5d2c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0352.png": {
+    "mtime": 1793170247.9284937,
+    "ast_hash": "c0359cc02da201a2b6f63315ac62b046",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0353.png": {
+    "mtime": 1793170248.2774754,
+    "ast_hash": "2232411c81f7afdfe52a7c7496eda837",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0354.png": {
+    "mtime": 1793170248.6294515,
+    "ast_hash": "23d40233f5d86a536048806afcd60332",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0355.png": {
+    "mtime": 1793170248.978428,
+    "ast_hash": "18bfe496675ead46f21b6de56fc11ad0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0356.png": {
+    "mtime": 1793170249.3254044,
+    "ast_hash": "c729261f46c302264d695688e030d717",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0357.png": {
+    "mtime": 1793170249.6823802,
+    "ast_hash": "b1114703f75c2c9708b19da3671300f5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0358.png": {
+    "mtime": 1793170250.0313566,
+    "ast_hash": "ae8e39c6783cfb6efadd404914ba4c70",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0359.png": {
+    "mtime": 1793170250.3873327,
+    "ast_hash": "99859411d4b0c432f9782b6950f2abd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0360.png": {
+    "mtime": 1793170250.7263098,
+    "ast_hash": "99859411d4b0c432f9782b6950f2abd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0361.png": {
+    "mtime": 1793170251.0712867,
+    "ast_hash": "99859411d4b0c432f9782b6950f2abd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0362.png": {
+    "mtime": 1793170251.4322622,
+    "ast_hash": "08c4b59c8c2938e4d3fdcd1dad0c089c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0363.png": {
+    "mtime": 1793170251.7812388,
+    "ast_hash": "08c4b59c8c2938e4d3fdcd1dad0c089c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0364.png": {
+    "mtime": 1793170252.121216,
+    "ast_hash": "08c4b59c8c2938e4d3fdcd1dad0c089c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0365.png": {
+    "mtime": 1793170252.4641929,
+    "ast_hash": "08c4b59c8c2938e4d3fdcd1dad0c089c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0366.png": {
+    "mtime": 1793170252.8081698,
+    "ast_hash": "3d76e4243d2b487b9582cb821c8437bc",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0367.png": {
+    "mtime": 1793170253.1751451,
+    "ast_hash": "3d76e4243d2b487b9582cb821c8437bc",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0368.png": {
+    "mtime": 1793170253.5471203,
+    "ast_hash": "3d76e4243d2b487b9582cb821c8437bc",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0369.png": {
+    "mtime": 1793170253.9030964,
+    "ast_hash": "3d76e4243d2b487b9582cb821c8437bc",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0370.png": {
+    "mtime": 1793170254.2490733,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0371.png": {
+    "mtime": 1793170254.5920503,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0372.png": {
+    "mtime": 1793170254.9630256,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0373.png": {
+    "mtime": 1793170255.313002,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0374.png": {
+    "mtime": 1793170255.6709783,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0375.png": {
+    "mtime": 1793170256.0029562,
+    "ast_hash": "125477f4c00064fc9f71738bcdcec730",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0376.png": {
+    "mtime": 1793170256.3439336,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0377.png": {
+    "mtime": 1793170256.6999097,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0378.png": {
+    "mtime": 1793170257.0468867,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0379.png": {
+    "mtime": 1793170257.4458601,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0380.png": {
+    "mtime": 1793170257.7888374,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0381.png": {
+    "mtime": 1793170258.1218152,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0382.png": {
+    "mtime": 1793170258.4757917,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0383.png": {
+    "mtime": 1793170258.850767,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0384.png": {
+    "mtime": 1793170259.1907444,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0385.png": {
+    "mtime": 1793170259.5327218,
+    "ast_hash": "bec77c988168b425adba5fd009b894e0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0386.png": {
+    "mtime": 1793170259.8886983,
+    "ast_hash": "5ca64681b4b075578926bc9aabe3b4b8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0387.png": {
+    "mtime": 1793170260.2936714,
+    "ast_hash": "0c8ec2ff195982f7a085cd1b6fa0e689",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0388.png": {
+    "mtime": 1793170260.7026443,
+    "ast_hash": "597da1ecae8c2d597b92290efaa77b78",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0389.png": {
+    "mtime": 1793170261.0916188,
+    "ast_hash": "672337c933a6564ecf22d329c36eb0ba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0390.png": {
+    "mtime": 1793170261.4865928,
+    "ast_hash": "56ab96b04ea39a0f862c48b89a0500b3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0391.png": {
+    "mtime": 1793170261.8865664,
+    "ast_hash": "76f3fed6fc4de574d5ad910445a9ee1a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0392.png": {
+    "mtime": 1793170262.2815404,
+    "ast_hash": "76f3fed6fc4de574d5ad910445a9ee1a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0393.png": {
+    "mtime": 1793170262.680514,
+    "ast_hash": "56ab96b04ea39a0f862c48b89a0500b3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0394.png": {
+    "mtime": 1793170263.0584893,
+    "ast_hash": "01582560be7e9d82f8ac4dddbcc4b456",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0395.png": {
+    "mtime": 1793170263.4394643,
+    "ast_hash": "9939b4906bf09c7bbc173430e0b24c5a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0396.png": {
+    "mtime": 1793170263.8354383,
+    "ast_hash": "46f9faa4e996d2157013d1903d973e92",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0397.png": {
+    "mtime": 1793170264.2164133,
+    "ast_hash": "b172860d8eac19b67c52f55cf77f69e1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0398.png": {
+    "mtime": 1793170264.6013882,
+    "ast_hash": "dcc5c8bc3909600adc81c6abf505ebe5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0399.png": {
+    "mtime": 1793170264.9753637,
+    "ast_hash": "61bdcdd8800edc35f658832fc46ac36a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0400.png": {
+    "mtime": 1793170265.3713377,
+    "ast_hash": "10f957a3c076e0e605c5acf5d939802c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0401.png": {
+    "mtime": 1793170265.7763114,
+    "ast_hash": "6307bd54be8460e4aa7d2586a41c596e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0402.png": {
+    "mtime": 1793170266.1672857,
+    "ast_hash": "a1c695ec8fa172f1d0d6e120089914ed",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0403.png": {
+    "mtime": 1793170266.5222626,
+    "ast_hash": "ee9f50ccf0f62b4134d10ec1e752bc96",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0404.png": {
+    "mtime": 1793170266.87124,
+    "ast_hash": "b064c3bdd7f2cf4479680720c3f866a0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0405.png": {
+    "mtime": 1793170267.2142174,
+    "ast_hash": "06c9e254117fe7ed781ebd20e188f31a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0406.png": {
+    "mtime": 1793170267.5381963,
+    "ast_hash": "57b93426b5a6b340e4206260d83d3c16",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0407.png": {
+    "mtime": 1793170267.8591754,
+    "ast_hash": "f2a09ae02cc4289b88da0fc1f1544278",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0408.png": {
+    "mtime": 1793170268.1621559,
+    "ast_hash": "34da3f89a1bffafbb6b12562ebfec28b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0409.png": {
+    "mtime": 1793170268.4421377,
+    "ast_hash": "a7be36a5a147260ccf964d8a0fbf5408",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0410.png": {
+    "mtime": 1793170268.7181196,
+    "ast_hash": "7823ac0d0952e9b18ae2b3379caf8f91",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0411.png": {
+    "mtime": 1793170268.9841025,
+    "ast_hash": "55ad845eddc2fa06b97d65ddda166aaf",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0412.png": {
+    "mtime": 1793170269.2470853,
+    "ast_hash": "591035588b1737d7c190a13c7517a86b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0413.png": {
+    "mtime": 1793170269.5040686,
+    "ast_hash": "eb04a21779535ec80c2326a559fc3dbb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0414.png": {
+    "mtime": 1793170269.7610521,
+    "ast_hash": "41ef0925748c489d2204bb4924630eb1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0415.png": {
+    "mtime": 1793170270.0390341,
+    "ast_hash": "c392e7ec5b7e4de417a424fafdd57538",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0416.png": {
+    "mtime": 1793170270.3150163,
+    "ast_hash": "7388759b295496a91931a7b13f99a11d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0417.png": {
+    "mtime": 1793170270.5859985,
+    "ast_hash": "682cb6d80e5845d69f746cf89827e2a3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0418.png": {
+    "mtime": 1793170270.917977,
+    "ast_hash": "6a0cb2708916a47c74b556976991c042",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0419.png": {
+    "mtime": 1793170271.165961,
+    "ast_hash": "50a2c726f8c33ebe227c3f3fbafe133b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0420.png": {
+    "mtime": 1793170271.417945,
+    "ast_hash": "5e7c0298c9396de250a58244dfba3d56",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0421.png": {
+    "mtime": 1793170271.6709285,
+    "ast_hash": "1f03d4114a78327f87d36b9b0f68a0a2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0422.png": {
+    "mtime": 1793170271.9309118,
+    "ast_hash": "a5dddc789aeb8134e73021b89603b8ad",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0423.png": {
+    "mtime": 1793170272.192895,
+    "ast_hash": "6b969f1cea756e2bf32426ddb18934eb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0424.png": {
+    "mtime": 1793170272.451878,
+    "ast_hash": "d7c4fe6cb761a475bcb9b4d8480133db",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0425.png": {
+    "mtime": 1793170272.7118614,
+    "ast_hash": "2b2f5ef71ee37d05d32ab3b266897e28",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0426.png": {
+    "mtime": 1793170272.9838438,
+    "ast_hash": "280da0f8976f7891f2ef5b14465782fd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0427.png": {
+    "mtime": 1793170273.2378275,
+    "ast_hash": "6a215054ee540b2de8e6993f0aa8cf68",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0428.png": {
+    "mtime": 1793170273.4898114,
+    "ast_hash": "c5dbf92544e016d4a508139f695711e1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0429.png": {
+    "mtime": 1793170273.7557943,
+    "ast_hash": "e4f190f92320fc9c44b6c784c9fdb0f6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0430.png": {
+    "mtime": 1793170274.0137777,
+    "ast_hash": "0fe2abed42e7fd9d24b271673c2306c1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0431.png": {
+    "mtime": 1793170274.2677615,
+    "ast_hash": "e3cfbd251612cc109f16dd4903b3f4f5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0432.png": {
+    "mtime": 1793170274.5317445,
+    "ast_hash": "f6160aa42159e5766c12789c137b3dcf",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0433.png": {
+    "mtime": 1793170274.7937276,
+    "ast_hash": "2a33f7566ea629dbb8d9a99115e7afd5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0434.png": {
+    "mtime": 1793170275.0607104,
+    "ast_hash": "c2a48901fdbf3618e0b4262066474f5f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0435.png": {
+    "mtime": 1793170275.3256936,
+    "ast_hash": "5f182255d952f48e99cecc0701ec431a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0436.png": {
+    "mtime": 1793170275.5946763,
+    "ast_hash": "46a51f7570467e18702dc5e35a62b59f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0437.png": {
+    "mtime": 1793170275.8576596,
+    "ast_hash": "4dbe117d93fa5634c39b8eaf5d9a2a4d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0438.png": {
+    "mtime": 1793170276.1416414,
+    "ast_hash": "c951717a4c48444d4774581a180a3deb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0439.png": {
+    "mtime": 1793170276.4176238,
+    "ast_hash": "1d616275992a2476fb86545901c0f0f5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0440.png": {
+    "mtime": 1793170276.696606,
+    "ast_hash": "031649cf8e1a70debc348355cc8f69d3",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0441.png": {
+    "mtime": 1793170276.9545894,
+    "ast_hash": "10c465ffa578c7910257646257851b56",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0442.png": {
+    "mtime": 1793170277.2365713,
+    "ast_hash": "4dac00e67a4d3923d14ca03299ab443b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0443.png": {
+    "mtime": 1793170277.5025544,
+    "ast_hash": "544b114793033dd5be4b7bf60167b496",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0444.png": {
+    "mtime": 1793170277.7685375,
+    "ast_hash": "bc48b502e37d58ebe61334e1f82dabe8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0445.png": {
+    "mtime": 1793170278.0225213,
+    "ast_hash": "26e0eb865db7059ce36e7c2f2928cf96",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0446.png": {
+    "mtime": 1793170278.3005035,
+    "ast_hash": "fe41ddb674f975de0b663ebadd93c7cf",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0447.png": {
+    "mtime": 1793170278.5544875,
+    "ast_hash": "1f028e9e80e732bd296b07e12f31d7f0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0448.png": {
+    "mtime": 1793170278.8144708,
+    "ast_hash": "5f58b107a20925e7d2b2155c924f174a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0449.png": {
+    "mtime": 1793170279.0714545,
+    "ast_hash": "d1a3dc189a89a6091ad238a97d9250e1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0450.png": {
+    "mtime": 1793170279.3394375,
+    "ast_hash": "79c90e9e1a981c507ca7403a8c9f4465",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0451.png": {
+    "mtime": 1793170279.6204197,
+    "ast_hash": "7608814a6b7c9b9312dee4d2114fafc2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0452.png": {
+    "mtime": 1793170279.8734035,
+    "ast_hash": "24ee140389eeb8f3c2d8ab2c3a7ac3a0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0453.png": {
+    "mtime": 1793170280.152386,
+    "ast_hash": "354d73da68a4a489d11fc241248db756",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0454.png": {
+    "mtime": 1793170280.40237,
+    "ast_hash": "7eda488b1f9262a6dfee52ffdf98f750",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0455.png": {
+    "mtime": 1793170280.6633534,
+    "ast_hash": "82b3d6963e7d1d980ff35d698bc7e334",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0456.png": {
+    "mtime": 1793170280.923337,
+    "ast_hash": "8a2267db86118d3e712f4b2886d18869",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0457.png": {
+    "mtime": 1793170281.1853204,
+    "ast_hash": "80c4308bbd6efd4df8ca8e27737f71d5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0458.png": {
+    "mtime": 1793170281.4593031,
+    "ast_hash": "12516e5dd79c571c2ca05092ef747e46",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0459.png": {
+    "mtime": 1793170281.777283,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0460.png": {
+    "mtime": 1793170282.0452662,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0461.png": {
+    "mtime": 1793170282.3122492,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0462.png": {
+    "mtime": 1793170282.567233,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0463.png": {
+    "mtime": 1793170282.8132176,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0464.png": {
+    "mtime": 1793170283.0782008,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0465.png": {
+    "mtime": 1793170283.3501837,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0466.png": {
+    "mtime": 1793170283.6031678,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0467.png": {
+    "mtime": 1793170283.8481524,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0468.png": {
+    "mtime": 1793170284.1001365,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0469.png": {
+    "mtime": 1793170284.3541205,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0470.png": {
+    "mtime": 1793170284.619104,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0471.png": {
+    "mtime": 1793170284.8800876,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0472.png": {
+    "mtime": 1793170285.1320717,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0473.png": {
+    "mtime": 1793170285.3940551,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0474.png": {
+    "mtime": 1793170285.6570387,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0475.png": {
+    "mtime": 1793170285.925022,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0476.png": {
+    "mtime": 1793170286.2060044,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0477.png": {
+    "mtime": 1793170286.4749875,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0478.png": {
+    "mtime": 1793170286.737971,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0479.png": {
+    "mtime": 1793170286.991955,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0480.png": {
+    "mtime": 1793170287.2699378,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0481.png": {
+    "mtime": 1793170287.5269217,
+    "ast_hash": "00f897758f94353d3185fcf790987806",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0482.png": {
+    "mtime": 1793170287.7859056,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0483.png": {
+    "mtime": 1793170288.0608883,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0484.png": {
+    "mtime": 1793170288.3108728,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0485.png": {
+    "mtime": 1793170288.578856,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0486.png": {
+    "mtime": 1793170288.8458395,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0487.png": {
+    "mtime": 1793170289.1068232,
+    "ast_hash": "f16868f126353afc291d438aaf305770",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0488.png": {
+    "mtime": 1793170289.3808062,
+    "ast_hash": "db6472fba51bd30361fae6eb24dbe9a7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0489.png": {
+    "mtime": 1793170289.6657884,
+    "ast_hash": "db6472fba51bd30361fae6eb24dbe9a7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0490.png": {
+    "mtime": 1793170289.928772,
+    "ast_hash": "db6472fba51bd30361fae6eb24dbe9a7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0491.png": {
+    "mtime": 1793170290.2127545,
+    "ast_hash": "a547cc98253e06664be1e4a2215b60bd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0492.png": {
+    "mtime": 1793170290.5807316,
+    "ast_hash": "7ffed89b699cfd149ef6fd2383586b24",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0493.png": {
+    "mtime": 1793170290.9657078,
+    "ast_hash": "ab8c143f91d0559f6c3ceaf5627ad443",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0494.png": {
+    "mtime": 1793170291.3446841,
+    "ast_hash": "e86aec43683b724703f9ade88114572c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0495.png": {
+    "mtime": 1793170291.7106614,
+    "ast_hash": "ba93c0c7e5a194b0d6df7eddd87bcf94",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0496.png": {
+    "mtime": 1793170292.0936377,
+    "ast_hash": "76fa03621c8076a78576f28676565c20",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0497.png": {
+    "mtime": 1793170292.4996126,
+    "ast_hash": "76fa03621c8076a78576f28676565c20",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0498.png": {
+    "mtime": 1793170292.8545907,
+    "ast_hash": "60e4fbc6cb76c642a49804d8e669ec6d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0499.png": {
+    "mtime": 1793170293.2485664,
+    "ast_hash": "8efa12612c26f5e4a3e0a9966d3d83e9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0500.png": {
+    "mtime": 1793170293.614544,
+    "ast_hash": "b89590263b8ccf7d34c606084a5c94d9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0501.png": {
+    "mtime": 1793170293.9815211,
+    "ast_hash": "a5fba81b0f1c193c30c88f4c99b3afb8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0502.png": {
+    "mtime": 1793170294.3614979,
+    "ast_hash": "3567c29da930f8a11ee4c7544dcb8822",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0503.png": {
+    "mtime": 1793170294.7304752,
+    "ast_hash": "a6898bf7e7241c21da715d2c253209a1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0504.png": {
+    "mtime": 1793170295.1014524,
+    "ast_hash": "68ca43dc0f061cb1c3745cb9519e63ec",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0505.png": {
+    "mtime": 1793170295.46143,
+    "ast_hash": "814ad281f8bd2f8a5c644afd78ae4b5c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0506.png": {
+    "mtime": 1793170295.8564057,
+    "ast_hash": "fd8c74902f6338cadfb159609da03ae5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0507.png": {
+    "mtime": 1793170296.2313828,
+    "ast_hash": "a5c57bf83f8503edc31882298c3ffc03",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0508.png": {
+    "mtime": 1793170296.5943606,
+    "ast_hash": "943c6a535d7f88f628bdd57f4bca90c9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0509.png": {
+    "mtime": 1793170296.9543386,
+    "ast_hash": "a7ff81b8189ebbdad3cd2f175bb0133f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0510.png": {
+    "mtime": 1793170297.3143165,
+    "ast_hash": "dc36e57e396a780854400fb10d0476a9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0511.png": {
+    "mtime": 1793170297.668295,
+    "ast_hash": "dc769ee96e0c7f225c1396d2ce4c2718",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0512.png": {
+    "mtime": 1793170298.009274,
+    "ast_hash": "ea1c20d693df1e1c001ed6b6c3f3bcb1",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0513.png": {
+    "mtime": 1793170298.3592527,
+    "ast_hash": "1d1cb425088d254d235daf7f132700f6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0514.png": {
+    "mtime": 1793170298.7042315,
+    "ast_hash": "ff8e5586d940856ed1647b09f903f326",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0515.png": {
+    "mtime": 1793170299.0532103,
+    "ast_hash": "9fa495030f67da04c3e226c8f0038e61",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0516.png": {
+    "mtime": 1793170299.4081886,
+    "ast_hash": "ea12420bca844f1ca6f6df24e88574e9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0517.png": {
+    "mtime": 1793170299.7531676,
+    "ast_hash": "1ab69e2d3ba6f9967685e56aa0d507a7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0518.png": {
+    "mtime": 1793170300.0941467,
+    "ast_hash": "191b63b0f755929c1e64e2affe99a58d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0519.png": {
+    "mtime": 1793170300.4461253,
+    "ast_hash": "f5eada0d109e74094ab0705ad583b40e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0520.png": {
+    "mtime": 1793170300.7931042,
+    "ast_hash": "0e6dae177466fe4e63ed4f90af65ee50",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0521.png": {
+    "mtime": 1793170301.1530824,
+    "ast_hash": "3c4f2defe7140ac41027e8bfd82ba9a9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0522.png": {
+    "mtime": 1793170301.5320594,
+    "ast_hash": "6d532429ee88cb2cd10ea725ee7be029",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0523.png": {
+    "mtime": 1793170301.8900378,
+    "ast_hash": "99fcd0e49c95a280bf744bacca5a98a5",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0524.png": {
+    "mtime": 1793170302.2600152,
+    "ast_hash": "6cb6eab3e73300a52392763ebc6bdc22",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0525.png": {
+    "mtime": 1793170302.6179936,
+    "ast_hash": "655944526430f5db4d725cdb279ec423",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0526.png": {
+    "mtime": 1793170302.9649725,
+    "ast_hash": "3ecee7de68444cc2c9577c2b05aafd1c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0527.png": {
+    "mtime": 1793170303.3179512,
+    "ast_hash": "e3717808a0c7bd6b7c6b77419ba98e8a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0528.png": {
+    "mtime": 1793170303.66893,
+    "ast_hash": "e8c1ecf44f4b4dc90869f7d3bb85d9b2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0529.png": {
+    "mtime": 1793170304.0219088,
+    "ast_hash": "c8db679e94b03853f3e186175425757f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0530.png": {
+    "mtime": 1793170304.381887,
+    "ast_hash": "266291c6ed01785c55770cc01e40757b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0531.png": {
+    "mtime": 1793170304.731866,
+    "ast_hash": "a626e9b25b326a8f3a8ff4851cbf2cac",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0532.png": {
+    "mtime": 1793170305.0888443,
+    "ast_hash": "baec330203360d786a1b4562d6ce977a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0533.png": {
+    "mtime": 1793170305.4508226,
+    "ast_hash": "66f251b5d8bd61f7ad81c11e14b6218c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0534.png": {
+    "mtime": 1793170305.8118007,
+    "ast_hash": "646fd46312cd266a4dd39d0f2ce98cd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0535.png": {
+    "mtime": 1793170306.1857784,
+    "ast_hash": "646fd46312cd266a4dd39d0f2ce98cd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0536.png": {
+    "mtime": 1793170306.5607557,
+    "ast_hash": "646fd46312cd266a4dd39d0f2ce98cd8",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0537.png": {
+    "mtime": 1793170306.9307337,
+    "ast_hash": "02d64144382bc347fffde2230ab1ebba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0538.png": {
+    "mtime": 1793170307.287712,
+    "ast_hash": "02d64144382bc347fffde2230ab1ebba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0539.png": {
+    "mtime": 1793170307.6366913,
+    "ast_hash": "02d64144382bc347fffde2230ab1ebba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0540.png": {
+    "mtime": 1793170308.0176685,
+    "ast_hash": "02d64144382bc347fffde2230ab1ebba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0541.png": {
+    "mtime": 1793170308.3886461,
+    "ast_hash": "02d64144382bc347fffde2230ab1ebba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0542.png": {
+    "mtime": 1793170308.7556243,
+    "ast_hash": "01b460e88b6353fd75e1c248f18061cb",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0543.png": {
+    "mtime": 1793170309.1226022,
+    "ast_hash": "d9764acf5747c1d54885e93307ba1c11",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0544.png": {
+    "mtime": 1793170309.49758,
+    "ast_hash": "a38f44eff0c829304ca55abecf259f5e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0545.png": {
+    "mtime": 1793170309.8525589,
+    "ast_hash": "05c4e9e11c826088f93bb097000397f6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0546.png": {
+    "mtime": 1793170310.203538,
+    "ast_hash": "89caf11bd3060e3ce27c794893ba9e77",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0547.png": {
+    "mtime": 1793170310.5495172,
+    "ast_hash": "da8c6a9a2aa5e75606301b0f15bbc6e6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0548.png": {
+    "mtime": 1793170310.8984964,
+    "ast_hash": "21e6f1a447c1420b96fc51fe3a47118f",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0549.png": {
+    "mtime": 1793170311.2524755,
+    "ast_hash": "3134fb8c2c86f9ba7c9364bd24596e5b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0550.png": {
+    "mtime": 1793170311.6054544,
+    "ast_hash": "1392fcdba45d8179800f1c915556fdb9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0551.png": {
+    "mtime": 1793170311.9834318,
+    "ast_hash": "524c570e73bd8fc8fbd25e7f4e1a91bd",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0552.png": {
+    "mtime": 1793170312.35341,
+    "ast_hash": "b8a5ceffc7e70c9c6cd4b9353d7b773e",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0553.png": {
+    "mtime": 1793170312.7153885,
+    "ast_hash": "29d6353e1f04fd118dfb9128fc3768d6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0554.png": {
+    "mtime": 1793170313.078367,
+    "ast_hash": "39737486efbf432ca475f4e21e092fe4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0555.png": {
+    "mtime": 1793170313.4453452,
+    "ast_hash": "cad7de4f391416b4aefe3d267602d5da",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0556.png": {
+    "mtime": 1793170313.8153234,
+    "ast_hash": "741b8c79e6deda072744dd7bd32c103c",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0557.png": {
+    "mtime": 1793170314.177302,
+    "ast_hash": "194f94f307b195d832f2e3f8f56d2297",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0558.png": {
+    "mtime": 1793170314.5402806,
+    "ast_hash": "194f94f307b195d832f2e3f8f56d2297",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0559.png": {
+    "mtime": 1793170314.902259,
+    "ast_hash": "924645c1a92aa76c94af7621d80f9bfe",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0560.png": {
+    "mtime": 1793170315.277237,
+    "ast_hash": "fd0bfb19c4746d0d2112125bf3dae02b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0561.png": {
+    "mtime": 1793170315.6442153,
+    "ast_hash": "b173a2379bbb5409dcd28328b5d56413",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0562.png": {
+    "mtime": 1793170316.003194,
+    "ast_hash": "80ee3d728d37662a16978f0239789a98",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0563.png": {
+    "mtime": 1793170316.3521736,
+    "ast_hash": "6aaa17e9dfc051b635bd7e3cc44e1b3b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0564.png": {
+    "mtime": 1793170316.717152,
+    "ast_hash": "42fdaa2d286a8f1216794591b5fbc479",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0565.png": {
+    "mtime": 1793170317.0691314,
+    "ast_hash": "8c9f4ebf654a093032374f9f38b00e4a",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0566.png": {
+    "mtime": 1793170317.4211109,
+    "ast_hash": "ffef141e033ea5084fe9353c103dd96d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0567.png": {
+    "mtime": 1793170317.7720902,
+    "ast_hash": "9f3560a0accfd9a7daf9a3f4b99590a2",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0568.png": {
+    "mtime": 1793170318.1480682,
+    "ast_hash": "4ff73725895d7b86d2fc9cf3203154aa",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0569.png": {
+    "mtime": 1793170318.5320456,
+    "ast_hash": "c263a63feebf0f00f96fefd2c7b737e4",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0570.png": {
+    "mtime": 1793170318.8920245,
+    "ast_hash": "d684a83aaac12a9a2c6d148c961edf08",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0571.png": {
+    "mtime": 1793170319.2690024,
+    "ast_hash": "d3a489123e2f42e8d144e5135d59db92",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0572.png": {
+    "mtime": 1793170319.637981,
+    "ast_hash": "d3a489123e2f42e8d144e5135d59db92",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0573.png": {
+    "mtime": 1793170320.0079594,
+    "ast_hash": "45909d45b79e5b7d7bf7dc1d4e5ed60d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0574.png": {
+    "mtime": 1793170320.371938,
+    "ast_hash": "45909d45b79e5b7d7bf7dc1d4e5ed60d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0575.png": {
+    "mtime": 1793170320.751916,
+    "ast_hash": "45909d45b79e5b7d7bf7dc1d4e5ed60d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0576.png": {
+    "mtime": 1793170321.1068952,
+    "ast_hash": "45909d45b79e5b7d7bf7dc1d4e5ed60d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0577.png": {
+    "mtime": 1793170321.470874,
+    "ast_hash": "45909d45b79e5b7d7bf7dc1d4e5ed60d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0578.png": {
+    "mtime": 1793170321.8438523,
+    "ast_hash": "066df688852ec5b4866b74588faa780d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0579.png": {
+    "mtime": 1793170322.2078311,
+    "ast_hash": "066df688852ec5b4866b74588faa780d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0580.png": {
+    "mtime": 1793170322.5698102,
+    "ast_hash": "066df688852ec5b4866b74588faa780d",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0581.png": {
+    "mtime": 1793170322.91779,
+    "ast_hash": "ff0a7dcc644f7019876bcb6cb8c37ab6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0582.png": {
+    "mtime": 1793170323.2877684,
+    "ast_hash": "ff0a7dcc644f7019876bcb6cb8c37ab6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0583.png": {
+    "mtime": 1793170323.6427479,
+    "ast_hash": "ff0a7dcc644f7019876bcb6cb8c37ab6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0584.png": {
+    "mtime": 1793170324.0127263,
+    "ast_hash": "ff0a7dcc644f7019876bcb6cb8c37ab6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0585.png": {
+    "mtime": 1793170324.3797052,
+    "ast_hash": "274493e5b2671e55a6d893498141c177",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0586.png": {
+    "mtime": 1793170324.744684,
+    "ast_hash": "274493e5b2671e55a6d893498141c177",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0587.png": {
+    "mtime": 1793170325.105663,
+    "ast_hash": "274493e5b2671e55a6d893498141c177",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0588.png": {
+    "mtime": 1793170325.472642,
+    "ast_hash": "e9cb4a95a2492f01c20dbecee7bf5c1b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0589.png": {
+    "mtime": 1793170325.834621,
+    "ast_hash": "e9cb4a95a2492f01c20dbecee7bf5c1b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0590.png": {
+    "mtime": 1793170326.1916003,
+    "ast_hash": "e9cb4a95a2492f01c20dbecee7bf5c1b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0591.png": {
+    "mtime": 1793170326.561579,
+    "ast_hash": "4ffef895f8381ce642218234bf0150ba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0592.png": {
+    "mtime": 1793170326.9175584,
+    "ast_hash": "4ffef895f8381ce642218234bf0150ba",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0593.png": {
+    "mtime": 1793170327.273538,
+    "ast_hash": "22c1287b53dd8a1db0cb52322229ba8b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0594.png": {
+    "mtime": 1793170327.6175182,
+    "ast_hash": "22c1287b53dd8a1db0cb52322229ba8b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0595.png": {
+    "mtime": 1793170327.9614985,
+    "ast_hash": "22c1287b53dd8a1db0cb52322229ba8b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0596.png": {
+    "mtime": 1793170328.3224778,
+    "ast_hash": "d0aaa8dfbfbef5d3fb4ecf1969eca3e9",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0597.png": {
+    "mtime": 1793170328.7174551,
+    "ast_hash": "ab7b6fc36ab0048f3e9015eb5eb911f7",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0598.png": {
+    "mtime": 1793170329.0954335,
+    "ast_hash": "71159432f2f7104315bd4a1fd09ab2a0",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0599.png": {
+    "mtime": 1793170329.4784114,
+    "ast_hash": "5b5c4f8633027da21ca85816fb1ab8a6",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0600.png": {
+    "mtime": 1793170329.8493903,
+    "ast_hash": "e5e8ae353fe350a70b6db619a4926511",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/frames/f0601.png": {
+    "mtime": 1793170330.2503674,
+    "ast_hash": "f40c8a938dc81fe6b2f6c0c11a825c84",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/logo.svg": {
+    "mtime": 1793166257.8319912,
+    "ast_hash": "4a22a7e2202de3d6f2793dad0375aa4c",
+    "semantic_hash": ""
+  },
+  "docs/media/trip-angkutan-launch.jpg": {
+    "mtime": 1793170638.083401,
+    "ast_hash": "418fc3a2711d758cde9a967e3ab4fb73",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/brag.mp4": {
+    "mtime": 1793170427.0693524,
+    "ast_hash": "d6d6d1e35f14d35fbcc420bc4282ff21",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/audio/mix.wav": {
+    "mtime": 1793170081.9461684,
+    "ast_hash": "fc47ccca06bbb7e02d91ab510316878b",
+    "semantic_hash": ""
+  },
+  "brag-output-2026-10-28-123537/work/tmp/video.mp4": {
+    "mtime": 1793170422.8135521,
+    "ast_hash": "49612e64f610dc58c075c9d63ad38ce9",
+    "semantic_hash": ""
+  },
+  "docs/media/trip-angkutan-launch.mp4": {
+    "mtime": 1793170638.0824008,
+    "ast_hash": "d6d6d1e35f14d35fbcc420bc4282ff21",
     "semantic_hash": ""
   }
 }
