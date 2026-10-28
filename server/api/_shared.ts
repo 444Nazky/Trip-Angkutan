@@ -18,6 +18,37 @@ export function json(body: unknown, status = 200): Response {
   });
 }
 
+/**
+ * Ambil pesan galat dari berbagai bentuk error.
+ *
+ * Galat PostgREST itu objek biasa ({ message, details, hint, code }), BUKAN
+ * instance Error. Kalau dipanggil `String(error)`, hasilnya "[object Object]"
+ * — pesan aslinya hilang, jadi penyebab kegagalan tidak pernah sampai ke
+ * notifikasi admin.
+ */
+export function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const msg = (error as { message?: unknown } | null)?.message;
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return String(error ?? "");
+}
+
+/**
+ * Detail singkat dari galat database untuk pesan 500.
+ *
+ * Notifikasi "Gagal menghapus dermaga" tanpa penjelasan tidak berguna bagi
+ * operator: penyebabnya (mis. pelanggaran foreign key) justru yang dibutuhkan
+ * untuk memperbaiki data. Detail ini hanya untuk log internal server intranet —
+ * bukan data sensitif yang dikirim ke pelanggan.
+ */
+export function dbDetail(error: unknown): string {
+  const raw = errorText(error).replace(/\s+/g, " ").trim();
+  const code = (error as { code?: unknown } | null)?.code;
+  const codeText = typeof code === "string" && code.trim() ? ` (${code.trim()})` : "";
+  if (!raw) return `galat database${codeText || " tidak diketahui"}`;
+  return `${raw.slice(0, 200)}${codeText}`;
+}
+
 // PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG
 // (mis. baris `JWT_SECRET=` di .env.local), `??` tidak menangkapnya karena
 // "" bukan null/undefined -> kunci HMAC jadi 0 byte -> SubtleCrypto melempar

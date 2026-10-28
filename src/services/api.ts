@@ -17,6 +17,19 @@ export interface ApiError {
   code?: string
 }
 
+/**
+ * Hasil aksi (tambah/hapus/simpan).
+ *
+ * `reason` dipakai kalau gagal: kalimat penjelasan yang SUDAH mentioning
+ * penyebabnya (dari server, atau "server tidak bisa dihubungi" kalau offline).
+ * UI tinggal menampilkannya — tanpa menebak-nebak alasannya sendiri.
+ */
+export interface ActionResult<T = void> {
+  ok: boolean
+  data?: T
+  reason?: string
+}
+
 export interface ApiResponse<T> {
   data?: T
   error?: ApiError
@@ -168,6 +181,63 @@ function saveToken(token: string | null) {
 
 // ─── Request ──────────────────────────────────────────────────────────────────
 
+/**
+ * Ambil kalimat alasan dari body error server.
+ *
+ * Bentuk body error di server itu BERCAMPUR:
+ *   - `{ error: "Dermaga masih dipakai petugas" }`  (paling sering)
+ *   - `{ error: { message: "..." } }`
+ *   - `{ error: "KODE", message: "..." }`  (appVersion)
+ *
+ * Dulu hanya bentuk kedua yang dibaca, jadi alasan server yang sudah jelas
+ * (mis. "Dermaga masih dipakai petugas") dibuang dan notifikasi berubah
+ * jadi "HTTP 500". Sekarang semua bentuk diterjemahkan jadi satu string.
+ */
+export function extractErrorMessage(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const b = body as { error?: unknown; message?: unknown }
+  if (typeof b.error === 'string' && b.error.trim()) return b.error.trim()
+  if (b.error && typeof b.error === 'object') {
+    const m = (b.error as { message?: unknown }).message
+    if (typeof m === 'string' && m.trim()) return m.trim()
+  }
+  if (typeof b.message === 'string' && b.message.trim()) return b.message.trim()
+  return null
+}
+
+/**
+ * Alasan umum kalau server tidak memberi teks yang bisa dipakai.
+ *
+ * Dipakai untuk kasus yang TIDAK bisa dijelaskan server (jaringan putus,
+ * timeout, CORS) — di situ DASAR LAIN menulis "server gagal", padahal
+ * penyebabnya jelas: server tidak terjangkau.
+ */
+export function offlineReason(code: string | undefined): string {
+  if (code === 'NETWORK' || code === 'TIMEOUT') {
+    return 'Server tidak bisa dihubungi — cek koneksi dan endpoint yang dipakai'
+  }
+  if (code === '401') return 'Sesi admin sudah berakhir — silakan login ulang'
+  if (code === '403') return 'Akses ditolak — butuh hak admin'
+  if (code === '404') return 'Data tidak ditemukan di server'
+  return 'Server menolak permintaan tanpa penjelasan'
+}
+
+/**
+ * Kalimat final untuk sebuah kegagalan: pakai alasan server kalau ada,
+ * kalau tidak pakai penjelasan bawaan sesuai kode status.
+ */
+export function failureReason(res: ApiResponse<unknown>, fallback: string): string {
+  const code = res.error?.code
+  const msg = res.error?.message?.trim()
+  // "HTTP 500" / "HTTP 409" tanpa penjelasan = server tidak mengirim alasan.
+  if (msg && !/^HTTP \d+$/i.test(msg) && !/^network error$/i.test(msg)) return msg
+  if (code === 'NETWORK' || code === 'TIMEOUT') return offlineReason(code)
+  if (msg && /^HTTP \d+$/i.test(msg)) {
+    return `${fallback} (${msg})`
+  }
+  return fallback
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -193,16 +263,15 @@ async function request<T>(
     let data: T
     try { data = await res.json() } catch { data = undefined as T }
     if (!res.ok) {
-      const msg = data && typeof data === 'object' && 'error' in data
-        ? String((data as { error?: { message?: string } }).error?.message || `HTTP ${res.status}`)
-        : `HTTP ${res.status}`
+      const msg = extractErrorMessage(data) ?? `HTTP ${res.status}`
       return { ok: false, error: { message: msg, code: String(res.status) } }
     }
     return { ok: true, data }
   } catch (e) {
     clearTimeout(timer)
-    const msg = e instanceof Error ? e.message : 'Network error'
-    return { ok: false, error: { message: msg, code: 'NETWORK' } }
+    const aborted = e instanceof DOMException && e.name === 'AbortError'
+    const msg = aborted ? 'Server tidak merespons (timeout)' : 'Network error'
+    return { ok: false, error: { message: msg, code: aborted ? 'TIMEOUT' : 'NETWORK' } }
   }
 }
 
