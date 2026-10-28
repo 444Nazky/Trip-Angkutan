@@ -163,8 +163,9 @@ const typeKey = (raw: unknown): string =>
 /**
  * Hapus satu baris tarif (region + jenis kendaraan).
  *
- * Cocokkan case-insensitive ("Truk Kecil" = "truk kecil") supaya baris yang
- * ditulis dengan ejaan berbeda tetap ketemu.
+ * Pencocokan dilakukan di DALAM server (bukan lewat filter ilike) supaya
+ * ejaan jenis kendaraan yang berbeda ("Truk Kecil" vs "truk kecil") tetap
+ * ketemu, dan supaya nama dengan spasi tidak tertukar oleh encoding URL.
  */
 export async function deleteRegionTariffRow(
   req: Request,
@@ -184,18 +185,28 @@ export async function deleteRegionTariffRow(
     }
     if (!type) return json({ error: "Jenis kendaraan wajib diisi" }, 400);
 
-    const { error } = await db
+    const { data: rows, error: selErr } = await db
       .from("region_tariff_rows")
-      .delete()
-      .eq("region_id", regionId)
-      .ilike("vehicle_type", type);
+      .select("id, vehicle_type")
+      .eq("region_id", regionId);
+    if (selErr) {
+      console.error("Select region tariff rows failed:", selErr);
+      return json({ error: "Gagal membaca baris tarif region" }, 500);
+    }
+
+    const key = typeKey(type);
+    const hit = (rows ?? []).find((r: any) => typeKey(r.vehicle_type) === key);
+    // Tidak ada baris -> sudah bersih, tetap dianggap sukses (idempoten).
+    if (!hit) return json({ success: true, regionId, vehicleType: type, deleted: false });
+
+    const { error } = await db.from("region_tariff_rows").delete().eq("id", String(hit.id));
     if (error) {
       console.error("Delete region tariff row failed:", error);
       return json({ error: "Gagal menghapus baris tarif region" }, 500);
     }
 
     invalidateTariffCache();
-    return json({ success: true, regionId, vehicleType: type });
+    return json({ success: true, regionId, vehicleType: type, deleted: true });
   } catch (error) {
     console.error("Delete region tariff row error:", error);
     return json({ error: "Failed to delete region tariff row" }, 500);

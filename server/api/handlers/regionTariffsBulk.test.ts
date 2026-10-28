@@ -122,9 +122,11 @@ Deno.test("hapus baris tarif memakai pencocokan case-insensitive", async () => {
   const res = await deleteRegionTariffRow(deleteReq(REGION_A, "Truck Kecil"), REGION_A, "Truck%20Kecil");
   const body = await res.json();
   assertEquals(res.status, 200, JSON.stringify(body));
+  assertEquals(body.deleted, true);
   assertEquals(deletedQueries.length, 1);
-  assertStringIncludes(deletedQueries[0], "region_id=eq." + REGION_A);
-  assertStringIncludes(decodeURIComponent(deletedQueries[0]), "vehicle_type=ilike.Truck Kecil");
+  // Penghapusan dilakukan per id baris (bukan per nama), jadi tidak ada
+  // masalah encoding spasi.
+  assertStringIncludes(deletedQueries[0], "id=eq.row-1");
 });
 
 Deno.test("hapus baris tanpa jenis kendaraan ditolak 400", async () => {

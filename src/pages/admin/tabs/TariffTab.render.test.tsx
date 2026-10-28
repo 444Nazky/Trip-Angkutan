@@ -159,4 +159,50 @@ describe('TariffTab (accordion per region)', () => {
     // Region yang tidak diklik tetap terbuka.
     expect(regionHeader('Belitung')?.textContent).toContain('Sembunyikan')
   })
+
+  it('form tambah tarif punya pilihan "Semua Region"', async () => {
+    await renderTab()
+
+    const form = container.querySelector('#tariff-form') as HTMLElement | null
+    expect(form).toBeTruthy()
+    const regionSelect = form!.querySelector('select') as HTMLSelectElement
+    const labels = Array.from(regionSelect.options).map((o) => o.textContent ?? '')
+    expect(labels.some((l) => l.includes('Semua Region'))).toBe(true)
+  })
+
+  it('jenis kendaraan dipilih dari daftar (dropdown), bukan input teks bebas', async () => {
+    await renderTab()
+
+    const form = container.querySelector('#tariff-form') as HTMLElement | null
+    const selects = Array.from(form!.querySelectorAll('select')) as HTMLSelectElement[]
+    // 2 select: Region + Jenis Kendaraan.
+    expect(selects.length).toBeGreaterThanOrEqual(2)
+    const typeSelect = selects[1]
+    const labels = Array.from(typeSelect.options).map((o) => o.textContent ?? '')
+    expect(labels.some((l) => l.includes('Motor'))).toBe(true)
+    expect(labels.some((l) => l.includes('Truk Kecil'))).toBe(true)
+    // Tidak ada input teks untuk jenis kendaraan.
+    const typeInputs = Array.from(
+      form!.querySelectorAll('input'),
+    ).filter((i) => (i.getAttribute('placeholder') ?? '').toLowerCase().includes('jenis kendaraan'))
+    expect(typeInputs.length).toBe(0)
+  })
+
+  it('tombol hapus hanya aktif untuk baris tarif yang sudah tersimpan', async () => {
+    await renderTab()
+
+    const deleteButtons = Array.from(
+      container.querySelectorAll('[title="Hapus tarif kendaraan ini"]'),
+    ) as HTMLButtonElement[]
+    // Hanya baris "motor" di region Belitung yang punya baris tersimpan.
+    expect(deleteButtons.length).toBe(1)
+    expect(deleteButtons[0].disabled).toBe(false)
+
+    // Baris tanpa baris tersimpan tidak punya tombol hapus aktif.
+    const disabled = Array.from(
+      container.querySelectorAll('[title="Belum ada baris tarif untuk dihapus"]'),
+    ) as HTMLButtonElement[]
+    expect(disabled.length).toBe(2 * TYPES_PER_REGION - 1)
+    expect(disabled.every((b) => b.disabled)).toBe(true)
+  })
 })

@@ -54,6 +54,14 @@ Tariff model (do not regress):
 - Per-region prices live in `region_tariff_rows`, unique on
   `(region_id, golongan, vehicle_type)`. BADAU keeps using master `tariffs`;
   every other region writes through `PUT /api/region-tariffs/:regionId`.
+- Bulk + hapus baris tarif (dipakai tab Master Tarif di admin):
+  `POST /api/region-tariffs/bulk` (satu jenis kendaraan ditulis ke banyak
+  region sekaligus; `scope: "all"` = semua region, `scope: "existing"` =
+  hanya region yang sudah punya baris itu) dan
+  `DELETE /api/region-tariffs/:regionId/rows/:vehicleType` (hapus baris satu
+  jenis). Keduanya mencocokkan `vehicle_type` secara case-insensitive
+  (`normalizeVehicleType`) supaya "Truk Kecil" = "truk kecil"; baris yang
+  sudah ada di-update memakai ejaan yang tersimpan di DB (tidak bikin duplikat).
 - Gotcha: a Deno `Request` body can be read only once. Parse `req.json()`
   once in a handler and pass the parsed object into helpers — a second read
   throws and silently degrades to `{}`.
