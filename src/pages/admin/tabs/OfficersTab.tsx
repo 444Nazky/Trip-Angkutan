@@ -1,21 +1,4 @@
-import {
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  CARD,
-  groupTint,
-  INPUT,
-  LABEL,
-  PAGE,
-  SECTION_TITLE,
-  TABLE_CELL,
-  TABLE_HEAD_CELL,
-  TABLE_HEAD_ROW,
-  TABLE_ROW_ALT,
-  TABLE_WRAP,
-} from '../theme'
-import { PageHeader } from '../components/PageHeader'
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import { Lock, Plus, MoreVertical, Pencil, UserX, Trash2 } from 'lucide-react'
 import { fetchRegions, type Region } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
@@ -67,55 +50,26 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
 
 
 
-const MENU_WIDTH = 160
-const MENU_HEIGHT = 132
-
 function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => void; onToggle: () => void; onDelete: () => void; isActive: boolean }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
     const handleClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (menuRef.current?.contains(t) || btnRef.current?.contains(t)) return
-      setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    const close = () => setOpen(false)
-    document.addEventListener('mousedown', handleClick)
-    window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
-    }
+    if (open) document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
   }, [open])
 
-  const toggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (open) return setOpen(false)
-    const r = btnRef.current?.getBoundingClientRect()
-    if (!r) return
-    const left = Math.min(Math.max(8, r.right - MENU_WIDTH), window.innerWidth - MENU_WIDTH - 8)
-    const top = r.bottom + MENU_HEIGHT + 8 > window.innerHeight
-      ? Math.max(8, r.top - MENU_HEIGHT - 4)
-      : r.bottom + 4
-    setPos({ top, left })
-    setOpen(true)
-  }
-
   return (
-    <>
-      <button ref={btnRef} onClick={toggle}
+    <div ref={ref} className="relative">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500">
         <MoreVertical size={16} />
       </button>
-      {open && createPortal(
-        <div ref={menuRef} style={{ top: pos.top, left: pos.left, width: MENU_WIDTH }}
-          className="fixed z-[1000] bg-white rounded-xl shadow-lg border border-slate-200 py-1 min-w-[140px]">
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 min-w-[140px]">
           <button onClick={() => { onEdit(); setOpen(false) }}
             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-50 text-slate-700">
             <Pencil size={14} /> Edit
@@ -128,10 +82,9 @@ function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => vo
             className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-red-50 text-red-500">
             <Trash2 size={14} /> Hapus
           </button>
-        </div>,
-        document.body,
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -332,33 +285,30 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   }
 
   return (
-    <div className={PAGE}>
-      <PageHeader
-        title="Petugas"
-        subtitle="Kelola petugas lapangan, wilayah, dan akses dermaga"
-        actions={
-          <button onClick={() => setAddOff(true)} className={BTN_PRIMARY}>
-            <Plus size={14} />Tambah Petugas
-          </button>
-        }
-      />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setAddOff(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
+          <Plus size={14} />Tambah Petugas
+        </button>
+      </div>
 
       {addOff && (
-        <div className={`${CARD} max-w-lg p-6`}>
-          <h3 className={`${SECTION_TITLE} mb-4`}>Tambah Petugas</h3>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
+          <h3 className="font-bold mb-4">Tambah Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className={`${LABEL} mb-1 block`}>Nama</label>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})}
-                className={INPUT} /></div>
-            <div><label className={`${LABEL} mb-1 block`}>Wilayah</label>
+                className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value, dermagaIds: []})}
-                className={INPUT}>
+                className="w-full border rounded-xl px-3 py-2 text-sm">
                 {regionCodes.map(c => <option key={c} value={c}>{c}</option>)}
               </select></div>
           </div>
 
           <div className="mb-4">
-            <label className={`${LABEL} mb-1.5 block`}>Dermaga</label>
+            <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga</label>
             {dermagaOptionsFor([offForm.region]).length === 0 ? (
               <p className="text-[11px] text-slate-400">Belum ada dermaga</p>
             ) : (
@@ -374,24 +324,24 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
             )}''
 
           </div>
-          <div className="mb-4"><label className={`${LABEL} mb-1 block`}>PIN</label>
+          <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN</label>
             <input type="password" maxLength={6} value={offForm.pin} onChange={e => setOffForm({...offForm, pin: e.target.value})}
-              className={INPUT} /></div>
+              className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
           <div className="flex gap-3">
-            <button onClick={() => setAddOff(false)} className={`${BTN_SECONDARY} flex-1 py-3`}>Batal</button>
-            <button onClick={handleAddOff} className={`${BTN_PRIMARY} flex-1 py-3`}>Simpan</button>
+            <button onClick={() => setAddOff(false)} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
+            <button onClick={handleAddOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Simpan</button>
           </div>
         </div>
       )}
 
       {editOffIdx !== null && editOff && (
-        <div className={`${CARD} max-w-lg p-6`}>
-          <h3 className={`${SECTION_TITLE} mb-4`}>Edit Petugas</h3>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
+          <h3 className="font-bold mb-4">Edit Petugas</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className={`${LABEL} mb-1 block`}>Nama</label>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={editOff.name} onChange={e => setEditOff({...editOff, name: e.target.value})}
-                className={INPUT} /></div>
-            <div><label className={`${LABEL} mb-1 block`}>Wilayah</label>
+                className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1.5">
                 {regionCodes.map(c => (
                   <label key={c} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
@@ -404,7 +354,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
               </div></div>
           </div>
           <div className="mb-4">
-            <label className={`${LABEL} mb-1.5 block`}>Dermaga</label>
+            <label className="text-[11px] text-slate-500 block mb-1.5">Dermaga</label>
             {dermagaOptionsFor(editRegions).length === 0 ? (
               <p className="text-[11px] text-slate-400">Centang wilayah dulu</p>
             ) : (
@@ -419,46 +369,44 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
               </div>
             )}
           </div>
-          <div className="mb-4"><label className={`${LABEL} mb-1 block`}>PIN Baru</label>
+          <div className="mb-4"><label className="text-[11px] text-slate-500 block mb-1">PIN Baru</label>
             <input type="password" maxLength={6} value={editOff.pin ?? ''} onChange={e => setEditOff({...editOff, pin: e.target.value})}
-              className={INPUT} /></div>
+              className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
           <div className="flex gap-3">
             <button onClick={() => { setEditOffIdx(null); setEditOff(null); setEditDermagaIds([]) }}
-              className={`${BTN_SECONDARY} flex-1 py-3`}>Batal</button>
-            <button onClick={handleUpdOff} className={`${BTN_PRIMARY} flex-1 py-3`}>Update</button>
+              className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>
+            <button onClick={handleUpdOff} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Update</button>
           </div>
         </div>
       )}
 
       {localOfficers.length === 0 && !loading && (
-        <div className={`${CARD} p-8 text-center`}>
+        <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
           <p className="text-slate-500 font-semibold mb-1">Belum ada petugas</p>
           <p className="text-slate-400 text-sm">Klik "Tambah Petugas" untuk menambahkan petugas pertama</p>
         </div>
       )}
 
-      {officerGroups.map((region, groupIdx) => {
+      {officerGroups.map(region => {
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
-        // Tiap kelompok wilayah punya warna sendiri.
-        const tint = groupTint(groupIdx)
         return (
-          <div key={region} className={`${TABLE_WRAP} admin-card stagger-item`}>
-            <div className={`flex items-center gap-2 ${tint.row} ${tint.edge} px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide ${tint.text}`}>
-              <Lock size={13} className="opacity-60" />
+          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card stagger-item">
+            <div className="px-6 py-3 bg-[#0F172A] text-white font-bold flex items-center gap-2">
+              <Lock size={14} className="text-blue-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
             </div>
-            <table className="w-full">
-              <thead className={TABLE_HEAD_ROW}>
-                <tr><th className={`${TABLE_HEAD_CELL} text-left`}>Nama</th><th className={`${TABLE_HEAD_CELL} text-left`}>Dermaga</th><th className={`${TABLE_HEAD_CELL} text-left`}>Rute</th><th className={`${TABLE_HEAD_CELL} text-left`}>Status</th><th className={`${TABLE_HEAD_CELL} text-left`}>Aksi</th></tr>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+                <tr><th className="text-left p-4">Nama</th><th className="text-left p-4">Dermaga</th><th className="text-left p-4">Rute</th><th className="text-left p-4">Status</th><th className="text-left p-4">Aksi</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {groupOfficers.map((o, oIdx) => {
+              <tbody className="divide-y">
+                {groupOfficers.map((o) => {
                   const localIdx = localOfficers.indexOf(o)
                   return (
-                    <tr key={o.id} className={`admin-table-row ${oIdx % 2 === 1 ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
-                      <td className={TABLE_CELL}><p className="text-[12.5px] font-bold text-slate-800">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
-                      <td className={TABLE_CELL}>
+                    <tr key={o.id} className="hover:bg-slate-50">
+                      <td className="p-4"><p className="font-bold text-sm">{o.name}</p><p className="text-[11px] text-slate-400">@{o.username}</p></td>
+                      <td className="p-4">
                         {(o.dermagaAccess ?? []).length === 0 || !o.dermagaAccess?.[0]?.id
                           ? <span className="text-slate-300 text-xs">—</span>
                           : <span className="flex flex-wrap gap-1">
@@ -469,15 +417,15 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                         }
 
                       </td>
-                      <td className={`${TABLE_CELL} max-w-xs text-[11px] text-slate-600`}>
+                      <td className="p-4 text-[11px] text-slate-600 max-w-xs">
                         <span className="line-clamp-2" title={formatOfficerRoutes(o)}>
                           {formatOfficerRoutes(o)}
                         </span>
                       </td>
-                      <td className={TABLE_CELL}>
+                      <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${o.status === 'Aktif' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{o.status}</span>
                       </td>
-                      <td className={TABLE_CELL}>
+                      <td className="p-4">
                         <ActionMenu
                           onEdit={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
                           onToggle={() => toggleOffStatus(localIdx)}

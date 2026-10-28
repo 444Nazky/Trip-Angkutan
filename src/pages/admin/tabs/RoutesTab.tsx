@@ -1,28 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import {
-  BADGE,
-  BADGE_MUTED,
-  BADGE_OK,
-  BADGE_WARN,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  CARD,
-  DOT_MUTED,
-  DOT_OK,
-  DOT_WARN,
-  groupTint,
-  INPUT,
-  LABEL,
-  PAGE,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
-  SECTION_TITLE,
-  TABLE_CELL,
-  TABLE_HEAD_CELL,
-  TABLE_HEAD_ROW,
-  TABLE_WRAP,
-} from '../theme'
-import { PageHeader } from '../components/PageHeader'
 import { createPortal } from 'react-dom'
 import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check } from 'lucide-react'
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
@@ -369,28 +345,28 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
   }
 
   return (
-    <div className={PAGE}>
+    <div className="space-y-4">
 
-      <PageHeader
-        title="Master Rute"
-        subtitle="Rute per wilayah & Dermaga — nama rute bisa diubah dinamis"
-        actions={
-          <span className={`${BADGE} ${
-            routeState === 'ready' ? BADGE_OK : routeState === 'offline' ? BADGE_WARN : BADGE_MUTED
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${routeState === 'ready' ? DOT_OK : routeState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
-            {routeState === 'ready' ? 'Server: Tersambung' : routeState === 'offline' ? 'Offline' : 'Memuat...'}
-          </span>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-black text-slate-900 text-lg">Master Rute</h3>
+          <p className="text-slate-500 text-[12px]">Rute per wilayah & Dermaga — nama rute bisa diubah dinamis</p>
+        </div>
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
+          routeState === 'ready' ? 'bg-emerald-50 text-emerald-600' : routeState === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${routeState === 'ready' ? 'bg-emerald-500' : routeState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
+          {routeState === 'ready' ? 'Server: Tersambung' : routeState === 'offline' ? 'Offline' : 'Memuat...'}
+        </span>
+      </div>
 
-      <div className={`${CARD} max-w-4xl p-6`}>
-        <h3 className={`${SECTION_TITLE} mb-4`}>{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-4xl">
+        <h3 className="font-bold mb-4">{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
         <div className="grid grid-cols-6 gap-4 mb-4">
           <div className="col-span-2">
-            <label className={`${LABEL} mb-1 block`}>Dermaga *</label>
+            <label className="text-[11px] text-slate-500 block mb-1">Dermaga *</label>
             <select value={routeForm.dermaga_id} onChange={e => setRouteForm({ ...routeForm, dermaga_id: e.target.value })}
-              disabled={!!editRouteId} className={INPUT}>
+              disabled={!!editRouteId} className="w-full border rounded-xl px-3 py-2 text-sm disabled:bg-slate-100">
               <option value="">— Pilih Dermaga —</option>
               {routeDermagas.map(d => (
                 <option key={d.id} value={d.id}>{d.region_name || d.region_id} · {d.name} ({d.code})</option>
@@ -398,50 +374,50 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             </select>
           </div>
           <div className="col-span-2">
-            <label className={`${LABEL} mb-1 block`}>Nama Rute *</label>
+            <label className="text-[11px] text-slate-500 block mb-1">Nama Rute *</label>
             <input value={routeForm.name} onChange={e => setRouteForm({ ...routeForm, name: e.target.value })}
-              placeholder="Sijangkung → Sabadi" className={INPUT} />
+              placeholder="Sijangkung → Sabadi" className="w-full border rounded-xl px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className={`${LABEL} mb-1 block`}>Asal *</label>
+            <label className="text-[11px] text-slate-500 block mb-1">Asal *</label>
             <input value={routeForm.route_from} onChange={e => setRouteForm({ ...routeForm, route_from: e.target.value.toUpperCase() })}
-              placeholder="SJRE" className={`${INPUT} font-mono tracking-wide`} />
+              placeholder="SJRE" className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" />
           </div>
           <div>
-            <label className={`${LABEL} mb-1 block`}>Tujuan *</label>
+            <label className="text-[11px] text-slate-500 block mb-1">Tujuan *</label>
             <input value={routeForm.route_to} onChange={e => setRouteForm({ ...routeForm, route_to: e.target.value.toUpperCase() })}
-              placeholder="SBDZ" className={`${INPUT} font-mono tracking-wide`} />
+              placeholder="SBDZ" className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" />
           </div>
         </div>
         <div className="grid grid-cols-6 gap-4 mb-4">
-          <div><label className={`${LABEL} mb-1 block`}>Jarak</label>
+          <div><label className="text-[11px] text-slate-500 block mb-1">Jarak</label>
             <input value={routeForm.distance} onChange={e => setRouteForm({ ...routeForm, distance: e.target.value })}
-              placeholder="42 km" className={INPUT} /></div>
-          <div><label className={`${LABEL} mb-1 block`}>Durasi</label>
+              placeholder="42 km" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+          <div><label className="text-[11px] text-slate-500 block mb-1">Durasi</label>
             <input value={routeForm.duration} onChange={e => setRouteForm({ ...routeForm, duration: e.target.value })}
-              placeholder="1j 10m" className={INPUT} /></div>
+              placeholder="1j 10m" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
         </div>
         <div className="flex gap-3">
-          {editRouteId && <button onClick={resetForm} className={`${BTN_SECONDARY} flex-1 py-3`}>Batal</button>}
+          {editRouteId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
           <button onClick={() => void handleSave()}
-            className={`${BTN_PRIMARY} ${editRouteId ? 'flex-1' : 'w-48'} py-3`}>
+            className={`${editRouteId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700`}>
             {editRouteId ? 'Update' : 'Tambah Rute'}
           </button>
         </div>
       </div>
 
-      <div className={TABLE_WRAP}>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse text-[13px]">
-          <thead className={TABLE_HEAD_ROW}>
+          <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[100px]`}>Dermaga</th>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[260px]`}>Nama Rute</th>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[120px]`}>Asal</th>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[120px]`}>Tujuan</th>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[110px]`}>Jarak</th>
-              <th className={`${TABLE_HEAD_CELL} text-left w-[110px]`}>Durasi</th>
-              <th className={`${TABLE_HEAD_CELL} text-right w-[210px]`}>Aksi</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[100px]">Dermaga</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[260px]">Nama Rute</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Asal</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Tujuan</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Jarak</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Durasi</th>
+              <th className="px-3 py-2.5 border border-slate-200 text-right w-[210px]">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -451,21 +427,19 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
               </td></tr>
             )}
             {/* Kelompokkan berdasarkan Region → Dermaga */}
-            {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions], regionIdx) => {
-              const tint = groupTint(regionIdx)
-              return (
+            {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
-                <tr className={tint.row}>
-                  <td colSpan={7} className={`${TABLE_CELL} text-left ${tint.edge} pl-5`}>
-                    <span className={`font-bold text-[13px] ${tint.text}`}>{regionName}</span>
+                <tr className="bg-slate-100">
+                  <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
+                    <span className="font-bold text-slate-800 text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
-                    <tr className={tint.sub}>
-                      <td colSpan={7} className={`${TABLE_CELL} text-left`}>
+                    <tr className="bg-blue-50/50">
+                      <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
                         <span className="font-semibold text-slate-700 text-xs flex items-center gap-2">
-                          <span className={`h-1.5 w-1.5 rounded-full ${tint.accent}`} />
+                          <span className="w-1 h-1 rounded-full bg-blue-500" />
                           {dermagaName}
                           <span className="text-slate-400 font-normal">({routes.length} rute)</span>
                         </span>
@@ -473,13 +447,13 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </tr>
                     {routes.map(r => (
                       <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50/60'}`}>
-                        <td className={`${TABLE_CELL} text-slate-500 text-[11px] font-semibold whitespace-nowrap`}>{r.dermaga_code || ''}</td>
-                        <td className={`${TABLE_CELL} font-semibold text-slate-800`}>{r.name}</td>
-                        <td className={`${TABLE_CELL} font-mono text-slate-600 text-xs whitespace-nowrap`}>{r.route_from}</td>
-                        <td className={`${TABLE_CELL} font-mono text-slate-600 text-xs whitespace-nowrap`}>{r.route_to}</td>
-                        <td className={`${TABLE_CELL} text-slate-500 text-xs whitespace-nowrap`}>{r.distance || '—'}</td>
-                        <td className={`${TABLE_CELL} text-slate-500 text-xs whitespace-nowrap`}>{r.duration || '—'}</td>
-                        <td className={`${TABLE_CELL} text-right whitespace-nowrap`}>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-[11px] font-semibold whitespace-nowrap">{r.dermaga_code || ''}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>
+                        <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_to}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.distance || '—'}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.duration || '—'}</td>
+                        <td className="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">
                           <button onClick={() => startEdit(r)} className="text-blue-600 font-semibold text-xs mr-3 hover:underline">Edit</button>
                           <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-semibold text-xs mr-3 hover:underline inline-flex items-center gap-1">
                             <MapPin size={12} /> Geofence
@@ -491,8 +465,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </React.Fragment>
                 ))}
               </React.Fragment>
-              )
-            })}
+            ))}
           </tbody>
         </table>
         </div>
@@ -500,7 +473,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
       {showGeofencePanel && createPortal((
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
-          <div className={`${CARD} flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden`}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
 
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <div className="flex items-center gap-3">
@@ -508,8 +481,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   <MapPin size={20} className="text-emerald-600" />
                 </div>
                 <div>
-                  <h3 className={PAGE_TITLE}>Titik Geofence</h3>
-                  <p className={PAGE_SUBTITLE}>
+                  <h3 className="font-black text-slate-900 text-lg">Titik Geofence</h3>
+                  <p className="text-slate-500 text-xs">
                     Rute: <span className="font-mono font-bold text-blue-700">{currentRouteForGeofence?.name || getRouteCode()}</span>
                     {currentRouteForGeofence && (
                       <span className="ml-2 text-emerald-700 font-semibold">({currentRouteForGeofence.route_from} → {currentRouteForGeofence.route_to})</span>
@@ -586,7 +559,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </h4>
 
                   <div>
-                    <label className={`${LABEL} mb-1 block`}>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">
                       Paste Link Google Maps <span className="font-normal text-slate-400">(koordinat otomatis)</span>
                     </label>
                     <div className="flex gap-2">
@@ -601,14 +574,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                           }}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleMapsLinkGeofence() } }}
                           placeholder="https://maps.app.goo.gl/1Gsfc4xo2wGbpf3k9"
-                          className={`${INPUT} py-2.5 pl-9 font-mono text-[12px]`}
+                          className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                       <button
                         onClick={() => void handleMapsLinkGeofence()}
                         disabled={!mapsLink.trim() || resolvingLink}
                         title="Koordinat biasanya terisi otomatis — tombol ini cadangan"
-                        className={`${BTN_PRIMARY} px-4 py-2.5 text-[11px]`}
+                        className="px-4 py-2.5 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-900 disabled:opacity-40"
                       >
                         {resolvingLink ? 'Memproses…' : 'Isi Otomatis'}
                       </button>
@@ -621,7 +594,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={`${LABEL} mb-1 block flex items-center gap-2`}>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1 flex items-center gap-2">
                         Latitude
                         {coordsFromLink && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
@@ -640,7 +613,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       />
                     </div>
                     <div>
-                      <label className={`${LABEL} mb-1 block flex items-center gap-2`}>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1 flex items-center gap-2">
                         Longitude
                         {coordsFromLink && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
@@ -671,17 +644,17 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </label>
 
                   <div>
-                    <label className={`${LABEL} mb-1 block`}>Nama Lokasi</label>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Nama Lokasi</label>
                     <input
                       value={activeGeofence.locationName}
                       onChange={e => setActiveGeofence(prev => prev ? { ...prev, locationName: e.target.value } : null)}
                       placeholder="cth: Dermaga Badau - Titik A"
-                      className={`${INPUT} py-2.5 text-[12px]`}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
                   <div>
-                    <label className={`${LABEL} mb-1 block`}>Radius (meter) <span className="font-normal text-slate-400">— default 100 meter</span></label>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Radius (meter) <span className="font-normal text-slate-400">— default 100 meter</span></label>
                     <input
                       type="number"
                       min={1}
@@ -690,7 +663,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       value={activeGeofence.radiusMeters}
                       onChange={e => setActiveGeofence(prev => prev ? { ...prev, radiusMeters: e.target.value } : null)}
                       placeholder="100"
-                      className={`${INPUT} py-2.5 text-[12px]`}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">
                       Radius aman zona geofence untuk pengukuran jarak akurat di aplikasi mobile.
@@ -698,12 +671,12 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </div>
 
                   <div>
-                    <label className={`${LABEL} mb-1 block`}>Keterangan <span className="font-normal text-slate-400">(opsional)</span></label>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Keterangan <span className="font-normal text-slate-400">(opsional)</span></label>
                     <input
                       value={activeGeofence.description}
                       onChange={e => setActiveGeofence(prev => prev ? { ...prev, description: e.target.value } : null)}
                       placeholder="Deskripsi titik geofence..."
-                      className={`${INPUT} py-2.5 text-[12px]`}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
@@ -721,13 +694,13 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   <div className="flex gap-2 pt-2">
                     <button
                       onClick={cancelGeofenceEdit}
-                      className={`${BTN_SECONDARY} flex-1 py-2.5 text-[11px]`}
+                      className="flex-1 py-2.5 text-slate-600 font-semibold text-xs border border-slate-200 rounded-xl hover:bg-slate-100"
                     >
                       Batal
                     </button>
                     <button
                       onClick={() => saveGeofencePoint(getRouteCode())}
-                      className={`${BTN_PRIMARY} flex-1 py-2.5 text-[11px]`}
+                      className="flex-1 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700"
                     >
                       Simpan
                     </button>
@@ -740,7 +713,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
               {!activeGeofence && (
                 <button
                   onClick={startAddGeofence}
-                  className={`${BTN_PRIMARY} w-full py-3`}
+                  className="w-full py-3 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2"
                 >
                   <Plus size={16} /> Tambah Titik Geofence
                 </button>

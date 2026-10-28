@@ -262,45 +262,6 @@ graphify update .  # Setelah modifikasi code
 
 ---
 
-## Design Token Admin Dashboard
-
-- Sumber tunggal: `src/pages/admin/theme.ts`. Semua halaman admin (tab
-  Laporan, Master Tarif, Master Plat, Master Rute, Master Region, Petugas,
-  Endpoint, plus sheet Laporan & Rekap) memakai token dari file ini.
-- **Pengecualian**: tab "Pengaturan" (`SettingsTab` + `ServerStatsPanel`)
-  tetap memakai tema terminal gelap - jangan di-token-kan ke `theme.ts`.
-- Token penting: `PAGE`, `PAGE_TITLE`, `PAGE_SUBTITLE`, `CARD`, `TABLE_WRAP`,
-  `TABLE_HEAD_ROW`, `TABLE_CELL`, `BTN_PRIMARY`, `BTN_SECONDARY`, `INPUT`,
-  `LABEL`, `BADGE*`, `DOT*`, `PILL*`, `GROUP_ROW`, `FOOT_ROW`, `SHEET_BODY`,
-  `SHEET_HEADER`, `STAT_LABEL`, `STAT_VALUE`, `TOAST*`, `PAGE_HEADER*`,
-  `GROUP_TINTS` + `groupTint(index)`.
-- Palet WAJIB (pilihan user, jangan ganti warna lain):
-  `#1E293B` (slate-800) bidang gelap, `#2563EB` (blue-600) aksen,
-  `#FFFFFF` permukaan, `#F8FAFC` (slate-50) latar. Turunan yang boleh:
-  slate-200/100 garis, slate-900/700/500/400 teks, blue-50 tint biru,
-  dan status emerald/amber/red/slate.
-- **Pengelompokan data** (semua tab, kecuali Pengaturan): pakai
-  `groupTint(i)` - `i` = urutan kelompok (tanggal/region/golongan/rute).
-  Setiap kelompok dapat warna sendiri: `row` (latar baris pengelompok),
-  `sub` (latar sub-kelompok), `edge` (garis aksen 4px di tepi kiri),
-  `text`/`muted` (teks), `chip`, `accent` (bar/dot kecil). Warnanya
-  rendah saturasi (tint -50 dengan opasitas 80%) - jangan pakai bidang
-  gelap untuk baris pengelompok; hanya sidebar boleh gelap.
-- Header halaman TETAP PUTIH (`PAGE_HEADER`) dengan garis aksen biru di tepi
-  kiri - JANGAN pakai bidang gelap untuk header. Warna berasal dari aksen:
-  sidebar (slate-800), menu aktif + kepala tabel (blue), tombol (blue).
-  Sheet Laporan & Rekap = `SHEET_HEADER` (putih).
-- Pengecualian: tab "Pengaturan" (`SettingsTab` + `ServerStatsPanel`) tetap
-  tema terminal gelap (dasar `bg-slate-900`) - gaya btop, bukan token.
-- Gotcha: saat menulis ulang `className="..."` menjadi
-  `` className={`${TOKEN} ...`} ``, closing `}` WAJIB ada. Kalau hilang,
-  JSX-nya tidak parse ("Expected "}" but found "."") dan pesan errornya menunjuk baris
-  yang benar secara misleading.
-- Setel selesai: `npm run build` lalu salin bundle ke `admin-www/` sesuai
-  struktur di CLAUDE.md root (hash file berubah -> file lama harus dihapus).
-
----
-
 ## Catatan Tambahan - Endpoint Ganti Saat Runtime
 
 - `api.baseUrl` (src/services/api.ts) **live**, bukan konstanta modul. Ganti

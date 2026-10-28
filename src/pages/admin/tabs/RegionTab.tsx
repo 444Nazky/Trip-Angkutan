@@ -14,29 +14,6 @@
  *     jadi NULL (ON DELETE SET NULL) sehingga dermaga menjadi yatim.
  */
 
-import {
-  BADGE,
-  BADGE_MUTED,
-  BADGE_OK,
-  BADGE_WARN,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  CARD,
-  DOT_MUTED,
-  DOT_OK,
-  DOT_WARN,
-  groupTint,
-  INPUT,
-  LABEL,
-  PAGE,
-  SECTION_TITLE,
-  TABLE_CELL,
-  TABLE_HEAD_CELL,
-  TABLE_HEAD_ROW,
-  TABLE_ROW_ALT,
-  TABLE_WRAP,
-} from '../theme'
-import { PageHeader } from '../components/PageHeader'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import {
@@ -289,20 +266,20 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  const dermagaRow = (d: Dermaga, indented: boolean, alt = false) => {
+  const dermagaRow = (d: Dermaga, indented: boolean) => {
     const routeCount = routeCountOfDermaga(d.id)
     const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === d.id))
     return (
-      <tr key={d.id} className={`admin-table-row ${alt ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
-        <td className={`${TABLE_CELL} text-slate-700 ${indented ? 'pl-10' : ''}`}>
+      <tr key={d.id} className="admin-table-row hover:bg-slate-50/60">
+        <td className={`border border-slate-300 px-3 py-2 text-slate-700 ${indented ? 'pl-10' : ''}`}>
           <span className="font-semibold">{labelOf(d)}</span>
         </td>
-        <td className={`${TABLE_CELL} font-mono text-[12px] text-slate-500`}>{d.code || '—'}</td>
-        <td className={`${TABLE_CELL} text-[12px] text-slate-500`}>
+        <td className="border border-slate-300 px-3 py-2 font-mono text-slate-500 text-[12px]">{d.code || '—'}</td>
+        <td className="border border-slate-300 px-3 py-2 text-[12px] text-slate-500">
           {routeCount === null ? 'rute: tidak termuat' : `${routeCount} rute`}
           {officers === null ? '' : ` · ${users.length} petugas`}
         </td>
-        <td className={`${TABLE_CELL} text-right whitespace-nowrap`}>
+        <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
           <button
             type="button"
             disabled={saving}
@@ -317,43 +294,45 @@ export function RegionTab({ showToast }: RegionTabProps) {
   }
 
   return (
-    <div className={PAGE}>
-      <PageHeader
-        title="Master Region"
-        subtitle="Tambah / hapus wilayah dan dermaga — setiap perubahan langsung ditulis ke database"
-        actions={
-          <>
-            <span
-              className={`${BADGE} ${
-                state === 'ready'
-                  ? BADGE_OK
-                  : state === 'offline'
-                    ? BADGE_WARN
-                    : BADGE_MUTED
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  state === 'ready' ? DOT_OK : state === 'offline' ? DOT_WARN : DOT_MUTED
-                }`}
-              />
-              {state === 'ready'
-                ? `${regions.length} wilayah · ${dermagas.length} dermaga`
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-black text-slate-900 text-lg">Master Region</h3>
+          <p className="text-slate-500 text-[12px]">
+            Tambah / hapus wilayah dan dermaga — setiap perubahan langsung ditulis ke database
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
+              state === 'ready'
+                ? 'bg-emerald-50 text-emerald-600'
                 : state === 'offline'
-                  ? 'Server tidak merespons'
-                  : 'Memuat…'}
-            </span>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={state === 'loading' || saving}
-              className={`${BTN_SECONDARY} px-3 py-1.5`}
-            >
-              <RefreshCw size={12} /> Muat ulang
-            </button>
-          </>
-        }
-      />
+                  ? 'bg-amber-50 text-amber-600'
+                  : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'
+              }`}
+            />
+            {state === 'ready'
+              ? `${regions.length} wilayah · ${dermagas.length} dermaga`
+              : state === 'offline'
+                ? 'Server tidak merespons'
+                : 'Memuat…'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={state === 'loading' || saving}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+          >
+            <RefreshCw size={12} /> Muat ulang
+          </button>
+        </div>
+      </div>
 
       {officers === null && state === 'ready' && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
@@ -363,25 +342,25 @@ export function RegionTab({ showToast }: RegionTabProps) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className={`${CARD} p-6`}>
-          <h3 className={`${SECTION_TITLE} mb-4`}>Tambah Region</h3>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <h3 className="font-bold mb-4">Tambah Region</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className={`${LABEL} mb-1 block`}>Nama Wilayah *</label>
+              <label className="text-[11px] text-slate-500 block mb-1">Nama Wilayah *</label>
               <input
                 value={regionForm.name}
                 onChange={(e) => setRegionForm({ ...regionForm, name: e.target.value })}
                 placeholder="cth: Wilayah Cirebon"
-                className={INPUT}
+                className="w-full border rounded-xl px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className={`${LABEL} mb-1 block`}>Kode Wilayah *</label>
+              <label className="text-[11px] text-slate-500 block mb-1">Kode Wilayah *</label>
               <input
                 value={regionForm.code}
                 onChange={(e) => setRegionForm({ ...regionForm, code: e.target.value.toUpperCase() })}
                 placeholder="cth: CRB"
-                className={`${INPUT} font-mono tracking-wide`}
+                className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
               />
             </div>
           </div>
@@ -389,21 +368,21 @@ export function RegionTab({ showToast }: RegionTabProps) {
             type="button"
             disabled={saving}
             onClick={() => void handleCreateRegion()}
-            className={`${BTN_PRIMARY} w-full py-3`}
+            className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 inline-flex items-center justify-center gap-2"
           >
             <Plus size={16} /> Tambah Region
           </button>
         </div>
 
-        <div className={`${CARD} p-6`}>
-          <h3 className={`${SECTION_TITLE} mb-4`}>Tambah Dermaga</h3>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <h3 className="font-bold mb-4">Tambah Dermaga</h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
-              <label className={`${LABEL} mb-1 block`}>Wilayah *</label>
+              <label className="text-[11px] text-slate-500 block mb-1">Wilayah *</label>
               <select
                 value={dermagaForm.regionId}
                 onChange={(e) => setDermagaForm({ ...dermagaForm, regionId: e.target.value })}
-                className={INPUT}
+                className="w-full border rounded-xl px-3 py-2 text-sm"
               >
                 <option value="">— Pilih Wilayah —</option>
                 {orderedRegions.map((r) => (
@@ -414,21 +393,21 @@ export function RegionTab({ showToast }: RegionTabProps) {
               </select>
             </div>
             <div>
-              <label className={`${LABEL} mb-1 block`}>Nama Dermaga *</label>
+              <label className="text-[11px] text-slate-500 block mb-1">Nama Dermaga *</label>
               <input
                 value={dermagaForm.name}
                 onChange={(e) => setDermagaForm({ ...dermagaForm, name: e.target.value })}
                 placeholder="cth: Dermaga Badau"
-                className={INPUT}
+                className="w-full border rounded-xl px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className={`${LABEL} mb-1 block`}>Kode Dermaga *</label>
+              <label className="text-[11px] text-slate-500 block mb-1">Kode Dermaga *</label>
               <input
                 value={dermagaForm.code}
                 onChange={(e) => setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })}
                 placeholder="cth: BDU"
-                className={`${INPUT} font-mono tracking-wide`}
+                className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
               />
             </div>
           </div>
@@ -436,28 +415,28 @@ export function RegionTab({ showToast }: RegionTabProps) {
             type="button"
             disabled={saving}
             onClick={() => void handleCreateDermaga()}
-            className={`${BTN_PRIMARY} w-full py-3`}
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-40 inline-flex items-center justify-center gap-2"
           >
             <Plus size={16} /> Tambah Dermaga
           </button>
         </div>
       </div>
 
-      <div className={TABLE_WRAP}>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] border-collapse text-[13px]">
-            <thead className={TABLE_HEAD_ROW}>
+            <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
-                <th className={`${TABLE_HEAD_CELL} text-left`}>Wilayah / Dermaga</th>
-                <th className={`${TABLE_HEAD_CELL} text-left w-[140px]`}>Kode</th>
-                <th className={`${TABLE_HEAD_CELL} text-left w-[220px]`}>Dipakai</th>
-                <th className={`${TABLE_HEAD_CELL} text-right w-[170px]`}>Aksi</th>
+                <th className="px-3 py-2.5 border border-slate-300 text-left">Wilayah / Dermaga</th>
+                <th className="px-3 py-2.5 border border-slate-300 text-left w-[140px]">Kode</th>
+                <th className="px-3 py-2.5 border border-slate-300 text-left w-[220px]">Dipakai</th>
+                <th className="px-3 py-2.5 border border-slate-300 text-right w-[170px]">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {state === 'offline' && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-[12px] text-amber-700">
+                  <td colSpan={4} className="border border-slate-300 px-3 py-8 text-center text-[12px] text-amber-700">
                     Server tidak bisa dihubungi, jadi data wilayah & dermaga belum bisa ditampilkan. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
@@ -466,32 +445,29 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
               {state !== 'offline' && orderedRegions.length === 0 && orphans.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-[12px] text-slate-400">
+                  <td colSpan={4} className="border border-slate-300 px-3 py-8 text-center text-[12px] text-slate-400">
                     {state === 'loading' ? 'Memuat data wilayah…' : 'Belum ada wilayah di database.'}
                   </td>
                 </tr>
               )}
 
-              {orderedRegions.map((region, regionIdx) => {
+              {orderedRegions.map((region) => {
                 const own = byRegion.get(String(region.id)) ?? []
                 const users = officersOfRegion(String(region.id))
-                // Tiap wilayah memakai warna pengelompok sendiri supaya blok
-                // wilayah + dermaganya jelas terpisah.
-                const tint = groupTint(regionIdx)
                 return (
                   <Fragment key={region.id}>
-                    <tr className={tint.row}>
-                      <td className={`${TABLE_CELL} ${tint.edge} pl-5`}>
-                        <span className={`font-bold ${tint.text}`}>{labelOf(region)}</span>{' '}
-                        <span className="text-[11px] font-normal text-slate-500">wilayah</span>
+                    <tr className="bg-slate-100">
+                      <td className="border border-slate-300 px-3 py-2">
+                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
+                        <span className="text-[11px] text-slate-500">wilayah</span>
                       </td>
-                      <td className={`${TABLE_CELL} font-mono text-[12px] uppercase text-slate-600`}>
+                      <td className="border border-slate-300 px-3 py-2 font-mono text-slate-600 text-[12px] uppercase">
                         {region.code || '—'}
                       </td>
-                      <td className={`${TABLE_CELL} text-[12px] text-slate-500`}>
+                      <td className="border border-slate-300 px-3 py-2 text-[12px] text-slate-500">
                         {own.length} dermaga{officers === null ? '' : ` · ${users.length} petugas`}
                       </td>
-                      <td className={`${TABLE_CELL} text-right whitespace-nowrap`}>
+                      <td className="border border-slate-300 px-3 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
                           disabled={saving || officers === null}
@@ -506,12 +482,12 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
                     {own.length === 0 && (
                       <tr key={`${region.id}-empty`}>
-                        <td colSpan={4} className={`${TABLE_CELL} pl-10 text-[12px] text-slate-400`}>
+                        <td colSpan={4} className="border border-slate-300 px-3 py-3 pl-10 text-[12px] text-slate-400">
                           Belum ada dermaga di wilayah ini
                         </td>
                       </tr>
                     )}
-                    {own.map((d, dIdx) => dermagaRow(d, true, dIdx % 2 === 1))}
+                    {own.map((d) => dermagaRow(d, true))}
                   </Fragment>
                 )
               })}
@@ -519,7 +495,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
               {orphans.length > 0 && (
                 <Fragment>
                   <tr className="bg-amber-50">
-                    <td colSpan={4} className={TABLE_CELL}>
+                    <td colSpan={4} className="border border-slate-300 px-3 py-2">
                       <span className="inline-flex items-center gap-2 text-[12px] font-bold text-amber-800">
                         <TriangleAlert size={14} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak ada
                         di database

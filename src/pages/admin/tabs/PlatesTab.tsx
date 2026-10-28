@@ -1,28 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchPlates, createPlate, updatePlate, deletePlate, type PlateRecord, type PlateStatus } from '../../../services/plates'
 import { fetchRegions, type Region } from '../../../services/regions'
-import {
-  BADGE,
-  BADGE_MUTED,
-  BADGE_OK,
-  BADGE_WARN,
-  BTN_PRIMARY,
-  BTN_SECONDARY,
-  CARD,
-  DOT_MUTED,
-  DOT_OK,
-  DOT_WARN,
-  INPUT,
-  LABEL,
-  PAGE,
-  SECTION_TITLE,
-  TABLE_CELL,
-  TABLE_HEAD_CELL,
-  TABLE_ROW_ALT,
-  TABLE_HEAD_ROW,
-  TABLE_WRAP,
-} from '../theme'
-import { PageHeader } from '../components/PageHeader'
 
 
 
@@ -90,78 +68,78 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
   }
 
   const statusColor = (s: string) =>
-    s === 'internal' ? 'bg-slate-200 text-slate-700' : s === 'lokal' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+    s === 'internal' ? 'bg-slate-800 text-white' : s === 'lokal' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
 
   return (
-    <div className={PAGE}>
+    <div className="space-y-4">
 
-      <PageHeader
-        title="Master Plat"
-        subtitle={<>Plat <b>internal</b> tidak dikenakan tarif saat discan</>}
-        actions={
-          <span className={`${BADGE} ${
-            plateState === 'ready' ? BADGE_OK : plateState === 'offline' ? BADGE_WARN : BADGE_MUTED
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${plateState === 'ready' ? DOT_OK : plateState === 'offline' ? DOT_WARN : DOT_MUTED}`} />
-            {plateState === 'ready' ? 'Server: Tersambung' : plateState === 'offline' ? 'Offline' : 'Memuat...'}
-          </span>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-black text-slate-900 text-lg">Master Plat</h3>
+          <p className="text-slate-500 text-[12px]">Plat <b>internal</b> tidak dikenakan tarif saat discan</p>
+        </div>
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
+          plateState === 'ready' ? 'bg-emerald-50 text-emerald-600' : plateState === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${plateState === 'ready' ? 'bg-emerald-500' : plateState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
+          {plateState === 'ready' ? 'Server: Tersambung' : plateState === 'offline' ? 'Offline' : 'Memuat...'}
+        </span>
+      </div>
 
-      <div className={`${CARD} max-w-3xl p-6`}>
-        <h3 className={`${SECTION_TITLE} mb-4`}>{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-3xl">
+        <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
         <div className="grid grid-cols-4 gap-4 mb-4">
-          <div><label className={`${LABEL} mb-1 block`}>No. Plat *</label>
+          <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
             <input value={plateForm.plate} onChange={e => setPlateForm({...plateForm, plate: e.target.value.toUpperCase()})}
-              placeholder="B 1234 XY" className={`${INPUT} font-mono tracking-wide`} /></div>
-          <div><label className={`${LABEL} mb-1 block`}>Pemilik (opsional)</label>
+              placeholder="B 1234 XY" className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" /></div>
+          <div><label className="text-[11px] text-slate-500 block mb-1">Pemilik (opsional)</label>
             <input value={plateForm.owner} onChange={e => setPlateForm({...plateForm, owner: e.target.value})}
-              placeholder="Nama pemilik" className={INPUT} /></div>
-          <div><label className={`${LABEL} mb-1 block`}>Region Asal</label>
+              placeholder="Nama pemilik" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+          <div><label className="text-[11px] text-slate-500 block mb-1">Region Asal</label>
             <select value={plateForm.originRegionId} onChange={e => setPlateForm({...plateForm, originRegionId: e.target.value})}
-              className={INPUT}>
+              className="w-full border rounded-xl px-3 py-2 text-sm">
               <option value="">—</option>
               {regions.map(r => <option key={r.id} value={r.id}>{r.name} ({r.code})</option>)}
             </select></div>
-          <div><label className={`${LABEL} mb-1 block`}>Status</label>
+          <div><label className="text-[11px] text-slate-500 block mb-1">Status</label>
             <select value={plateForm.status} onChange={e => setPlateForm({...plateForm, status: e.target.value as PlateStatus})}
-              className={INPUT}>
+              className="w-full border rounded-xl px-3 py-2 text-sm">
               <option value="internal">internal</option>
               <option value="lokal">lokal</option>
               <option value="eksternal">eksternal</option>
             </select></div>
         </div>
         <div className="flex gap-3">
-          {editPlateId && <button onClick={resetForm} className={`${BTN_SECONDARY} flex-1`}>Batal</button>}
+          {editPlateId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
           <button onClick={() => void handleSave()}
-            className={`${BTN_PRIMARY} ${editPlateId ? 'flex-1' : 'w-48'}`}>
+            className={`${editPlateId ? 'flex-1' : 'w-48'} py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700`}>
             {editPlateId ? 'Update' : 'Daftarkan'}
           </button>
         </div>
       </div>
 
-      <div className={TABLE_WRAP}>
-        <table className="w-full">
-          <thead className={TABLE_HEAD_ROW}>
-            <tr><th className={`${TABLE_HEAD_CELL} text-left`}>No. Plat</th><th className={`${TABLE_HEAD_CELL} text-left`}>Pemilik</th><th className={`${TABLE_HEAD_CELL} text-left`}>Region Asal</th><th className={`${TABLE_HEAD_CELL} text-left`}>Status</th><th className={`${TABLE_HEAD_CELL} text-right`}>Aksi</th></tr>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+            <tr><th className="text-left p-4">No. Plat</th><th className="text-left p-4">Pemilik</th><th className="text-left p-4">Region Asal</th><th className="text-left p-4">Status</th><th className="text-right p-4">Aksi</th></tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y">
             {plateState === 'loading' ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : plates.length === 0 ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada plat terdaftar</td></tr>
-            ) : plates.map((p, i) => (
-              <tr key={p.id} className={`admin-table-row ${i % 2 === 1 ? TABLE_ROW_ALT : ''} hover:bg-slate-50/60`}>
-                <td className={`${TABLE_CELL} font-mono font-bold tracking-wide`}>{p.plate}</td>
-                <td className={TABLE_CELL}>{p.owner || <span className="text-slate-300">—</span>}</td>
-                <td className={TABLE_CELL}>{p.origin_region_code || <span className="text-slate-300">—</span>}</td>
-                <td className={TABLE_CELL}>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span>
+            ) : plates.map(p => (
+              <tr key={p.id} className="hover:bg-slate-50">
+                <td className="p-4 font-mono font-bold tracking-wide">{p.plate}</td>
+                <td className="p-4">{p.owner || <span className="text-slate-300">—</span>}</td>
+                <td className="p-4">{p.origin_region_code || <span className="text-slate-300">—</span>}</td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span>
                 </td>
-                <td className={`${TABLE_CELL} text-right`}>
+                <td className="p-4 text-right">
                   <button onClick={() => { setEditPlateId(p.id); setPlateForm({ plate: p.plate, owner: p.owner || '', originRegionId: p.origin_region_id || '', status: p.status }) }}
-                    className="mr-4 text-[12px] font-bold text-blue-600 hover:text-blue-700">Edit</button>
-                  <button onClick={() => void handleDel(p.id)} className="text-[12px] font-bold text-red-500 hover:text-red-600">Hapus</button>
+                    className="text-blue-600 font-bold text-sm mr-4">Edit</button>
+                  <button onClick={() => void handleDel(p.id)} className="text-red-500 font-bold text-sm">Hapus</button>
                 </td>
               </tr>
             ))}

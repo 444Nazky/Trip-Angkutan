@@ -23,7 +23,6 @@ import { OfficersTab } from './tabs/OfficersTab'
 import { ReportsTab } from './tabs/ReportsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
-import { ALERT_ERROR, BTN_COMPACT, TOAST, TOAST_ERROR } from './theme'
 
 
 
@@ -123,9 +122,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   ]
 
   return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
-    <div className="flex bg-slate-100 min-h-screen">
-        <div className="w-64 bg-slate-800 min-h-screen flex flex-col shrink-0 fixed left-0 top-0 border-r border-slate-700/60">
-  <div className="p-6 border-b border-slate-700">
+    <div className="flex bg-slate-900 min-h-screen">
+        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+  <div className="p-6 border-b border-slate-800">
     <div className="flex items-center gap-4">
 
       <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
@@ -134,7 +133,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <div>
         <p className="text-white font-black text-[14px]">Dashboard Trip</p>
-        <p className="text-slate-400 text-[10px]">Karyamas Plantation</p>
+        <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
       </div>
     </div>
   </div>
@@ -143,13 +142,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] admin-nav-item transition-all duration-150 ${
-                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-700/60'
+                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}>
               <Icon size={16} />{label}
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-700">
+        <div className="p-4 border-t border-slate-800">
           <button onClick={onLogout} className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 text-[12px] font-semibold">
             <LogOut size={14} />Logout
           </button>
@@ -157,8 +156,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
-        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>          {(serverState === 'offline' || serverState === 'auth') && serverError && (
-            <div className={`${ALERT_ERROR} mb-4 flex items-start gap-3`}>
+        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
+          {(serverState === 'offline' || serverState === 'auth') && serverError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-red-700">
                   {serverState === 'auth'
@@ -186,7 +186,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   }
                   window.location.reload()
                 }}
-                className={`${BTN_COMPACT} shrink-0 border-red-200 text-red-700 hover:bg-red-100`}
+                className="shrink-0 rounded-lg bg-white border border-red-200 px-3 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-100"
               >
                 {serverState === 'auth' ? 'Masuk Ulang' : 'Coba Lagi'}
               </button>
@@ -246,7 +246,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {toast && (
-        <div className={toast.type === 'error' ? TOAST_ERROR : TOAST}>
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg ${
+          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
+        }`}>
           {toast.msg}
         </div>
       )}

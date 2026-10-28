@@ -4,32 +4,6 @@ import { ensureAdminSession } from '../../services/auth'
 import { fetchTripReports, type ReportFilters, type ReportTrip } from '../../services/trips'
 import { buildRecap, recapRouteKey, recapRouteLabel } from '../../services/recap'
 import { downloadXlsx } from '../../services/xlsx'
-import {
-  BADGE,
-  BADGE_MUTED,
-  BADGE_OK,
-  BADGE_WARN,
-  BTN_COMPACT,
-  CARD,
-  DOT_MUTED,
-  DOT_OK,
-  DOT_WARN,
-  EMPTY_STATE,
-  FOOT_CELL,
-  FOOT_ROW,
-  groupTint,
-  INPUT,
-  LABEL,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
-  SHEET_BODY,
-  SHEET_HEADER,
-  STAT_LABEL,
-  TABLE_CELL_GRID,
-  TABLE_HEAD_CELL_GRID,
-  TABLE_HEAD_ROW,
-  TABLE_WRAP,
-} from './theme'
 
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -115,38 +89,39 @@ export default function RecapSheet() {
   }
 
   return (
-    <div className={SHEET_BODY}>
-      <header className={SHEET_HEADER}>
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
         <div className="px-5 py-3.5 flex items-center gap-3 flex-wrap">
-          <span className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+          <span className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
             <Table2 size={17} />
           </span>
           <div className="mr-auto">
-            <h1 className={PAGE_TITLE}>Rekap Trip</h1>
-            <p className={PAGE_SUBTITLE}>
+            <h1 className="font-bold text-slate-900 text-[16px] leading-tight">Rekap Trip</h1>
+            <p className="text-[11px] text-slate-500">
               Ringkasan kendaraan dan pendapatan per golongan dan jenis kendaraan
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
           </div>
-          <span className={`${BADGE} ${
-            state === 'ready' ? BADGE_OK : state === 'offline' ? BADGE_WARN : BADGE_MUTED
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+            state === 'ready' ? 'border-slate-200 text-slate-600'
+            : state === 'offline' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'
           }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${
-              state === 'ready' ? DOT_OK : state === 'offline' ? DOT_WARN : DOT_MUTED
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'
             }`} />
             {state === 'ready' ? 'Connected' : state === 'offline' ? 'Offline' : 'Connecting...'}
           </span>
           <button onClick={exportRecap} disabled={groups.length === 0}
-            className={BTN_COMPACT}
+            className="border border-emerald-300 text-emerald-700 px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-emerald-50 disabled:opacity-50"
             title="Unduh rekap sebagai file Excel">
             <Download size={15} /> .xlsx
           </button>
           <button onClick={() => void load()} disabled={state === 'loading'}
-            className={BTN_COMPACT}>
+            className="border border-slate-300 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Refresh
           </button>
           <button onClick={() => { window.location.hash = '#/sheet' }}
-            className={BTN_COMPACT}
+            className="border border-slate-300 text-slate-600 px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50"
             title="Kembali ke laporan spreadsheet">
             <ArrowLeft size={15} /> Kembali
           </button>
@@ -154,20 +129,20 @@ export default function RecapSheet() {
       </header>
 
       <main className="p-5">
-        <section className={`${CARD} p-4 mb-4`}>
+        <section className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
           <div className="flex flex-wrap items-end gap-4">
             <div>
-              <p className={`${STAT_LABEL} mb-1.5`}>Periode</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Periode</p>
               <div className="flex items-end gap-2">
-                <label className={LABEL}>
+                <label className="text-[11px] font-semibold text-slate-500">
                   Dari
                   <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                    className={`${INPUT} mt-1 max-w-[170px]`} />
+                    className="block mt-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white" />
                 </label>
-                <label className={LABEL}>
+                <label className="text-[11px] font-semibold text-slate-500">
                   Sampai
                   <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                    className={`${INPUT} mt-1 max-w-[170px]`} />
+                    className="block mt-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white" />
                 </label>
               </div>
             </div>
@@ -179,22 +154,23 @@ export default function RecapSheet() {
                 { label: '30 Hari', days: 30 },
               ].map(p => (
                 <button key={p.label} onClick={() => applyPreset(p.days)}
-                  className={BTN_COMPACT}>
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                   {p.label}
                 </button>
               ))}
             </div>
 
-            <label className={LABEL}>
+            <label className="text-[11px] font-semibold text-slate-500">
               Rute
               <select value={route} onChange={e => setRoute(e.target.value)}
-                className={`${INPUT} mt-1 min-w-[220px]`}>
+                className="block mt-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white min-w-[220px]">
                 <option value="">Semua Rute</option>
                 {routes.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
             </label>
 
-            <button onClick={resetFilters} className={BTN_COMPACT}>
+            <button onClick={resetFilters}
+              className="px-3.5 py-2 rounded-lg border border-slate-300 text-slate-600 font-semibold text-xs hover:bg-slate-50">
               Reset
             </button>
 
@@ -204,70 +180,65 @@ export default function RecapSheet() {
           </div>
         </section>
 
-        <section className={TABLE_WRAP}>
+        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="overflow-auto max-h-[calc(100vh-250px)]">
             <table className="w-full border-collapse text-[13px] min-w-[860px]">
               <thead className="sticky top-0 z-10">
-                <tr className={TABLE_HEAD_ROW}>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-left w-[120px]`}>Golongan</th>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-left`}>Jenis Kendaraan</th>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-center w-[150px]`}>Tanpa Muatan</th>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-center w-[150px]`}>Dengan Muatan</th>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-center w-[140px]`}>Total Kendaraan</th>
-                  <th className={`${TABLE_HEAD_CELL_GRID} text-right w-[180px]`}>Total Pendapatan (Rp)</th>
+                <tr className="bg-[#1f3864] text-[12px] font-bold text-white">
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left w-[120px]">Golongan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-left">Jenis Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Tanpa Muatan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[150px]">Dengan Muatan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[140px]">Total Kendaraan</th>
+                  <th className="px-3 py-2.5 border border-[#2e4a7d] text-center w-[180px]">Total Pendapatan (Rp)</th>
                 </tr>
               </thead>
 
               {state !== 'ready' ? (
                 <tbody>
                   <tr>
-                    <td colSpan={6} className={EMPTY_STATE}>
+                    <td colSpan={6} className="p-10 text-center text-slate-400">
                       {state === 'offline' ? 'Tidak tersambung ke server' : 'Memuat rekap...'}
                     </td>
                   </tr>
                 </tbody>
               ) : groups.length === 0 ? (
                 <tbody>
-                  <tr><td colSpan={6} className={EMPTY_STATE}>Tidak ada data pada filter ini</td></tr>
+                  <tr><td colSpan={6} className="p-10 text-center text-slate-400">Tidak ada data pada filter ini</td></tr>
                 </tbody>
-              ) : groups.map((group, gi) => {
-                // Setiap golongan punya warna sendiri supaya blok rekap
-                // mudah dipilah.
-                const tint = groupTint(gi)
-                return (
+              ) : groups.map((group, gi) => (
                 <tbody key={`gol-${group.golongan}`}>
                   {gi > 0 && (
-                    <tr><td colSpan={6} className={`${tint.row} h-[10px] p-0 ${tint.edge}`} /></tr>
+                    <tr><td colSpan={6} className="bg-[#1f3864] border border-[#2e4a7d] h-[10px] p-0" /></tr>
                   )}
                   {group.rows.map((row, idx) => (
-                    <tr key={`${group.golongan}-${row.jenis}`} className={`hover:bg-slate-50/60 ${idx % 2 === 1 ? tint.sub : ''}`}>
+                    <tr key={`${group.golongan}-${row.jenis}`} className="hover:bg-slate-50/60">
                       {idx === 0 && (
                         <td rowSpan={group.rows.length}
-                          className={`${TABLE_CELL_GRID} align-middle text-left font-semibold ${tint.text} ${tint.row} ${tint.edge}`}>
+                          className="px-3 py-2 border border-slate-200 align-middle text-left font-semibold text-slate-900">
                           {group.golongan}
                         </td>
                       )}
-                      <td className={`${TABLE_CELL_GRID} text-slate-700`}>{row.jenis}</td>
-                      <td className={`${TABLE_CELL_GRID} text-center tabular-nums`}>{row.empty}</td>
-                      <td className={`${TABLE_CELL_GRID} text-center tabular-nums`}>{row.loaded}</td>
-                      <td className={`${TABLE_CELL_GRID} text-center tabular-nums`}>{row.total}</td>
-                      <td className={`${TABLE_CELL_GRID} text-right tabular-nums`}>{row.revenue}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-slate-700">{row.jenis}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.empty}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.loaded}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-center tabular-nums">{row.total}</td>
+                      <td className="px-3 py-2 border border-slate-200 text-right tabular-nums">{row.revenue}</td>
                     </tr>
                   ))}
                 </tbody>
-                )
-              })}
+              ))}
 
               {groups.length > 0 && (
                 <tfoot>
-                  <tr className={FOOT_ROW}>
-                    <td colSpan={2} className={`${FOOT_CELL} uppercase tracking-wide text-[11px]`}>
+                  <tr className="bg-[#1f3864] font-bold text-white">
+                    <td colSpan={2} className="px-3 py-3 border border-[#2e4a7d] uppercase tracking-wide text-[11px]">
                       Total All Golongan
                     </td>
-                    <td className={`${FOOT_CELL} text-center tabular-nums`}>{total.empty}</td>
-                    <td className={`${FOOT_CELL} text-center tabular-nums`}>{total.loaded}</td>
-                    <td className={`${FOOT_CELL} text-center tabular-nums`}>{total.total}</td>
-                    <td className={`${FOOT_CELL} text-right tabular-nums`}>{total.revenue}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.empty}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.loaded}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-center tabular-nums">{total.total}</td>
+                    <td className="px-3 py-3 border border-[#2e4a7d] text-right tabular-nums">{total.revenue}</td>
                   </tr>
                 </tfoot>
               )}

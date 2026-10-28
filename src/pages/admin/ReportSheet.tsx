@@ -23,37 +23,6 @@ import { environment } from '../../environments/environment'
 import { resolvePhotoUrl } from './components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../services/geofences'
 import { locationDistanceText, nearestGeofence } from '../../services/locationDistance'
-import {
-  BADGE,
-  BADGE_MUTED,
-  BADGE_OK,
-  BADGE_WARN,
-  BTN_COMPACT,
-  BTN_COMPACT_PRIMARY,
-  DOT_MUTED,
-  DOT_OK,
-  DOT_WARN,
-  EMPTY_STATE,
-  FOOT_CELL,
-  FOOT_ROW,
-  GROUP_ROW,
-  GROUP_ROW_CELL,
-  groupTint,
-  INPUT,
-  LABEL,
-  PAGE_SUBTITLE,
-  PAGE_TITLE,
-  PILL,
-  PILL_NEUTRAL,
-  PILL_OK,
-  SHEET_BODY,
-  SHEET_HEADER,
-  TABLE_CELL_GRID,
-  TABLE_HEAD_CELL_GRID,
-  TABLE_HEAD_ROW,
-  TABLE_ROW_ALT,
-  TABLE_WRAP,
-} from './theme'
 
 
 
@@ -97,11 +66,11 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
           <div className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold border-b border-slate-200">
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white text-xs font-semibold">
               <span className="flex items-center gap-2">
                 <ImageIcon size={13} /> Dokumentasi {label ? ` - ${label}` : 'Kendaraan'}
               </span>
-              <button onClick={() => setOpen(false)} className="p-1 hover:bg-slate-200 rounded"><X size={14} /></button>
+              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded"><X size={14} /></button>
             </div>
             <div className="bg-slate-900 p-2 flex items-center justify-center">
               <img src={url} alt="kendaraan" className="max-h-[65vh] w-auto object-contain rounded-lg" />
@@ -381,70 +350,71 @@ export default function ReportSheet() {
   }
 
   return (
-    <div className={SHEET_BODY}>
+    <div className="min-h-screen bg-slate-50 text-slate-800">
 
-      <header className={`${SHEET_HEADER} shadow-sm`}>
+      <header className="sticky top-0 z-30 bg-white border border-slate-200 shadow-sm">
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap">
           <span className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
             <Table2 size={17} />
           </span>
           <div className="mr-auto">
-            <h1 className={PAGE_TITLE}>Laporan Spreadsheet</h1>
-            <p className={PAGE_SUBTITLE}>
+            <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
+            <p className="text-[11px] text-slate-400">
               Satu baris untuk satu unit kendaraan, dikelompokkan per tanggal - refresh otomatis tiap 15 detik
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
           </div>
-          <span className={`${BADGE} ${
-            state === 'ready' ? BADGE_OK : state === 'offline' ? BADGE_WARN : BADGE_MUTED
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+            state === 'ready' ? 'border-slate-200 text-slate-600'
+            : state === 'offline' ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500'
           }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${
-              state === 'ready' ? DOT_OK : state === 'offline' ? DOT_WARN : DOT_MUTED
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'
             }`} />
             {state === 'ready' ? 'Connected' : state === 'offline' ? 'Offline' : 'Connecting...'}
           </span>
           <button onClick={() => void load(filters)} disabled={state === 'loading'}
-            className={BTN_COMPACT}>
+            className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <RefreshCw size={14} className={state === 'loading' ? 'animate-spin' : ''} /> Refresh
           </button>
           <button onClick={() => { window.location.hash = '#/sheet/rekap' }}
             disabled={state !== 'ready'}
             title="Buka rekap per golongan dan jenis kendaraan"
-            className={BTN_COMPACT_PRIMARY}>
+            className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
             <Table2 size={15} /> Rekap
           </button>
           <button onClick={() => downloadXlsx(`laporan-trip-${new Date().toISOString().slice(0, 10)}.xlsx`, buildSheets())}
             disabled={state !== 'ready' || vehicleRows.length === 0}
-            className={BTN_COMPACT}>
+            className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <Download size={15} /> .xlsx
           </button>
           <button onClick={() => { window.location.hash = '' }}
-            className={BTN_COMPACT}
+            className="border border-slate-200 text-slate-500 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50"
             title="Kembali ke dashboard (tab ini bisa ditutup)">
             <X size={15} /> Tutup
           </button>
         </div>
 
         <div className="px-5 pb-3 flex flex-wrap items-end gap-3">
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Dari
             <input type="date" value={filters.startDate || ''} onChange={e => apply({ startDate: e.target.value || undefined, ...(e.target.value ? {} : { endDate: undefined }) })}
-              className={`${INPUT} mt-1 max-w-[170px]`} />
+              className="block mt-1 border rounded-lg px-3 py-1.5 text-sm bg-white" />
           </label>
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Sampai
             <input type="date" value={filters.endDate || ''} onChange={e => apply({ endDate: e.target.value || undefined, ...(e.target.value ? {} : { startDate: undefined }) })}
-              className={`${INPUT} mt-1 max-w-[170px]`} />
+              className="block mt-1 border rounded-lg px-3 py-1.5 text-sm bg-white" />
           </label>
           <div className="flex gap-1.5">
             {presets.map(p => (
               <button key={p.label} onClick={() => applyPreset(p.days)}
-                className={BTN_COMPACT}>
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-500 hover:bg-white">
                 {p.label}
               </button>
             ))}
           </div>
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Pencarian
             <span className="block mt-1 relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -453,35 +423,35 @@ export default function ReportSheet() {
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
                 placeholder="No trip, plat, petugas, rute"
-                className={`${INPUT} pl-8 min-w-[230px]`}
+                className="border rounded-lg pl-8 pr-3 py-1.5 text-sm bg-white min-w-[230px]"
               />
             </span>
           </label>
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Golongan
             <select value={filters.golongan || ''} onChange={e => apply({ golongan: e.target.value || undefined })}
-              className={`${INPUT} mt-1 min-w-[130px]`}>
+              className="block mt-1 border rounded-lg px-3 py-1.5 text-sm bg-white min-w-[130px]">
               <option value="">Semua</option>
               {golonganOptions.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
           </label>
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Jenis Kendaraan
             <select value={filters.vehicleType || ''} onChange={e => apply({ vehicleType: e.target.value || undefined })}
-              className={`${INPUT} mt-1 min-w-[150px]`}>
+              className="block mt-1 border rounded-lg px-3 py-1.5 text-sm bg-white min-w-[150px]">
               <option value="">Semua</option>
               {options.vehicleTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
-          <label className={LABEL}>
+          <label className="text-[11px] font-bold text-slate-500">
             Status Muatan
             <select value={filters.muatan || ''} onChange={e => apply({ muatan: (e.target.value || undefined) as ReportFilters['muatan'] })}
-              className={`${INPUT} mt-1 min-w-[150px]`}>
+              className="block mt-1 border rounded-lg px-3 py-1.5 text-sm bg-white min-w-[150px]">
               {STATUS_MUATAN.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </label>
           <button onClick={resetFilters}
-            className={BTN_COMPACT}>
+            className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 font-bold text-xs hover:bg-white">
             Reset
           </button>
           <span className="ml-auto text-[11px] text-slate-400 font-semibold self-center">Sinkron ke-{tick + 1}</span>
@@ -489,13 +459,13 @@ export default function ReportSheet() {
       </header>
 
       <main className="p-5">
-        <div className={TABLE_WRAP}>
+        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="overflow-auto max-h-[calc(100vh-220px)]">
             <table className="w-full border-collapse text-[13px] min-w-[1500px]">
               <thead className="sticky top-0 z-10">
-                <tr className={TABLE_HEAD_ROW}>
+                <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
                   {COLUMNS.map(c => (
-                    <th key={c.key} className={`${TABLE_HEAD_CELL_GRID} ${
+                    <th key={c.key} className={`px-3 py-2.5 border border-slate-200 bg-slate-100 ${
                       c.key === 'tarif' ? 'text-right'
                       : c.key === 'foto' ? 'text-center w-28'
                       : 'text-left'
@@ -507,65 +477,69 @@ export default function ReportSheet() {
               </thead>
               <tbody>
                 {state === 'offline' ? (
-                  <tr><td colSpan={COLUMNS.length} className={EMPTY_STATE}>Tidak tersambung ke server</td></tr>
+                  <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400">Tidak tersambung ke server</td></tr>
                 ) : state === 'loading' && rows.length === 0 ? (
-                  <tr><td colSpan={COLUMNS.length} className={`${EMPTY_STATE} animate-pulse`}>Memuat laporan...</td></tr>
+                  <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400 animate-pulse">Memuat laporan...</td></tr>
                 ) : dateGroups.length === 0 ? (
-                  <tr><td colSpan={COLUMNS.length} className={EMPTY_STATE}>Tidak ada data pada filter ini</td></tr>
-                ) : dateGroups.map((group, gi) => (
+                  <tr><td colSpan={COLUMNS.length} className="p-10 text-center text-slate-400">Tidak ada data pada filter ini</td></tr>
+                ) : dateGroups.map(group => (
                   <Fragment key={`date-${group.key}`}>
-                    <tr className={`${GROUP_ROW} ${groupTint(gi).row}`}>
-                      <td colSpan={8} className={`${GROUP_ROW_CELL} ${groupTint(gi).edge} pl-5`}>
-                        <span className={`flex items-center gap-1.5 font-bold text-sm ${groupTint(gi).text}`}>
-                          <Calendar size={13} className="opacity-70" />
+                    <tr className="bg-slate-800 text-white">
+                      <td colSpan={8} className="px-3 py-2.5 border border-slate-700">
+                        <span className="flex items-center gap-1.5 font-bold text-sm">
+                          <Calendar size={13} className="text-slate-400" />
                           {group.label}
                         </span>
-                        <span className={`ml-3 text-[11px] font-normal ${groupTint(gi).muted}`}>
+                        <span className="ml-3 text-[11px] font-normal text-slate-300">
                           {group.tripCount} trip - {group.vehicleCount} unit
                         </span>
                       </td>
-                      <td colSpan={3} className={`${GROUP_ROW_CELL} text-right text-[11px] font-semibold uppercase tracking-wide ${groupTint(gi).muted}`}>
+                      <td colSpan={3} className="px-3 py-2.5 border border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
                         Subtotal
                       </td>
-                      <td className={`${GROUP_ROW_CELL} text-right font-black tabular-nums`}>
+                      <td className="px-3 py-2.5 border border-slate-700 text-right font-black tabular-nums">
                         {fmtRp(group.revenue)}
                       </td>
-                      <td colSpan={2} className={GROUP_ROW_CELL} />
+                      <td colSpan={2} className="border border-slate-700" />
                     </tr>
                     {group.rows.map((r, idx) => {
                       const v = r.vehicle
                       const hasLoad = Number(v.has_load) > 0
                       return (
-                        <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : TABLE_ROW_ALT}>
-                          <td className={`${TABLE_CELL_GRID} font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap`}>{r.trip.no_trip}</td>
-                          <td className={`${TABLE_CELL_GRID} text-[11px] text-slate-500 whitespace-nowrap`}>{r.date}</td>
-                          <td className={`${TABLE_CELL_GRID} text-[11px] text-slate-500 tabular-nums whitespace-nowrap`}>{r.time}</td>
-                          <td className={`${TABLE_CELL_GRID} text-slate-700`}>{reportPlace(r.trip)}</td>
-                          <td className={`${TABLE_CELL_GRID} text-slate-700`}>{reportAsal(r.trip)}</td>
-                          <td className={`${TABLE_CELL_GRID} text-slate-700`}>{reportTujuan(r.trip)}</td>
-                          <td className={`${TABLE_CELL_GRID} text-slate-700`}>{r.trip.officer_name || '-'}</td>
-                          <td className={`${TABLE_CELL_GRID} font-semibold text-slate-800 whitespace-nowrap`}>{v.no_polisi}</td>
-                          <td className={`${TABLE_CELL_GRID} text-slate-700`}>{v.vehicle_type || '-'}</td>
-                          <td className={`${TABLE_CELL_GRID} `}>
-                            <span className={`${PILL} ${PILL_NEUTRAL}`}>
+                        <tr key={`veh-${r.trip.id}-${v.id}`} className={idx % 2 === 1 ? 'bg-white' : 'bg-slate-50/40'}>
+                          <td className="px-3 py-2 border border-slate-200 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">{r.trip.no_trip}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.time}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportPlace(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportAsal(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportTujuan(r.trip)}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{r.trip.officer_name || '-'}</td>
+                          <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800 whitespace-nowrap">{v.no_polisi}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-slate-700">{v.vehicle_type || '-'}</td>
+                          <td className="px-3 py-2 border border-slate-200">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border border-slate-300 bg-white text-slate-700">
                               {r.category}
                             </span>
                           </td>
-                          <td className={`${TABLE_CELL_GRID} `}>
-                            <span className={`${PILL} ${hasLoad ? PILL_OK : PILL_NEUTRAL}`}>
+                          <td className="px-3 py-2 border border-slate-200">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              hasLoad
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 bg-white text-slate-500'
+                            }`}>
                               {hasLoad ? 'Ada Muatan' : 'Tanpa Muatan'}
                             </span>
                           </td>
-                          <td className={`${TABLE_CELL_GRID} text-right`}>
+                          <td className="px-3 py-2 border border-slate-200 text-right">
                             <span className="block font-bold text-slate-900 tabular-nums">{fmtRp(r.tarif)}</span>
                             <span className="block text-[10px] text-slate-400">{tarifSourceLabel(v.tarif_source)}</span>
                           </td>
-                          <td className={`${TABLE_CELL_GRID} text-center`}>
+                          <td className="px-3 py-2 border border-slate-200 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <ThumbnailCell foto_path={v.foto_path} no_trip={r.trip.no_trip} label={v.no_polisi} />
                             </div>
                           </td>
-                          <td className={`${TABLE_CELL_GRID} `}>
+                          <td className="px-3 py-2 border border-slate-200">
                             {r.loc ? (
                               <a
                                 href={r.loc.gmaps}
@@ -589,15 +563,15 @@ export default function ReportSheet() {
               </tbody>
               {vehicleRows.length > 0 && (
                 <tfoot>
-                  <tr className={FOOT_ROW}>
-                    <td colSpan={7} className={`${FOOT_CELL} text-[12px]`}>
+                  <tr className="bg-slate-100 font-bold text-slate-700">
+                    <td colSpan={7} className="px-3 py-3 border border-slate-300 text-[12px]">
                       TOTAL {totalTrip} trip - {totalUnit} unit
                     </td>
-                    <td colSpan={4} className={FOOT_CELL} />
-                    <td className={`${FOOT_CELL} text-right font-black text-slate-900 tabular-nums`}>
+                    <td colSpan={4} className="border border-slate-300" />
+                    <td className="px-3 py-3 border border-slate-300 text-right font-black text-slate-900 tabular-nums">
                       {fmtRp(totalRevenue)}
                     </td>
-                    <td colSpan={2} className={FOOT_CELL} />
+                    <td colSpan={2} className="border border-slate-300" />
                   </tr>
                 </tfoot>
               )}
