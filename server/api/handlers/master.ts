@@ -184,25 +184,28 @@ export async function deleteDermaga(req: Request, id: string): Promise<Response>
     // Dermaga yang masih dipakai tidak dihapus. Dulu rute & akses petugas
     // ikut terhapus diam-diam lewat cascade; itu kehilangan data.
     const [routes, access] = await Promise.all([
-      db.from("routes").select("id", { count: "exact", head: true }).eq("dermaga_id", id),
-      db.from("officer_dermagas").select("officer_id", { count: "exact", head: true }).eq("dermaga_id", id),
+      db.from("routes").select("id, name", { count: "exact" }).eq("dermaga_id", id),
+      db.from("officer_dermagas").select("officer_id", { count: "exact" }).eq("dermaga_id", id),
     ]);
     if (routes.error || access.error) throw routes.error ?? access.error;
     if ((routes.count ?? 0) > 0) {
-      return json({ error: "Dermaga masih punya rute. Hapus rutenya dulu." }, 409);
+      // Sebut jumlahnya supaya operator tahu persis apa yang harus dibersihkan.
+      const names = (routes.data ?? []).map((r: any) => r.name).filter(Boolean);
+      const detail = names.length > 0 ? `: ${names.join(", ")}` : "";
+      return json({ error: `Dermaga gagal dihapus karena masih punya ${routes.count} rute${detail}` }, 409);
     }
     if ((access.count ?? 0) > 0) {
-      return json({ error: "Dermaga masih dipakai petugas. Pindahkan aksesnya dulu." }, 409);
+      return json({ error: `Dermaga gagal dihapus karena masih dipakai ${access.count} petugas` }, 409);
     }
     const { error } = await db.from("dermagas").delete().eq("id", id);
     if (error) {
       console.error("Delete dermaga error:", error);
-      return json({ error: "Gagal menghapus dermaga" }, 500);
+      return json({ error: `Dermaga gagal dihapus karena database menolak: ${dbDetail(error)}` }, 500);
     }
     return json({ success: true });
   } catch (error) {
     console.error("Delete dermaga error:", error);
-    return json({ error: "Failed to delete dermaga" }, 500);
+    return json({ error: `Dermaga gagal dihapus karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 
