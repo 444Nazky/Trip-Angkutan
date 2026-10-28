@@ -9,11 +9,16 @@
  *     dan Endpoint.
  *
  * Palet (dipakai user, jangan ganti):
- *   - #1E293B (slate-800) : bidang gelap - sidebar, header halaman, baris
- *                           pengelompok tabel.
- *   - #2563EB (blue-600)  : aksen utama - item menu aktif, garis aksen, tombol.
- *   - #FFFFFF             : permukaan kartu.
+ *   - #1E293B (slate-800) : bidang gelap - sidebar, baris pengelompok tabel.
+ *   - #2563EB (blue-600)  : aksen utama - item menu aktif, garis aksen header,
+ *                           kepala tabel, tombol.
+ *   - #FFFFFF             : permukaan kartu dan header halaman.
  *   - #F8FAFC (slate-50)  : latar area kerja.
+ *
+ * Aturan warna:
+ *   - Header halaman TETAP PUTIH (lihat `PAGE_HEADER`). Warna come dari aksen
+ *     biru di tepi kiri, bukan dari bidang gelap.
+ *   - Only sidebar + baris pengelompok tabel yang boleh gelap.
  *
  * Turunan (tint dari palet di atas, boleh):
  *   - Garis pemisah : slate-200 (kartu) / slate-100 (isi tabel).
@@ -48,22 +53,21 @@ export const STAT_VALUE = 'mt-1 text-2xl font-black text-slate-900'
 /** Label form. */
 export const LABEL = 'text-[11px] font-semibold text-slate-500'
 
-/** Kartu utama: permukaan putih dengan gradien tipis ke arah kanvas. */
-export const CARD =
-  'rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 shadow-sm'
+/** Kartu utama (permukaan putih di atas latar slate-50). */
+export const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
 
-/** Header halaman: bidang gelap #1E293B dengan garis aksen biru. */
+/** Header halaman: permukaan putih dengan garis aksen biru di tepi kiri. */
 export const PAGE_HEADER =
-  'relative overflow-hidden rounded-2xl bg-slate-800 px-6 py-4 text-white shadow-sm'
+  'relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm'
 
 /** Garis aksen biru di tepi kiri header halaman. */
 export const PAGE_HEADER_BAR = 'absolute inset-y-0 left-0 w-1 bg-blue-600'
 
-/** Judul di dalam header gelap. */
-export const PAGE_HEADER_TITLE = 'text-lg font-black text-white'
+/** Judul di dalam header. */
+export const PAGE_HEADER_TITLE = 'text-lg font-black text-slate-900'
 
-/** Subjudul di dalam header gelap. */
-export const PAGE_HEADER_SUB = 'mt-0.5 text-[12px] text-slate-300'
+/** Subjudul di dalam header. */
+export const PAGE_HEADER_SUB = 'mt-0.5 text-[12px] text-slate-500'
 
 /** Panel sekunder (latar sedikit lebih gelap dari kartu). */
 export const CARD_SUBTLE = 'rounded-2xl border border-slate-200 bg-slate-50'
@@ -116,8 +120,8 @@ export const PILL_OK = 'border-emerald-200 bg-emerald-50 text-emerald-700'
 /** Halaman penuh (sheet laporan & rekap): latar terang. */
 export const SHEET_BODY = 'min-h-screen bg-slate-50 text-slate-800'
 
-/** Header lengket di sheet laporan & rekap (bidang gelap). */
-export const SHEET_HEADER = 'sticky top-0 z-30 border-b border-slate-700 bg-slate-800 text-white'
+/** Header lengket di sheet laporan & rekap. */
+export const SHEET_HEADER = 'sticky top-0 z-30 border-b border-slate-200 bg-white text-slate-800'
 
 /** Keadaan kosong di dalam tabel. */
 export const EMPTY_STATE = 'p-8 text-center text-slate-400'

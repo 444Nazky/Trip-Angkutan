@@ -13,9 +13,8 @@ interface PageHeaderProps {
 /**
  * Header halaman admin.
  *
- * Semua halaman admin (kecuali tab "Pengaturan") memakai header gelap
- * #1E293B dengan garis aksen biru #2563EB, supaya halaman tidak terlihat
- * "polos full putih" dan konsisten antar tab.
+ * Permukaannya tetap putih (tidak bidang gelap) - warna datang dari aksen
+ * biru #2563EB di tepi kiri, badge status, dan kepala tabel.
  */
 export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
