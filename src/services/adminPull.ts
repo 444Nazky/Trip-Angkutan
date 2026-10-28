@@ -113,6 +113,8 @@ import {
   type StoredTariff,
 } from './masterTariffs'
 
+import { pullVehicleTypesToLocal } from './vehicleTypes'
+
 export {
   TARIFFS_STORAGE_KEY,
   TARIFF_UPDATED_EVENT,
@@ -131,6 +133,9 @@ export async function silentMasterSync(): Promise<void> {
     if (!sessionOk) return
     await pullRegionsToLocal().catch(() => 0)
     await pullTariffsToLocal().catch(() => 0)
+    // Master jenis kendaraan: satu-satunya daftar yang dipakai form kendaraan
+    // di HP dan dashboard admin.
+    await pullVehicleTypesToLocal().catch(() => 0)
     // Petugas, ketersediaan dermaga, rute, dan geofence ditangani syncOnResume.
     await syncOnResume(true).catch(() => {})
   } catch { /* senyap: saat offline tetap memakai cache lokal */ }

@@ -20,6 +20,7 @@
 import { refreshStoredRoutes, getStoredRoutes, cacheDockOfficers } from './auth'
 import { syncGeofencesFromBackend, getStoredGeofencePoints } from './geofence'
 import { pullTariffsToLocal, getStoredTariffs as getStoredTariffRows, TARIFF_UPDATED_EVENT } from './masterTariffs'
+import { pullVehicleTypesToLocal } from './vehicleTypes'
 import { syncOfficersToLocal } from './officers'
 import { pullOfflineMaster, getOfflineMasterStatus } from './offlineMaster'
 import type { UiRoute } from './auth'
@@ -121,6 +122,14 @@ async function doPrefetch(): Promise<PrefetchResult> {
       tariffs = getStoredTariffs()
       console.log('[prefetch] Tarif:', tariffs.length)
       return tariffs
+    })(),
+
+    // Master jenis kendaraan (dari database). Dipakai form kendaraan supaya
+    // pilihannya sama persis dengan dashboard admin.
+    (async () => {
+      const count = await pullVehicleTypesToLocal()
+      console.log('[prefetch] Jenis kendaraan:', count)
+      return count
     })(),
 
     // Akses dermaga petugas

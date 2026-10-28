@@ -1,5 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { officerList, tariffData } from './data'
+import {
+  VEHICLE_TYPES_UPDATED_EVENT,
+  getStoredVehicleTypes,
+  vehicleTypeKey,
+  type VehicleType,
+} from '../services/vehicleTypes'
 import {
   addToSyncQueue,
   onTripSynced,
@@ -11,10 +16,9 @@ import {
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
 import { dbAll, dbClear, dbGet, dbPutMany, initLocalDb, metaGet, metaSet } from '../services/localDb'
-import { syncOfficersToLocal, OFFICERS_UPDATED_EVENT } from '../services/officers'
+import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
-import { seedRoster } from '../services/seedData'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
 
@@ -131,7 +135,22 @@ export interface Draft {
 
 
 
-export type TariffRow = (typeof tariffData)[number] & { id?: string }
+/**
+ * Baris tarif untuk dipakai di perangkat.
+ *
+ * Tipe ini TIDAK lagi diturunkan dari data contoh bawaan - semua nilainya
+ * berasal dari master tarif server (lihat services/masterTariffs.ts).
+ */
+export interface TariffRow {
+  id?: string
+  golongan: string
+  type: string
+  loaded: string
+  loadedNum: number
+  empty: string
+  emptyNum: number
+  desc: string
+}
 
 
 
@@ -153,6 +172,8 @@ interface StoreValue {
   /** true setelah riwayat dimuat dari IndexedDB (sumber kebenaran). */
   tripsLoaded: boolean
   tariffs: TariffRow[]
+  /** Master jenis kendaraan (dari database) - sumber daftar pilihan di form kendaraan. */
+  vehicleTypes: VehicleType[]
   officers: Officer[]
   saveOfficers: (rows: Officer[]) => void
   draft: Draft
@@ -283,33 +304,39 @@ export function fmtElapsed(totalSec: number): string {
 
 
 
-export function tariffFor(vehicleType: string) {
-  const list = load(LS.tariffs, tariffData)
-  return (
-
-    list.find(t => t.type === vehicleType) ??
-
-    list.find(t => t.type.startsWith(vehicleType)) ??
-    list.find(t => vehicleType.startsWith(t.type)) ??
-    list.find(t => t.type === 'Truck Sedang') ??
-
-    tariffData.find(t => t.type === 'Truck Sedang') ??
-    tariffData[0]
-  )
+/**
+ * Cari tarif master untuk satu jenis kendaraan.
+ *
+ * Pencocokan memakai kunci normalisasi yang sama dengan server
+ * ("Truk Kecil" = "truk kecil" = "Truck Kecil"). Kalau jenisnya tidak ada di
+ * master, hasilnya `undefined` - BUKAN tarif contoh.
+ *
+ * Dulu fallback-nya "Truck Sedang" (atau baris pertama daftar contoh), jadi
+ * kendaraan yang tidak dikenal ikut membawa angka fiktif yang tersimpan di
+ * laporan. Harga yang dipakai server dihitung ulang dari master region saat
+ * trip dikirim, jadi angka di perangkat hanya perkiraan tampilan.
+ */
+export function tariffFor(vehicleType: string): TariffRow | undefined {
+  const list = load<TariffRow[]>(LS.tariffs, [])
+  const want = vehicleTypeKey(vehicleType)
+  if (!want) return undefined
+  return list.find(t => vehicleTypeKey(t.type) === want)
 }
 
 // Get golongan from tariff table for a vehicle type (for backend submission)
 export function golonganFor(vehicleType: string): string {
-  return tariffFor(vehicleType).golongan
+  return tariffFor(vehicleType)?.golongan ?? ''
 }
 
 /**
  * Tarif satu kendaraan sesuai kondisi muatannya.
  * Internal tidak ditagih; selain itu pakai loadedNum / emptyNum master tarif.
+ * Jenis tanpa tarif master -> 0 (tanpa tarif), bukan angka contoh.
  */
 export function vehicleTariff(vehicleType: string, category: string, load: 'loaded' | 'empty'): number {
   if (category.trim().toLowerCase() === 'internal') return 0
   const t = tariffFor(vehicleType)
+  if (!t) return 0
   return load === 'empty' ? t.emptyNum : t.loadedNum
 }
 
@@ -597,8 +624,16 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
 
 
 
+/**
+ * Isi ulang `dermagaAccess` yang kosong dari roster yang sudah tersinkron
+ * dari server.
+ *
+ * Dulu sumbernya adalah roster seed bawaan (nama & region contoh yang sudah
+ * DIHAPUS dari database) - jadi petugas bisa mendapat akses dermaga untuk
+ * wilayah yang tidak ada. Sekarang satu-satunya sumber adalah data server.
+ */
 export function healDermagaAccess(list: Officer[]): Officer[] {
-  const byId = new Map(seedRoster().map(s => [String(s.id), s.dermagaAccess ?? []]))
+  const byId = new Map(getStoredOfficers().map(s => [String(s.id), s.dermagaAccess ?? []]))
   return list.map(o => {
     if (o.dermagaAccess?.length) return o
     const fromSeed = byId.get(String(o.id))
@@ -612,16 +647,20 @@ export function healDermagaAccess(list: Officer[]): Officer[] {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
-  const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, officerList[0].id)))
+  const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, '')))
   // ponytail: JANGAN mengisi riwayat dengan data contoh. Riwayat & laporan
   // harus murni berasal dari trip yang benar-benar dicatat petugas di perangkat.
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, [] as Trip[])))
   // ponytail: tarif bisa di-update runtime oleh prefetch (master tarif server).
   // Dulu state-nya read-only -> hasil prefetch tidak pernah masuk ke UI.
-  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load(LS.tariffs, tariffData))
+  const [tariffs, setTariffs] = useState<TariffRow[]>(() => load<TariffRow[]>(LS.tariffs, []))
+  // Master jenis kendaraan (dari database). Dipakai form kendaraan supaya
+  // pilihannya sama persis dengan dashboard admin.
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(() => getStoredVehicleTypes())
   const [officers, setOfficers] = useState<Officer[]>(() => {
+    // Tidak ada roster contoh: daftar petugas hanya berasal dari server.
     const saved = load<Officer[]>(LS.officers, [])
-    return healDermagaAccess(saved.length ? saved : (seedRoster() as unknown as Officer[]))
+    return healDermagaAccess(saved)
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh /
@@ -732,11 +771,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [tariffs])
   useEffect(() => {
     const onTariffs = () => {
-      const next = load<TariffRow[]>(LS.tariffs, tariffData)
+      const next = load<TariffRow[]>(LS.tariffs, [])
       setTariffs(prev => (prev.length === next.length ? prev : next))
     }
     window.addEventListener(TARIFF_UPDATED_EVENT, onTariffs)
     return () => window.removeEventListener(TARIFF_UPDATED_EVENT, onTariffs)
+  }, [])
+  useEffect(() => {
+    const onTypes = () => setVehicleTypes(getStoredVehicleTypes())
+    window.addEventListener(VEHICLE_TYPES_UPDATED_EVENT, onTypes)
+    return () => window.removeEventListener(VEHICLE_TYPES_UPDATED_EVENT, onTypes)
   }, [])
   useEffect(() => {
     try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
@@ -774,7 +818,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } as Officer
       }
     } catch { /* fallthrough */ }
-    return officers[0] ?? officerList[0]
+    return officers[0]
   }, [officers, officerId])
 
   const login = useCallback((type: 'admin' | 'member') => {
@@ -1099,6 +1143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     trips,
     tripsLoaded,
     tariffs,
+    vehicleTypes,
     officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
@@ -1107,7 +1152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga,
     clearAllTrips,
-  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, officers, saveOfficers,
+  }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, vehicleTypes, officers, saveOfficers,
     draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
@@ -28,7 +28,16 @@ const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
 
 export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
-  const { draft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, tariffs } = useApp()
+  const {
+    draft,
+    patchDraft,
+    addVehicle,
+    patchDraftVehicle,
+    removeDraftVehicle,
+    editDraftVehicle,
+    tariffs,
+    vehicleTypes: masterTypes,
+  } = useApp()
   const { plate, type: vehicleType, category, load: vehicleLoad } = draft.vehicleForm
   const editingIndex = draft.editVehicleIndex ?? null
   const isEditing = editingIndex != null && !!draft.vehicles[editingIndex]
@@ -42,7 +51,22 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const plateInputRef = useRef<HTMLInputElement>(null)
   const lastValueRef = useRef(plate)
 
-  const vehicleTypes = tariffs.length > 0 ? tariffs.map(t => t.type) : ['Motor', 'Mobil', 'Truck Kecil', 'Truck Sedang', 'Truck Besar']
+  /**
+   * Pilihan jenis kendaraan.
+   *
+   * Sumbernya master jenis kendaraan di database (sama dengan yang dipakai
+   * dashboard admin). Kalau master belum terisi - misalnya perangkat baru
+   * belum pernah sync - dipakai daftar dari master tarif server.
+   *
+   * Dulu daftar ini DIHARDEKODE di sini ('Motor', 'Mobil', 'Truck Kecil', ...)
+   * dan berbeda dari daftar admin, jadi pilihan di HP tidak sama dengan
+   * pilihan di dashboard. Tidak ada lagi daftar hardcode.
+   */
+  const vehicleTypes = useMemo(() => {
+    const fromMaster = masterTypes.map((t) => t.name).filter(Boolean)
+    if (fromMaster.length > 0) return fromMaster
+    return tariffs.map((t) => t.type).filter(Boolean)
+  }, [masterTypes, tariffs])
   const categories = ['Internal', 'Eksternal', 'Lokal']
 
   const plateOk = PLATE_REGEX_STRICT.test(plate.trim())
@@ -315,6 +339,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             </select>
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
           </div>
+          {vehicleTypes.length === 0 && (
+            <p className="mt-1.5 text-[11px] text-amber-600">
+              Belum ada daftar jenis kendaraan di perangkat. Sambungkan ke server sekali untuk
+              menarik master jenis kendaraan.
+            </p>
+          )}
         </div>
 
         {/* Kategori — wajib */}
