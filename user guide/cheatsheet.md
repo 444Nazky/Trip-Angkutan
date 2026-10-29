@@ -325,11 +325,21 @@ curl -s -o /tmp/cek.apk "$SRV/files/apks/app-1.0.3.apk"
 | `applicationId` | `com.plantation.tripangkut` | sama |
 | `minSdkVersion` | `24` (Android 7.0) | sama |
 | `targetSdkVersion` | `36` | sama |
-| Ukuran APK | `16357720` byte | `16361480` byte |
-| SHA-256 | `c8cbac8926e938422db1d134dee0e00749e908fdcae3ff6e682edd8831ade22b` | `0ffac76a703e2372ef643a31767e4c96f4b47093bfada49fb3cf879f84aea77e` |
+| Ukuran APK | `16361420` byte | `16361420` byte |
+| SHA-256 | `d84ce58ea6e4fc40…` | `8c756e54607b0c5d…` |
 | Sertifikat SHA-256 | `09f181c1…` | `09f181c1…` (sama — wajib) |
 | Lokasi berkas di server | `apks/app-1.0.2.apk` | `apks/app-1.0.3.apk` |
 | `min_version` | — | `1.0.2` |
+
+> Berkas 1.0.2 yang **tersimpan di server** masih build lama
+> (`c8cbac8926e93842…`, 16357720 byte) — itu yang terpasang di HP petugas.
+> APK 1.0.2 di folder rilis adalah build **fixed** (tombol "Cek Update"
+> berfungsi) dengan `versionCode` tetap `11`, jadi bisa dipasang di atas
+> versi lama tanpa penolakan Android.
+
+> **Catatan:** Gradle menghapus berkas asing di `outputs/apk/release/` setiap
+> `assembleRelease`. Kalau folder itu perlu berisi kedua paket, salin
+> **setelah** build terakhir.
 
 ---
 
@@ -359,6 +369,7 @@ curl -s http://192.168.1.123:3000/api/server-stats | python3 -m json.tool | head
 
 | Jebakan | Gejala | Solusi |
 |---|---|---|
+| **Origin native dianggap "localhost dev"** | **Tombol "Cek Update" di HP mati total** — selalu "Sudah Terbaru", versi tampil "—", server tak pernah dihubungi | `isLocalhostDev()` di `src/services/runtimeEnv.ts` wajib keluar lebih dulu untuk `Capacitor.isNativePlatform()`. Aplikasi native dimuat dari origin `https://localhost` — itu BUKAN mode dev |
 | Versi sudah ada di `app_versions` | Publish `500`, hash di DB tetap yang lama → `HASH_MISMATCH` di perangkat | Pakai `publish-apk-republish.mjs` (bukan `publish-apk.mjs`) |
 | `versionCode` tidak naik | `INSTALL_FAILED_VERSION_DOWNGRADE` | Naikkan `versionCode` (1.0.3 = 12 > 1.0.2 = 11) |
 | `sync-version.mjs` menyentuh baris komentar | `versionCode` tidak berubah | Sudah diperbaiki; verifikasi dengan `grep versionCode android/app/build.gradle` |
@@ -374,6 +385,7 @@ curl -s http://192.168.1.123:3000/api/server-stats | python3 -m json.tool | head
 | `app_versions.version` diberi stempel `1.0.3+123` | `publish-version` menolak format | Semver murni: `1.0.3` |
 | APK "cocok" tapi hanya beberapa ratus byte | Installer terbuka lalu gagal | Cek `apkSize`; ambang minimum 1.000.000 byte |
 | Server intranet mati / IP berubah | Perangkat tidak bisa cek versi | Cek `curl http://192.168.1.123:3000/api/health`; preset endpoint di aplikasi |
+| Endpoint perangkat masih cloud | 1.0.3 versi lama = code 10, ditolak sebagai downgrade di atas code 11 | Pakai endpoint **Intranet Kantor** di Profil → Server |
 
 ---
 

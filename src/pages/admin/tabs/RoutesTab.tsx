@@ -415,14 +415,12 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[260px]">Nama Rute</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Asal</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Tujuan</th>
-              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Jarak</th>
-              <th className="px-3 py-2.5 border border-slate-200 text-left w-[110px]">Durasi</th>
               <th className="px-3 py-2.5 border border-slate-200 text-right w-[210px]">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {routeRows.length === 0 && (
-              <tr><td colSpan={7} className="p-8 text-center text-slate-400">
+              <tr><td colSpan={5} className="p-8 text-center text-slate-400">
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
@@ -430,14 +428,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
                 <tr className="bg-slate-800">
-                  <td colSpan={7} className="px-3 py-2 border border-slate-700 text-left">
+                  <td colSpan={5} className="px-3 py-2 border border-slate-700 text-left">
                     <span className="font-bold text-white text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
                     <tr className="bg-slate-100">
-                      <td colSpan={7} className="px-3 py-2 border border-slate-200 text-left">
+                      <td colSpan={5} className="px-3 py-2 border border-slate-200 text-left">
                         <span className="font-semibold text-slate-600 text-xs flex items-center gap-2">
                           <span className="w-1 h-1 rounded-full bg-slate-400" />
                           {dermagaName}
@@ -451,8 +449,6 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                         <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_to}</td>
-                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.distance || '—'}</td>
-                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-xs whitespace-nowrap">{r.duration || '—'}</td>
                         <td className="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">
                           <button onClick={() => startEdit(r)} className="text-blue-600 font-semibold text-xs mr-3 hover:underline">Edit</button>
                           <button onClick={() => void openGeofencePanel(r)} className="text-emerald-600 font-semibold text-xs mr-3 hover:underline inline-flex items-center gap-1">

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Server, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { semverLabel } from '../../services/ota'
-import { isIntranetBaseUrl, resolveApiBaseUrl } from '../../services/api'
-import ServerSettingsModal from '../../components/ServerSettingsModal'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useApp } from '../store'
@@ -26,7 +24,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const update = useAppUpdate()
   const [busy, setBusy] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
-  const [showServer, setShowServer] = useState(false)
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
@@ -200,27 +197,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           </div>
         </div>
       </section>
-
-
-
-
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <button
-          onClick={() => setShowServer(true)}
-          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Server size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Server / Endpoint</p>
-            <p className="mt-0.5 text-[10px] text-slate-400 truncate">{resolveApiBaseUrl()}</p>
-          </div>
-          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${isIntranetBaseUrl(resolveApiBaseUrl()) ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`}>
-            {isIntranetBaseUrl(resolveApiBaseUrl()) ? 'Intranet' : 'Kustom'}
-          </span>
-          <ChevronRight size={16} className="text-slate-400" />
-        </button>
-      </section>
-      {showServer && <ServerSettingsModal onClose={() => setShowServer(false)} />}
 
 
 

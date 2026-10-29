@@ -95,11 +95,35 @@ const checkNow = async () => {
 * `LOCALHOST_UPDATE_DISABLED` — bila dijalankan di `localhost` atau port dev
   (`5173`, `5174`, `3000`, `4200`, `8080`), seluruh alur dilewati dan state =
   `up-to-date`. Build lokal tidak pernah memicu unduhan APK.
+  **Aplikasi native dikecualikan** — lihat catatan "Jebakan origin native" di
+  bawah.
 * `_checking` — bila pemeriksaan sedang berjalan, promise yang sama dikembalikan.
   Klik ganda tidak memicu dua proses unduh.
 
 State UI setelah menekan: `checking` → tombol menjadi **"Memeriksa…"** dan
 nonaktif.
+
+> #### Jebakan origin native: tombol "Cek Update" mati total di HP
+>
+> Aplikasi Android (Capacitor) memuat halamannya dari origin **lokal**
+> `https://localhost`. Kalau `isLocalhostDev()` hanya memeriksa
+> `window.location.hostname`, origin itu dianggap "mode dev" — dan **seluruh
+> alur update mati di perangkat**:
+>
+> * tombol "Cek Update" selalu dijawab "Sudah Terbaru" (`up-to-date`) tanpa
+>   menghubungi server;
+> * baris versi di Profil tampil "Versi APK — · modul —";
+> * tombol "Perbarui Sekarang" tidak pernah muncul.
+>
+> Perbaikan: `isLocalhostDev()` (di `src/services/runtimeEnv.ts`) keluar lebih
+> dulu bila `Capacitor.isNativePlatform()` true, dan guard-nya dievaluasi saat
+> runtime (bukan sekali saat import) supaya platform native sudah terdeteksi
+> kapan pun modul dimuat. Tes regresinya ada di
+> `src/services/runtimeEnv.test.ts`.
+>
+> Catatan: tombol ini tetap **tidak** memasang apa pun secara otomatis —
+> pemeriksaan + unduhan terjadi di tombol "Cek & Perbarui", **pemasangan**
+> hanya setelah petugas menekan "Perbarui Sekarang".
 
 ---
 
@@ -423,7 +447,8 @@ Kode status error yang mungkin muncul di UI:
 | TC-07 | Di web/browser, tekan "Perbarui Sekarang" | `INSTALL_FAILED` "Pemasangan APK hanya bisa dari aplikasi Android" |
 | TC-08 | Pengguna membatalkan dialog installer | Installer tertutup; versi tetap 1.0.2; saat app hidup lagi state `ready` + pesan "Pemasangan belum selesai — aplikasi masih versi 1.0.2" |
 | TC-09 | APK terpasang, app dibuka lagi | `up-to-date`, `POST /report-version` terkirim dengan `1.0.3` |
-| TC-10 | Berjalan di `localhost:5173` | Cek update dilewati, tidak ada unduhan |
+| TC-10 | Berjalan di `localhost:5173` (browser dev) | Cek update dilewati, tidak ada unduhan |
+| TC-10b | **Aplikasi native** (origin `https://localhost`) | Cek update **tetap jalan** — guard dev tidak boleh memblokir native |
 | TC-11 | Klik "Cek & Perbarui" saat app tidak sedang foreground | Tetap manual — tidak ada polling background |
 | TC-12 | Publish ulang versi yang sama tanpa memperbarui `apk_hash` di database | `HASH_MISMATCH` — perangkat berhenti sebelum installer dibuka |
 | TC-13 | APK dilabeli 1.0.3, tetapi `versionName` di dalamnya 1.0.2 | Setelah dipasang versi tidak naik → "Pemasangan belum selesai" |

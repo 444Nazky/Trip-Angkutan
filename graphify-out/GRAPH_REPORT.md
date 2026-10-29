@@ -1,16 +1,16 @@
 # Graph Report - Trip-Angkutan  (2026-10-29)
 
 ## Corpus Check
-- 399 files · ~17,333,732 words
+- 400 files · ~17,334,572 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5679 nodes · 11754 edges · 338 communities (281 shown, 57 thin omitted)
+- 5681 nodes · 11753 edges · 337 communities (281 shown, 56 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 631 edges (avg confidence: 0.67)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5af28acd`
+- Built from commit: `35cb95b3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,10 +21,10 @@
 - tv
 - .addEventListener
 - cI
-- localDb.ts
+- Ct
 - services/auth.ts
-- Td
-- qm
+- wv
+- eA
 - json
 - api.ts
 - index.ts
@@ -41,7 +41,7 @@
 - zt
 - ReportSheet.tsx
 - brandkit/SKILL.md
-- wv
+- C
 - offlineDb.ts
 - _shared.ts
 - chunk-DnPqDswI.js
@@ -54,31 +54,31 @@
 - CORE DIRECTIVE: IMAGE-FIRST WEBSITE DESIGN TO CODE
 - CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION
 - QueryBuilder
-- sa
-- VehicleFormScreen.tsx
+- Et
+- q$1
 - App Hosting CLI Commands
 - import-to-intranet.mjs
-- masterTariffs.ts
+- adminPull.ts
 - reorderRows
 - devDependencies
 - dependencies
 - _metrics.ts
-- db
-- regionTariffsBulk.test.ts
+- gl
+- regionTariffs.ts
 - migrate-cloud-to-local.ts
 - appVersion.ts
 - updateFlow.test.ts
 - High-Agency Frontend Skill
-- Kn
-- officers.test.ts
-- L
+- qm
+- apkInstaller.ts
+- AdminDashboard.tsx
 - Alur Aplikasi Trip Angkutan — Dokumentasi Lengkap
 - lL
 - Deterministic Rules for Migration
 - Changelog
 - Trip Angkutan
-- 1. THE THREE DIALS (Core Configuration)
-- RoutesTab.tsx
+- Sd
+- RegionTab.render.test.tsx
 - Key Attributes
 - Angular Component
 - sync.ts
@@ -87,13 +87,13 @@
 - Architecture.md
 - chunk-NnUIhVLM.js
 - typescript-eslint
-- C
+- Ce
 - tariffRules.ts
 - Supabase
 - Changelog
 - Firebase Crashlytics - Android Setup Guide (Kotlin)
 - Firebase Remote Config - Android Setup Guide (Kotlin)
-- apkInstaller.ts
+- hL
 - publish-apk-republish.mjs
 - compilerOptions
 - _db.ts
@@ -203,7 +203,7 @@
 - 11. COMPONENT EXECUTION GUIDELINES
 - 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE
 - 2. Core Requirements
-- AdminDashboard.tsx
+- RoutesTab.tsx
 - eslint
 - lock-deadlock-prevention.md
 - lock-short-transactions.md
@@ -292,7 +292,7 @@
 - query-partial-indexes.md
 - restart-all-ubuntu.sh
 - architect
-- va
+- Td
 - reset-trip-data.sh
 - schema-constraints.md
 - development
@@ -301,8 +301,9 @@
 - Package.swift
 - lintFilePatterns
 - capacitor.config.ts
-- tailwindcss
+- _officerExtras.ts
 - inspect.mjs
+- eslint-plugin-react-hooks
 - eslint.config.js
 - verify-apks.mjs
 - schema-foreign-key-indexes.md
@@ -317,9 +318,7 @@
 - encode.sh
 - security-rls-performance.md
 - _template.md
-- sy
 - restart-all.sh
-- iA
 - styles
 - fake-indexeddb
 - rxjs
@@ -346,9 +345,9 @@
 10. `ensureJeepSqliteIsAvailable()` - 37 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Lt$1()` --indirect_call--> `vt$1()`  [INFERRED]
+- `sI()` --indirect_call--> `nI()`  [INFERRED]
   admin-www/assets/js/main-EYWHXVOC.js → assets/js/main-MPVPD54R.js
-- `T1()` --indirect_call--> `k1()`  [INFERRED]
+- `cI()` --indirect_call--> `II()`  [INFERRED]
   assets/js/main-MPVPD54R.js → admin-www/assets/js/main-EYWHXVOC.js
 - `findAapt2()` --indirect_call--> `c()`  [INFERRED]
   scripts/verify-apks.mjs → admin-www/assets/js/main-EYWHXVOC.js
@@ -360,15 +359,15 @@
 ## Import Cycles
 - None detected.
 
-## Communities (338 total, 57 thin omitted)
+## Communities (337 total, 56 thin omitted)
 
 ### Community 0 - "c"
-Cohesion: 0.09
-Nodes (79): R(), aT(), _b(), bc(), Be(), be$1(), Bg(), c() (+71 more)
+Cohesion: 0.08
+Nodes (82): R(), aT(), _b(), bc(), Be(), be$1(), Bg(), c() (+74 more)
 
 ### Community 1 - "main-MPVPD54R.js"
 Cohesion: 0.02
-Nodes (138): A(), aa(), ac(), ad(), addListener(), addWindowListener(), Af(), Ax() (+130 more)
+Nodes (136): A(), a2(), aa(), ac(), addListener(), addWindowListener(), Af(), aw() (+128 more)
 
 ### Community 2 - "tt"
 Cohesion: 0.07
@@ -376,51 +375,51 @@ Nodes (48): $a(), Ba(), D$1(), du(), dy(), Ee(), et(), gs() (+40 more)
 
 ### Community 3 - "tv"
 Cohesion: 0.04
-Nodes (88): Ah(), Ao(), ap(), Ar(), av(), ay(), Bm(), Bp() (+80 more)
+Nodes (83): a0(), Ac(), Ar(), av(), ay(), Bm(), Bp(), Br() (+75 more)
 
 ### Community 4 - ".addEventListener"
 Cohesion: 0.06
-Nodes (60): fo(), sf(), ZI(), $2(), ah(), ap(), ar(), au() (+52 more)
+Nodes (69): fo(), Ql(), sf(), $0(), $2(), ah(), ap(), ar() (+61 more)
 
 ### Community 5 - "cI"
-Cohesion: 0.07
-Nodes (63): II(), a0(), ai(), aL(), Ao(), bf(), Cc(), Cf() (+55 more)
+Cohesion: 0.06
+Nodes (54): a0(), ad(), ai(), aL(), Am(), b0(), Bc(), Cc() (+46 more)
 
-### Community 6 - "localDb.ts"
-Cohesion: 0.13
-Nodes (28): fullTrip(), prepareColdStart(), Probe(), readStored(), seen, stripTripPhotos(), ALL_STORES, dbAll() (+20 more)
+### Community 6 - "Ct"
+Cohesion: 0.09
+Nodes (31): aA(), AI(), Ct(), DN(), fm(), fp(), fs(), gp() (+23 more)
 
 ### Community 7 - "services/auth.ts"
-Cohesion: 0.05
-Nodes (71): LoginPage(), LoginPageProps, tryOfflineLogin(), DermagaSelectScreen(), DermagaSelectScreenProps, PinVerifyScreen(), PinVerifyScreenProps, getStoredRegions() (+63 more)
+Cohesion: 0.07
+Nodes (51): LoginPage(), LoginPageProps, tryOfflineLogin(), DermagaSelectScreen(), DermagaSelectScreenProps, PinVerifyScreen(), api, clearCredentials() (+43 more)
 
-### Community 8 - "Td"
+### Community 8 - "wv"
+Cohesion: 0.10
+Nodes (31): $b(), bd(), bp(), bv(), c2(), cv(), dp(), g2() (+23 more)
+
+### Community 9 - "eA"
 Cohesion: 0.06
-Nodes (58): Ag(), Am(), au(), Aw(), Bd(), Bf(), bt(), bw() (+50 more)
-
-### Community 9 - "qm"
-Cohesion: 0.04
-Nodes (75): a1(), aA(), Ab(), af(), AI(), Al(), An(), apply() (+67 more)
+Nodes (54): af(), Al(), An(), b1(), Bb(), cL(), cy(), d0() (+46 more)
 
 ### Community 11 - "json"
-Cohesion: 0.10
-Nodes (58): deleteGeofence(), createDermaga(), createRegion(), createTariff(), deleteDermaga(), deleteRegion(), deleteTariff(), getAdminTariffs() (+50 more)
+Cohesion: 0.11
+Nodes (56): deviceVersions(), deleteGeofence(), createDermaga(), createRegion(), createTariff(), deleteDermaga(), deleteRegion(), deleteTariff() (+48 more)
 
 ### Community 12 - "api.ts"
 Cohesion: 0.08
-Nodes (56): EndpointPicker(), messageFor(), Props, Status, Props, ServerSettingsModal(), Status, statusFromProbe() (+48 more)
+Nodes (53): EndpointPicker(), messageFor(), Props, Status, Props, ServerSettingsModal(), Status, statusFromProbe() (+45 more)
 
 ### Community 13 - "index.ts"
 Cohesion: 0.08
-Nodes (46): cacheGet(), cacheInvalidate(), cacheKey(), cacheSet(), cacheSweep(), defaultTtl(), Entry, ROUTE_TTL (+38 more)
+Nodes (48): cacheGet(), cacheInvalidate(), cacheKey(), cacheSet(), cacheSweep(), defaultTtl(), Entry, ROUTE_TTL (+40 more)
 
 ### Community 14 - "handlers/trips.ts"
 Cohesion: 0.09
-Nodes (43): normalizeGolongan(), asUuidOrNull(), columnCache, completeTrip(), countLinkedVehicles(), createTrip(), deleteVehicleRows(), explainDbError() (+35 more)
+Nodes (43): normalizeCategory(), normalizeGolongan(), asUuidOrNull(), columnCache, completeTrip(), countLinkedVehicles(), createTrip(), deleteVehicleRows() (+35 more)
 
 ### Community 15 - "store.tsx"
 Cohesion: 0.06
-Nodes (54): activeRoutes(), allTrips, DermagaAccess, ConfirmDialog, TripSummaryScreen(), TripSummaryScreenProps, applyQueuedPhotos(), AppProvider() (+46 more)
+Nodes (62): applyQueuedPhotos(), AppProvider(), EMPTY_OFFICER, emptyDraft, fmtClock(), fmtElapsed(), formatRp(), hasTripPhoto() (+54 more)
 
 ### Community 16 - "ServerStatsPanel.tsx"
 Cohesion: 0.12
@@ -431,32 +430,32 @@ Cohesion: 0.07
 Nodes (38): addUpgradeStatement(), beginTransaction(), checkConnectionsConsistency(), close(), closeConnection(), commitTransaction(), copyFromAssets(), createConnection() (+30 more)
 
 ### Community 18 - "a2"
-Cohesion: 0.09
-Nodes (29): _0(), a2(), B0(), bk(), c5(), cf(), co(), d5() (+21 more)
+Cohesion: 0.08
+Nodes (32): _0(), a2(), B0(), bk(), c5(), cf(), co(), d5() (+24 more)
 
 ### Community 19 - "vI"
 Cohesion: 0.13
 Nodes (25): pl(), bI(), bn(), cy(), D1(), Do(), eC(), fe() (+17 more)
 
 ### Community 20 - "bL"
-Cohesion: 0.08
-Nodes (59): Ft(), sn(), bL(), bm(), Cm(), e0(), Ee(), fa() (+51 more)
+Cohesion: 0.07
+Nodes (69): Ft(), va(), Ax(), bL(), bm(), Cm(), da(), dt() (+61 more)
 
 ### Community 21 - "App.tsx"
-Cohesion: 0.18
-Nodes (16): AdminAutoLogin(), App(), Shell(), api, setAdminCredentials(), cacheGpsFix(), startGpsWatch(), stopGpsWatch() (+8 more)
+Cohesion: 0.19
+Nodes (15): AdminAutoLogin(), App(), Shell(), setAdminCredentials(), startGpsWatch(), stopGpsWatch(), checkAndRequestLocationOnStartup(), checkLocationPermission() (+7 more)
 
 ### Community 22 - "main-EYWHXVOC.js"
 Cohesion: 0.02
-Nodes (155): $$1(), _3(), $5(), a3(), applyApk(), applyModule(), b3(), baseUrl() (+147 more)
+Nodes (170): $$1(), _3(), $5(), a3(), Ah(), Ao(), apply(), applyApk() (+162 more)
 
 ### Community 23 - "geofence.ts"
 Cohesion: 0.06
-Nodes (68): DraftPoint, emptyDraft, GeofenceConfigScreen(), parseRoutes(), RouteSelectScreen(), cacheDockOfficers(), getStoredRoutes(), refreshStoredRoutes() (+60 more)
+Nodes (70): activeRoutes(), allTrips, DermagaAccess, DraftPoint, emptyDraft, GeofenceConfigScreen(), parseRoutes(), RouteSelectScreen() (+62 more)
 
 ### Community 24 - "zt"
-Cohesion: 0.11
-Nodes (23): a2(), dv(), dx(), e2(), hv(), id(), Jw(), jy() (+15 more)
+Cohesion: 0.22
+Nodes (12): dx(), hv(), id(), jy(), ls(), n2(), o2(), ping() (+4 more)
 
 ### Community 25 - "ReportSheet.tsx"
 Cohesion: 0.07
@@ -466,17 +465,17 @@ Nodes (62): CurrencyDisplay(), CurrencyDisplayProps, Photo, PhotoViewer(), Photo
 Cohesion: 0.05
 Nodes (43): 1. Logo Cover, 1. Monogram + Meaning, 2 × 3 REFERENCE-STYLE LAYOUT, 2. Logo Construction, 2. Product Action, 3. Digital Application, 3. Metaphor Fusion, 4. Brand Essence (+35 more)
 
-### Community 27 - "wv"
+### Community 27 - "C"
 Cohesion: 0.07
-Nodes (40): $b(), bd(), bp(), bv(), c2(), cv(), d2(), dp() (+32 more)
+Nodes (32): Ao(), bx(), C(), c0(), dn(), ef(), ei(), Gg() (+24 more)
 
 ### Community 28 - "offlineDb.ts"
-Cohesion: 0.13
-Nodes (28): seedTestOfficer(), fnv1a(), getPinHash(), hashPin(), initOfflineDb(), listOfficers(), LocalBackend, lsCredentials() (+20 more)
+Cohesion: 0.07
+Nodes (42): seedTestOfficer(), syncOfficerCredentials(), SyncResult, BackendOfficer, CacheEntry, fetchBackendOfficers(), getStoredOfficers(), loadCache() (+34 more)
 
 ### Community 29 - "_shared.ts"
-Cohesion: 0.09
-Nodes (26): adminLogin(), authRateLimiter(), login(), memberLogin(), rateBuckets, rateLimit(), refreshToken(), regionLogin() (+18 more)
+Cohesion: 0.11
+Nodes (24): adminLogin(), authRateLimiter(), login(), memberLogin(), rateBuckets, rateLimit(), refreshToken(), regionLogin() (+16 more)
 
 ### Community 30 - "chunk-DnPqDswI.js"
 Cohesion: 0.23
@@ -484,19 +483,19 @@ Nodes (18): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRe
 
 ### Community 31 - "Ye"
 Cohesion: 0.06
-Nodes (61): Ac(), Bo(), ca(), Ct(), dt(), Eh(), eI(), em() (+53 more)
+Nodes (53): a1(), au(), Bl(), Bo(), bv(), componentDidCatch(), cv(), d3() (+45 more)
 
 ### Community 33 - "Deploy API Intranet ke `ubuntu.local` (192.168.1.123)"
 Cohesion: 0.13
 Nodes (11): 1. Ambil kode terbaru, 2. Pasang secret, 3. Jalankan, 4. Verifikasi (di `ubuntu.local` maupun dari `blackarch`), Deploy API Intranet ke `ubuntu.local` (192.168.1.123), Jebakan yang sudah pernah kejadian, Kalau `ubuntu.local` memang tidak mau dipakai, Kenapa dokumen ini perlu (+3 more)
 
 ### Community 34 - "ota.ts"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (54): FORCE_ROSTER_SYNC_KEY, activateBundle(), activateStagedBundle(), ActiveMeta, applyUpdate(), assetPath(), auditOta(), checkForUpdate() (+46 more)
 
 ### Community 35 - "MobileApp.tsx"
-Cohesion: 0.08
-Nodes (43): EndpointScreen(), EndpointScreenProps, FloatingBottomNav(), FloatingBottomNavProps, NavConfirmDialog, NavItem, navItems, GeofenceConfigScreenProps (+35 more)
+Cohesion: 0.06
+Nodes (58): UpdateNotifier(), UpdateNotifierProps, useAppUpdate(), CameraScreenProps, EndpointScreen(), EndpointScreenProps, FloatingBottomNav(), FloatingBottomNavProps (+50 more)
 
 ### Community 36 - "updateService.ts"
 Cohesion: 0.08
@@ -514,13 +513,13 @@ Nodes (34): 10. IMAGE-FIRST CODEX WEBSITE WORKFLOW, 11. WHEN TO TRIGGER IMAGE GE
 Cohesion: 0.06
 Nodes (34): 10. DEVICE MOCKUP FRAME RULE, 11. ONBOARDING FLOW RULE, 12. FIRST SCREEN CLEANLINESS RULE, 13. SAFE AREA AND SYSTEM REGION RULE, 14. NAVIGATION RULE, 15. CLEAN LAYOUT RULE, 16. CREATIVE IMAGE DIRECTION RULE, 17. BACKGROUND TEXTURE AND SURFACE RULE (+26 more)
 
-### Community 41 - "sa"
-Cohesion: 0.04
-Nodes (71): $0(), ae$1(), Am(), ar$1(), At(), aw(), ay(), B$1() (+63 more)
+### Community 41 - "Et"
+Cohesion: 0.08
+Nodes (39): ae$1(), ar$1(), At(), Be$1(), Ca(), Dd(), De(), _e() (+31 more)
 
-### Community 42 - "VehicleFormScreen.tsx"
-Cohesion: 0.23
-Nodes (16): VehicleFormScreen(), VehicleFormScreenProps, golonganFor(), tariffFor(), vehicleTariff(), checkPlate(), formatPlateNumber(), getPlateSegments() (+8 more)
+### Community 42 - "q$1"
+Cohesion: 0.12
+Nodes (20): be$2(), Fe(), Gt(), He$1(), je(), Lt$1(), pe$2(), q$1() (+12 more)
 
 ### Community 43 - "App Hosting CLI Commands"
 Cohesion: 0.06
@@ -530,9 +529,9 @@ Nodes (30): App Hosting CLI Commands, Automated deployment via GitHub (CI/CD), B
 Cohesion: 0.11
 Nodes (21): args, BUCKETS, CLOUD_URL, cloudGet(), cloudHeaders(), DRY_RUN, envFile, fetchObject() (+13 more)
 
-### Community 45 - "masterTariffs.ts"
-Cohesion: 0.15
-Nodes (9): fmtRp(), saveTariffs(), ServerTariff, StoredTariff, TARIFF_UPDATED_EVENT, TARIFFS_STORAGE_KEY, toStoredTariff(), BACKEND_ROWS (+1 more)
+### Community 45 - "adminPull.ts"
+Cohesion: 0.14
+Nodes (20): getStoredRegions(), pullRegionsToLocal(), REGIONS_STORAGE_KEY, saveRegions(), silentMasterSync(), StoredRegion, syncOnResume(), getStoredDermaga() (+12 more)
 
 ### Community 46 - "reorderRows"
 Cohesion: 0.50
@@ -548,23 +547,23 @@ Nodes (33): @angular/core, bcryptjs, @capacitor/app, @capacitor/camera, @capacit
 
 ### Community 49 - "_metrics.ts"
 Cohesion: 0.08
-Nodes (38): checkAuth(), checkDatabase(), checkStorage(), Component, ComponentStatus, formatUptime(), serverStats(), ServerStatsResponse (+30 more)
+Nodes (36): checkAuth(), checkDatabase(), checkStorage(), Component, ComponentStatus, formatUptime(), serverStats(), ServerStatsResponse (+28 more)
 
-### Community 50 - "db"
-Cohesion: 0.26
-Nodes (12): db, chunks(), IMPORT_BUCKETS, IMPORT_TABLES, importData(), checkPlate(), createPlate(), getPlates() (+4 more)
+### Community 50 - "gl"
+Cohesion: 0.15
+Nodes (23): df(), dm(), fl(), gl(), hI(), ie$1(), iu(), jt() (+15 more)
 
-### Community 51 - "regionTariffsBulk.test.ts"
-Cohesion: 0.29
-Nodes (4): deletedQueries, saved, SavedRow, server
+### Community 51 - "regionTariffs.ts"
+Cohesion: 0.16
+Nodes (15): asInt(), bulkUpdateRegionTariffRows(), deleteRegionTariffRow(), isUuid(), saved, server, typeKey(), updateRegionFlat() (+7 more)
 
 ### Community 52 - "migrate-cloud-to-local.ts"
 Cohesion: 0.16
 Nodes (18): BUCKETS, checkLocalRest(), CLOUD_URL, cloudGet(), cloudHeaders(), copyObject(), FILE_COLUMNS, listObjects() (+10 more)
 
 ### Community 53 - "appVersion.ts"
-Cohesion: 0.20
-Nodes (18): absoluteUrl(), apkList(), appDownload(), compareVersionFilter(), compareVersions(), compareVersionsNoStamp(), deviceVersions(), getAppVersion() (+10 more)
+Cohesion: 0.22
+Nodes (17): absoluteUrl(), apkList(), appDownload(), compareVersionFilter(), compareVersions(), compareVersionsNoStamp(), getAppVersion(), isForce() (+9 more)
 
 ### Community 54 - "updateFlow.test.ts"
 Cohesion: 0.11
@@ -574,21 +573,25 @@ Nodes (4): h, nodeSpecifier, readFile(), toBase64()
 Cohesion: 0.06
 Nodes (30): 10. FINAL PRE-FLIGHT CHECK, 1. ACTIVE BASELINE CONFIGURATION, 2. DEFAULT ARCHITECTURE & CONVENTIONS, 3. DESIGN ENGINEERING DIRECTIVES (Bias Correction), 4. CREATIVE PROACTIVITY (Anti-Slop Implementation), 5. PERFORMANCE GUARDRAILS, 6. TECHNICAL REFERENCE (Dial Definitions), 7. AI TELLS (Forbidden Patterns) (+22 more)
 
-### Community 56 - "Kn"
-Cohesion: 0.07
-Nodes (45): a0(), Ad(), by(), c1(), cI(), d1(), dI(), dv() (+37 more)
+### Community 56 - "qm"
+Cohesion: 0.08
+Nodes (36): Ab(), Ad(), ap(), bh(), c1(), cI(), d1(), dI() (+28 more)
 
-### Community 58 - "L"
-Cohesion: 0.20
-Nodes (19): sI(), df(), fl(), gl(), Go(), iu(), L(), _m() (+11 more)
+### Community 57 - "apkInstaller.ts"
+Cohesion: 0.27
+Nodes (8): ApkInstaller, ApkInstallerPlugin, isNativeAndroid(), LegacyFileOpener, legacyOpen(), normalizeAbsolutePath(), openApkInstaller(), OpenInstallerResult
+
+### Community 58 - "AdminDashboard.tsx"
+Cohesion: 0.16
+Nodes (15): AdminDashboard(), EndpointTab(), EndpointTabProps, statsPayload, SettingsTab(), ACCENT_OPTIONS, AccentKey, AdminTheme (+7 more)
 
 ### Community 59 - "Alur Aplikasi Trip Angkutan — Dokumentasi Lengkap"
 Cohesion: 0.12
 Nodes (16): 3.1 Mekanisme Sync (`sync.ts`), 3.2 Status Sinkronisasi Trip, 3.3 Refresh Backend Session (`auth.ts:89-98`), 3. Sinkronisasi & Offline-First, 4.1 Region & Rute (`data.ts:3-8`), 4.2 Master Tarif (`data.ts:19-25`), 4.3 Kategori Kendaraan Mobile (`VehicleFormScreen.tsx:119-137`), 4.4 Status Plat Nomor (`plates.ts` + `data.ts`) (+8 more)
 
 ### Community 60 - "lL"
-Cohesion: 0.08
-Nodes (34): a5(), Bl(), ds(), e5(), el(), Fh(), fy(), Hk() (+26 more)
+Cohesion: 0.07
+Nodes (40): a5(), e5(), Eh(), Ep(), Fb(), Fi(), G1(), _h() (+32 more)
 
 ### Community 61 - "Deterministic Rules for Migration"
 Cohesion: 0.07
@@ -602,13 +605,13 @@ Nodes (20): [0.1.3](https://github.com/supabase/agent-skills/compare/v0.1.2...v0
 Cohesion: 0.13
 Nodes (15): Development, Engineering highlights, For the field officer — a trip that cannot be lost, For the office — billing that survives a bad connection, For the supervisor — one screen for the whole operation, Further documentation, How it is built, Quality (+7 more)
 
-### Community 64 - "1. THE THREE DIALS (Core Configuration)"
-Cohesion: 0.50
-Nodes (4): 1.A Dial Inference (design read → dial values), 1.B Use-Case Presets, 1.C How the Dials Drive Output, 1. THE THREE DIALS (Core Configuration)
+### Community 64 - "Sd"
+Cohesion: 0.33
+Nodes (10): km(), Ld(), RI(), Sd(), Sm(), vd(), wl(), xm() (+2 more)
 
-### Community 65 - "RoutesTab.tsx"
-Cohesion: 0.10
-Nodes (37): OfficersTab(), labelOf(), RegionTab(), RegionTabProps, RowDermaga, RowOfficer, RowRegion, RowRoute (+29 more)
+### Community 65 - "RegionTab.render.test.tsx"
+Cohesion: 0.11
+Nodes (25): react, react, Officer, mergeBackendOfficers(), OfficersTab(), OfficersTabProps, labelOf(), RegionTab() (+17 more)
 
 ### Community 66 - "Key Attributes"
 Cohesion: 0.08
@@ -620,7 +623,7 @@ Nodes (24): Angular Component Patterns, Attribute Directives on Components, Chil
 
 ### Community 68 - "sync.ts"
 Cohesion: 0.07
-Nodes (59): SyncFailureToast(), initLocalDb(), acquireLock(), addToSyncQueue(), backoffMs(), dataUrlToBlobManual(), dbGetById(), derivePhotos() (+51 more)
+Nodes (57): SyncFailureToast(), initLocalDb(), acquireLock(), addToSyncQueue(), backoffMs(), dataUrlToBlobManual(), dbGetById(), derivePhotos() (+49 more)
 
 ### Community 69 - "Configuration Reference"
 Cohesion: 0.08
@@ -638,13 +641,13 @@ Nodes (17): 10. Error Handling, 11. Security Considerations, 1. System Overview,
 Cohesion: 0.22
 Nodes (19): appendFile(), clear(), constructor(), copy(), dbIndexRequest(), dbRequest(), deleteFile(), E() (+11 more)
 
-### Community 74 - "C"
-Cohesion: 0.07
-Nodes (46): kx(), bg(), Bt(), C(), c0(), Ce(), Cr(), dn() (+38 more)
+### Community 74 - "Ce"
+Cohesion: 0.06
+Nodes (55): An(), ay(), bf(), bg(), Bt(), Cd(), Ce(), Cr() (+47 more)
 
 ### Community 75 - "tariffRules.ts"
-Cohesion: 0.09
-Nodes (33): dateRange(), EffectiveTariff, fetchPlateCategories(), matchesGolongan(), normalizeLegacyCategory(), normalizePlateStatus(), OPERATIONAL_CATEGORIES, plateKey() (+25 more)
+Cohesion: 0.07
+Nodes (36): db, chunks(), IMPORT_BUCKETS, IMPORT_TABLES, importData(), dateRange(), EffectiveTariff, fetchPlateCategories() (+28 more)
 
 ### Community 76 - "Supabase"
 Cohesion: 0.11
@@ -662,9 +665,9 @@ Nodes (21): 1. Add dependencies to Gradle build files, 2. *Optional:* Install th
 Cohesion: 0.08
 Nodes (21): 1. Add dependencies to Gradle build files, 2. Set in-app defaults, 3. Fetch and activate values, Firebase Remote Config - Android Setup Guide (Kotlin), Prerequisites, Add Swift Package Dependencies, Fetch and Activate Values, Firebase Remote Config iOS Setup Guide (+13 more)
 
-### Community 80 - "apkInstaller.ts"
-Cohesion: 0.27
-Nodes (8): ApkInstaller, ApkInstallerPlugin, isNativeAndroid(), LegacyFileOpener, legacyOpen(), normalizeAbsolutePath(), openApkInstaller(), OpenInstallerResult
+### Community 80 - "hL"
+Cohesion: 0.25
+Nodes (6): hL(), kI(), Mo(), rx(), vm(), wy()
 
 ### Community 81 - "publish-apk-republish.mjs"
 Cohesion: 0.39
@@ -708,7 +711,7 @@ Nodes (20): @col, Contents, Core Directives, Customizing Tables, Data Types, @de
 
 ### Community 91 - "tariffs.ts"
 Cohesion: 0.07
-Nodes (34): react, react, TariffRow, renderTab(), Cell, digits(), EMPTY_FORM, fmtNum() (+26 more)
+Nodes (43): Cell, digits(), EMPTY_FORM, fmtNum(), iconForType(), normalizeType(), prettyType(), renderTab() (+35 more)
 
 ### Community 92 - "Design Audit"
 Cohesion: 0.10
@@ -771,8 +774,8 @@ Cohesion: 0.20
 Nodes (9): 1. Query Performance (query), 2. Connection Management (conn), 3. Security & RLS (security), 4. Schema Design (schema), 5. Concurrency & Locking (lock), 6. Data Access Patterns (data), 7. Monitoring & Diagnostics (monitor), 8. Advanced Features (advanced) (+1 more)
 
 ### Community 108 - "get"
-Cohesion: 0.12
-Nodes (38): Nl(), Ae(), As(), Bc(), bw(), Ct(), cw(), cx() (+30 more)
+Cohesion: 0.10
+Nodes (42): Nl(), Ae(), As(), bw(), by(), Ct(), cw(), cx() (+34 more)
 
 ### Community 109 - "AI Rules - Trip Angkutan"
 Cohesion: 0.07
@@ -783,8 +786,8 @@ Cohesion: 0.22
 Nodes (14): anim(), clamp01(), DAYS, easeInOut(), easeOut(), fadeTo(), nf, render() (+6 more)
 
 ### Community 111 - "tasteskill: Anti-Slop Frontend Skill"
-Cohesion: 0.18
-Nodes (11): 0.A Read these signals first, 0.B Output a one-line "Design Read" before generating, 0. BRIEF INFERENCE (Read the Room Before Anything Else), 0.C If the brief is ambiguous, ask one question, do not guess, 0.D Anti-Default Discipline, 13. OUT OF SCOPE, 14. FINAL PRE-FLIGHT CHECK, 2.A When to reach for a real design system (use official packages) (+3 more)
+Cohesion: 0.13
+Nodes (15): 0.A Read these signals first, 0.B Output a one-line "Design Read" before generating, 0. BRIEF INFERENCE (Read the Room Before Anything Else), 0.C If the brief is ambiguous, ask one question, do not guess, 0.D Anti-Default Discipline, 13. OUT OF SCOPE, 14. FINAL PRE-FLIGHT CHECK, 1.A Dial Inference (design read → dial values) (+7 more)
 
 ### Community 112 - "Appendix B - Canonical Sources (read these before reinventing)"
 Cohesion: 0.13
@@ -890,6 +893,10 @@ Nodes (12): Basic CRUD Schema, Client Subscribe (Web), connector.yaml Template, 
 Cohesion: 0.10
 Nodes (20): 10. Kenapa Arsitektur Ini, 11. Catatan & Kendala Aktual, 12. Rujukan File, 1.1 Dua endpoint, satu kode, 1. Ringkasan Arsitektur, 2. Komponen Klien & Peran Tiap File, 3.1 Cek Versi (version check), 3.2 Unduh APK (binary) (+12 more)
 
+### Community 139 - "AppUpdateController"
+Cohesion: 0.14
+Nodes (4): AppUpdateController, updateDisabled(), isLocalhostDev(), cap
+
 ### Community 140 - "scripts"
 Cohesion: 0.14
 Nodes (14): scripts, build, build:raw, cache:clean, dev, docs:screenshots, lint, ng (+6 more)
@@ -907,8 +914,8 @@ Cohesion: 0.31
 Nodes (5): getId(), getInfo(), getUid(), parseUa(), uuid4()
 
 ### Community 144 - "services/plates.ts"
-Cohesion: 0.11
-Nodes (30): PlatesTab(), PlatesTabProps, findOfflinePlate(), getOfflineMaster(), getOfflineRegionCode(), getOfflineRegionTariff(), isPlateStatus(), normalizePlateKey() (+22 more)
+Cohesion: 0.08
+Nodes (45): PlatesTab(), PlatesTabProps, VehicleFormScreen(), VehicleFormScreenProps, golonganFor(), tariffFor(), vehicleTariff(), findOfflinePlate() (+37 more)
 
 ### Community 145 - "4. DESIGN ENGINEERING DIRECTIVES (Bias Correction)"
 Cohesion: 0.17
@@ -1003,8 +1010,8 @@ Cohesion: 0.20
 Nodes (9): 1. Protocol Overview, 2. Absolute Negative Constraints (Banned Elements), 3. Typographic Architecture, 4. Color Palette (Warm Monochrome + Spot Pastels), 5. Component Specifications, 6. Iconography & Imagery Directives, 7. Subtle Motion & Micro-Animations, 8. Execution Protocol (+1 more)
 
 ### Community 178 - "appUpdate.ts"
-Cohesion: 0.10
-Nodes (20): UpdateNotifier(), UpdateNotifierProps, useAppUpdate(), appUpdate, AppUpdateKind, AppUpdateState, AppUpdateStatus, IDLE (+12 more)
+Cohesion: 0.12
+Nodes (14): AppUpdateKind, AppUpdateState, AppUpdateStatus, IDLE, Listener, apkRelease, h, CheckResult (+6 more)
 
 ### Community 179 - "1. Alur Aplikasi Mobile (Petugas Lapangan)"
 Cohesion: 0.29
@@ -1054,9 +1061,9 @@ Nodes (9): 18. EXTRA CREATIVITY & IMPLEMENTATION EDGE, Composition variety check
 Cohesion: 0.18
 Nodes (10): 1. Introduction, 2.1 Authentication & Authorization, 2.2 Trip Creation Workflow, 2.3 Vehicle Management, 2.4 Sync & Offline Support, 2.5 Admin Dashboard Features, 2.6 Error Handling & Recovery, 2. Core Requirements (+2 more)
 
-### Community 192 - "AdminDashboard.tsx"
-Cohesion: 0.10
-Nodes (26): AdminDashboard(), AdminTab, BackendOfficerRow, DermagaAccess, emptyRouteForm, GeofencePoint, Officer, RouteDermaga (+18 more)
+### Community 192 - "RoutesTab.tsx"
+Cohesion: 0.13
+Nodes (27): AdminTab, BackendOfficerRow, DermagaAccess, emptyRouteForm, GeofencePoint, RouteDermaga, RouteFormState, RouteRow (+19 more)
 
 ### Community 197 - "2. Alur Detail — 9 Tahap"
 Cohesion: 0.10
@@ -1139,8 +1146,8 @@ Cohesion: 0.50
 Nodes (7): cacheKey(), canonical(), handleRequest(), isBundleUrl(), isNavigation(), readActiveVersion(), withNoStore()
 
 ### Community 222 - "CameraScreen.tsx"
-Cohesion: 0.16
-Nodes (20): CameraScreen(), CameraScreenProps, getPhotoPosition(), compressImage(), dataUrlByteLength(), dataUrlToBlob(), DOC_MAX_EDGE, DOC_QUALITY (+12 more)
+Cohesion: 0.17
+Nodes (19): CameraScreen(), getPhotoPosition(), compressImage(), dataUrlByteLength(), dataUrlToBlob(), DOC_MAX_EDGE, DOC_QUALITY, drawWatermark() (+11 more)
 
 ### Community 223 - "APPENDICES - Real Source-Backed Reference Material"
 Cohesion: 0.29
@@ -1211,8 +1218,8 @@ Cohesion: 0.48
 Nodes (5): ApkInstallerPlugin, com.getcapacitor.annotation.CapacitorPlugin, com.getcapacitor.Plugin, com.getcapacitor.PluginCall, com.getcapacitor.PluginMethod
 
 ### Community 240 - "app"
-Cohesion: 0.15
-Nodes (12): prefix, projectType, root, schematics, sourceRoot, analytics, cli, newProjectRoot (+4 more)
+Cohesion: 0.14
+Nodes (13): prefix, projectType, root, schematics, sourceRoot, analytics, cli, newProjectRoot (+5 more)
 
 ### Community 241 - "ErrorBoundary"
 Cohesion: 0.20
@@ -1358,9 +1365,9 @@ Nodes (7): bad(), ok(), resolve_secret(), set_env_value(), restart-all-ubuntu.sh
 Cohesion: 0.25
 Nodes (8): architect, extract-i18n, serve, builder, options, buildTarget, builder, defaultConfiguration
 
-### Community 282 - "va"
-Cohesion: 0.13
-Nodes (22): df(), Ew(), Fe(), km(), Ld(), mw(), pe$2(), qe() (+14 more)
+### Community 282 - "Td"
+Cohesion: 0.06
+Nodes (54): Ag(), Am(), Aw(), Bd(), Bf(), bt(), bw(), cD() (+46 more)
 
 ### Community 286 - "development"
 Cohesion: 0.33
@@ -1373,14 +1380,6 @@ Nodes (7): lint, src/**/*.ts, src/**/*.tsx, builder, options, lintFilePatterns, 
 ### Community 296 - "verify-apks.mjs"
 Cohesion: 0.33
 Nodes (4): aapt2, findAapt2(), ROOT, targets
-
-### Community 324 - "sy"
-Cohesion: 0.13
-Nodes (19): Od(), An(), en(), Gg(), gx(), h0(), Hu(), ji() (+11 more)
-
-### Community 327 - "iA"
-Cohesion: 0.25
-Nodes (5): componentDidCatch(), cv(), iA(), RN(), To()
 
 ### Community 329 - "styles"
 Cohesion: 0.50
@@ -1399,22 +1398,22 @@ Cohesion: 0.11
 Nodes (18): Arsitektur Sistem (MUTLAK), Backend, Backend - DUAL ENDPOINT, Catatan Tambahan - Endpoint Ganti Saat Runtime, Checklist Sebelum Deploy, CSS Variables - ATURAN KRITIS, Deployment, Frontend (+10 more)
 
 ### Community 391 - "Zs"
-Cohesion: 0.10
-Nodes (31): yl(), Ak(), ck(), dk(), fk(), gk(), hk(), ik() (+23 more)
+Cohesion: 0.13
+Nodes (25): yl(), Ak(), ck(), dk(), fk(), ik(), jp(), kk() (+17 more)
 
 ## Knowledge Gaps
 - **1856 isolated node(s):** `PackageDescription`, `Foundation`, `PathKit`, `node`, `$schema` (+1851 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **57 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **56 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `c()` connect `c` to `main-MPVPD54R.js`, `tt`, `tv`, `.addEventListener`, `Td`, `qm`, `handlers/trips.ts`, `a2`, `vI`, `bL`, `main-EYWHXVOC.js`, `Ye`, `verify-apks.mjs`, `sa`, `_metrics.ts`, `Kn`, `L`, `sy`, `C`, `get`, `xlsx.ts`?**
+- **Why does `c()` connect `c` to `main-MPVPD54R.js`, `tt`, `tv`, `.addEventListener`, `eA`, `handlers/trips.ts`, `a2`, `vI`, `bL`, `main-EYWHXVOC.js`, `Td`, `C`, `Ye`, `verify-apks.mjs`, `Et`, `_metrics.ts`, `qm`, `Ce`, `get`, `xlsx.ts`?**
   _High betweenness centrality (0.154) - this node is a cross-community bridge._
 - **Why does `concat()` connect `xlsx.ts` to `c`?**
   _High betweenness centrality (0.141) - this node is a cross-community bridge._
-- **Why does `db` connect `db` to `json`, `tariffRules.ts`, `handlers/trips.ts`, `_metrics.ts`, `_db.ts`, `handlers/geofences.ts`, `appVersion.ts`, `lL`, `_shared.ts`?**
+- **Why does `db` connect `tariffRules.ts` to `json`, `handlers/trips.ts`, `_metrics.ts`, `_db.ts`, `regionTariffs.ts`, `handlers/geofences.ts`, `appVersion.ts`, `_shared.ts`, `Ye`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **Are the 36 inferred relationships involving `c()` (e.g. with `eA()` and `Ed()`) actually correct?**
   _`c()` has 36 INFERRED edges - model-reasoned connections that need verification._
@@ -1423,4 +1422,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `PackageDescription`, `Foundation`, `PathKit` to the rest of the system?**
   _1856 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `c` be split into smaller, more focused modules?**
-  _Cohesion score 0.08950086058519793 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08446939321037156 - nodes in this community are weakly interconnected._

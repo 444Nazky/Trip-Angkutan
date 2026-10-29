@@ -10,12 +10,12 @@
     "semantic_hash": ""
   },
   "android/app/build.gradle": {
-    "mtime": 1793241588.1701596,
-    "ast_hash": "3bc0e68cbb94a57aaccad376a13efc56",
+    "mtime": 1793244181.325046,
+    "ast_hash": "343303d1815655d6e264815177d9eb72",
     "semantic_hash": ""
   },
   "android/app/capacitor.build.gradle": {
-    "mtime": 1793241225.9998617,
+    "mtime": 1793243905.0021968,
     "ast_hash": "99bf91e0d80f1fa29ad033820065c2b4",
     "semantic_hash": ""
   },
@@ -45,7 +45,7 @@
     "semantic_hash": ""
   },
   "android/capacitor.settings.gradle": {
-    "mtime": 1793241225.9998617,
+    "mtime": 1793243905.0012581,
     "ast_hash": "92ba87dd5c2d881d616a4f9915b99b61",
     "semantic_hash": ""
   },
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RoutesTab.tsx": {
-    "mtime": 1793172511.239284,
-    "ast_hash": "042414cd0aa969e10e8c524671da8010",
+    "mtime": 1793253895.1153617,
+    "ast_hash": "b2775d3e42381297634bb01f387e4658",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/SettingsTab.tsx": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryDetailScreen.tsx": {
-    "mtime": 1793084825.186301,
-    "ast_hash": "9e4c7c04454ee519126bad980531ae0d",
+    "mtime": 1793253871.137278,
+    "ast_hash": "6c07638877989c14128410758bf8b622",
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryScreen.tsx": {
@@ -325,8 +325,8 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/ProfileScreen.tsx": {
-    "mtime": 1792996293.2586324,
-    "ast_hash": "63ca014d76cab9a783c8d584e096672c",
+    "mtime": 1793253856.4668834,
+    "ast_hash": "a449c96bac309038fdd1be0b0118007d",
     "semantic_hash": ""
   },
   "src/pages/mobile/RouteSelectScreen.tsx": {
@@ -390,8 +390,8 @@
     "semantic_hash": ""
   },
   "src/services/appUpdate.ts": {
-    "mtime": 1792983850.3846083,
-    "ast_hash": "8c8f02b91b7d92eb38e5bcf46a79f458",
+    "mtime": 1793243815.200671,
+    "ast_hash": "94cd407effb94fee4fa04ebb4164937a",
     "semantic_hash": ""
   },
   "src/services/auth.test.ts": {
@@ -480,8 +480,8 @@
     "semantic_hash": ""
   },
   "src/services/ota.ts": {
-    "mtime": 1792996273.5459077,
-    "ast_hash": "c6752cbbcab735b40238173f2244a1d1",
+    "mtime": 1793243783.4035492,
+    "ast_hash": "836938a721ff14a72a0f208ed5dfcc55",
     "semantic_hash": ""
   },
   "src/services/otaReload.ts": {
@@ -505,8 +505,8 @@
     "semantic_hash": ""
   },
   "src/services/runtimeEnv.ts": {
-    "mtime": 1792398417.3198462,
-    "ast_hash": "11bfb7c9f7191431de657d8773a54a8b",
+    "mtime": 1793243773.0464065,
+    "ast_hash": "9225b23a2539d7464bdad226ad46b664",
     "semantic_hash": ""
   },
   "src/services/seedData.ts": {
@@ -2160,18 +2160,18 @@
     "semantic_hash": ""
   },
   "user guide/architecture.md": {
-    "mtime": 1793242548.993189,
-    "ast_hash": "9171429a6ed9cc47b9c29aa81260eb5c",
+    "mtime": 1793249995.875288,
+    "ast_hash": "d287c1547b84c388707a8161f5b16e36",
     "semantic_hash": ""
   },
   "user guide/cheatsheet.md": {
-    "mtime": 1793242699.000675,
-    "ast_hash": "f97ab61a9b88e48fc1ecf0520010fcd3",
+    "mtime": 1793249927.4696279,
+    "ast_hash": "87adb2359f1fd49e190afe8da9541adf",
     "semantic_hash": ""
   },
   "user guide/workflow.md": {
-    "mtime": 1793242631.8237634,
-    "ast_hash": "ff194b470e830f78a0c8a1ca98f256f1",
+    "mtime": 1793249989.897527,
+    "ast_hash": "a3ef4547d341ee7bfa5de9890764b396",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -5734,6 +5734,11 @@
   "scripts/reset-trip-data.sh": {
     "mtime": 1793240751.5260231,
     "ast_hash": "e93edf75d031590d9425d7364e74b821",
+    "semantic_hash": ""
+  },
+  "src/services/runtimeEnv.test.ts": {
+    "mtime": 1793243825.4411244,
+    "ast_hash": "b12347e2a49847d53715723c07a17841",
     "semantic_hash": ""
   }
 }

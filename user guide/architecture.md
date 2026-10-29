@@ -265,8 +265,14 @@ Tidak ada pembaruan otomatis. Invarian yang dijaga kode:
    melakukan request jaringan.
 3. `AppUpdateController.check()` memakai guard `_checking` sehingga klik ganda
    tidak memicu dua proses unduh.
-4. `LOCALHOST_UPDATE_DISABLED` mematikan seluruh alur update ketika dijalankan
-   di `localhost`/port dev, agar build lokal tidak memicu unduhan APK.
+4. `LOCALHOST_UPDATE_DISABLED` mematikan seluruh alur update **hanya di browser
+   dev server** (`localhost`, `127.0.0.1`, `::1`, atau port
+   `5173/5174/3000/4200/8080`), agar build lokal tidak memicu unduhan APK.
+   **Aplikasi native dikecualikan** — `isLocalhostDev()`
+   (`src/services/runtimeEnv.ts`) keluar lebih dulu bila
+   `Capacitor.isNativePlatform()` true. Ini penting: aplikasi Android memuat
+   halamannya dari origin lokal `https://localhost`, jadi tanpa pengecualian
+   ini tombol "Cek Update" mati total di perangkat.
 
 Dengan invarian ini, satu-satunya jalan menuju instalasi baru adalah:
 **petugas membuka Profil → menekan tombol**.

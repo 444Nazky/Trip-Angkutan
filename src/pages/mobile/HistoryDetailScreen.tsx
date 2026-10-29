@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil } from 'lucide-react'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil, Info } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
 import type { MobileScreen } from '../types'
@@ -105,7 +105,13 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const brokenCount = Object.keys(broken).length
 
+  // Setelah trip BERHASIL terkirim ke server, foto dokumentasi tidak boleh
+  // ditambah/diambil ulang lagi: data di server sudah final (snapshot),
+  // dan pengambilan ulang hanya memicu upload ulang trip yang sudah sah.
+  const canCapturePhoto = !isSynced
+
   const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
+    if (!canCapturePhoto) return
     patchDraft({
       retakeTarget: { tripId: t.id, kind, index },
       cameraMode: 'photo',
@@ -173,7 +179,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   </div>
                   {!editing && canRetake && (
                     <div className="flex flex-col gap-1 shrink-0">
-                      {!photoUrl && (
+                      {!photoUrl && canCapturePhoto && (
                         <button
                           onClick={() => retakePhoto('vehicle', i)}
                           className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
@@ -246,7 +252,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
             {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
           </p>
-          {t.photo && !tripPhotoUrl && (
+          {t.photo && !tripPhotoUrl && canCapturePhoto && (
             <button
               onClick={() => retakePhoto('trip')}
               className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
@@ -255,6 +261,15 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             </button>
           )}
         </div>
+
+        {isSynced && (missingVehicles.length > 0 || (t.photo && !tripPhotoUrl)) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 flex items-start gap-2">
+            <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Foto dokumentasi tidak dapat ditambah lagi — data trip sudah berhasil terkirim ke server.
+            </p>
+          </div>
+        )}
 
         {photoStuck && !isEmptyTrip && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
@@ -300,14 +315,24 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             ))}
             {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
             {!isEmptyTrip && missingVehicles.map(x => (
-              <button
-                key={`missing-${x.i}`}
-                onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
-                className="h-28 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 flex flex-col items-center justify-center gap-1.5"
-              >
-                <Camera size={18} className="text-amber-500" />
-                <span className="text-[10px] font-black text-amber-700 uppercase">{x.label} — Belum ada foto</span>
-              </button>
+              canCapturePhoto ? (
+                <button
+                  key={`missing-${x.i}`}
+                  onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
+                  className="h-28 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <Camera size={18} className="text-amber-500" />
+                  <span className="text-[10px] font-black text-amber-700 uppercase">{x.label} — Belum ada foto</span>
+                </button>
+              ) : (
+                <div
+                  key={`missing-${x.i}`}
+                  className="h-28 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <Camera size={18} className="text-slate-300" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase">{x.label} — Tanpa foto</span>
+                </div>
+              )
             ))}
           </div>
         )}
@@ -322,7 +347,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
-            {preview.kind !== 'selfie' && (
+            {preview.kind !== 'selfie' && canCapturePhoto && (
               <button
                 onClick={() => {
                   const p = preview
