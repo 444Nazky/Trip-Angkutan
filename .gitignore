@@ -74,6 +74,13 @@ backend/apks/
 public/releases/
 backend/public/
 
+# Output build web — dibuat ulang oleh `npm run build` (Dockerfile juga
+# membangun dari source), dan bundel OTA disajikan dari bucket Supabase
+# `ota`, bukan dari direktori repo. Melacaknya hanya menghasilkan konflik
+# pada berkas ber-hash yang berubah setiap build.
+/www/
+/ota/
+
 # Kredensial signing APK release — jangan pernah ikut ter-commit
 android/keystore.properties
 *.keystore
@@ -85,3 +92,6 @@ data/*.db
 # Secret server API intranet (JANGAN di-commit)
 supabase/functions/api/.env.local
 supabase/functions/api/.env.secrets
+
+# Cache build Angular (hasil `ng build`/vitest, bukan sumber)
+/.angular/
