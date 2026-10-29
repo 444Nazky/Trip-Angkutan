@@ -12,10 +12,15 @@
  *     yang tampil selalu apa yang tersimpan di database.
  *   - Dermaga yang wilayahnya sudah tidak ada di database tetap ditampilkan
  *     di bagian "tanpa wilayah" supaya tidak ada data yang tersembunyi.
+ *
+ * Tampilan tab ini memakai bahasa visual yang sama dengan tab master lain
+ * (Master Tarif / Master Rute / Master Plat): kartu putih `rounded-2xl`,
+ * input `rounded-xl`, tombol utama biru, pill status hijau/amber, dan tabel
+ * dengan header uppercase kecil.
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
+import { Landmark, MapPin, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
 import {
   fetchAdminRegions,
   type AdminRegionRow,
@@ -47,6 +52,24 @@ const CODE_RE = /^\S{2,16}$/
 const labelOf = (row: { name?: string | null; code?: string | null }) =>
   String(row.name ?? '').trim() || String(row.code ?? '').trim() || '(tanpa nama)'
 
+/* ------------------------------------------------------------------ */
+/* Class bersama dengan tab master lain                                */
+/* ------------------------------------------------------------------ */
+
+const INPUT_CLS =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
+const BTN_PRIMARY =
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
+const BTN_GHOST =
+  'inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+const LABEL_CLS = 'text-[11px] text-slate-500 block mb-1'
+
+/** Badge kecil untuk kode / jumlah pemakaian. */
+const BADGE_NEUTRAL = 'inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600'
+const BADGE_INFO = 'inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600'
+const BADGE_OK = 'inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600'
+const BADGE_WARN = 'inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700'
+
 export function RegionTab({ showToast }: RegionTabProps) {
   const [regions, setRegions] = useState<AdminRegionRow[]>([])
   const [dermagas, setDermagas] = useState<Dermaga[]>([])
@@ -57,6 +80,10 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const [state, setState] = useState<'loading' | 'ready' | 'offline'>('loading')
   const [saving, setSaving] = useState(false)
   const [dermagaForm, setDermagaForm] = useState({ regionId: '', name: '', code: '' })
+  /** Pesan error yang tampil di dalam kartu form (toast tetap muncul). */
+  const [formError, setFormError] = useState('')
+  /** Pencarian di tabel (hanya tampilan, bukan query server). */
+  const [query, setQuery] = useState('')
 
   /**
    * Muat ulang seluruh data dari server. Dipanggil saat tab dibuka dan setiap
@@ -106,6 +133,13 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [routes],
   )
 
+  /** Petugas yang punya akses ke sebuah dermaga. */
+  const officersOfDermaga = useCallback(
+    (dermagaId: string) =>
+      (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === dermagaId)),
+    [officers],
+  )
+
   /** Wilayah terurut: BADAU (master) di atas, sisanya urut nama. */
   const orderedRegions = useMemo(
     () =>
@@ -131,13 +165,64 @@ export function RegionTab({ showToast }: RegionTabProps) {
     return { byRegion: grouped, orphans: grouped.get(ORPHAN_KEY) ?? [] }
   }, [regions, dermagas])
 
+  /** Pencarian: cocok bila nama/kode dermaga atau nama wilayah mengandung kata kunci. */
+  const matches = useCallback(
+    (d: Dermaga, regionName?: string) => {
+      const q = query.trim().toLowerCase()
+      if (!q) return true
+      return (
+        String(d.name ?? '').toLowerCase().includes(q) ||
+        String(d.code ?? '').toLowerCase().includes(q) ||
+        String(regionName ?? '').toLowerCase().includes(q)
+      )
+    },
+    [query],
+  )
+
+  /** Dermaga yang cocok dengan pencarian, dikelompokkan per wilayah. */
+  const visibleByRegion = useMemo(() => {
+    const map = new Map<string, Dermaga[]>()
+    for (const [regionId, list] of byRegion) {
+      const regionName = regionId === ORPHAN_KEY ? '' : labelOf(regions.find((r) => String(r.id) === regionId) ?? {})
+      map.set(regionId, list.filter((d) => matches(d, regionName)))
+    }
+    return map
+  }, [byRegion, matches, regions])
+
+  const visibleOrphans = useMemo(
+    () => (visibleByRegion.get(ORPHAN_KEY) ?? []),
+    [visibleByRegion],
+  )
+
+  const visibleCount = useMemo(
+    () =>
+      [...visibleByRegion.values()].reduce((sum, list) => sum + list.length, 0),
+    [visibleByRegion],
+  )
+
+  const resetForm = () => {
+    setDermagaForm({ regionId: '', name: '', code: '' })
+    setFormError('')
+  }
+
   const handleCreateDermaga = async () => {
     const name = dermagaForm.name.trim()
     const code = dermagaForm.code.trim().toUpperCase()
-    if (!dermagaForm.regionId) return showToast('Pilih wilayah untuk dermaga ini', 'error')
-    if (!name) return showToast('Nama dermaga wajib diisi', 'error')
+    setFormError('')
+    if (!dermagaForm.regionId) {
+      const msg = 'Pilih wilayah untuk dermaga ini'
+      setFormError(msg)
+      return showToast(msg, 'error')
+    }
+    if (!name) {
+      const msg = 'Nama dermaga wajib diisi'
+      setFormError(msg)
+      return showToast(msg, 'error')
+    }
     if (!CODE_RE.test(code)) {
-      return showToast('Kode dermaga 2–16 karakter tanpa spasi', 'error')
+      const msg = 'Kode dermaga 2–16 karakter tanpa spasi'
+      setFormError(msg)
+      return showToast(msg, 'error')
     }
     // Kode dermaga hanya wajib unik DI DALAM satu wilayah. Di database kantor
     // setiap wilayah memakai kode yang sama (D1, D2, ...), jadi aturan unik
@@ -149,16 +234,26 @@ export function RegionTab({ showToast }: RegionTabProps) {
           String(d.code ?? '').toUpperCase() === code,
       )
     ) {
-      return showToast(`Wilayah ini sudah punya dermaga berkode ${code}`, 'error')
+      const msg = `Wilayah ini sudah punya dermaga berkode ${code}`
+      setFormError(msg)
+      return showToast(msg, 'error')
     }
 
     setSaving(true)
     try {
       const res = await createDermaga({ region_id: dermagaForm.regionId, name, code })
-      if (!res.ok) return showToast(res.reason ?? 'Dermaga gagal ditambahkan karena server menolak permintaan', 'error')
+      if (!res.ok) {
+        const msg = res.reason ?? 'Dermaga gagal ditambahkan karena server menolak permintaan'
+        setFormError(msg)
+        return showToast(msg, 'error')
+      }
       const fresh = await load()
-      if (!fresh) return showToast('Dermaga tersimpan, tetapi gagal memuat ulang dari server', 'error')
-      setDermagaForm({ regionId: '', name: '', code: '' })
+      if (!fresh) {
+        const msg = 'Dermaga tersimpan, tetapi gagal memuat ulang dari server'
+        setFormError(msg)
+        return showToast(msg, 'error')
+      }
+      resetForm()
       showToast('Dermaga ditambahkan ke database')
     } finally {
       setSaving(false)
@@ -167,7 +262,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
   const handleDeleteDermaga = async (dermaga: Dermaga) => {
     const routeCount = routeCountOfDermaga(dermaga.id)
-    const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === dermaga.id))
+    const users = officersOfDermaga(dermaga.id)
 
     // Server MENOLAK hapus dermaga yang masih punya rute atau masih dipakai
     // petugas (FK cascade). Jadi dialog konfirmasi harus jujur soal itu —
@@ -202,25 +297,51 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  const dermagaRow = (d: Dermaga, indented: boolean, alt = false) => {
+  /** Baris tabel untuk satu dermaga. */
+  const dermagaRow = (d: Dermaga, alt = false) => {
     const routeCount = routeCountOfDermaga(d.id)
-    const users = (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === d.id))
+    const users = officersOfDermaga(d.id)
     return (
-      <tr key={d.id} className={`admin-table-row ${alt ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60 transition-colors duration-150`}>
-        <td className={`border border-slate-200 px-3 py-2 text-slate-700 ${indented ? 'pl-10' : ''}`}>
-          <span className="font-semibold">{labelOf(d)}</span>
+      <tr
+        key={d.id}
+        className={`admin-table-row ${alt ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60 transition-colors duration-150`}
+      >
+        <td className="border border-slate-200 px-3 py-2.5">
+          <span className="font-semibold text-slate-800">{labelOf(d)}</span>
         </td>
-        <td className="border border-slate-200 px-3 py-2 font-mono text-slate-500 text-[12px]">{d.code || '—'}</td>
-        <td className="border border-slate-200 px-3 py-2 text-[12px] text-slate-500">
-          {routeCount === null ? 'rute: tidak termuat' : `${routeCount} rute`}
-          {officers === null ? '' : ` · ${users.length} petugas`}
+        <td className="border border-slate-200 px-3 py-2.5">
+          <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
+            {d.code || '—'}
+          </span>
         </td>
-        <td className="border border-slate-200 px-3 py-2 text-right whitespace-nowrap">
+        <td className="border border-slate-200 px-3 py-2.5">
+          {routeCount === null ? (
+            <span className={BADGE_WARN}>rute: tidak termuat</span>
+          ) : routeCount > 0 ? (
+            <span className={BADGE_INFO}>
+              <MapPin size={11} /> {routeCount} rute
+            </span>
+          ) : (
+            <span className={BADGE_NEUTRAL}>0 rute</span>
+          )}
+        </td>
+        <td className="border border-slate-200 px-3 py-2.5">
+          {officers === null ? (
+            <span className={BADGE_WARN}>petugas: tidak termuat</span>
+          ) : users.length > 0 ? (
+            <span className={BADGE_OK} title={users.map((o) => o.name).join(', ')}>
+              <Users size={11} /> {users.length} petugas
+            </span>
+          ) : (
+            <span className={BADGE_NEUTRAL}>0 petugas</span>
+          )}
+        </td>
+        <td className="border border-slate-200 px-3 py-2.5 text-right whitespace-nowrap">
           <button
             type="button"
             disabled={saving}
             onClick={() => void handleDeleteDermaga(d)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-600 disabled:opacity-40"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 transition hover:text-red-600 hover:underline disabled:opacity-40"
           >
             <Trash2 size={12} /> Hapus Dermaga
           </button>
@@ -229,169 +350,283 @@ export function RegionTab({ showToast }: RegionTabProps) {
     )
   }
 
+  const serverPill =
+    state === 'ready'
+      ? 'bg-emerald-50 text-emerald-600'
+      : state === 'offline'
+        ? 'bg-amber-50 text-amber-600'
+        : 'bg-slate-100 text-slate-500'
+  const serverDot =
+    state === 'ready'
+      ? 'bg-emerald-500'
+      : state === 'offline'
+        ? 'bg-amber-500'
+        : 'bg-slate-400 animate-pulse'
+
+  const formDirty = !!(dermagaForm.regionId || dermagaForm.name || dermagaForm.code)
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header halaman */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Master Dermaga</h3>
-          <p className="text-slate-500 text-[12px]">
-            Tambah / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database
+          <h3 className="text-lg font-black text-slate-900">Master Dermaga</h3>
+          <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
+            Tambah / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600"
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                state === 'ready'
-                  ? 'bg-slate-900'
-                  : state === 'offline'
-                    ? 'bg-slate-400'
-                    : 'bg-slate-300 animate-pulse'
-              }`}
-            />
-            {state === 'ready'
-              ? `${regions.length} wilayah · ${dermagas.length} dermaga`
-              : state === 'offline'
-                ? 'Server tidak merespons'
-                : 'Memuat…'}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-600">
+            {regions.length} wilayah · {dermagas.length} dermaga
+          </span>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${serverPill}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${serverDot}`} />
+            {state === 'ready' ? 'Server: Tersambung' : state === 'offline' ? 'Server tidak merespons' : 'Memuat...'}
           </span>
           <button
             type="button"
             onClick={() => void load()}
             disabled={state === 'loading' || saving}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            className={BTN_GHOST}
           >
             <RefreshCw size={12} /> Muat ulang
           </button>
         </div>
       </div>
 
+      {/* Ringkasan cepat */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: 'Wilayah', value: regions.length, Icon: Landmark, tone: 'text-slate-700' },
+          { label: 'Dermaga', value: dermagas.length, Icon: MapPin, tone: 'text-blue-600' },
+          { label: 'Rute', value: routes === null ? '—' : routes.length, Icon: RouteIcon, tone: 'text-emerald-600' },
+          { label: 'Petugas', value: officers === null ? '—' : officers.length, Icon: Users, tone: 'text-amber-600' },
+        ].map(({ label, value, Icon, tone }) => (
+          <div key={label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+              <Icon size={13} /> {label}
+            </div>
+            <p className={`mt-1 text-xl font-black ${tone}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
       {officers === null && state === 'ready' && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
           Daftar petugas tidak bisa dimuat, jadi jumlah petugas pada konfirmasi hapus dermaga tidak bisa dipastikan.
           Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-        <h3 className="font-bold mb-4">Tambah Dermaga</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      {/* Form tambah dermaga */}
+      <div className="max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <Plus size={15} />
+          </span>
           <div>
-            <label className="text-[11px] text-slate-500 block mb-1">Wilayah *</label>
+            <h3 className="font-bold text-slate-800">Tambah Dermaga</h3>
+            <p className="text-[11px] text-slate-500">
+              Dermaga baru langsung tersimpan ke database dan dipakai aplikasi petugas.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className={LABEL_CLS}>Wilayah *</label>
             <select
               value={dermagaForm.regionId}
-              onChange={(e) => setDermagaForm({ ...dermagaForm, regionId: e.target.value })}
-              className="w-full border rounded-xl px-3 py-2 text-sm"
+              onChange={(e) => {
+                setDermagaForm({ ...dermagaForm, regionId: e.target.value })
+                setFormError('')
+              }}
+              className={INPUT_CLS}
             >
               <option value="">— Pilih Wilayah —</option>
               {orderedRegions.map((r) => (
                 <option key={r.id} value={r.id}>
                   {labelOf(r)}
+                  {r.code ? ` (${r.code})` : ''}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-[11px] text-slate-500 block mb-1">Nama Dermaga *</label>
+            <label className={LABEL_CLS}>Nama Dermaga *</label>
             <input
               value={dermagaForm.name}
-              onChange={(e) => setDermagaForm({ ...dermagaForm, name: e.target.value })}
+              onChange={(e) => {
+                setDermagaForm({ ...dermagaForm, name: e.target.value })
+                setFormError('')
+              }}
               placeholder="cth: Dermaga Badau"
-              className="w-full border rounded-xl px-3 py-2 text-sm"
+              className={INPUT_CLS}
             />
           </div>
           <div>
-            <label className="text-[11px] text-slate-500 block mb-1">Kode Dermaga *</label>
+            <label className={LABEL_CLS}>Kode Dermaga *</label>
             <input
               value={dermagaForm.code}
-              onChange={(e) => setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })}
+              onChange={(e) => {
+                setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })
+                setFormError('')
+              }}
               placeholder="cth: BDU"
-              className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide"
+              className={`${INPUT_CLS} font-mono tracking-wide uppercase`}
+            />
+            <p className="mt-1 text-[10.5px] text-slate-400">
+              2–16 karakter tanpa spasi, unik di dalam satu wilayah (bisa sama antar wilayah).
+            </p>
+          </div>
+        </div>
+
+        {formError && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-600">
+            <TriangleAlert size={13} /> {formError}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void handleCreateDermaga()}
+            className={`${BTN_PRIMARY} flex-1 sm:flex-none sm:min-w-[200px]`}
+          >
+            <Plus size={15} /> Tambah Dermaga
+          </button>
+          {formDirty && (
+            <button type="button" onClick={resetForm} className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-[12.5px] font-semibold text-slate-600 transition hover:bg-slate-50">
+              Bersihkan
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabel dermaga */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <h3 className="text-[13px] font-bold text-slate-800">Daftar Dermaga</h3>
+            <p className="text-[11px] text-slate-500">
+              Dikelompokkan per wilayah · {visibleCount} dari {dermagas.length} dermaga ditampilkan
+            </p>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari nama / kode dermaga…"
+              aria-label="Cari dermaga"
+              className={`${INPUT_CLS} pl-8 text-[12.5px]`}
             />
           </div>
         </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void handleCreateDermaga()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
-        >
-          <Plus size={16} /> Tambah Dermaga
-        </button>
-      </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-[13px]">
+          <table className="w-full min-w-[760px] border-collapse text-[13px]">
             <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2.5 border border-slate-200 text-left">Wilayah / Dermaga</th>
-                <th className="px-3 py-2.5 border border-slate-200 text-left w-[140px]">Kode</th>
-                <th className="px-3 py-2.5 border border-slate-200 text-left w-[220px]">Dipakai</th>
-                <th className="px-3 py-2.5 border border-slate-200 text-right w-[170px]">Aksi</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-left">Dermaga</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-left w-[140px]">Kode</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Rute</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Petugas</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-right w-[170px]">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {state === 'offline' && (
                 <tr>
-                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-slate-500">
+                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-500">
                     Server tidak bisa dihubungi, jadi data wilayah & dermaga belum bisa ditampilkan. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
                 </tr>
               )}
 
-              {state !== 'offline' && orderedRegions.length === 0 && orphans.length === 0 && (
+              {state === 'loading' && (
                 <tr>
-                  <td colSpan={4} className="border border-slate-200 px-3 py-8 text-center text-[12px] text-slate-400">
-                    {state === 'loading' ? 'Memuat data wilayah…' : 'Belum ada wilayah di database.'}
+                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
+                    <span className="inline-block animate-pulse">Memuat data wilayah…</span>
                   </td>
                 </tr>
               )}
 
-              {orderedRegions.map((region) => {
-                const own = byRegion.get(String(region.id)) ?? []
-                const users = officersOfRegion(String(region.id))
-                return (
-                  <Fragment key={region.id}>
-                    <tr className="bg-slate-100">
-                      <td className="border border-slate-200 px-3 py-2">
-                        <span className="font-bold text-slate-800">{labelOf(region)}</span>{' '}
-                        <span className="text-[11px] font-normal text-slate-400">wilayah</span>
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 font-mono text-[12px] uppercase text-slate-500">
-                        {region.code || '—'}
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-[12px] text-slate-500">
-                        {own.length} dermaga{officers === null ? '' : ` · ${users.length} petugas`}
-                      </td>
-                    </tr>
+              {state === 'ready' && orderedRegions.length === 0 && orphans.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
+                    Belum ada wilayah di database.
+                  </td>
+                </tr>
+              )}
 
-                    {own.length === 0 && (
-                      <tr key={`${region.id}-empty`}>
-                        <td colSpan={4} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
-                          Belum ada dermaga di wilayah ini
+              {state === 'ready' &&
+                orderedRegions.map((region) => {
+                  const own = byRegion.get(String(region.id)) ?? []
+                  const shown = visibleByRegion.get(String(region.id)) ?? []
+                  const users = officersOfRegion(String(region.id))
+                  return (
+                    <Fragment key={region.id}>
+                      <tr className="bg-slate-800">
+                        <td colSpan={5} className="border border-slate-700 px-3 py-2">
+                          <span className="flex flex-wrap items-center gap-2 text-[12px] font-bold text-white">
+                            <span className="inline-flex items-center gap-2">
+                              <Landmark size={13} /> {labelOf(region)}
+                              <span className="font-normal text-slate-400">
+                                {region.code ? `(${region.code})` : ''}
+                              </span>
+                            </span>
+                            <span className="font-normal text-slate-300">
+                              {own.length} dermaga
+                              {officers === null ? '' : ` · ${users.length} petugas di wilayah ini`}
+                              {own.length === 0 ? ' · belum ada dermaga di wilayah ini' : ''}
+                            </span>
+                          </span>
                         </td>
                       </tr>
-                    )}
-                    {own.map((d, dIdx) => dermagaRow(d, true, dIdx % 2 === 1))}
-                  </Fragment>
-                )
-              })}
 
-              {orphans.length > 0 && (
+                      {own.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                            Belum ada dermaga di wilayah ini
+                          </td>
+                        </tr>
+                      )}
+
+                      {own.length > 0 && shown.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                            Tidak ada dermaga yang cocok dengan pencarian
+                          </td>
+                        </tr>
+                      )}
+
+                      {shown.map((d, dIdx) => dermagaRow(d, dIdx % 2 === 1))}
+                    </Fragment>
+                  )
+                })}
+
+              {state === 'ready' && orphans.length > 0 && (
                 <Fragment>
-                  <tr className="bg-slate-100">
-                    <td colSpan={4} className="border border-slate-200 px-3 py-2">
-                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-slate-700">
-                        <TriangleAlert size={14} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak ada
-                        di database
+                  <tr className="bg-amber-500">
+                    <td colSpan={5} className="border border-amber-600 px-3 py-2">
+                      <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
+                        <TriangleAlert size={13} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak
+                        ada di database
                       </span>
                     </td>
                   </tr>
-                  {orphans.map((d) => dermagaRow(d, true))}
+                  {visibleOrphans.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                        Tidak ada dermaga yatim yang cocok dengan pencarian
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleOrphans.map((d, dIdx) => dermagaRow(d, dIdx % 2 === 1))
+                  )}
                 </Fragment>
               )}
             </tbody>

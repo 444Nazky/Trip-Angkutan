@@ -315,6 +315,53 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
   }
 }
 
+// PUT /officers/:id  (profil dasar: nama + username)
+//
+// DULU dashboard admin punya kolom "Nama" yang bisa diedit, tapi tidak ada
+// endpoint yang mengubahnya - formnya hanya mengirim wilayah/dermaga/PIN.
+// Akibatnya UI menampilkan "Petugas diupdate" padahal nama di database
+// tetap nama lama (dan kembali lagi setelah reload). Endpoint ini menutup
+// celah itu: apa yang diedit admin = apa yang tersimpan di database.
+export async function updateOfficerProfile(req: Request, officerId: string): Promise<Response> {
+  try {
+    const ctx = await requireAdmin(req);
+    if (!ctx) return json({ error: "Admin access required" }, 403);
+
+    const body = await req.json().catch(() => ({})) as any;
+    const patch: Record<string, unknown> = {};
+
+    if (body?.name !== undefined) {
+      const cleanName = String(body.name ?? "").trim();
+      if (!cleanName) return json({ error: "Nama wajib diisi" }, 400);
+      patch.name = cleanName;
+    }
+
+    if (body?.username !== undefined) {
+      const cleanUsername = String(body.username ?? "").trim().toLowerCase().replace(/\s+/g, "");
+      if (!cleanUsername) return json({ error: "Username wajib diisi" }, 400);
+      // Username harus unik - kalau dipakai petugas lain, tolak (jangan
+      // diam-diam memakai username yang bentrok).
+      const { data: clash } = await db
+        .from("officers")
+        .select("id")
+        .ilike("username", cleanUsername)
+        .neq("id", officerId)
+        .limit(1);
+      if (clash?.length) return json({ error: "Username sudah dipakai petugas lain" }, 409);
+      patch.username = cleanUsername;
+    }
+
+    if (Object.keys(patch).length === 0) return json({ error: "Tidak ada data yang diubah" }, 400);
+
+    const { error } = await db.from("officers").update(patch).eq("id", officerId);
+    if (error) throw error;
+    return json({ success: true, ...patch });
+  } catch (error) {
+    console.error("Update officer profile error:", error);
+    return json({ error: `Data petugas gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
+  }
+}
+
 // PUT /officers/:id/pin
 export async function updateOfficerPin(req: Request, officerId: string): Promise<Response> {
   try {

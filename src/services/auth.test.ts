@@ -20,7 +20,7 @@ import {
   verifyPin,
 } from './offlineDb'
 import { getStoredOfficer, loginOffline, verifyPinOffline } from './auth'
-import { SEED_OFFICERS, seedRoster, verifySeedPin } from './seedData'
+import { seedRoster, verifySeedPin } from './seedData'
 import { tryOfflineLogin } from '../pages/LoginPage'
 
 const PIN_A = '987654'
@@ -106,38 +106,21 @@ describe('enkripsi hash PIN', () => {
 // ── 2. Seed data bawaan ──────────────────────────────────────────────────────
 
 describe('seed data bawaan', () => {
-  it('tidak lagi memiliki PIN hash di source (security fix F001)', async () => {
-    for (const seed of SEED_OFFICERS) {
-      const hash = await getPinHash(seed.id)
-      // SECURITY: Seed credentials tidak lagi di-embed di source code
-      // Petugas harus login online sekali untuk sync credentials dari server
-      expect(hash, `hash seed ${seed.username} harus null (security)`).toBeNull()
-    }
-  })
-
-  it('roster berisi seluruh petugas bawaan dengan status aktif/nonaktif', () => {
-    const roster = seedRoster()
-    expect(roster).toHaveLength(SEED_OFFICERS.length)
-    for (const [officer, seed] of roster.map((r, i) => [r, SEED_OFFICERS[i]] as const)) {
-      expect(officer.id).toBe(seed.id)
-      expect(officer.username).toBe(seed.username)
-      expect(officer.dermagaAccess.length).toBeGreaterThan(0) // scope dermaga
-      expect(officer.status).toBe((seed.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif')
-    }
+  it('tidak ada roster seed sama sekali (tidak ada data palsu di perangkat)', async () => {
+    // SECURITY + KEBENARAN DATA: roster seed (nama petugas contoh, region
+    // yang sudah dihapus dari database) sudah dihapus. Satu-satunya sumber
+    // petugas adalah server.
+    expect(seedRoster()).toEqual([])
+    const hash = await getPinHash('apapun')
+    expect(hash).toBeNull()
   })
 
   it('verifySeedPin selalu false (seed credentials tidak tersedia)', () => {
-    const [pertama] = SEED_OFFICERS
     // SECURITY: verifySeedPin selalu return false karena PIN hash dihapus
     // Offline login memerlukan credentials yang sudah disinkronkan dari server
-    expect(verifySeedPin(pertama.id, '999999')).toBe(false)
     expect(verifySeedPin('petugas-tidak-ada', '999999')).toBe(false)
-    expect(verifySeedPin(pertama.id, '')).toBe(false)
-    // Semua seed officer sekarang return false
-    for (const seed of SEED_OFFICERS) {
-      expect(verifySeedPin(seed.id, '123456')).toBe(false)
-      expect(verifySeedPin(seed.username, '123456')).toBe(false)
-    }
+    expect(verifySeedPin('petugas-tidak-ada', '')).toBe(false)
+    expect(verifySeedPin('petugas-tidak-ada', '123456')).toBe(false)
   })
 })
 

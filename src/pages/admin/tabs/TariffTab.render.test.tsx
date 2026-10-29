@@ -13,10 +13,34 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { TariffTab } from './TariffTab'
 import { fetchRegionTariffs } from '../../../services/tariffs'
+import { fetchVehicleTypes } from '../../../services/vehicleTypes'
 
 const regionRows = vi.hoisted(() => ({
   list: [] as unknown[],
 }))
+
+/**
+ * Master jenis kendaraan di database.
+ *
+ * Dulu tab ini punya daftar jenis hardcode di dalam kodenya sendiri, jadi
+ * dashboard admin dan aplikasi petugas bisa punya pilihan yang berbeda.
+ * Sekarang daftarnya dibaca dari database - test ini memock "database" itu.
+ */
+const MASTER_TYPES = [
+  { id: 'vt-1', name: 'Motor', key: 'motor', sortOrder: 1, isActive: true },
+  { id: 'vt-2', name: 'Mobil', key: 'mobil', sortOrder: 2, isActive: true },
+  { id: 'vt-3', name: 'Truk Kecil', key: 'trukkecil', sortOrder: 3, isActive: true },
+  { id: 'vt-4', name: 'Truk Sedang', key: 'truksedang', sortOrder: 4, isActive: true },
+  { id: 'vt-5', name: 'Truk Besar', key: 'trukbesar', sortOrder: 5, isActive: true },
+]
+
+vi.mock('../../../services/vehicleTypes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/vehicleTypes')>()
+  return {
+    ...actual,
+    fetchVehicleTypes: vi.fn(async () => MASTER_TYPES.map((t) => ({ ...t }))),
+  }
+})
 
 vi.mock('../../../services/tariffs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/tariffs')>()
@@ -53,8 +77,8 @@ const REGION_BELITUNG = {
   ],
 }
 
-/** Jumlah baris tarif yang tampil = 5 jenis standar untuk SEMUA region. */
-const TYPES_PER_REGION = 5
+/** Jumlah baris tarif yang tampil = 5 jenis dari master database. */
+const TYPES_PER_REGION = MASTER_TYPES.length
 
 describe('TariffTab (accordion per region)', () => {
   let container: HTMLDivElement
@@ -170,7 +194,7 @@ describe('TariffTab (accordion per region)', () => {
     expect(labels.some((l) => l.includes('Semua Region'))).toBe(true)
   })
 
-  it('jenis kendaraan dipilih dari daftar (dropdown), bukan input teks bebas', async () => {
+  it('jenis kendaraan dipilih dari daftar master (dropdown), bukan input teks bebas', async () => {
     await renderTab()
 
     const form = container.querySelector('#tariff-form') as HTMLElement | null
@@ -179,13 +203,22 @@ describe('TariffTab (accordion per region)', () => {
     expect(selects.length).toBeGreaterThanOrEqual(2)
     const typeSelect = selects[1]
     const labels = Array.from(typeSelect.options).map((o) => o.textContent ?? '')
-    expect(labels.some((l) => l.includes('Motor'))).toBe(true)
-    expect(labels.some((l) => l.includes('Truk Kecil'))).toBe(true)
-    // Tidak ada input teks untuk jenis kendaraan.
+    // Daftar jenis = master di database (persis, tanpa tambahan hardcode).
+    expect(labels.filter((l) => l && !l.includes('Pilih jenis'))).toEqual(
+      MASTER_TYPES.map((t) => t.name),
+    )
+    // Tidak ada input teks untuk jenis kendaraan di form tarif.
     const typeInputs = Array.from(
       form!.querySelectorAll('input'),
     ).filter((i) => (i.getAttribute('placeholder') ?? '').toLowerCase().includes('jenis kendaraan'))
     expect(typeInputs.length).toBe(0)
+  })
+
+  it('daftar jenis diambil dari database, bukan dari daftar hardcode', async () => {
+    await renderTab()
+    expect(fetchVehicleTypes).toHaveBeenCalled()
+    const body = container.textContent ?? ''
+    for (const t of MASTER_TYPES) expect(body).toContain(t.name)
   })
 
   it('tombol hapus hanya aktif untuk baris tarif yang sudah tersimpan', async () => {

@@ -5,13 +5,10 @@ import {
 
 
 
-  SEED_OFFICERS,
   SEED_VERSION,
   SEED_VERSION_KEY,
-  seedRosterIfAbsent,
-  seedRouteCacheIfAbsent,
+  purgeLegacySeedData,
   seedGeofencePointsIfAbsent,
-  type SeedOfficer,
 } from './seedData'
 
 
@@ -131,79 +128,6 @@ async function migrateFromLocalStorage(): Promise<void> {
 
 
 
-function seedPayload(s: SeedOfficer): Record<string, unknown> {
-  return {
-    id: s.id,
-    name: s.name,
-    username: s.username,
-    initials: s.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-    region: s.regionCode,
-    regions: [s.regionCode],
-    regionId: s.regionId,
-    regionName: s.regionName,
-    regionCode: s.regionCode,
-    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
-    isActive: (s.isActive ?? 1) === 1,
-    device: '-',
-    trips: 0,
-    lastActive: '-',
-    joined: '-',
-    dermagaAccess: s.dermagaAccess,
-  }
-}
-
-
-
-
-async function seedDefaultOfficers(): Promise<void> {
-  const now = Date.now()
-
-  if (backend === 'sqlite' && conn) {
-    try {
-      for (const s of SEED_OFFICERS) {
-        const existing = await conn.query('SELECT id FROM officers WHERE id = ? LIMIT 1', [s.id])
-        if (!existing.values?.length) {
-          await conn.run(
-            `INSERT INTO officers (id, username, name, region_id, region_name, region_code, is_active, payload, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              s.id, s.username, s.name, s.regionId, s.regionName, s.regionCode,
-              s.isActive ?? 1, JSON.stringify(seedPayload(s)), now,
-            ],
-          )
-        }
-        // ponytail: PIN seed PETUGAS sengaja tidak ikut dibundel (temuan F001
-        // keamanan) — hash PIN petugas hanya lewat sinkron server (officers.ts).
-      }
-      return
-    } catch (err) {
-      console.warn('[offline-db] seed SQLite gagal — fallback localStorage:', err)
-    }
-  }
-
-  try {
-    const merged = new Map<string, OfficerRow>(lsOfficers().map(o => [String(o.id), o]))
-    for (const s of SEED_OFFICERS) {
-      if (merged.has(s.id)) continue
-      merged.set(s.id, {
-        id: s.id,
-        username: s.username,
-        name: s.name,
-        regionId: s.regionId,
-        regionName: s.regionName,
-        regionCode: s.regionCode,
-        isActive: (s.isActive ?? 1) === 1,
-        dermagaAccess: s.dermagaAccess,
-        payload: seedPayload(s),
-      })
-    }
-    localStorage.setItem(LS_OFFICERS, JSON.stringify([...merged.values()]))
-  } catch { /* quota — dicoba lagi pada init berikutnya */ }
-}
-
-
-
-
 export function initOfflineDb(): Promise<LocalBackend> {
   if (!initPromise) {
     initPromise = (async () => {
@@ -216,13 +140,15 @@ export function initOfflineDb(): Promise<LocalBackend> {
       backend = ok ? 'sqlite' : 'localStorage'
       if (ok) await migrateFromLocalStorage()
       try {
-        await seedDefaultOfficers()
-        seedRosterIfAbsent()
-        seedRouteCacheIfAbsent()
+        // Tidak ada data seed lagi: roster & rute contoh dari versi lama
+        // dibersihkan supaya petugas tidak melihat data yang tidak ada di
+        // database. Master data (petugas, rute, tarif, jenis kendaraan)
+        // hanya berasal dari server.
+        purgeLegacySeedData()
         seedGeofencePointsIfAbsent()
         try { localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION)) } catch { /* quota */ }
       } catch (err) {
-        console.warn('[offline-db] seed data bawaan gagal:', err)
+        console.warn('[offline-db] pembersihan data seed lama gagal:', err)
       }
       return backend
     })()

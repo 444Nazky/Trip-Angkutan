@@ -1,7 +1,6 @@
 import { api } from './api'
 import { ensureBackendSession } from './auth'
 import { getPinHash, listOfficers, saveOfficers, setPinHash } from './offlineDb'
-import { seedRoster } from './seedData'
 
 
 
@@ -169,8 +168,11 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     throw new Error('Gagal menyimpan daftar petugas di perangkat')
   }
 
+  // Roster di perangkat = roster dari server. Petugas yang tidak ada di
+  // server TIDAK boleh tetap tampil (dulu daftar seed bikin petugas contoh
+  // ikut muncul di HP).
   const local = new Map<string, ReturnType<typeof toMobileOfficer>>()
-  for (const o of [...getStoredOfficers(), ...seedRoster()]) local.set(String(o.id), o)
+  for (const o of getStoredOfficers()) local.set(String(o.id), o)
 
   const merged = new Map<string, ReturnType<typeof toMobileOfficer>>()
   for (const o of mobileOfficers) {
@@ -178,7 +180,6 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     const dermagaAccess = o.dermagaAccess?.length ? o.dermagaAccess : (prev?.dermagaAccess ?? [])
     merged.set(String(o.id), { ...o, dermagaAccess })
   }
-  for (const [id, o] of local) if (!merged.has(id)) merged.set(id, o)
   const roster = [...merged.values()]
   localStorage.setItem('trip.officers.v1', JSON.stringify(roster))
   // Beri tahu UI: roster (nama, PIN, akses dermaga) sudah replaced.

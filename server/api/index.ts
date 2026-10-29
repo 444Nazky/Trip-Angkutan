@@ -260,6 +260,7 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "GET" && b === "my-region") return await ofc.myRegionOfficers(req);
     if (req.method === "GET" && b && c === "dermaga-access") return await ofc.officerDermagaAccess(req, b);
     if (req.method === "POST" && !b) return await ofc.createOfficer(req);
+    if (req.method === "PUT" && b && !c) return await ofc.updateOfficerProfile(req, b);
     if (req.method === "PUT" && b && c === "dermagas") return await ofc.updateOfficerDermagas(req, b);
     if (req.method === "PUT" && b && c === "regions") return await ofc.updateOfficerRegions(req, b);
     if (req.method === "PUT" && b && c === "pin") return await ofc.updateOfficerPin(req, b);

@@ -4,9 +4,9 @@
 // dan status "masuk antrean" seolah tidak pernah terkirim.
 // Aturan: updatedAt terbaru menang; bila seri, synced:true tidak ditimpa false.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { healDermagaAccess, mergeTrips, vehicleTariff, type Trip } from './store'
-import { SEED_OFFICERS } from '../services/seedData'
+
 
 const base = (over: Partial<Trip>): Trip => ({
   id: 'T1',
@@ -58,34 +58,52 @@ describe('mergeTrips — edit pasca-kirim tidak hilang', () => {
 })
 
 describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => {
-  const seed = SEED_OFFICERS[0]
-
-  it('isi ulang dermagaAccess kosong dari seed (regresi akun ke-lock)', () => {
-    const blanked = { id: seed.id, name: seed.name, region: seed.regionCode, dermagaAccess: [] } as never
-    const [healed] = healDermagaAccess([blanked])
-    expect(healed.dermagaAccess?.length).toBeGreaterThan(0)
-  })
-
   it('akses yang sudah ada tidak diubah', () => {
     const own = [{ id: 'D9', code: 'D9', name: 'Custom' }]
-    const officer = { id: seed.id, name: seed.name, region: seed.regionCode, dermagaAccess: own } as never
+    const officer = { id: 'officer-1', name: 'X', region: 'R', dermagaAccess: own } as never
     expect(healDermagaAccess([officer])[0].dermagaAccess).toEqual(own)
   })
 
-  it('petugas non-seed tetap dibiarkan apa adanya (diserahkan ke sync berikutnya)', () => {
+  it('petugas tanpa akses tidak mendapat akses dari data palsu (regresi data seed dihapus)', () => {
+    // Tidak ada lagi roster seed di perangkat: petugas yang belum sinkron
+    // TIDAK boleh mendapat akses dermaga dari data contoh.
     const unknown = { id: 'server-only-1', name: 'X', region: 'X', dermagaAccess: [] } as never
     expect(healDermagaAccess([unknown])[0].dermagaAccess).toEqual([])
   })
 })
 
 describe('vehicleTariff — harga per kondisi kendaraan', () => {
+  // Master tarif datang dari server (services/masterTariffs.ts) dan disimpan di
+  // localStorage 'trip.tariffs.v1'. Tidak ada daftar harga contoh lagi.
+  beforeEach(() => {
+    localStorage.setItem(
+      'trip.tariffs.v1',
+      JSON.stringify([
+        { id: '1', golongan: 'IV', type: 'Truk Sedang', loaded: 'Rp 280.000', loadedNum: 280000, empty: 'Rp 130.000', emptyNum: 130000, desc: '' },
+      ]),
+    )
+  })
+
+  afterEach(() => {
+    localStorage.removeItem('trip.tariffs.v1')
+  })
+
   it('memakai loadedNum saat ada muatan dan emptyNum saat kosong', () => {
+    expect(vehicleTariff('Truk Sedang', 'Eksternal', 'loaded')).toBe(280000)
+    expect(vehicleTariff('Truk Sedang', 'Eksternal', 'empty')).toBe(130000)
+  })
+
+  it('pencocokan tahan beda ejaan (Truck/Truk, huruf besar-kecil)', () => {
     expect(vehicleTariff('Truck Sedang', 'Eksternal', 'loaded')).toBe(280000)
-    expect(vehicleTariff('Truck Sedang', 'Eksternal', 'empty')).toBe(130000)
+    expect(vehicleTariff('truk sedang', 'Eksternal', 'empty')).toBe(130000)
   })
 
   it('kendaraan internal tetap Rp 0 untuk kedua kondisi', () => {
-    expect(vehicleTariff('Truck Sedang', 'Internal', 'loaded')).toBe(0)
-    expect(vehicleTariff('Truck Sedang', 'Internal', 'empty')).toBe(0)
+    expect(vehicleTariff('Truk Sedang', 'Internal', 'loaded')).toBe(0)
+    expect(vehicleTariff('Truk Sedang', 'Internal', 'empty')).toBe(0)
+  })
+
+  it('jenis tanpa tarif master -> 0, bukan angka contoh', () => {
+    expect(vehicleTariff('Truk Apotek', 'Eksternal', 'loaded')).toBe(0)
   })
 })

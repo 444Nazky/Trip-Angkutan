@@ -8,14 +8,12 @@
 //   - nama petugas contoh ("Budi Santoso", "Agung Suntoso", ...)
 //   - region ENTIKONG / BELITUNG / KELAPAKAMPIT yang sudah DIHAPUS dari database
 //   - rute contoh ("AAAA → BBBB", "CCCC → DDDD", ...)
-//_seedSeed data fake itu ditulis ke localStorage dan IndexedDB perangkat
+//Data fake itu ditulis ke localStorage dan IndexedDB perangkat
 // petugas, jadi muncul sebagai wilayah/rute/petugas sungguhan di aplikasi.
 // Sekarang: tidak ada data seed sama sekali. Semua master data berasal dari
 // server (dan database).
 export const SEED_VERSION = 3
 export const SEED_VERSION_KEY = 'trip.officers.seedVersion'
-
-const DEFAULT_PIN = '123456'
 
 const ROSTER_KEY = 'trip.officers.v1'
 const ROUTES_KEY = 'trip.auth.routes.v1'

@@ -42,6 +42,8 @@ vi.mock('../services/auth', () => ({
 vi.mock('../services/officers', () => ({
   syncOfficersToLocal: async () => [],
   OFFICERS_UPDATED_EVENT: 'officers:updated',
+  // Roster di perangkat = roster dari server (tidak ada roster seed lagi).
+  getStoredOfficers: () => [],
 }))
 vi.mock('../services/prefetch', () => ({
   prefetchAllCriticalData: async () => ({}),

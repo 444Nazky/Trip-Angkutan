@@ -260,13 +260,13 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/TariffTab.tsx": {
-    "mtime": 1793179722.2629325,
-    "ast_hash": "755b47d2f33bd970f49c84f64a847873",
+    "mtime": 1793181197.0666828,
+    "ast_hash": "072dcda755b8c0a262575eb7a753c765",
     "semantic_hash": ""
   },
   "src/pages/data.ts": {
-    "mtime": 1792995115.1600952,
-    "ast_hash": "d7ff84f72f20e57ab8676c69ceba9863",
+    "mtime": 1793181546.6202185,
+    "ast_hash": "73a5de14efae6affcd7b9e190d578d93",
     "semantic_hash": ""
   },
   "src/pages/mobile/CameraScreen.tsx": {
@@ -350,18 +350,18 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/VehicleFormScreen.tsx": {
-    "mtime": 1792727041.0834594,
-    "ast_hash": "55fd1272675bd4e8d54b40708e023e24",
+    "mtime": 1793181431.160731,
+    "ast_hash": "05155b3c8730a9becca0608486fe226b",
     "semantic_hash": ""
   },
   "src/pages/store.merge.test.ts": {
-    "mtime": 1792982162.0041416,
-    "ast_hash": "c9bbe54406dbd69ac2d7dbc33460b41c",
+    "mtime": 1793182894.3297718,
+    "ast_hash": "f52046a64ec343af2d1d027387938083",
     "semantic_hash": ""
   },
   "src/pages/store.tsx": {
-    "mtime": 1793084825.186565,
-    "ast_hash": "80b85a1631c4652b1856886f1ad116a7",
+    "mtime": 1793182984.0340219,
+    "ast_hash": "2619709b80e78f531d67c79b8b64bbcc",
     "semantic_hash": ""
   },
   "src/pages/types.ts": {
@@ -370,8 +370,8 @@
     "semantic_hash": ""
   },
   "src/services/adminPull.ts": {
-    "mtime": 1792573613.8311102,
-    "ast_hash": "005317ecc98c9a45e3f8510a808416d4",
+    "mtime": 1793181510.365369,
+    "ast_hash": "29a66c279f1c8efcaa6a220cc374ed3c",
     "semantic_hash": ""
   },
   "src/services/api.ts": {
@@ -395,8 +395,8 @@
     "semantic_hash": ""
   },
   "src/services/auth.test.ts": {
-    "mtime": 1791992401.5711207,
-    "ast_hash": "38d150bb5bc50d6d9a78dca6aee323bb",
+    "mtime": 1793182709.8779254,
+    "ast_hash": "9c0ace9c30df1be04c5029f070142a72",
     "semantic_hash": ""
   },
   "src/services/auth.ts": {
@@ -465,13 +465,13 @@
     "semantic_hash": ""
   },
   "src/services/officers.ts": {
-    "mtime": 1792573733.6789594,
-    "ast_hash": "1ee09aaf6cd0f47ea5c3ed6b6914f2d5",
+    "mtime": 1793182666.999652,
+    "ast_hash": "0369503e35aa247c199bd22f5f921542",
     "semantic_hash": ""
   },
   "src/services/offlineDb.ts": {
-    "mtime": 1792547189.0108342,
-    "ast_hash": "16fc25f532feb17e72c3e555e44ddfc9",
+    "mtime": 1793181637.0813086,
+    "ast_hash": "f95bb88f7c6a2a9cc102468041bbb8f8",
     "semantic_hash": ""
   },
   "src/services/ota.test.ts": {
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "src/services/seedData.ts": {
-    "mtime": 1792470037.9109159,
-    "ast_hash": "38bf76fc28ae346ab42cf7be28833b03",
+    "mtime": 1793181600.8834515,
+    "ast_hash": "8188b57971abf24e3b2acdff3c8b215a",
     "semantic_hash": ""
   },
   "src/services/sessionRecovery.test.ts": {
@@ -2030,13 +2030,13 @@
     "semantic_hash": ""
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793180407.2049522,
-    "ast_hash": "063dbd15b7fc10e26e3120ae9af003f8",
+    "mtime": 1793180785.8014336,
+    "ast_hash": "914796441ae8624ea7fde3b79672ce82",
     "semantic_hash": ""
   },
   "restart-all-ubuntu.sh": {
-    "mtime": 1793004958.1735647,
-    "ast_hash": "770047167fcd90fb6f202ca97c5a04db",
+    "mtime": 1793180620.4190567,
+    "ast_hash": "a80df18234980c0056596c7b9bb7739d",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
@@ -2110,8 +2110,8 @@
     "semantic_hash": ""
   },
   "src/services/prefetch.ts": {
-    "mtime": 1792996293.2592397,
-    "ast_hash": "d9643bda3c910dc295d4f7bcd1858d17",
+    "mtime": 1793181495.1367223,
+    "ast_hash": "de1e893406eff8b3bffb1f104478ca3b",
     "semantic_hash": ""
   },
   "src/services/imageUtil.test.ts": {
@@ -2262,8 +2262,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793180197.1507506,
-    "ast_hash": "450640974b8489be89d78e7049fbaa67",
+    "mtime": 1793180648.649273,
+    "ast_hash": "6e6229f4920dd003cc546f3dab83d5e2",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2397,8 +2397,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/master.ts": {
-    "mtime": 1793172806.7292998,
-    "ast_hash": "48a7e434e56c041f8d1d81d6b5b9deea",
+    "mtime": 1793180878.9055898,
+    "ast_hash": "d45d31cf998e469238877efcb7659a74",
     "semantic_hash": ""
   },
   "server/api/handlers/officers.ts": {
@@ -2447,8 +2447,8 @@
     "semantic_hash": ""
   },
   "server/api/index.ts": {
-    "mtime": 1793162342.8740513,
-    "ast_hash": "e6eaca99b6eb2a22b2008ba7ce0d76da",
+    "mtime": 1793180849.3985968,
+    "ast_hash": "728ddba2558a59107741eaa253363038",
     "semantic_hash": ""
   },
   "server/api/local_server.ts": {
@@ -2477,18 +2477,18 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.render.test.tsx": {
-    "mtime": 1793172710.4614468,
-    "ast_hash": "c2f7f66f8b65f1137bf13e4ed6eb02a7",
+    "mtime": 1793237111.456581,
+    "ast_hash": "aca856a40465c6d407860f9fe05cdceb",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.tsx": {
-    "mtime": 1793172868.2077556,
-    "ast_hash": "a3126e8368a3f45c3c2aa25e1c4ce03f",
+    "mtime": 1793237085.6141138,
+    "ast_hash": "2dd3af1ca2081d42dfc765d93567e906",
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {
-    "mtime": 1793084825.1865275,
-    "ast_hash": "86728b11c08a232fb947787cecdd17e9",
+    "mtime": 1793182894.3291695,
+    "ast_hash": "4e705940640b21096eb0285341d84128",
     "semantic_hash": ""
   },
   "src/services/endpointConsistency.test.ts": {
@@ -2507,8 +2507,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/TariffTab.render.test.tsx": {
-    "mtime": 1793162814.070138,
-    "ast_hash": "2d9939fc69fc1b05be8340a4194b7afa",
+    "mtime": 1793183020.1701393,
+    "ast_hash": "57862823aa2d57f2b3adbfb7a5942e14",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-Dcz5ckLz.js": {
@@ -5729,6 +5729,21 @@
   "docs/media/trip-angkutan-launch.gif": {
     "mtime": 1793172224.530068,
     "ast_hash": "749bf1b02877dc8f898249281d2dc482",
+    "semantic_hash": ""
+  },
+  "server/api/handlers/vehicleTypes.test.ts": {
+    "mtime": 1793236737.491199,
+    "ast_hash": "fba46e0628e69fba6e9ba6de41c939da",
+    "semantic_hash": ""
+  },
+  "server/api/handlers/vehicleTypes.ts": {
+    "mtime": 1793180827.4338174,
+    "ast_hash": "81d8a96aa0484dff937b427e8165a5d1",
+    "semantic_hash": ""
+  },
+  "src/services/vehicleTypes.ts": {
+    "mtime": 1793181192.6318605,
+    "ast_hash": "efca5026d11a2059026b9b6c62462986",
     "semantic_hash": ""
   }
 }

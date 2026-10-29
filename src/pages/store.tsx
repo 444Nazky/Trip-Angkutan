@@ -632,6 +632,23 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
  * DIHAPUS dari database) - jadi petugas bisa mendapat akses dermaga untuk
  * wilayah yang tidak ada. Sekarang satu-satunya sumber adalah data server.
  */
+/** Petugas kosong - dipakai kalau roster belum tersedia (bukan data contoh). */
+const EMPTY_OFFICER: Officer = {
+  id: '',
+  name: '',
+  username: '',
+  initials: '',
+  region: '',
+  regions: [],
+  pin: '',
+  status: 'Aktif',
+  device: '-',
+  trips: 0,
+  lastActive: '-',
+  joined: '-',
+  dermagaAccess: [],
+}
+
 export function healDermagaAccess(list: Officer[]): Officer[] {
   const byId = new Map(getStoredOfficers().map(s => [String(s.id), s.dermagaAccess ?? []]))
   return list.map(o => {
@@ -818,7 +835,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } as Officer
       }
     } catch { /* fallthrough */ }
-    return officers[0]
+    // Tidak ada roster (belum sync / belum login) -> petugas kosong, bukan
+    // data contoh. Dulu fallback-nya `officerList[0]` (petugas palsu).
+    return officers[0] ?? (EMPTY_OFFICER as Officer)
   }, [officers, officerId])
 
   const login = useCallback((type: 'admin' | 'member') => {

@@ -12,7 +12,9 @@
  *   3. simpan gagal TIDAK menambah baris palsu,
  *   4. wilayah yang masih punya dermaga / petugas tidak dihapus,
  *   5. hapus dermaga memanggil server lalu tabel dimuat ulang,
- *   6. server tidak merespons → tidak ada baris palsu.
+ *   6. server tidak merespons → tidak ada baris palsu,
+ *   7.Improvisasi UI: ringkasan, pencarian tabel, dan pesan error di form
+ *      bekerja tanpa mengubah sumber data.
  *
  * Tidak ada panggilan jaringan sungguhan di sini.
  */
@@ -311,6 +313,47 @@ describe('RegionTab (render harness)', () => {
     expect(body).toContain('Server tidak bisa dihubungi')
     expect(body).not.toContain('Wilayah Sindang')
     expect(body).not.toContain('Dermaga Sindang')
+  })
+
+  it('menampilkan ringkasan jumlah dari server, bukan angka tetap', async () => {
+    await renderTab()
+
+    const body = container.textContent ?? ''
+    expect(body).toContain('2 wilayah · 1 dermaga')
+    // Kartu ringkasan: wilayah, dermaga, rute, petugas.
+    expect(body).toContain('Rute')
+    expect(body).toContain('Petugas')
+    expect(body).toContain('Server: Tersambung')
+  })
+
+  it('pencarian menyaring baris dermaga tanpa memanggil server lagi', async () => {
+    await renderTab()
+
+    const before = vi.mocked(fetchDermagas).mock.calls.length
+    await setValue(
+      container.querySelector('input[aria-label="Cari dermaga"]') as HTMLInputElement,
+      'tidak-ada',
+    )
+
+    const body = container.textContent ?? ''
+    expect(body).not.toContain('Dermaga Sindang')
+    expect(body).toContain('Tidak ada dermaga yang cocok dengan pencarian')
+    // Pencarian hanya tampilan — tidak ada request baru ke server.
+    expect(vi.mocked(fetchDermagas).mock.calls.length).toBe(before)
+  })
+
+  it('menampilkan pesan error di dalam kartu form saat kode dermaga kembar', async () => {
+    await renderTab()
+
+    await setValue(container.querySelector('select') as HTMLSelectElement, 'r-sbdz')
+    await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Kembar')
+    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
+    await click(buttonByText('Tambah Dermaga'))
+
+    expect(createDermaga).not.toHaveBeenCalled()
+    expect(toasts.at(-1)).toEqual({ msg: 'Wilayah ini sudah punya dermaga berkode SBD1', type: 'error' })
+    // Pesan yang sama juga tampil di dalam form (bukan cuma toast).
+    expect(container.textContent ?? '').toContain('Wilayah ini sudah punya dermaga berkode SBD1')
   })
 })
 
