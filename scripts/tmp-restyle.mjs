@@ -6,7 +6,7 @@ const ROOTS = (process.env.RESTYLE_ROOTS ?? 'src,server,scripts').split(',')
 const SELF = path.resolve('scripts/tmp-restyle.mjs')
 
 const KEEP_RE = /^(deno-lint|eslint|@ts-|prettier|istanbul|c8 |vitest|TODO|FIXME|HACK|XXX|@deprecated|\/\/\/)/i
-const WHY_RE = /(karena|jangan|wajib|harus|sengaja|tadinya|bug|gotcha|alasan|race|fallback|kenapa|security|workaround|server menolak|tidak boleh|jangan sampai|supaya|agar|catatan|penting|sebelum|setelah|hanya|bukan|manual|urutan)/i
+const WHY_RE = /(karena|jangan|wajib|harus|sengaja|tadinya|gotcha|alasan|fallback|kenapa|security|workaround|server menolak|tidak boleh|jangan sampai|supaya|agar|catatan|penting|sebelum|setelah|hanya|bukan|manual|urutan|\bbug\b|\brace\b)/i
 
 const stats = { files: 0, removedComments: 0, keptComments: 0, gaps: 0 }
 
@@ -181,7 +181,9 @@ function removeComments(text, file) {
     const inJsx = text[run.start - 1] === '{' && text[run.end] === '}'
     const directive = parts.some((p) => isDirective(commentBody(p)))
 
-    if (!directive && (parts.join('').length > 90 || parts.length > 1) && shouldKeep(body)) {
+    const raw = parts.join('')
+
+    if (!directive && (raw.includes('\n') || raw.length > 90) && shouldKeep(body)) {
 
       stats.keptComments++
 

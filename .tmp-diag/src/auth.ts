@@ -312,7 +312,6 @@ async function buildOfflineSession(identifier: string): Promise<StoredOfficer | 
     regionCode: String(row.regionCode ?? region),
     dermagaAccess: access ?? [],
   }
-  // ponytail: dulu di sini token DIHAPUS dan dermaga aktif DIHAPUS
   const prev = getStoredOfficer()
   const sameOfficer = !!prev?.id && String(prev.id) === String(officer.id)
   saveOfficerSession(officer)
@@ -577,7 +576,8 @@ const ROUTES_SYNC_KEY = 'trip.routes.lastSync'
 
 const ROUTES_SYNC_TTL_MS = 60_000
 
-// Perbarui rute dari server. Default: skip network bila baru di-sync < 1 menit lalu (TTL)
+
+
 export async function refreshStoredRoutes(
   opts?: { force?: boolean },
 ): Promise<UiRoute[] | null> {
@@ -760,7 +760,6 @@ export async function verifyPinOffline(
     return true
   }
 
-  // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah temuan F001 (login offline "123456" tanpa server).
   return false
 }
 

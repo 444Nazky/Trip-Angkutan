@@ -305,9 +305,7 @@ export interface ForceSyncResult {
   error?: string
 }
 
-/**
- * Force sync = tanpa throttle, untuk refresh manual.
- */
+// Force sync = tanpa throttle, untuk refresh manual.
 export async function forceSyncGeofencesFromBackend(): Promise<ForceSyncResult> {
   const cached = getStoredGeofencePoints()
   console.debug('[geofence] forceSyncGeofencesFromBackend mulai', { cachedCount: cached.length, isAuthenticated: api.isAuthenticated })
@@ -602,7 +600,6 @@ export async function validateRouteForCurrentLocation(
   const reverseCode = normalizedRouteCode.split('-').reverse().join('-')
   const reverseMatch = normalizedAllowed.includes(reverseCode)
 
-  // Debug logging for troubleshooting
   console.debug('[geofence] Route validation:', {
     requestedCode: routeCode,
     normalizedCode: normalizedRouteCode,

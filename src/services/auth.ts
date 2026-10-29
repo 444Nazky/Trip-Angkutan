@@ -1,10 +1,9 @@
-// Session management - tidak ada sesi expired, auto-renew dari token. Debug logging ditambahkan untuk troubleshooting auth flow.
 
 import { api, getStoredOfficer as getStoredOfficerApi, saveOfficer as saveOfficerApi, getStoredRoutes as getStoredRoutesMap, saveRoutes as saveRoutesApi, getCredentials, storeCredentials, clearCredentials, type Officer as StoredOfficer, type Route, type Dermaga } from './api'
 import { findOfficer as findOfflineOfficer, hashPin, setPinHash, verifyPin as verifyStoredPin, } from './offlineDb'
 import { findSeedOfficer } from './seedData'
 
-// ─── Debug helpers ───────────────────────────────────────────────────────────────
+
 
 function debugAuth(label: string, data?: Record<string, unknown>): void {
   if (typeof console !== 'undefined') {
@@ -82,9 +81,7 @@ function saveOfficerSession(officer: StoredOfficer): void {
   try { localStorage.setItem('trip.auth.officer.v1', JSON.stringify(officer)) } catch {}
 }
 
-/**
- * Get officer from storage (api.ts storage + legacy trip.officer fallback).
- */
+// Get officer from storage (api.ts storage + legacy trip.officer fallback).
 export function getStoredOfficer(): StoredOfficer | null {
   const fromApi = getStoredOfficerApi()
   if (fromApi) return fromApi

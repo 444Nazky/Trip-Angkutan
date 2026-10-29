@@ -266,7 +266,8 @@ export function getOfflineRegionTariff(
   return row ? Number(row.nominalTariff) || 0 : 0
 }
 
-/** Ringkasan isi cache offline (untuk layar pengaturan / debug). */
+
+
 export function getOfflineMasterStatus(): {
   hasPack: boolean
   pulledAt: number | null

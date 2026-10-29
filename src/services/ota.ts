@@ -63,9 +63,7 @@ async function getDeviceId(): Promise<string> {
   return _cachedDeviceId
 }
 
-/**
- * LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
- */
+// LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
 async function reportOtaVersion(version: string): Promise<boolean> {
   if (isDevMode()) {
     console.log('[OTA] DEV/Localhost MODE: Skip report version ke server')
