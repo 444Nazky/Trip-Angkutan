@@ -24,7 +24,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { RegionTab } from './RegionTab'
 import { fetchAdminRegions } from '../../../services/tariffs'
-import { createDermaga, deleteDermaga, fetchDermagas, fetchRoutes } from '../../../services/dermagas'
+import { createDermaga, deleteDermaga, fetchDermagas, fetchRoutes, updateDermaga } from '../../../services/dermagas'
 import { api } from '../../../services/api'
 
 interface RowRegion {
@@ -109,6 +109,12 @@ vi.mock('../../../services/dermagas', async (importOriginal) => {
       const removed = left.length !== rows.length
       db.dermagas = left
       return removed ? { ok: true as const } : { ok: false as const, reason: 'Dermaga gagal dihapus karena tidak ditemukan' }
+    }),
+    updateDermaga: vi.fn(async (id: string, data: { name?: string }) => {
+      const row = (db.dermagas as RowDermaga[]).find((d) => d.id === id)
+      if (!row) return { ok: false as const, reason: 'Dermaga gagal diperbarui karena tidak ditemukan' }
+      if (data.name !== undefined) row.name = data.name
+      return { ok: true as const }
     }),
   }
 })
@@ -303,6 +309,43 @@ describe('RegionTab (render harness)', () => {
     expect(deleteDermaga).toHaveBeenCalledWith('d-1')
     expect(container.textContent ?? '').not.toContain('Dermaga Sindang')
     expect(toasts.at(-1)?.msg).toBe('Dermaga dihapus dari database')
+  })
+
+  it('mengubah nama dermaga di server lalu memuat ulang tabel', async () => {
+    await renderTab()
+
+    const row = rowByText('Dermaga Sindang')
+    const editButton = Array.from(row?.querySelectorAll('button') ?? []).find((b) =>
+      (b.textContent ?? '').includes('Ubah Nama'),
+    ) as HTMLButtonElement
+    await click(editButton)
+
+    const input = container.querySelector('input[aria-label="Nama baru untuk Dermaga Sindang"]') as HTMLInputElement
+    expect(input).toBeTruthy()
+    await setValue(input, 'Dermaga Sindang Baru')
+    await click(buttonByText('Simpan'))
+
+    expect(updateDermaga).toHaveBeenCalledWith('d-1', { name: 'Dermaga Sindang Baru' })
+    // Nama baru hanya boleh muncul setelah tabel dimuat ulang dari server.
+    expect(container.textContent ?? '').toContain('Dermaga Sindang Baru')
+    expect(toasts.at(-1)?.msg).toBe('Nama dermaga diubah menjadi Dermaga Sindang Baru')
+  })
+
+  it('menolak nama dermaga kosong tanpa memanggil server', async () => {
+    await renderTab()
+
+    const row = rowByText('Dermaga Sindang')
+    const editButton = Array.from(row?.querySelectorAll('button') ?? []).find((b) =>
+      (b.textContent ?? '').includes('Ubah Nama'),
+    ) as HTMLButtonElement
+    await click(editButton)
+
+    const input = container.querySelector('input[aria-label="Nama baru untuk Dermaga Sindang"]') as HTMLInputElement
+    await setValue(input, '   ')
+    await click(buttonByText('Simpan'))
+
+    expect(updateDermaga).not.toHaveBeenCalled()
+    expect(toasts.at(-1)).toEqual({ msg: 'Nama dermaga wajib diisi', type: 'error' })
   })
 
   it('server tidak merespons: tidak ada baris wilayah palsu', async () => {

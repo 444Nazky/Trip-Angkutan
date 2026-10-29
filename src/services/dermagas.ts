@@ -54,6 +54,21 @@ export async function deleteDermaga(id: string): Promise<ActionResult> {
   return toActionResult(result, 'Dermaga gagal dihapus karena server menolak permintaan')
 }
 
+/**
+ * Ubah data dermaga (nama / kode / wilayah).
+ *
+ * Server hanya mengubah field yang benar-benar dikirim (`updateDermaga` di
+ * `server/api/handlers/master.ts`), jadi `name` boleh dikirim sendiri tanpa
+ * ikut mengubah kode atau wilayah.
+ */
+export async function updateDermaga(
+  id: string,
+  data: { name?: string; code?: string; region_id?: string },
+): Promise<ActionResult> {
+  const result = await api.put(`/dermagas/${id}`, data)
+  return toActionResult(result, 'Dermaga gagal diperbarui karena server menolak permintaan')
+}
+
 
 
 export async function createRoute(data: Omit<Route, 'id'>): Promise<ActionResult<string>> {

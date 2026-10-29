@@ -20,7 +20,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Landmark, MapPin, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
+import { Landmark, MapPin, Pencil, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
 import {
   fetchAdminRegions,
   type AdminRegionRow,
@@ -29,6 +29,7 @@ import {
   fetchDermagas,
   createDermaga,
   deleteDermaga,
+  updateDermaga,
   fetchRoutes,
   type Dermaga,
   type Route,
@@ -84,6 +85,10 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const [formError, setFormError] = useState('')
   /** Pencarian di tabel (hanya tampilan, bukan query server). */
   const [query, setQuery] = useState('')
+  /** Dermaga yang sedang diedit (ubah nama) — null = tidak ada. */
+  const [editingDermagaId, setEditingDermagaId] = useState<string | null>(null)
+  /** Nama baru yang diketik untuk dermaga yang sedang diedit. */
+  const [editingName, setEditingName] = useState('')
 
   /**
    * Muat ulang seluruh data dari server. Dipanggil saat tab dibuka dan setiap
@@ -260,6 +265,52 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
+  /** Mulai mengubah nama dermaga (kode & wilayah tidak disentuh). */
+  const startEditDermaga = (d: Dermaga) => {
+    setEditingDermagaId(d.id)
+    setEditingName(String(d.name ?? ''))
+    setFormError('')
+  }
+
+  const cancelEditDermaga = () => {
+    setEditingDermagaId(null)
+    setEditingName('')
+  }
+
+  /**
+   * Simpan nama baru ke server, lalu muat ulang tabel. Tampilan tidak pernah
+   * diubah sendiri: yang tampil setelah simpan adalah hasil baca server.
+   */
+  const handleSaveDermagaName = async (d: Dermaga) => {
+    const name = editingName.trim()
+    if (!name) {
+      const msg = 'Nama dermaga wajib diisi'
+      setFormError(msg)
+      return showToast(msg, 'error')
+    }
+    if (name === String(d.name ?? '').trim()) {
+      cancelEditDermaga()
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await updateDermaga(d.id, { name })
+      if (!res.ok) {
+        const msg = res.reason ?? 'Dermaga gagal diperbarui karena server menolak permintaan'
+        return showToast(msg, 'error')
+      }
+      const fresh = await load()
+      if (!fresh) {
+        const msg = 'Nama tersimpan, tetapi gagal memuat ulang dari server'
+        return showToast(msg, 'error')
+      }
+      cancelEditDermaga()
+      showToast(`Nama dermaga diubah menjadi ${name}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteDermaga = async (dermaga: Dermaga) => {
     const routeCount = routeCountOfDermaga(dermaga.id)
     const users = officersOfDermaga(dermaga.id)
@@ -301,13 +352,28 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const dermagaRow = (d: Dermaga, alt = false) => {
     const routeCount = routeCountOfDermaga(d.id)
     const users = officersOfDermaga(d.id)
+    const isEditing = editingDermagaId === d.id
     return (
       <tr
         key={d.id}
         className={`admin-table-row ${alt ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60 transition-colors duration-150`}
       >
         <td className="border border-slate-200 px-3 py-2.5">
-          <span className="font-semibold text-slate-800">{labelOf(d)}</span>
+          {isEditing ? (
+            <input
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSaveDermagaName(d)
+                if (e.key === 'Escape') cancelEditDermaga()
+              }}
+              aria-label={`Nama baru untuk ${labelOf(d)}`}
+              autoFocus
+              className="w-full rounded-lg border border-blue-300 bg-white px-2 py-1 text-[13px] font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          ) : (
+            <span className="font-semibold text-slate-800">{labelOf(d)}</span>
+          )}
         </td>
         <td className="border border-slate-200 px-3 py-2.5">
           <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
@@ -337,14 +403,45 @@ export function RegionTab({ showToast }: RegionTabProps) {
           )}
         </td>
         <td className="border border-slate-200 px-3 py-2.5 text-right whitespace-nowrap">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void handleDeleteDermaga(d)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 transition hover:text-red-600 hover:underline disabled:opacity-40"
-          >
-            <Trash2 size={12} /> Hapus Dermaga
-          </button>
+          {isEditing ? (
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void handleSaveDermagaName(d)}
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-blue-700 disabled:opacity-40"
+              >
+                Simpan
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={cancelEditDermaga}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700 hover:underline disabled:opacity-40"
+              >
+                Batal
+              </button>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => startEditDermaga(d)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 transition hover:text-blue-700 hover:underline disabled:opacity-40"
+              >
+                <Pencil size={12} /> Ubah Nama
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void handleDeleteDermaga(d)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 transition hover:text-red-600 hover:underline disabled:opacity-40"
+              >
+                <Trash2 size={12} /> Hapus Dermaga
+              </button>
+            </div>
+          )}
         </td>
       </tr>
     )
@@ -372,7 +469,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         <div>
           <h3 className="text-lg font-black text-slate-900">Master Dermaga</h3>
           <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
-            Tambah / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database.
+            Tambah / ubah nama / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -533,7 +630,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
                 <th className="border border-slate-200 px-3 py-2.5 text-left w-[140px]">Kode</th>
                 <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Rute</th>
                 <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Petugas</th>
-                <th className="border border-slate-200 px-3 py-2.5 text-right w-[170px]">Aksi</th>
+                <th className="border border-slate-200 px-3 py-2.5 text-right w-[240px]">Aksi</th>
               </tr>
             </thead>
             <tbody>
