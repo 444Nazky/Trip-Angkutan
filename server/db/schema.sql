@@ -1,13 +1,10 @@
 -- Skema database lokal (PostgreSQL) untuk API Trip Angkutan.
 --
--- Sumber: deskripsi OpenAPI Supabase yang sedang berjalan. Struktur tabel,
--- tipe kolom, nilai default, primary key, dan foreign key disalin apa adanya.
--- Nama constraint FK mengikuti konvensi PostgreSQL karena dipakai sebagai
--- petunjuk relasi oleh PostgREST (mis. regions!officers_region_id_fkey).
+-- Struktur tabel, tipe kolom, nilai default, primary key, dan foreign key
+-- dibuat di sini. Nama constraint FK mengikuti konvensi PostgreSQL karena
+-- dipakai sebagai petunjuk relasi oleh PostgREST (mis. regions!officers_region_id_fkey).
 --
--- Yang tidak ikut tersalin (tidak terekspos lewat OpenAPI): check constraint,
--- trigger, RLS, dan policy. Tidak ada RLS karena database hanya diakses API
--- di jaringan lokal.
+-- Tidak ada RLS: database hanya diakses API di jaringan lokal compose.
 
 BEGIN;
 

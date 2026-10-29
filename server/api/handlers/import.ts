@@ -1,4 +1,10 @@
-// Impor massal data dari server lama (Supabase/railway) ke database lokal. Endpoint ini dibuat khusus untuk migrasi SEKALI jalan.
+// Impor massal data ke database lokal (PostgreSQL) via PostgREST.
+//
+// Dipakai untuk menulis ulang data yang sudah ada di server dengan hash/ukuran
+// berkas yang benar - contoh: scripts/publish-apk-republish.mjs menulis ulang
+// tabel `app_versions` saat publish kedua gagal karena versi sudah ada.
+//
+// Semua target adalah database LOKAL. Tidak ada server luar yang dihubungi.
 
 import { db, json, requireAdmin } from "../_shared.ts";
 

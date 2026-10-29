@@ -97,19 +97,18 @@ ENV_EXAMPLE="$DST_DIR/server/api/.env.example"
 echo
 echo "[4/4] Cek env API intranet"
 if [ -f "$ENV_LOCAL" ]; then
-  if grep -qE '^SUPABASE_SERVICE_ROLE_KEY=.+' "$ENV_LOCAL"; then
-    echo "    OK  $ENV_LOCAL sudah terisi service role key."
+  if grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL"; then
+    echo "    OK  $ENV_LOCAL sudah terisi JWT_SECRET."
   else
-    echo "    [!] $ENV_LOCAL ADA tapi SUPABASE_SERVICE_ROLE_KEY masih kosong."
-    echo "        Isi SUPABASE_SERVICE_ROLE_KEY + JWT_SECRET (HARUS sama dengan Supabase),"
-    echo "        kalau tidak container API intranet akan exit dengan:"
+    echo "    [!] $ENV_LOCAL ADA tapi JWT_SECRET masih kosong."
+    echo "        Isi JWT_SECRET, kalau tidak container API intranet akan exit dengan:"
     echo "        [api-intranet] GAGAL START: env wajib belum diisi"
   fi
 else
   mkdir -p "$(dirname "$ENV_LOCAL")"
   if [ -f "$ENV_EXAMPLE" ]; then cp "$ENV_EXAMPLE" "$ENV_LOCAL"; chmod 600 "$ENV_LOCAL"; fi
   echo "    [!] $ENV_LOCAL dibuat dari .env.example (NILAI KOSONG)."
-  echo "        Isi SUPABASE_SERVICE_ROLE_KEY + JWT_SECRET sebelum service :3000 bisa jalan."
+  echo "        Isi JWT_SECRET sebelum service :3000 bisa jalan."
 fi
 
 if [ "$DRY" -eq 1 ]; then

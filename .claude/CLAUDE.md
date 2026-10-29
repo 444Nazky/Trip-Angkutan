@@ -5,44 +5,45 @@
 ### Port Operasional
 - **Port 5173**: Mobile App (aplikasi petugas lapangan)
 - **Port 8000**: Admin Dashboard (HARUS serve dari direktori `admin-www/`)
-- **Port 3000**: API INTRANET (server lokal di PC kantor, opsional)
+- **Port 3000**: API (server lokal di PC kantor)
 
-### Backend - DUAL ENDPOINT
-Aplikasi mobile punya **dua pilihan endpoint**, dipilih petugas lewat
-"Pengaturan Server" (halaman Profil / Login):
+### Backend - SEPENUHNYA LOKAL
 
-| Endpoint | URL | Kapan dipakai |
-|----------|-----|---------------|
-| Supabase (cloud) | `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api` | Default, butuh internet |
-| Intranet Kantor (LAN) | `http://192.168.1.123:3000/api` | Di kantor, tanpa internet |
+Tidak ada backend luar. Tidak ada Supabase, tidak ada Railway, tidak ada
+panggilan keluar ke internet. Semua layanan berjalan di compose lokal
+(`docker-compose.yml`):
 
-- **Kode API-nya SAMA**. `supabase/functions/api/index.ts` sekarang mengekspor
-  `handleRequest`, lalu:
-  - Cloud  : Edge Runtime memanggil `Deno.serve(handleRequest)`
-  - Intranet: `supabase/functions/api/local_server.ts` memanggil `Deno.serve` dengan
-    handler yang sama, di port 3000.
-- **Database tetap Supabase PostgreSQL** (cloud). Yang lokal hanya HTTP server-nya.
-- **`JWT_SECRET` intranet HARUS sama** dengan secret di Supabase, kalau tidak
-  token yang issued cloud tidak valid di intranet (muncul "session expired").
-- Router menampilkan label `Supabase` / `Intranet` di Profil > Server / Endpoint.
-- Admin dashboard tetap memakai Supabase cloud.
+| Service | Isi | Port host |
+|---------|-----|-----------|
+| `web` | admin dashboard + mobile web (nginx) | 8000, 5173 |
+| `api-intranet` | server API (Deno) | 3000 |
+| `db` | PostgreSQL 16 | tidak dibuka ke host/LAN |
+| `rest` | PostgREST (jembolan SQL -> REST) | 127.0.0.1:3001 (debug) |
+
+- **Database**: PostgreSQL lokal, diakses lewat PostgREST (`POSTGREST_URL`).
+  Skema: `server/db/schema.sql` + `server/db/migrations/`.
+- **Storage**: berkas (foto trip, APK, bundel OTA) di disk host, disajikan
+  sebagai `/files/<bucket>/<path>` oleh server API. Bucket: `trip-photos`,
+  `apks`, `ota`.
+- **Tidak ada kredensial cloud** di mana pun. `JWT_SECRET` (lihat
+  `server/api/.env.local`) adalah satu-satunya secret yang memvalidasi token.
+- **Tidak perlu internet** setelah image Docker selesai dibangun.
 
 File terkait:
-- `src/services/api.ts` - `apiBaseCandidates()`, `isIntranetBaseUrl()`, `setApiBaseUrlOverride()`
+- `server/api/` - server API (Deno). `index.ts` (router), `local_server.ts`
+  (entry point), `_db.ts` (shim `db.from()` di atas PostgREST).
+- `server/api/.env.local` - konfigurasi runtime (WAJIB, jangan di-commit)
+- `src/services/api.ts` - `apiBaseCandidates()`, `setApiBaseUrlOverride()`
 - `src/environments/environment.ts` - `intranetApiBaseUrl`
-- `src/components/ServerSettingsModal.tsx` - UI pilihan endpoint
-- `supabase/functions/api/local_server.ts` - server intranet (Deno)
 - `Dockerfile.backend` - image Deno untuk service `api-intranet`
 
 ### Setup server intranet (PC kantor)
 ```bash
-cp supabase/functions/api/.env.example supabase/functions/api/.env.local
-# isi SUPABASE_SERVICE_ROLE_KEY + JWT_SECRET (WAJIB, jangan di-commit)
+cp server/api/.env.example server/api/.env.local
+# isi JWT_SECRET (WAJIB, jangan di-commit)
 ```
-Alternatif tanpa edit file: taruh dua secret itu di
-`supabase/functions/api/.env.secrets` (chmod 600) - `restart-all-ubuntu.sh`
-membacanya otomatis. `JWT_SECRET` harus **identik** dengan yang dipakai
-Supabase Edge Function.
+Alternatif tanpa edit file: taruh secret itu di `server/api/.env.secrets`
+(chmod 600) - `restart-all-ubuntu.sh` membacanya otomatis.
 
 ### Restart semua layanan (PC kantor)
 ```bash
@@ -133,7 +134,7 @@ cp www/assets/karyamasv.svg admin-www/Assets/
 
 ### Backend
 ```bash
-supabase functions deploy api --project-ref bmiruktfruunegtbydyw
+docker compose build api-intranet web && docker compose up -d
 ```
 
 ---
@@ -167,24 +168,24 @@ graphify update .  # Setelah modifikasi code
 5. **Server intranet gagal start**: `Could not find a matching package for 'npm:bcryptjs@2.4.3'`
    -> Deno ikut membaca package.json repo. Wajib jalankan dengan `--node-modules-dir=none`
    (sudah dipakai di `Dockerfile.backend`).
-6. **Petugas logout terus-menerus setelah ganti endpoint**: `JWT_SECRET` intranet
-   beda dengan yang di Supabase.
-7. **`docker compose up` gagal**: `supabase/functions/api/.env.local` belum ada
+6. **Petugas logout terus-menerus setelah server restart**: `JWT_SECRET` berubah
+   (atau `server/api/.env.local` hilang). Token lama jadi tidak valid ->
+   petugas harus login ulang.
+7. **`docker compose up` gagal**: `server/api/.env.local` belum ada
    -> `restart-all-ubuntu.sh` membuatnya otomatis dari `.env.example`.
 8. **Build image API gagal: `COPY failed: no such file`** -> `.dockerignore` dulu
-   mengecualikan seluruh folder `supabase`, jadi kode Edge Function tidak ikut
-   ke build context. Sekarang `.dockerignore` mengecualikan `supabase/*` tapi
-   tetap membiarkan `supabase/functions/api/**` masuk - DAN tetap mengecualikan
-   `supabase/functions/api/.env.local` supaya secret tidak pernah masuk image.
+   mengecualikan folder kode API, jadi `server/api/` tidak ikut ke build
+   context. Sekarang `.dockerignore` hanya mengecualikan
+   `server/api/.env.local` + `.env.secrets` supaya secret tidak pernah masuk
+   image, dan `server/api/` tetap ikut.
 9. **Cache dependency kosong di image**: `deno cache` TIDAK menerima flag izin
    (`--allow-net` dkk). Kalau diberi, perintah gagal diam-diam (`|| true`) dan
    cache tetap kosong -> server baru bisa start setelah mengunduh dari internet.
    Perintah yang benar: `deno cache --node-modules-dir=none api/local_server.ts`.
-10. **Bundel OTA gagal diunduh setelah petugas pilih endpoint intranet**:
-    URL storage (`/storage/v1/object/public/ota/...`) SELALU milik host Supabase
-    cloud. Kalau origin-nya ikut `api.baseUrl` yang aktif, unduhan diarahkan ke
-    port 3000 yang tidak melayani `/storage` -> 404. Pakai
-    `supabaseProjectOrigin()` (src/services/api.ts) untuk URL storage.
+10. **Bundel OTA / APK gagal diunduh**: berkas disajikan server API sebagai
+    `/files/<bucket>/<path>` (bucket `ota`, `apks`). URL-nya harus ikut
+    origin server yang sedang aktif. Kalau path ditulis sebagai path cloud
+    yang tidak dilayani server lokal -> 404.
 11. **Banner "LAN:" di log server intranet kosong**: `Deno.networkInterfaces()`
     butuh izin `--allow-sys`. Tanpa itu fungsinya melempar "Requires sys access
     to networkInterfaces" yang Tertangkap try/catch -> daftar IP kosong tanpa
@@ -194,16 +195,15 @@ graphify update .  # Setelah modifikasi code
     container `trip-web` milik project compose LAIN (checkout lama) masih
     hidup. `restart-all-ubuntu.sh` sudah membersihkan container `trip-web` /
     `trip-api` sebelum `up` supaya restart selalu idempotent.
-13. **Server intranet crash-loop**: `JWT_SECRET` kosong tidak lagi mematikan
-    server (cuma warning), tapi `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
-    kosong tetap bikin container exit. Compose pakai `restart: on-failure:5`
-    supaya container terlihat "Exited (1)", bukan spam restart terus.
+13. **Server intranet crash-loop**: `JWT_SECRET` kosong membuat container
+    exit. Compose pakai `restart: on-failure:5` supaya container terlihat
+    "Exited (1)", bukan spam restart terus.
 14. **Data tidak terkirim dari aplikasi native (gejala "mixed content")**:
    aplikasi native (Capacitor/Android WebView) memuat halaman dari origin
    LOKAL `https://localhost`. `validateEndpointInput()` (src/services/api.ts)
    DULU menolak `http://192.168.1.123:3000` begitu protokol halaman `https:`,
-   jadi UI memaksa pindah ke Supabase - dan saat seluler dimatikan tidak ada
-   internet -> antrean offline tidak bisa dikirim. Aturan sekarang: mixed
+   jadi UI memaksa pindah ke endpoint lain - dan saat seluler dimatikan tidak
+   ada internet -> antrean offline tidak bisa dikirim. Aturan sekarang: mixed
    content hanya berlaku untuk halaman https yang dibuka di BROWSER;
    aplikasi native (`isNativeApp()`) dan loopback exempt.
    WebView juga harus mengizinkan cleartext:
@@ -216,9 +216,9 @@ graphify update .  # Setelah modifikasi code
    "Origin tidak diizinkan" dan TIDAK ADA data yang bisa dikirim. Origin
    native (`https://localhost`, `capacitor://localhost`, `http://localhost`,
    `https://127.0.0.1`) sekarang SELALU diizinkan di `withCors()`
-   (supabase/functions/api/index.ts).
+   (server/api/index.ts).
 16. **HTTPS untuk server intranet (opsional)**: set `TLS_CERT_FILE` +
-   `TLS_KEY_FILE` (lihat `supabase/functions/api/.env.example`) supaya
+   `TLS_KEY_FILE` (lihat `server/api/.env.example`) supaya
    `local_server.ts` serves HTTPS di port 3000. Sertifikat self-signed harus
    diinstall di perangkat petugas. Kandidat endpoint-nya muncul otomatis
    kalau `intranetHttpsApiBaseUrl` diisi di `src/environments/environment.ts`.
@@ -259,7 +259,7 @@ graphify update .  # Setelah modifikasi code
 - Endpoint: `GET /api/server-stats` di server intranet port 3000 (butuh role
   admin). Isinya: `metrics` (proses Deno: request, success rate, latensi,
   bucket per menit, top path) + `system` (hardware: CPU, RAM, swap, storage,
-  load average, uptime mesin) + `components` (status Supabase/DB/disk/BCrypt).
+  load average, uptime mesin) + `components` (status DB/disk/BCrypt).
 - Kolektor hardware: `server/api/_system.ts` (sumber `/proc/stat`,
   `/proc/cpuinfo`, `/proc/meminfo`, `/proc/loadavg`, `/proc/uptime`, `df -k`).
 - UI: `src/pages/admin/components/ServerStatsPanel.tsx` (dipakai
@@ -281,8 +281,8 @@ graphify update .  # Setelah modifikasi code
   endpoint langsung berlaku tanpa reload aplikasi.
 - `setApiBaseUrlOverride()` tidak reload halaman lagi.
 - Antrean data offline (IndexedDB) tetap aman: yang dikirim ke server aktif.
-- Bundel OTA & file APK tetap di Supabase Storage (butuh internet). Endpoint
-  intranet mengurangi ketergantungan internet untuk operasi harian, bukan
-  menghilangkan sama sekali.
+- Bundel OTA & file APK disimpan di disk server (`STORAGE_DIR`) dan
+  disajikan lewat `/files/<bucket>/<path>`. Tidak ada ketergantungan internet
+  setelah image Docker selesai dibangun.
 - `restart-all-ubuntu.sh` memakai `set -uo pipefail` (bukan `-e`): build admin
   yang gagal tidak boleh mematikan mobile + API intranet.

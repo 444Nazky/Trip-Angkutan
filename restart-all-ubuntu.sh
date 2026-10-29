@@ -62,22 +62,7 @@ fi
 
 echo "[*] Menyiapkan konfigurasi API intranet..."
 
-# Secret dari versi lama repo (folder `supabase/`) dipindahkan otomatis ke
-# lokasi sekarang (`server/api/`). Tanpa ini, JWT_SECRET yang sudah terisi
-# akan hilang dan server intranet menolak start.
-LEGACY_ENV_LOCAL="$BASE/supabase/functions/api/.env.local"
-LEGACY_SECRETS_FILE="$BASE/supabase/functions/api/.env.secrets"
-if [ ! -f "$ENV_LOCAL" ] && [ -f "$LEGACY_ENV_LOCAL" ]; then
-    mkdir -p "$(dirname "$ENV_LOCAL")"
-    cp "$LEGACY_ENV_LOCAL" "$ENV_LOCAL"
-    chmod 600 "$ENV_LOCAL"
-    warn "Konfigurasi lama di supabase/functions/api/.env.local dipindahkan ke server/api/.env.local."
-fi
-if [ ! -f "$SECRETS_FILE" ] && [ -f "$LEGACY_SECRETS_FILE" ]; then
-    cp "$LEGACY_SECRETS_FILE" "$SECRETS_FILE"
-    chmod 600 "$SECRETS_FILE"
-    warn "Berkas .env.secrets dari lokasi lama dipindahkan ke server/api/.env.secrets."
-fi
+# Secret hanya boleh ada di `server/api/` (sudah masuk .gitignore).
 
 if [ ! -f "$ENV_LOCAL" ]; then
     if [ -f "$ENV_EXAMPLE" ]; then

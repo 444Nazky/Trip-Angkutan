@@ -4,8 +4,8 @@
 Trip Angkutan adalah sistem manajemen angkutan yang terdiri dari:
 - Aplikasi mobile (Ionic + React) untuk petugas lapangan
 - Dashboard admin tertanam di codebase yang sama (`src/pages/admin/`)
-- API sebagai Supabase Edge Function tunggal (`supabase/functions/api`)
-- Database Supabase Postgres + Storage
+- API sebagai server Deno lokal tunggal (`server/api/`)
+- Database PostgreSQL lokal + PostgREST, storage berkas di disk server
 
 ## 2. Component Breakdown
 
@@ -17,11 +17,11 @@ Trip Angkutan adalah sistem manajemen angkutan yang terdiri dari:
   - Vehicle input (2-step process)
   - Camera capture for documentation
   - Offline-first architecture with sync queue
-  - Update aplikasi mandiri (APK/OTA lewat Supabase Storage)
+  - Update aplikasi mandiri (APK/OTA lewat storage lokal server, `/files/<bucket>/<path>`)
 
-### 2.2 Backend API (Supabase Edge Function "api")
+### 2.2 Backend API (server Deno lokal)
 - **Endpoint Structure**: RESTful API dengan JWT custom (HS256, TTL 90 hari)
-- **Deploy**: `npx supabase functions deploy api --project-ref bmiruktfruunegtbydyw --no-verify-jwt`
+- **Deploy**: `docker compose build api-intranet && docker compose up -d`
 - **Endpoint**:
   - `/auth/*` - Authentication management (admin-login, member-login)
   - `/trips/*` - Trip management
@@ -88,5 +88,5 @@ Trip Angkutan adalah sistem manajemen angkutan yang terdiri dari:
 - **Development**:
   - Aplikasi + admin: `npm run dev` (port 8000, LAN privat kantor)
 - **Production**:
-  - API: Supabase Edge Function (`verify_jwt = false`, auth di handler)
-  - Mobile: Build → Capacitor sync → APK di Supabase Storage (bucket `apks`)
+  - API: container `api-intranet` (Deno, port 3000), auth di handler
+  - Mobile: Build → Capacitor sync → APK di storage lokal server (bucket `apks`)

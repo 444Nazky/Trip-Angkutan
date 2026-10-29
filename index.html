@@ -6,8 +6,8 @@
   <!--
     CSP: batasi sumber daya yang boleh dimuat — membatasi dampak XSS.
 
-    connect-src dibuka ke https: (endpoint produksi Supabase) + http lokal/LAN
-    untuk pengujian perangkat. frame-src dibutuhkan oleh pratinjau peta
+    connect-src dibuka ke http lokal/LAN untuk pengujian perangkat.
+    frame-src dibutuhkan oleh pratinjau peta
     OpenStreetMap di tab Rute/Geofence.
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* ws://localhost:* wss://localhost:*; frame-src https://www.openstreetmap.org https://www.google.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />

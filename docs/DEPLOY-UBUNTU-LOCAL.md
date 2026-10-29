@@ -34,8 +34,8 @@ dari `blackarch`:
 
 - `curl -s http://192.168.1.123:3000/api/health` → `200 {"mode":"intranet"}`
 - `POST /api/auth/admin-login` → token, lalu token itu → `GET /api/routes` = `200`
-- **Token cloud valid di `.123`** (token dari Edge Function Supabase →
-  `GET :3000/api/routes` = `200`) → `JWT_SECRET` sudah sama persis.
+- **Token dari server intranet valid di `.123`** (`GET :3000/api/routes` = `200`)
+  -> `JWT_SECRET` sudah terisi dan konsisten.
 - Tanpa token rute terproteksi balas `403/401` (bukan `500`) → bug
   `JWT_SECRET=""` yang dulu bikin 500 sudah tertangani.
 
@@ -77,7 +77,7 @@ Aturan:
 cd <path-repo-di-ubuntu.local>
 git pull origin main
 ```
-Pastikan `Dockerfile.backend`, `supabase/functions/api/local_server.ts`, dan
+Pastikan `Dockerfile.backend`, `server/api/local_server.ts`, dan
 service `api-intranet` di `docker-compose.yml` sudah ada.
 
 ### 2. Pasang secret
@@ -86,13 +86,12 @@ chmod 600). Salin ke `ubuntu.local` (USB / flashdisk / sabotase file sharing),
 lalu di `ubuntu.local`:
 
 ```bash
-mkdir -p supabase/functions/api
-cp <file-yang-dicopy> supabase/functions/api/.env.secrets
-chmod 600 supabase/functions/api/.env.secrets
+mkdir -p server/api
+cp <file-yang-dicopy> server/api/.env.secrets
+chmod 600 server/api/.env.secrets
 ```
 
-Isinya 4 baris: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`,
-`LAN_IP=192.168.1.123`.
+Isinya 2 baris: `JWT_SECRET` dan `LAN_IP=192.168.1.123`.
 
 > **Jangan** commit file ini. `.gitignore` sudah mengexclude `.env.local`
 > dan `.env.secrets`.
@@ -123,22 +122,16 @@ docker logs trip-api | tail    # tidak boleh ada "PERINGATAN: JWT_SECRET kosong"
    `Key length is zero`, dan **setiap** request auth-protected membalas **500**
    (bukan 401). Sudah diperbaiki di `_shared.ts` (pakai `||`). Kalau masih
    500, cek isi `.env.local` benar-benar punya baris `JWT_SECRET=<nilai>`.
-2. **`JWT_SECRET` intranet harus sama persis dengan Supabase.** Kalau beda,
-   token yang issued cloud tidak valid di intranet -> petugas tampak login
-   sukses lalu langsung "session expired". Kalau secret cloud tidak diketahui,
-   set yang baru di kedua sisi:
-   ```bash
-   supabase secrets set JWT_SECRET=<nilai-acak-panjang> --project-ref bmiruktfruunegtbydyw
-   ```
-   (Edge Runtime langsung memakai nilai baru tanpa perlu deploy ulang, tapi
-   token lama jadi tidak valid -> petugas harus login ulang.)
+2. **`JWT_SECRET` berubah -> semua token lama mati.** Hanya ada satu server
+   (intranet), jadi tidak ada lagi "sama persis dengan cloud". Kalau
+   `JWT_SECRET` diganti, petugas harus login ulang.
 3. **`deno cache` tidak menerima flag izin** (`--allow-net` dst). Perintah
    yang benar: `deno cache --node-modules-dir=none api/local_server.ts`.
    Kalau cache kosong, container mengunduh dependency saat start (lambat).
 4. **`--node-modules-dir=none` wajib** di CMD, kalau tidak Deno membaca
    `package.json` repo dan gagal: `Could not find a matching package for
    'npm:bcryptjs@2.4.3'`.
-5. **`supabase/functions/api/.env.local` tidak boleh ikut build context.**
+5. **`server/api/.env.local` tidak boleh ikut build context.**
    `.dockerignore` sudah mengecualikannya.
 6. **Jangan menambah alias `192.168.1.123` di `blackarch`** - alamat itu
    milik `ubuntu.local`; duplikat IP bikin `.123` tidak terjangkau.

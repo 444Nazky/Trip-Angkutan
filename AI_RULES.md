@@ -7,27 +7,18 @@
 |------|----------|-----------|
 | **5173** | Mobile App | Aplikasi petugas lapangan (login dengan ID + PIN) |
 | **8000** | Admin Dashboard | Dashboard admin (auto-login, tanpa input kredensial) |
-| **3000** | API Intranet | Server API lokal di PC kantor (opsional, dual endpoint) |
+| **3000** | API | Server API lokal di PC kantor |
 
 **PERINGATAN KRITIS**: Port 8000 HARUS serving dari direktori `admin-www/`, BUKAN direktori root www/. Direktori www/ berisi aplikasi mobile, bukan admin dashboard.
 
-### Backend - Dual Endpoint
-- **REST API**: Supabase Edge Functions (kode identik untuk cloud dan intranet)
-- **URL cloud**: `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api`
-- **URL intranet**: `http://192.168.1.123:3000/api` (PC kantor, port 3000)
-- **Database**: Supabase PostgreSQL (dari kedua endpoint)
-- **Storage**: Supabase Storage buckets (`apks`, `ota`)
-- Mobile memilih endpoint lewat "Pengaturan Server" (Profil / Login)
-- Admin dashboard tetap memakai Supabase cloud
+### Backend - Sepenuhnya Lokal
+- **REST API**: server API Deno di `server/api/` (`index.ts` = router, `local_server.ts` = entry point)
+- **URL**: `http://192.168.1.123:3000/api` (PC kantor, port 3000)
+- **Database**: PostgreSQL lokal (container `db`) lewat PostgREST (container `rest`)
+- **Storage**: berkas di disk server, disajikan sebagai `/files/<bucket>/<path>` (bucket `trip-photos`, `apks`, `ota`)
+- Tidak ada backend luar (Supabase/Railway), tidak ada kredensial cloud, tidak ada panggilan keluar internet
 
-Router, rate limit, cache, dan CORS SAMA untuk keduanya - `index.ts` mengekspor
-`handleRequest`, dipakai oleh Edge Runtime (cloud) dan `local_server.ts` (intranet).
-
-**ATURAN**: URL storage (`/storage/v1/object/public/...` untuk bundel OTA & APK)
-SELALU memakai host Supabase cloud - pakai `supabaseProjectOrigin()` dari
-`src/services/api.ts`, JANGAN turunkan dari `api.baseUrl` yang sedang aktif.
-Kalau ikut `api.baseUrl`, begitu petugas pilih endpoint intranet, unduhan OTA
-mengarah ke port 3000 yang tidak melayani `/storage` -> 404.
+Router, rate limit, cache, dan CORS semuanya di `server/api/index.ts`.
 
 `api.baseUrl` bersifat LIVE (bukan konstanta modul) supaya ganti endpoint
 langsung berlaku tanpa reload aplikasi.
@@ -52,7 +43,9 @@ Aplikasi-Trip-Main Branch/
 │       └── tariffs.ts           # Tariff types & functions
 ├── www/                          # Build output (mobile)
 ├── admin-www/                   # Build output (admin) - serve dengan PHP
-└── supabase/functions/api/       # Backend Edge Functions
+└── server/api/                  # Backend (server API Deno)
+    ├── index.ts                 # Router + CORS + rate limit
+    ├── local_server.ts          # Entry point (port 3000)
     └── handlers/
         └── reports.ts            # Report API handler
 ```
@@ -134,10 +127,10 @@ cp www/assets/karyamasv.svg admin-www/Assets/
 php -S 0.0.0.0:8000 -t admin-www
 ```
 
-### Backend (Supabase)
+### Backend (lokal)
 
 ```bash
-supabase functions deploy api --project-ref bmiruktfruunegtbydyw
+docker compose build api-intranet web && docker compose up -d
 ```
 
 ---
@@ -228,4 +221,4 @@ graphify update .
 | Login page muncul di admin | Pastikan serve dari admin-www |
 | Grafik tidak tampil | Cek CSS variables, gunakan hardcoded |
 | TypeScript error | `npx tsc --noEmit --skipLibCheck` |
-| API error | Cek Supabase Edge Functions logs |
+| API error | Cek log container: `docker compose logs -f api-intranet` |

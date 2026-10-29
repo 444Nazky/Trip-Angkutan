@@ -549,7 +549,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                         <input
                           value={mapsLink}
                           onChange={e => handleMapsLinkChanged(e.target.value)}
-                          onPaste={e => {
+              s            onPaste={e => {
                             const text = e.clipboardData.getData('text')
                             if (text) { e.preventDefault(); handleMapsLinkChanged(text) }
                           }}

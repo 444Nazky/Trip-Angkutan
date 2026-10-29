@@ -75,9 +75,9 @@ public/releases/
 backend/public/
 
 # Output build web — dibuat ulang oleh `npm run build` (Dockerfile juga
-# membangun dari source), dan bundel OTA disajikan dari bucket Supabase
-# `ota`, bukan dari direktori repo. Melacaknya hanya menghasilkan konflik
-# pada berkas ber-hash yang berubah setiap build.
+# membangun dari source), dan bundel OTA disajikan dari storage lokal
+# server (bucket `ota`), bukan dari direktori repo. Melacaknya hanya
+# menghasilkan konflik pada berkas ber-hash yang berubah setiap build.
 /www/
 /ota/
 
@@ -95,6 +95,10 @@ data/storage/
 # Secret server API intranet (JANGAN di-commit)
 server/api/.env.local
 server/api/.env.secrets
+
+# Backup salinan source lama (bukan bagian dari build) - pernah memuat
+# file .env.local yang berisi secret.
+/.tmp-backup/
 
 # Cache build Angular (hasil `ng build`/vitest, bukan sumber)
 /.angular/
