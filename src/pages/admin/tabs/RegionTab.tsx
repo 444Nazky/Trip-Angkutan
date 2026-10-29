@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Landmark, MapPin, Pencil, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
-import { fetchAdminRegions, type AdminRegionRow, } from '../../../services/tariffs'
+import { fetchAdminRegions, type AdminRegionRow } from '../../../services/tariffs'
 import {
   fetchDermagas,
   createDermaga,

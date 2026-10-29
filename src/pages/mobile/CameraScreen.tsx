@@ -5,7 +5,7 @@ import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
 import { readPlateFromImage } from '../../services/ocr'
-import { compressImage, DOC_MAX_EDGE, DOC_QUALITY, OCR_MAX_EDGE, OCR_QUALITY, } from '../../services/imageUtil'
+import { compressImage, DOC_MAX_EDGE, DOC_QUALITY, OCR_MAX_EDGE, OCR_QUALITY } from '../../services/imageUtil'
 import { getCurrentPosition } from '../../services/geofence'
 import type { MobileScreen } from '../types'
 

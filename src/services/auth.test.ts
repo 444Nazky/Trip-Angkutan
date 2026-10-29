@@ -1,7 +1,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import bcrypt from 'bcryptjs'
-import { getPinHash, hashPin, initOfflineDb, saveOfficers, setPinHash, verifyPin, } from './offlineDb'
+import { getPinHash, hashPin, initOfflineDb, saveOfficers, setPinHash, verifyPin } from './offlineDb'
 import { getStoredOfficer, loginOffline, verifyPinOffline } from './auth'
 import { seedRoster, verifySeedPin } from './seedData'
 import { tryOfflineLogin } from '../pages/LoginPage'

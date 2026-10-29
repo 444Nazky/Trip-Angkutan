@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import bcrypt from 'bcryptjs'
-import { SEED_VERSION, SEED_VERSION_KEY, purgeLegacySeedData, seedGeofencePointsIfAbsent, } from './seedData'
+import { SEED_VERSION, SEED_VERSION_KEY, purgeLegacySeedData, seedGeofencePointsIfAbsent } from './seedData'
 
 
 

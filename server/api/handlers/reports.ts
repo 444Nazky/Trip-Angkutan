@@ -1,5 +1,5 @@
 import { db, json, requireAdmin } from "../_shared.ts";
-import { resolveTariff, hasColumn, normalizeCategory, type TariffSource, } from "./tariffRules.ts";
+import { resolveTariff, hasColumn, normalizeCategory, type TariffSource } from "./tariffRules.ts";
 
 
 

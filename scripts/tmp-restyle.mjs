@@ -340,7 +340,7 @@ function compactImports(text, file) {
 
     if (!node.getText(sf).includes('\n')) continue
 
-    const singleLine = clause.getText(sf).replace(/\s+/g, ' ')
+    const singleLine = clause.getText(sf).replace(/\s+/g, ' ').replace(/,\s*}/g, ' }')
     const mod = node.moduleSpecifier.getText(sf)
     const line = `import ${singleLine} from ${mod}`
 

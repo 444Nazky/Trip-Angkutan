@@ -1,7 +1,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Bike, Car, ChevronDown, ChevronRight, Container, Pencil, Plus, Search, Trash2, Truck, } from 'lucide-react'
+import { Bike, Car, ChevronDown, ChevronRight, Container, Pencil, Plus, Search, Trash2, Truck } from 'lucide-react'
 import {
   RegionTariffRow,
   bulkUpsertRegionTariffRows,

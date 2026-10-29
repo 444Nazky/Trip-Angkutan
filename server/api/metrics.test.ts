@@ -1,6 +1,6 @@
 // Uji metrik server (server/api/_metrics.ts dan server/api/_system.ts). Fokusnya dua hal: 1.
 
-import { assert, assertEquals, } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import { recordRequest, snapshot } from "./_metrics.ts";
 import { systemSnapshot } from "./_system.ts";

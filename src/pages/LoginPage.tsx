@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
-import { loginOffline, memberLogin, SESSION_READY_EVENT, verifyPinOffline, } from '../services/auth'
+import { loginOffline, memberLogin, SESSION_READY_EVENT, verifyPinOffline } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 import { prefetchAllCriticalData } from '../services/prefetch'

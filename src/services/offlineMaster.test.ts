@@ -45,7 +45,7 @@ vi.mock('./auth', () => ({
 
 
 
-import { OFFLINE_MASTER_KEY, getOfflineMaster, getOfflineMasterStatus, pullOfflineMaster, } from './offlineMaster'
+import { OFFLINE_MASTER_KEY, getOfflineMaster, getOfflineMasterStatus, pullOfflineMaster } from './offlineMaster'
 import { checkPlate, checkPlateOffline } from './plates'
 
 

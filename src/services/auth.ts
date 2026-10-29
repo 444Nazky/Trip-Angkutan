@@ -1,6 +1,6 @@
 
 import { api, getStoredOfficer as getStoredOfficerApi, saveOfficer as saveOfficerApi, getStoredRoutes as getStoredRoutesMap, saveRoutes as saveRoutesApi, getCredentials, storeCredentials, clearCredentials, type Officer as StoredOfficer, type Route, type Dermaga } from './api'
-import { findOfficer as findOfflineOfficer, hashPin, setPinHash, verifyPin as verifyStoredPin, } from './offlineDb'
+import { findOfficer as findOfflineOfficer, hashPin, setPinHash, verifyPin as verifyStoredPin } from './offlineDb'
 import { findSeedOfficer } from './seedData'
 
 

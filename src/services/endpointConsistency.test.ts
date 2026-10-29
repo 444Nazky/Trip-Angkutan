@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkEndpointConsistency, parseEnvFromSource, } from '../../scripts/check-endpoint-consistency.mjs'
+import { checkEndpointConsistency, parseEnvFromSource } from '../../scripts/check-endpoint-consistency.mjs'
 
 // Regression test untuk penjaga "split-brain" endpoint. Script ini memblokir build kalau aplikasi mobile dan dashboard admin menunjuk server berbeda.
 

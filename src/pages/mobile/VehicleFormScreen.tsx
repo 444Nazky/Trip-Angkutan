@@ -3,7 +3,7 @@ import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
-import { formatPlateNumber, validatePlate, sanitizePlateInput, PLATE_REGEX_STRICT, } from '../../utils/plateFormatter'
+import { formatPlateNumber, validatePlate, sanitizePlateInput, PLATE_REGEX_STRICT } from '../../utils/plateFormatter'
 
 
 

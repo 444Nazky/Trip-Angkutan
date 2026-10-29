@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMapsUrl, isShortMapsLink, osmEmbeddedMapUrl, googleMapsLink, } from './geo'
+import { parseMapsUrl, isShortMapsLink, osmEmbeddedMapUrl, googleMapsLink } from './geo'
 
 
 
