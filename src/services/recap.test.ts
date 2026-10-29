@@ -49,9 +49,12 @@ describe('buildRecap', () => {
     expect(eksternal.empty).toBe(1)
     expect(eksternal.total).toBe(3)
     expect(eksternal.revenue).toBe(280000 + 130000 + 450000)
-    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang'])
-    expect(eksternal.rows[4]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 410000 })
-    expect(eksternal.rows[0]).toMatchObject({ total: 0, revenue: 0 })
+    // Hanya jenis yang benar-benar ada di data trip. Dulu baris kosong
+    // ("Mobil", "Motor", "Truck Kecil", ...) ikut disuntikkan walau tidak
+    // ada kendaraan dengan jenis itu - data palsu di layar rekap.
+    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Truck Besar', 'Truck Sedang'])
+    expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 410000 })
+    expect(eksternal.rows[0]).toMatchObject({ loaded: 1, empty: 0, total: 1, revenue: 450000 })
   })
 
   it('tetap menampilkan motor bersama jenis lain', () => {
@@ -64,7 +67,7 @@ describe('buildRecap', () => {
     ])
 
     const eksternal = groups.find(g => g.golongan === 'Eksternal')!
-    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang'])
+    expect(eksternal.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor'])
     expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 35000 })
     expect(eksternal.total).toBe(3)
   })

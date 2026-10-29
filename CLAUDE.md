@@ -82,4 +82,32 @@ Tariff model (do not regress):
   and `20261027000000_seed_region_tariff_rows.sql`; apply them to the office DB
   before deploying. Rebuild containers after backend changes:
   `docker compose build api-intranet web && docker compose up -d`.
+
+Master jenis kendaraan (satu-satunya daftar yang sah):
+
+- Tabel `vehicle_types` (server/db/schema.sql) = sumber tunggal daftar jenis
+  kendaraan. Dulu daftar ini hardcode DI DUA tempat: dashboard admin
+  ("motor, mobil, truk kecil, ...") dan aplikasi petugas ("Motor, Mobil,
+  Truck Kecil, ...") - ejaan dan isinya berbeda, jadi pilihan di admin dan
+  HP tidak sinkron. Sekarang KEDUA aplikasi baca dari tabel yang sama.
+- Endpoint: `GET /api/vehicle-types` (daftar aktif), `POST` (tambah),
+  `PUT /api/vehicle-types/:id` (ubah nama/urutan), `DELETE
+  /api/vehicle-types/:id` (hapus + hapus baris tarifnya).
+  Handler: `server/api/handlers/vehicleTypes.ts`.
+  Frontend: `src/services/vehicleTypes.ts` (admin) + paket offline
+  (`GET /api/master/offline` ikut mengirim `vehicleTypes`).
+- `key` = bentuk normalisasi (tanpa spasi, "Truck" -> "truk") jadi
+  "Truk Kecil" = "truk kecil" = "Truck Kecil" dianggap jenis yang sama.
+- Migrasi: `20261031000000_vehicle_types.sql` (buat tabel + isi dari data
+  yang SUDAH dipakai - tidak pernah mengarang daftar) dan
+  `20261031010000_vehicle_types_canonical.sql` (kanonisasi ejaan +
+  `sort_order`). Migrasi dijaga idempoten; urutannya MASTER (jenis yang ada
+  di master tarif dulu, jenis yang hanya ada di baris region belakangan).
+- Data seed BOHONG sudah dihapus: `src/services/seedData.ts` tidak lagi
+  berisi roster petugas contoh, region/demaga ENTIKONG/BELITUNG/KELAPAKAMPIT,
+  rute contoh ("AAAA -> BBBB"), maupun PIN default "123456". Jangan
+  menambahkannya kembali - data master hanya boleh dari server.
+- `PUT /api/officers/:id` (baru) = ubah nama/username petugas. Dulu kolom
+  "Nama" di form edit admin bisa diedit tapi TIDAK PERNAH dikirim ke server
+  (UI bilang "diupdate", database tetap nama lama).
 <!-- project-notes:end -->

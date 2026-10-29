@@ -17,8 +17,6 @@ interface OfficersTabProps {
 
 
 
-const HIDDEN_REGION_CODES = ['SBDZ', 'SJRE']
-
 
 
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
@@ -26,11 +24,14 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
     const region = b.regions?.[0]?.name ?? b.region_code ?? b.region_id
     const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.name) : [region]
+    // Tidak ada akses dermaga = kosong. Dulu fallback-nya dummy
+    // `{ id: '', name: '', code: 'D1' }` - data palsu yang tampil sebagai
+    // kolom "Dermaga" padahal tidak ada di database.
     const dermagaAccess = b.dermagas && b.dermagas.length > 0
       ? b.dermagas
       : old?.dermagaAccess && old.dermagaAccess.length > 0
         ? old.dermagaAccess
-        : [{ id: '', name: '', code: 'D1' }]
+        : []
     return {
       id: String(b.id),
       name: b.name,
@@ -172,7 +173,11 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return () => { alive = false }
   }, [onSaveOfficers])
 
-  const regionNames = [...new Set(regions.filter(r => !HIDDEN_REGION_CODES.includes(r.code)).map(r => r.name))]
+  // Seluruh wilayah dari database ditampilkan apa adanya. Dulu ada daftar
+  // kode wilayah yang dikecualikan secara hardcode ('SBDZ', 'SJRE') - daftar
+  // itu bukan data database, dan membuat admin tidak bisa memberi akses
+  // wilayah yang memang ada.
+  const regionNames = [...new Set(regions.map(r => r.name))]
   const officerRegions = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
   const inRegionGroup = (o: Officer, group: string) =>
@@ -272,6 +277,16 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     // SEMUA panggilan harus dicek. Versi lama mengabaikan hasilnya lalu
     // selalu menampilkan "Petugas diupdate" - padahal server bisa saja
     // menolak (403/500) dan akses dermaga tidak berubah sama sekali.
+    //
+    // Nama ikut dikirim. Dulu kolom "Nama" bisa diedit tapi TIDAK pernah
+    // dikirim ke server, jadi UI menampilkan "diupdate" padahal di database
+    // masih nama lama (dan kembali lagi setelah reload).
+    const newName = String(editOff.name ?? '').trim()
+    if (newName && newName !== String(be.name ?? '').trim()) {
+      const nameRes = await api.put(`/officers/${be.id}`, { name: newName })
+      if (!nameRes.ok) return showToast(failureReason(nameRes, 'Nama petugas gagal disimpan karena server menolak permintaan'), 'error')
+    }
+
     if (ids.length > 0) {
       const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
       if (!res.ok) return showToast(failureReason(res, 'Wilayah petugas gagal disimpan karena server menolak permintaan'), 'error')
@@ -299,11 +314,15 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     if (!confirm('Hapus?')) return
     const officer = localOfficers[localIdx]
     const be = findBackendOfficer(officer)
-    if (be) {
-      const res = await api.delete(`/officers/${be.id}`)
-      if (!res.ok) return showToast(failureReason(res, 'Petugas gagal dihapus karena server menolak permintaan'), 'error')
-      await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
+    if (!be) {
+      // Dulu di sini tetap muncul "Petugas dihapus" padahal tidak ada
+      // request yang dikirim - jadi UI mengklaim sukses palsu. Sekarang
+      // jelas-Jelas gagal.
+      return showToast('Petugas ini belum ada di server — tidak bisa dihapus', 'error')
     }
+    const res = await api.delete(`/officers/${be.id}`)
+    if (!res.ok) return showToast(failureReason(res, 'Petugas gagal dihapus karena server menolak permintaan'), 'error')
+    await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
     showToast('Petugas dihapus')
   }
 

@@ -18,7 +18,20 @@ export interface RecapGroup {
 }
 
 const GOLONGAN_ORDER = ['Internal', 'Eksternal', 'Lokal']
-const JENIS_URUT = ['Mobil', 'Motor', 'Truck Besar', 'Truck Kecil', 'Truck Sedang']
+
+/**
+ * Urutan jenis kendaraan untuk tabel rekap.
+ *
+ * Dulu daftar ini ditulis manual di frontend ('Mobil', 'Motor', 'Truck
+ * Besar', ...) dan baris yang tidak ada di database ikut disuntikkan dengan
+ * nilai nol - jadi rekap menampilkan jenis kendaraan yang tidak pernah ada
+ * (dan ejaannya "Truck", berbeda dari database yang "Truk").
+ *
+ * Sekarang: hanya jenis yang benar-benar muncul di data trip yang
+ * ditampilkan. Urutan diambil dari master jenis kendaraan di database
+ * (lihat services/vehicleTypes.ts) kalau tersedia, kalau tidak diurutkan
+ * berdasarkan nama.
+ */
 
 export function recapRouteKey(trip: ReportTrip): string {
   const from = (trip.route_from_name || trip.route_from || '').trim()
@@ -52,10 +65,8 @@ export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
 
   return [...groups.entries()]
     .map(([golongan, jenisMap]) => {
-      // semua jenis selalu tampil, yang kosong diisi nol
-      for (const jenis of JENIS_URUT) {
-        if (!jenisMap.has(jenis)) jenisMap.set(jenis, { jenis, loaded: 0, empty: 0, total: 0, revenue: 0 })
-      }
+      // Hanya jenis yang benar-benar ada di data trip. Tidak ada lagi
+      // baris kosong untuk jenis kendaraan yang tidak pernah dipakai.
       const rows = [...jenisMap.values()].sort((a, b) => a.jenis.localeCompare(b.jenis))
       return {
         golongan,

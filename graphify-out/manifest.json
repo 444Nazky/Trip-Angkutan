@@ -235,13 +235,13 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/OfficersTab.tsx": {
-    "mtime": 1793175975.2180927,
-    "ast_hash": "bfdaf8f9bf6c9cd1b0f8931217436006",
+    "mtime": 1793237384.3183079,
+    "ast_hash": "b91fc9b2754fd6bf04a1746b6d72be77",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/PlatesTab.tsx": {
-    "mtime": 1793173803.988365,
-    "ast_hash": "656d7c9f5e5f2a570ddb34de25286714",
+    "mtime": 1793238284.517705,
+    "ast_hash": "db159a5564e3f856ee140d596fb1b9a4",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.tsx": {
@@ -2140,13 +2140,13 @@
     "semantic_hash": ""
   },
   "src/services/recap.test.ts": {
-    "mtime": 1792654281.1162496,
-    "ast_hash": "c1beed49e054619fb0836ea0f109e49c",
+    "mtime": 1793238109.6689093,
+    "ast_hash": "a37d5e1dea0b0e2bca884ece53953a45",
     "semantic_hash": ""
   },
   "src/services/recap.ts": {
-    "mtime": 1792654159.6531222,
-    "ast_hash": "7113050d197c0c305e49ed961f5a4b41",
+    "mtime": 1793237434.7120337,
+    "ast_hash": "3099ff3338ccb24a3931f46fd47ce766",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.render.test.tsx": {
@@ -2262,8 +2262,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793180648.649273,
-    "ast_hash": "6e6229f4920dd003cc546f3dab83d5e2",
+    "mtime": 1793238202.6461036,
+    "ast_hash": "f32693bd82b762b3b35251bb2849dcd9",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2402,8 +2402,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/officers.ts": {
-    "mtime": 1793172829.9136329,
-    "ast_hash": "0b041f41cea7ba2d9a39cdf579f41496",
+    "mtime": 1793237280.2190006,
+    "ast_hash": "1d1d3e24b6ff5ca09e5b840074375282",
     "semantic_hash": ""
   },
   "server/api/handlers/plates.ts": {
@@ -2447,8 +2447,8 @@
     "semantic_hash": ""
   },
   "server/api/index.ts": {
-    "mtime": 1793180849.3985968,
-    "ast_hash": "728ddba2558a59107741eaa253363038",
+    "mtime": 1793237288.0459414,
+    "ast_hash": "7455a63f06886d9338676ec5cdb09be4",
     "semantic_hash": ""
   },
   "server/api/local_server.ts": {
@@ -2482,8 +2482,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RegionTab.tsx": {
-    "mtime": 1793237085.6141138,
-    "ast_hash": "2dd3af1ca2081d42dfc765d93567e906",
+    "mtime": 1793237231.2019799,
+    "ast_hash": "a62467fbe666b8445a01fff3a2310e2e",
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {

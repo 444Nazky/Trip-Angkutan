@@ -65,7 +65,12 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
     if (!confirm('Hapus plat ini?')) return
     const res = await deletePlate(id)
     if (!res.ok) return showToast(res.reason ?? 'Plat gagal dihapus karena server menolak permintaan', 'error')
-    onPlatesChange(plates.filter(p => p.id !== id))
+    // Muat ulang dari server, jangan cuma memfilter state lokal - kalau
+    // server menolak/memfilter baris lain (mis. constraint), tabel harus
+    // menampilkan isi database yang sebenarnya.
+    const fresh = await fetchPlates()
+    if (fresh) onPlatesChange(fresh)
+    else onPlatesChange(plates.filter(p => p.id !== id))
     if (editPlateId === id) resetForm()
     showToast('Plat dihapus')
   }
