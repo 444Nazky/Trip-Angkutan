@@ -1,13 +1,4 @@
-// ─── Unit Test: Penyimpanan Antrean Sync (services/localDb.ts) ───────────────
-// Memvalidasi lapisan IndexedDB yang menampung antrean sinkronisasi (`pending`),
-// daftar trip (`trips`) dan metadata (`meta`) — inti klaim offline-first:
-//   "data TIDAK BOLEH hilang saat app direfresh/restart dan hanya keluar dari
-//    antrean SETELAH server memberi respons sukses".
-//
-// IndexedDB sungguhan disimulasikan dengan `fake-indexeddb` (bukan mock buatan
-// sendiri), sehingga jalur IDB — bukan fallback localStorage — yang diuji.
-//
-// Jalankan: npm run test:unit
+// ─── Unit Test: Penyimpanan Antrean Sync (services/localDb.ts) ─────────────── Memvalidasi lapisan IndexedDB yang menampung antrean sinkronisasi…
 
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,17 +17,15 @@ import {
   requestPersistentStorage,
 } from './localDb'
 
-/**
- * Potongan baris antrean. keyPath-nya (`syncId`) identik dengan `SyncItem`
- * di services/sync.ts — sengaja tidak mengimpor tipe Trip lengkap agar test
- * fokus pada mekanik penyimpanan.
- */
+// Potongan baris antrean. keyPath-nya (`syncId`) identik dengan `SyncItem` di services/sync.ts
 interface QueueRow {
   syncId: string
   tripId: string
   attempts: number
   createdAt: number
 }
+
+
 
 const row = (tripId: string, over: Partial<QueueRow> = {}): QueueRow => ({
   syncId: `trip:${tripId}:1791383550000`,
@@ -46,14 +35,23 @@ const row = (tripId: string, over: Partial<QueueRow> = {}): QueueRow => ({
   ...over,
 })
 
+
+
 const pendings = () => dbAll<QueueRow>('pending')
+
+
+
 const trips = () => dbAll<{ id: string }>('trips')
+
+
 
 beforeEach(async () => {
   await dbClear('pending')
   await dbClear('trips')
   await dbClear('meta')
 })
+
+
 
 describe('backend penyimpanan', () => {
   it('memakai IndexedDB (bukan fallback localStorage)', async () => {
@@ -62,6 +60,8 @@ describe('backend penyimpanan', () => {
     expect(typeof indexedDB).toBe('object')
   })
 })
+
+
 
 describe('antrean syncQueue di IndexedDB', () => {
   it('menyimpan, membaca, dan menghitung item antrean', async () => {
@@ -95,12 +95,10 @@ describe('antrean syncQueue di IndexedDB', () => {
     expect(await dbPutMany('pending', rows)).toBe(true)
     expect(await dbCount('pending')).toBe(3)
 
-    // Simulasi konfirmasi server → item keluar antrean SATU PER SATU
     expect(await dbDelete('pending', 'trip:TRP-2:1791383550000')).toBe(true)
     const sisa = await pendings()
     expect(sisa.map(r => r.tripId)).toEqual(['TRP-1', 'TRP-3'])
 
-    // Menghapus item yang sudah tidak ada tetap aman (idempoten)
     expect(await dbDelete('pending', 'trip:TRP-2:1791383550000')).toBe(true)
     expect(await dbCount('pending')).toBe(2)
   })
@@ -126,12 +124,13 @@ describe('antrean syncQueue di IndexedDB', () => {
   })
 })
 
+
+
 describe('persistensi lintas restart', () => {
   it('data antrean BERTAHAN saat modul dimuat ulang (simulasi app direstart)', async () => {
     await dbPutMany('pending', [row('TRP-1'), row('TRP-2')])
     await metaSet('trips', 2)
 
-    // Simulasi restart: buang seluruh module cache lalu impor ulang modul DB.
     vi.resetModules()
     const fresh = await import('./localDb')
 

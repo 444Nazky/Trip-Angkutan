@@ -1,16 +1,4 @@
-/**
- * Tes arsitektur OTA v4 (purge-first / full-package).
- *
- * Yang diuji BUKAN potongan fungsi, melainkan SIKLUS RILIS NYATA lewat API publik
- * yang dipakai aplikasi (checkForUpdate → applyUpdate → restoreBundleFromStorage):
- *
- *   V1.0.0 (bundel APK) → rilis V1.0.1 → rilis V1.0.2 TANPA clear data manual.
- *
- * Semua lapisan eksternal ditiru secara setia:
- *   • Cache Storage (caches.open/match/put/keys/delete)
- *   • @capacitor/filesystem (direktori Data/Cache, semantik encoding base64 vs UTF8)
- *   • fetch ke manifest & aset (dengan hitungan hash SHA-256 asli)
- */
+// Tes arsitektur OTA v4 (purge-first / full-package).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { resolveApiBaseUrl } from './api'
 import {
@@ -27,50 +15,39 @@ import {
   type UpdateState,
 } from './ota'
 
-// Verifikasi SHA-256 adalah inti arsitektur ini; bila WebCrypto tidak ada,
-// tes harus GAGAL TERANG-TERANGAN (bukan diam-diam melewati verifikasi).
+// Verifikasi SHA-256 adalah inti arsitektur ini; bila WebCrypto tidak ada, tes harus GAGAL TERANG-TERANGAN (bukan diam-diam melewati verifikasi).
 if (!globalThis.crypto?.subtle) {
   throw new Error('[ota.test] WebCrypto SubtleCrypto tidak tersedia — verifikasi integritas tidak bisa diuji')
 }
 
-/** Harus sama dengan URL yang dipakai ota.ts: manifest dari endpoint aktif, aset dari bucket publik. */
+// Harus sama dengan URL yang dipakai ota.ts: manifest dari endpoint aktif, aset dari bucket publik.
 const MANIFEST_URL = `${resolveApiBaseUrl()}/ota-manifest`
-/** Basis aset diambil dari ota.ts sendiri: server intranet yang sama dengan
- *  manifest, pada path /files/ota/. */
+
+
+
 const ASSETS_BASE = otaAssetsBase()
+
+
 
 const h = vi.hoisted(() => ({
   native: true,
-  /** Berkas durable: `${DIRECTORY}|${path}` → byte mentah. */
   fs: new Map<string, Uint8Array>(),
-  /** "Server" OTA: versi → path → isi (teks atau byte biner). */
   server: new Map<string, Map<string, string | Uint8Array>>(),
   integrity: {} as Record<string, Record<string, string>>,
   /** `${versi}|${path}` yang sengaja dikirim rusak oleh server. */
   corrupt: new Set<string>(),
   remoteVersion: '0.0.0',
-  /** CapacitorHttp aktif (seperti di APK). false = plugin tak tersedia. */
   capHttpOn: true,
-  /** Argumen tiap panggilan CapacitorHttp.request — untuk memastikan
-   *  `responseType:'arraybuffer'` benar-benar dipakai di jalur biner. */
   capHttpCalls: [] as { url: string; responseType?: string }[],
-  /** Hitungan permintaan ASET (bukan manifest) — untuk membuktikan tidak ada
-   *  unduh ulang saat staging sudah utuh. */
+  // Hitungan permintaan ASET (bukan manifest) — untuk membuktikan tidak ada unduh ulang saat staging sudah utuh.
   assetHits: 0,
-  /** Resolusi URL → berkas; dipasang di beforeEach (dipakai fetch & CapacitorHttp). */
   serve: null as null | ((url: string) => { status: number; bytes: Uint8Array; contentType: string }),
 }))
 
+
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => h.native },
-  /**
-   * Tiruan SETIA plugin CapacitorHttp (HttpRequestHandler.java):
-   *   • Content-Type application/json → data = objek hasil parseJSON
-   *   • responseType 'arraybuffer'/'blob' → data = base64 (readStreamAsBase64)
-   *   • selain itu (DEFAULT = TEXT) → data = STRING hasil dekode UTF-8
-   *     (readStreamAsString) — inilah yang merusak PNG/JPEG bila kode memakai
-   *     jalur native tanpa meminta arraybuffer.
-   */
   CapacitorHttp: {
     async request(options: { url: string; responseType?: string }) {
       h.capHttpCalls.push({ url: options.url, responseType: options.responseType })
@@ -94,6 +71,8 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
+
+
 vi.mock('@capacitor/filesystem', () => {
   const Directory = { Data: 'DATA', Cache: 'CACHE', Documents: 'DOCUMENTS' }
   const k = (directory: string, path: string) => `${directory}|${path}`
@@ -114,8 +93,7 @@ vi.mock('@capacitor/filesystem', () => {
     Directory,
     Encoding: { UTF8: 'utf8' },
     Filesystem: {
-      // Semantik Capacitor: TANPA encoding → `data` adalah base64; DENGAN UTF8 →
-      // `data` adalah teks biasa. Keduanya ditiru agar kesalahan encoding lolos uji.
+      // Semantik Capacitor: TANPA encoding → `data` adalah base64; DENGAN UTF8 → `data` adalah teks biasa. Keduanya ditiru agar kesalahan encoding lolos uji.
       async writeFile({ path, data, directory, encoding }: { path: string; data: string; directory: string; encoding?: string }) {
         const bytes = encoding === 'utf8'
           ? utf8.encode(String(data))
@@ -148,9 +126,11 @@ vi.mock('@capacitor/filesystem', () => {
   }
 })
 
+
+
 vi.mock('./adminPull', () => ({ FORCE_ROSTER_SYNC_KEY: 'trip.sync.forceRoster' }))
 
-// ── Cache Storage tiruan ─────────────────────────────────────────────────────
+
 
 function fakeCaches() {
   const store = new Map<string, Map<string, Uint8Array>>()
@@ -183,9 +163,19 @@ function fakeCaches() {
   }
 }
 
+
+
 type FakeCaches = ReturnType<typeof fakeCaches>
+
+
+
 const cachesApi = () => (globalThis as unknown as { caches: FakeCaches }).caches
+
+
+
 const cacheNames = () => cachesApi().keys()
+
+
 
 async function cachedText(cacheName: string, path: string): Promise<string | null> {
   const cache = await cachesApi().open(cacheName)
@@ -193,14 +183,17 @@ async function cachedText(cacheName: string, path: string): Promise<string | nul
   return res ? res.text() : null
 }
 
-// ── "Server" OTA + fetch tiruan ──────────────────────────────────────────────
+
 
 const utf8 = new TextEncoder()
 
-/** Byte nyata sebuah "berkas server" (string → byte UTF-8). */
+
+
 function bytesOfFile(file: string | Uint8Array): Uint8Array {
   return typeof file === 'string' ? utf8.encode(file) : file
 }
+
+
 
 async function sha256Bytes(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -210,11 +203,7 @@ async function sha256Bytes(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/**
- * Publikasikan satu rilis: aset + integrity + manifest.
- * Nilai boleh byte mentah (Uint8Array) — dipakai untuk menguji aset BINER
- * (PNG/JPEG) yang bukan UTF-8, persis seperti bundel nyata aplikasi.
- */
+// Publikasikan satu rilis: aset + integrity + manifest. Nilai boleh byte mentah (Uint8Array)
 async function release(version: string, files: Record<string, string | Uint8Array>): Promise<void> {
   const map = new Map(Object.entries(files))
   h.server.set(version, map)
@@ -224,12 +213,12 @@ async function release(version: string, files: Record<string, string | Uint8Arra
   h.remoteVersion = version
 }
 
-/** Resolusi URL → berkas. Dipakai fetch WebView DAN tiruan CapacitorHttp. */
+
+
 function serve(url: string) {
   const parsed = new URL(url)
   const clean = parsed.origin + parsed.pathname
 
-  // Manifest — versi yang sedang "dirilis" di server.
   if (clean === MANIFEST_URL) {
     if (h.remoteVersion === '0.0.0') return { status: 404, bytes: utf8.encode('belum ada rilis'), contentType: 'text/plain' }
     const map = h.server.get(h.remoteVersion)
@@ -239,12 +228,10 @@ function serve(url: string) {
       assets: [...map.keys()],
       integrity: h.integrity[h.remoteVersion],
     })
-    // Server bisa menyajikan JSON apa adanya; klien TIDAK boleh bergantung
-    // pada Content-Type application/json.
+    // Server bisa menyajikan JSON apa adanya; klien TIDAK boleh bergantung pada Content-Type application/json.
     return { status: 200, bytes: utf8.encode(manifest), contentType: 'text/plain; charset=utf-8' }
   }
 
-  // Aset bundle — path berbentuk /ota/<versi>/<berkas>, versi juga di `ota=`.
   if (clean.startsWith(ASSETS_BASE)) {
     h.assetHits++
     const version = parsed.searchParams.get('ota') ?? h.remoteVersion
@@ -265,6 +252,8 @@ function serve(url: string) {
   return { status: 404, bytes: utf8.encode('tidak dikenal'), contentType: 'text/plain' }
 }
 
+
+
 function makeFetch() {
   return vi.fn(async (input: unknown): Promise<Response> => {
     const url = typeof input === 'string' ? input : String((input as Request).url ?? input)
@@ -273,7 +262,8 @@ function makeFetch() {
   })
 }
 
-/** Seluruh siklus: cek → unduh → verifikasi → aktivasi. */
+
+
 async function updateTo(version: string, from: string | null): Promise<UpdateState[]> {
   const states: UpdateState[] = []
   const res = await checkForUpdate(from, s => states.push(s), true)
@@ -282,6 +272,8 @@ async function updateTo(version: string, from: string | null): Promise<UpdateSta
   expect(await applyUpdate(), `aktivasi ${version} harus sukses`).toBe(true)
   return states
 }
+
+
 
 beforeEach(() => {
   h.native = true
@@ -298,7 +290,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', makeFetch())
 })
 
-// ── Perbandingan versi ───────────────────────────────────────────────────────
+
 
 describe('isNewer', () => {
   it('mendeteksi update kedua dari manifest hybrid semver+timestamp', () => {
@@ -312,16 +304,14 @@ describe('isNewer', () => {
   it('SEMVER diprioritaskan, timestamp hanya tiebreak (jam mesin rilis bisa meleset)', () => {
     // Semver lebih rendah walau timestamp lebih besar → BUKAN update.
     expect(isNewer('1.0.3+9999999999999', '1.0.4+1')).toBe(false)
-    // Semver lebih tinggi walau timestamp lebih kecil → update.
     expect(isNewer('1.0.4+1', '1.0.3+9999999999999')).toBe(true)
-    // Semver sama → timestamp yang menentukan.
     expect(isNewer('1.0.4+2', '1.0.4+1')).toBe(true)
     expect(isNewer('1.0.4+1', '1.0.4+2')).toBe(false)
     expect(isNewer('1.0.4+1', '1.0.4')).toBe(true)
   })
 })
 
-// ── Siklus rilis beruntun (inti laporan lapangan) ────────────────────────────
+
 
 describe('OTA v4 — update beruntun tanpa clear data', () => {
   it('update pertama (V1.0.1): purge → unduh paket penuh → verifikasi → aktivasi atomik', async () => {
@@ -342,9 +332,7 @@ describe('OTA v4 — update beruntun tanpa clear data', () => {
     expect((await readActiveMeta())?.version).toBe('1.0.1')
     expect(await cachedText(versionCacheName('1.0.1'), 'index.html')).toBe('<html>v1.0.1</html>')
     expect(await cachedText(versionCacheName('1.0.1'), 'main-aaa.js')).toBe('console.log("1.0.1")')
-    // Salinan durable (Directory.Data) — bertahan walau OS membersihkan cache.
     expect(h.fs.has('DATA|ota/1.0.1/index.html')).toBe(true)
-    // Cache warisan v3 sudah dibuang.
     expect(await cacheNames()).not.toContain('trip-ota-active')
   })
 
@@ -352,7 +340,6 @@ describe('OTA v4 — update beruntun tanpa clear data', () => {
     await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'main-aaa.js': 'console.log("1.0.1")' })
     await updateTo('1.0.1', null)
 
-    // Rilis berikutnya — TIDAK ada clear data / reset apa pun di sini.
     await release('1.0.2', { 'index.html': '<html>v1.0.2</html>', 'main-bbb.js': 'console.log("1.0.2")' })
     await updateTo('1.0.2', '1.0.1')
 
@@ -361,9 +348,8 @@ describe('OTA v4 — update beruntun tanpa clear data', () => {
 
     const names = await cacheNames()
     expect(names).toContain(versionCacheName('1.0.2'))
-    expect(names).not.toContain(versionCacheName('1.0.1')) // purge total versi lama
+    expect(names).not.toContain(versionCacheName('1.0.1'))
     expect(await cachedText(versionCacheName('1.0.2'), 'index.html')).toBe('<html>v1.0.2</html>')
-    // Tidak ada berkas V1.0.1 yang tertinggal di cache versi aktif.
     expect(await cachedText(versionCacheName('1.0.2'), 'main-aaa.js')).toBeNull()
     // Storage durable juga hanya menyisakan versi baru.
     expect(h.fs.has('DATA|ota/1.0.1/index.html')).toBe(false)
@@ -385,7 +371,7 @@ describe('OTA v4 — update beruntun tanpa clear data', () => {
   })
 })
 
-// ── Integritas & rollback ────────────────────────────────────────────────────
+
 
 describe('verifikasi integritas', () => {
   it('satu berkas rusak → update dibatalkan, versi lama tetap aktif, staging dibuang', async () => {
@@ -393,18 +379,16 @@ describe('verifikasi integritas', () => {
     await updateTo('1.0.1', null)
 
     await release('1.0.2', { 'index.html': '<html>v1.0.2</html>', 'main-bbb.js': 'console.log("1.0.2")' })
-    h.corrupt.add('1.0.2|main-bbb.js') // server mengirim byte yang hash-nya tidak cocok
+    h.corrupt.add('1.0.2|main-bbb.js')
 
     const states: UpdateState[] = []
     const res = await checkForUpdate('1.0.1', s => states.push(s), true)
 
     expect(res.available).toBe(false)
     expect(states.at(-1)?.status).toBe('error')
-    // Versi lama TIDAK tersentuh — aplikasi tetap jalan.
     expect(await getCurrentVersion()).toBe('1.0.1')
     expect((await readActiveMeta())?.version).toBe('1.0.1')
     expect(await cachedText(versionCacheName('1.0.1'), 'index.html')).toBe('<html>v1.0.1</html>')
-    // Staging versi gagal dibuang total (tidak tersisa separuh jalan).
     expect(await cacheNames()).not.toContain(versionCacheName('1.0.2'))
     expect(h.fs.has('DATA|ota/1.0.2/main-bbb.js')).toBe(false)
   })
@@ -420,14 +404,13 @@ describe('verifikasi integritas', () => {
   })
 })
 
-// ── Self-heal & reset ────────────────────────────────────────────────────────
+
 
 describe('ketahanan perangkat', () => {
   it('Cache Storage dibersihkan WebView → bundle dibangun ulang dari storage durable', async () => {
     await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'main-aaa.js': 'console.log("1.0.1")' })
     await updateTo('1.0.1', null)
 
-    // WebView/OS membersihkan Cache Storage (penyebab "update hilang" dulu).
     ;(globalThis as unknown as { caches: FakeCaches }).caches = fakeCaches()
 
     expect(await restoreBundleFromStorage()).toBe(true)
@@ -441,12 +424,11 @@ describe('ketahanan perangkat', () => {
     await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'main-aaa.js': 'console.log("1.0.1")' })
     await updateTo('1.0.1', null)
 
-    // Aplikasi sempat mati di tengah siklus: state tersangkut di versi yang
-    // justru sudah aktif. Siklus berikutnya tidak boleh menghapus bundelnya.
+    // Aplikasi sempat mati di tengah siklus: state tersangkut di versi yang justru sudah aktif. Siklus berikutnya tidak boleh menghapus bundelnya.
     localStorage.setItem('trip.ota.state', JSON.stringify({ status: 'downloading', latestVersion: '1.0.1' }))
 
     const res = await checkForUpdate('1.0.1', () => {}, true)
-    expect(res.available).toBe(false) // remote tidak lebih baru
+    expect(res.available).toBe(false)
     expect(await cachedText(versionCacheName('1.0.1'), 'index.html')).toBe('<html>v1.0.1</html>')
     expect(h.fs.has('DATA|ota/1.0.1/index.html')).toBe(true)
   })
@@ -467,8 +449,7 @@ describe('ketahanan perangkat', () => {
 
     await resetOtaStorage()
 
-    // Cache diperiksa SEBELUM readActiveMeta (yang memang membuat ulang cache
-    // meta kosong lewat caches.open — perilaku Cache Storage, bukan kebocoran).
+    // Cache diperiksa SEBELUM readActiveMeta (yang memang membuat ulang cache meta kosong lewat caches.open — perilaku Cache Storage, bukan kebocoran).
     expect((await cacheNames()).filter(n => n.startsWith('trip-ota'))).toEqual([])
     expect([...h.fs.keys()].filter(k => k.startsWith('DATA|ota/'))).toEqual([])
     expect(await getCurrentVersion()).toBe('0.0.0')
@@ -477,14 +458,7 @@ describe('ketahanan perangkat', () => {
   })
 })
 
-// ── Aset BINER lewat jalur native (CapacitorHttp) ────────────────────────────
-//
-// Bug lapangan yang paling fatal: HttpRequestHandler.DEFAULT = TEXT membaca
-// stream sebagai STRING UTF-8 (readStreamAsString), sehingga PNG/JPEG rusak
-// menjadi U+FFFD lalu di-encode ulang → SHA-256 tak pernah cocok → SEMUA update
-// berhenti di "Verifikasi berkas gagal". Bundel nyata selalu memuat 3 aset biner
-// (guest-profile.jpeg, karyamas_clean.png, favicon.png), jadi tanpa tes ini
-// jalur yang dipakai APK nyata tidak pernah tercakup.
+// ── Aset BINER lewat jalur native (CapacitorHttp) ──────────────────────────── Bug lapangan yang paling fatal: HttpRequestHandler.DEFAULT = TEXT…
 
 describe('aset biner di APK (CapacitorHttp)', () => {
   /** Byte mirip PNG: mengandung 0xFF/0xFE/0x80 yang BUKAN UTF-8 valid. */
@@ -505,7 +479,6 @@ describe('aset biner di APK (CapacitorHttp)', () => {
     expect(assetCalls.length).toBeGreaterThan(0)
     expect(assetCalls.every(c => c.responseType === 'arraybuffer')).toBe(true)
 
-    // Byte tersimpan identik dengan yang dipublikasikan.
     expect([...(await cachedBytes(versionCacheName('1.0.1'), 'assets/logo.png'))!]).toEqual([...PNG])
     expect([...(h.fs.get('DATA|ota/1.0.1/assets/logo.png') ?? [])]).toEqual([...PNG])
     expect(await getCurrentVersion()).toBe('1.0.1')
@@ -516,7 +489,6 @@ describe('aset biner di APK (CapacitorHttp)', () => {
     await release('1.0.1', { 'index.html': '<html>v1.0.1</html>', 'assets/logo.png': PNG })
     await updateTo('1.0.1', null)
 
-    // TANPA clear data / reset apa pun di antara dua rilis.
     await release('1.0.2', { 'index.html': '<html>v1.0.2</html>', 'assets/logo.png': PNG2 })
     await updateTo('1.0.2', '1.0.1')
 
@@ -533,12 +505,7 @@ describe('aset biner di APK (CapacitorHttp)', () => {
   })
 })
 
-// ── Mode web (tanpa plugin native) ───────────────────────────────────────────
-//
-// Dulu jalur web tidak punya PENANDA rilis sama sekali, sehingga daftar berkas
-// harus disalin di UpdateState.downloaded — dua sumber yang bisa berbeda dan
-// tidak pernah diuji. Kini penanda juga hidup di localStorage saat web, jadi
-// siklus penuh (dua rilis beruntun) bisa diuji tanpa perangkat native.
+// ── Mode web (tanpa plugin native) ─────────────────────────────────────────── Dulu jalur web tidak punya PENANDA rilis sama sekali, sehingga daftar…
 
 describe('mode web (tanpa native)', () => {
   it('siklus penuh berjalan dan penanda tersimpan di localStorage', async () => {
@@ -555,12 +522,11 @@ describe('mode web (tanpa native)', () => {
 
     expect(await getCurrentVersion()).toBe('1.0.2')
     expect(await cachedText(versionCacheName('1.0.2'), 'index.html')).toBe('<html>v1.0.2</html>')
-    // Penanda versi lama ikut terbersihkan.
     expect(localStorage.getItem('trip.ota.marker.1.0.1')).toBeNull()
   })
 })
 
-// ── Efisiensi siklus berkala (jaringan lapangan) ─────────────────────────────
+
 
 describe('siklus cek berkala', () => {
   it('state "ready" tidak dihapus & tidak diunduh ulang sebelum pengguna menerapkan', async () => {
@@ -576,7 +542,7 @@ describe('siklus cek berkala', () => {
 
     expect(res.available).toBe(true)
     expect(states.at(-1)?.status).toBe('ready')
-    expect(h.assetHits).toBe(hitsAfterFirst) // tidak ada unduhan ulang
+    expect(h.assetHits).toBe(hitsAfterFirst)
     expect(await cachedText(versionCacheName('1.0.1'), 'index.html')).toBe('<html>v1.0.1</html>')
   })
 })

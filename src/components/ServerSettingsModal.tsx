@@ -12,14 +12,17 @@ import {
   validateEndpointInput,
 } from '../services/api'
 
+
+
 interface Props {
   onClose: () => void
 }
 
+
+
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
 
-// Terjemahkan hasil probe jadi pesan yang benar: server hidup tapi diblokir CORS
-// BUKAN "server tidak merespon" — dulu pesan itu yang membuat URL benar ikut dibuang.
+// Terjemahkan hasil probe jadi pesan yang benar: server hidup tapi diblokir CORS BUKAN "server tidak merespon"
 function statusFromProbe(
   ms: number,
   reachable: boolean,
@@ -29,10 +32,7 @@ function statusFromProbe(
   cleartextBlocked?: boolean,
   detail?: string,
 ): Status {
-  // `blockedByCors` kini hanya diisi setelah probe opaque membuktikan host
-  // benar-benar menjawab. Syarat lama `reachable && blockedByCors` tidak pernah
-  // terpenuhi (jalur CORS selalu reachable=false) sehingga cabang ini mati dan
-  // URL yang sebenarnya benar ikut dibuang.
+  // `blockedByCors` kini hanya diisi setelah probe opaque membuktikan host benar-benar menjawab.
   if (blockedByCors) {
     return {
       kind: 'warn',
@@ -40,9 +40,7 @@ function statusFromProbe(
     }
   }
   if (reachable) {
-    // Host hidup tetapi menjawab HTTP error (mis. 404 karena path /api berbeda).
-    // Tetap disimpan, hanya diberi peringatan — dulu ini dilaporkan "tidak merespon"
-    // sehingga URL yang sebenarnya benar ikut dibuang.
+    // Host hidup tetapi menjawab HTTP error (mis. 404 karena path /api berbeda). Tetap disimpan, hanya diberi peringatan
     if (typeof _status === 'number' && (_status < 200 || _status >= 400)) {
       return {
         kind: 'warn',
@@ -66,6 +64,8 @@ function statusFromProbe(
   }
 }
 
+
+
 export default function ServerSettingsModal({ onClose }: Props) {
   const [url, setUrl] = useState(resolveApiBaseUrl())
   const [status, setStatus] = useState<Status>({ kind: 'idle', msg: '' })
@@ -74,8 +74,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
   const candidates = apiBaseCandidates()
 
   async function handleSave() {
-    // Validasi dipusatkan di api.ts (validateEndpointInput) supaya layar ini dan
-    // EndpointPicker tidak pernah berbeda aturan soal http/https & mixed content.
+    // Validasi dipusatkan di api.ts (validateEndpointInput) supaya layar ini dan EndpointPicker tidak pernah berbeda aturan soal http/https & mixed content.
     const check = validateEndpointInput(url)
     if (!check.ok) {
       setStatus({ kind: 'fail', msg: check.msg })
@@ -83,8 +82,6 @@ export default function ServerSettingsModal({ onClose }: Props) {
     }
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
     const r = await probeServerHealth(check.url)
-    // URL yang host-nya hidup tetap disimpan walau browser memblokir bacaannya
-    // (CORS) atau server menjawab HTTP error.
     if (r.reachable || r.hostAlive) {
       applyEndpointInput(check.url)
       setUrl(resolveApiBaseUrl())
@@ -92,8 +89,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
     setStatus(statusFromProbe(r.ms ?? 0, r.reachable, r.blockedByCors ?? false, r.status, r.timedOut ?? false, r.cleartextBlocked ?? false, r.detail))
   }
 
-  // Jalur darurat: tes bisa gagal karena sebab di luar URL (CORS, mixed content,
-  // jaringan uji) — petugas/admin tetap harus bisa menyimpan URL yang dipilihnya.
+  // Jalur darurat: tes bisa gagal karena sebab di luar URL (CORS, mixed content, jaringan uji)
   function handleSaveForce() {
     const res = applyEndpointInput(url)
     if (!res.ok) {
@@ -117,7 +113,6 @@ export default function ServerSettingsModal({ onClose }: Props) {
       : { kind: 'fail', msg: `Default tidak merespon (${r.ms} ms). Periksa koneksi internet atau isi URL server.` })
   }
 
-  // Pilih salah satu preset server intranet kantor.
   function pickPreset(candidateUrl: string) {
     setStatus({ kind: 'idle', msg: '' })
     setUrl(candidateUrl)
@@ -141,7 +136,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
         </button>
       </div>
 
-      {/* Pilihan endpoint server intranet kantor (LAN). */}
+
       <div className="mt-3 grid grid-cols-1 gap-2">
         {candidates.map((c) => {
           const selected = c.url === activeUrl

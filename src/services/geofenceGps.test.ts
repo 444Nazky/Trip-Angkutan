@@ -1,24 +1,7 @@
-/**
- * Tes konfigurasi GPS (services/geofence.ts).
- *
- * Akar masalah yang diuji:
- *   `GeolocationPositionError { code: 3, message: 'Timeout expired' }` di
- *   lapangan. Penyebabnya timeout permintaan GPS yang terlalu pendek (8
- *   detik) + tidak ada percobaan ulang ke provider jaringan + tidak ada
- *   fallback ke fix terakhir yang sudah diketahui.
- *
- * Yang dijaga di sini:
- *   1. Permintaan GPS memakai timeout panjang (>= 30 detik) dan
- *      enableHighAccuracy — cukup waktu bagi GPS chipset lock.
- *   2. Timeout (code 3) / POSITION_UNAVAILABLE (code 2) dicoba ulang dengan
- *      provider jaringan (enableHighAccuracy: false).
- *   3. Galat izin (code 1) TIDAK diulang.
- *   4. Kalau semua percobaan gagal, fix terakhir yang tersimpan tetap
- *      dipakai — petugas tidak diblokir total.
- *
- * Jalankan: npm run test:unit
- */
+// Tes konfigurasi GPS (services/geofence.ts). Akar masalah yang diuji: `GeolocationPositionError { code: 3, message: 'Timeout expired' }` di lapangan.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+
 
 interface FixOptions {
   enableHighAccuracy?: boolean
@@ -26,14 +9,17 @@ interface FixOptions {
   maximumAge?: number
 }
 
+
+
 const h = vi.hoisted(() => ({
   calls: [] as FixOptions[],
-  /** 'ok' | 'timeout' | 'denied' | 'unavailable' */
   mode: 'ok' as 'ok' | 'timeout' | 'denied' | 'unavailable',
   /** Berapa kali pertama gagal sebelum succeeds (untuk skenario timeout-once). */
   failFirst: 0,
   position: { lat: -6.1891005, lon: 106.8371641, accuracy: 7 },
 }))
+
+
 
 vi.mock('./api', () => ({
   api: {
@@ -42,6 +28,8 @@ vi.mock('./api', () => ({
   },
 }))
 
+
+
 vi.mock('./auth', () => ({
   getStoredDermaga: () => null,
   getStoredRoutes: () => [],
@@ -49,11 +37,15 @@ vi.mock('./auth', () => ({
   renewSessionIfNeeded: async () => true,
 }))
 
+
+
 function makeError(code: number, message: string) {
   const err = new Error(message)
   ;(err as unknown as { code: number }).code = code
   return err
 }
+
+
 
 vi.mock('@capacitor/geolocation', () => ({
   Geolocation: {
@@ -61,8 +53,7 @@ vi.mock('@capacitor/geolocation', () => ({
       h.calls.push(options)
       // Mode 'denied' = izin ditolak -> SELALU gagal (tidak boleh diulang).
       if (h.mode === 'denied') throw makeError(1, 'User denied Geolocation')
-      // `failFirst` = berapa banyak percobaan PERTAMA yang gagal. Setelah
-      // itu permintaan berikutnya sukses (mencoba skenario "timeout sekali").
+      // `failFirst` = berapa banyak percobaan PERTAMA yang gagal. Setelah itu permintaan berikutnya sukses (mencoba skenario "timeout sekali").
       if (h.failFirst > 0) {
         h.failFirst -= 1
         if (h.mode === 'timeout') throw makeError(3, 'Timeout expired')
@@ -77,11 +68,15 @@ vi.mock('@capacitor/geolocation', () => ({
       }
     },
     async watchPosition() { return 'watch-1' },
-    async clearWatch() { /* no-op */ },
+    async clearWatch() {  },
   },
 }))
 
+
+
 import { getCurrentPosition, getLastKnownPosition, resetGpsFixCache } from './geofence'
+
+
 
 beforeEach(() => {
   localStorage.clear()
@@ -91,6 +86,8 @@ beforeEach(() => {
   h.position = { lat: -6.1891005, lon: 106.8371641, accuracy: 7 }
   resetGpsFixCache()
 })
+
+
 
 describe('konfigurasi permintaan GPS', () => {
   it('memakai timeout panjang + enableHighAccuracy (dulu 8 detik)', async () => {
@@ -104,7 +101,7 @@ describe('konfigurasi permintaan GPS', () => {
 
   it('timeout (code 3) dicoba ulang dengan provider jaringan', async () => {
     h.mode = 'timeout'
-    h.failFirst = 1 // percobaan pertama (high accuracy) gagal timeout
+    h.failFirst = 1
 
     const pos = await getCurrentPosition()
 
@@ -135,11 +132,9 @@ describe('konfigurasi permintaan GPS', () => {
   })
 
   it('semua percobaan gagal -> pakai fix terakhir yang tersimpan', async () => {
-    // 1. Fix berhasil dulu -> tersimpan di cache perangkat.
     const pertama = await getCurrentPosition()
     expect(pertama).not.toBeNull()
 
-    // 2. GPS mati total, tapi fix lama masih ada.
     h.mode = 'denied'
     const kedua = await getCurrentPosition({ force: true })
 

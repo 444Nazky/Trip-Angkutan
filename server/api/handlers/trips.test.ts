@@ -1,39 +1,23 @@
-/**
- * Uji handler trip (server/api/handlers/trips.ts).
- *
- * Fokusnya: AKAR MASALAH HTTP 500 pada POST /trips/complete.
- *
- * Semua kolom FK di tabel trips/vehicles/dermagas bertipe `uuid`. Nilai
- * yang bukan uuid (mis. ID dermaga lawas "BADAU-D1", atau region kosong "")
- * membuat PostgreSQL menjawab 22P02 (invalid input syntax for type uuid),
- * yang sebelumnya dilempar apa adanya -> router jadi HTTP 500 generik ->
- * petugas melihat "gagal mengunggah" tanpa tahu penyebabnya.
- *
- * Jalankan:
- *   deno test --allow-env server/api/handlers/trips.test.ts
- */
+// Uji handler trip (server/api/handlers/trips.ts). Fokusnya: AKAR MASALAH HTTP 500 pada POST /trips/complete.
 
-import {
-  assertEquals,
-  assert,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import {
-  asUuidOrNull,
-  errorText,
-  explainDbError,
-  isUuid,
-} from "./trips.ts";
+import { assertEquals, assert, assertStringIncludes, } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { asUuidOrNull, errorText, explainDbError, isUuid, } from "./trips.ts";
+
+
 
 const UUID_A = "3f9b1c2e-5a7d-4b8c-9e1f-2a3b4c5d6e7f";
+
+
+
 const UUID_B = "11111111-2222-3333-4444-555555555555";
+
+
 
 Deno.test("isUuid hanya menerima UUID Accelerator yang valid", () => {
   assert(isUuid(UUID_A));
   assert(isUuid(UUID_B.toUpperCase()));
-  assert(isUuid(`  ${UUID_A}  `)); // spasi di tolerated
+  assert(isUuid(`  ${UUID_A}  `));
 
-  // Nilai legacy / rusak yang dulu menggagalkan insert.
   assertEquals(isUuid("BADAU-D1"), false);
   assertEquals(isUuid("off1"), false);
   assertEquals(isUuid(""), false);
@@ -44,6 +28,8 @@ Deno.test("isUuid hanya menerima UUID Accelerator yang valid", () => {
   assertEquals(isUuid({}), false);
 });
 
+
+
 Deno.test("asUuidOrNull membuang nilai rusak jadi null (bukan error)", () => {
   assertEquals(asUuidOrNull(UUID_A), UUID_A);
   assertEquals(asUuidOrNull(" BADAU-D1 "), null);
@@ -52,14 +38,17 @@ Deno.test("asUuidOrNull membuang nilai rusak jadi null (bukan error)", () => {
   assertEquals(asUuidOrNull(undefined), null);
 });
 
+
+
 Deno.test("errorText membaca pesan dari error PostgREST (objek biasa)", () => {
-  // Galat PostgREST BUKAN instance Error. Kalau diproses dengan String(error),
-  // pesannya hilang -> "[object Object]".
+  // Galat PostgREST BUKAN instance Error. Kalau diproses dengan String(error), pesannya hilang -> "[object Object]".
   const pgError = { message: 'invalid input syntax for type uuid', code: "22P02" };
   assertEquals(errorText(pgError), "invalid input syntax for type uuid");
   assertEquals(errorText(new Error("boom")), "boom");
   assertStringIncludes(errorText({}), "[object Object]");
 });
+
+
 
 Deno.test("explainDbError memetakan galat database ke status yang tepat", () => {
   const invalidUuid = explainDbError({ message: "invalid input syntax for type uuid", code: "22P02" });
@@ -76,39 +65,23 @@ Deno.test("explainDbError memetakan galat database ke status yang tepat", () => 
   const unik = explainDbError({ message: "duplicate key value", code: "23505" });
   assertEquals(unik?.status, 409);
 
-  // Galat tak dikenal -> null (biarkan jalur umum yang menangani).
   assertEquals(explainDbError(new Error("boom")), null);
   assertEquals(explainDbError({ message: "boom" }), null);
 });
 
-// Uji handler POST /trips/complete.
-//
-// Fokus: memastikan trip yang dikirim petugas benar-benar TERSIMPAN di
-// database, dan tidak pernah "berhasil" (2xx) padahal tidak ada baris trip
-// yang baru.
-//
-// Empat skenario yang diuji:
-//   1. Petugas tanpa region (region_id NULL di DB) -> token punya regionId
-//      null. Handler lama menulis region_id = "" -> PostgreSQL menolak
-//      "invalid input syntax for type uuid" -> HTTP 500 -> trip tidak pernah
-//      masuk dashboard.
-//   2. ID dermaga lawas (bukan UUID) dikirim klien -> sama, insert gagal.
-//   3. client_trip_id yang sama dipakai ulang -> handler lama diam-diam
-//      MENGUBAH trip lama (baris baru tidak dibuat, created_at lama) ->
-//      petugas melihat "terkirim" tapi trip tidak muncul sebagai data baru.
-//   4. Retry yang sama persis -> harus idempoten (tidak menggandakan baris).
-//
-// Jalankan:
-//   deno test --allow-net --allow-env --allow-read --allow-write \
-//     server/api/handlers/trips.test.ts
+// Uji handler POST /trips/complete. Fokus: memastikan trip yang dikirim petugas benar-benar TERSIMPAN di database, dan tidak pernah "berhasil" (2xx)…
 
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+
 
 interface FakeTable {
   columns: Set<string>;
   rows: Record<string, unknown>[];
 }
+
+
 
 const TABLES: Record<string, FakeTable> = {
   trips: {
@@ -163,7 +136,6 @@ const TABLES: Record<string, FakeTable> = {
     ]),
     rows: [],
   },
-  // Baris tarif per region per jenis kendaraan (sumber harga saat insert).
   region_tariff_rows: {
     columns: new Set([
       "id", "region_id", "golongan", "vehicle_type", "lokal_tariff",
@@ -179,6 +151,8 @@ const UUID_COLUMNS = new Set([
   "vehicle_id", "tariff_id", "origin_region_id", "checkpoint_region_id",
 ]);
 
+
+
 function pgrstError(code: string, message: string, status = 400): Response {
   return new Response(JSON.stringify({ code, message, details: null, hint: null }), {
     status,
@@ -186,7 +160,8 @@ function pgrstError(code: string, message: string, status = 400): Response {
   });
 }
 
-/** Terapkan filter `eq.<nilai>` (nilai dibaca apa adanya). */
+
+
 function applyFilters(
   rows: Record<string, unknown>[],
   params: URLSearchParams,
@@ -200,6 +175,8 @@ function applyFilters(
   return out;
 }
 
+
+
 function startFakePostgrest() {
   const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, async (req) => {
     const url = new URL(req.url);
@@ -211,7 +188,6 @@ function startFakePostgrest() {
     const wantsRepresentation = prefer.includes("return=representation");
     const wantsObject = (req.headers.get("Accept") ?? "").includes("pgrst.object");
 
-    // ---- GET ----
     if (req.method === "GET") {
       const select = url.searchParams.get("select");
       if (select) {
@@ -227,7 +203,6 @@ function startFakePostgrest() {
       return Response.json(rows);
     }
 
-    // ---- POST (insert) ----
     if (req.method === "POST") {
       const body = await req.json();
       const incoming = Array.isArray(body) ? body : [body];
@@ -236,7 +211,6 @@ function startFakePostgrest() {
         for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
           if (value === null || value === undefined) continue;
           if (UUID_COLUMNS.has(key) && !UUID_RE.test(String(value))) {
-            // PostgreSQL: invalid input syntax for type uuid
             return pgrstError("22P02", `invalid input syntax for type uuid: "${value}"`);
           }
         }
@@ -250,7 +224,6 @@ function startFakePostgrest() {
       return new Response(null, { status: 201 });
     }
 
-    // ---- PATCH (update) ----
     if (req.method === "PATCH") {
       const body = await req.json();
       for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
@@ -265,14 +238,12 @@ function startFakePostgrest() {
       return new Response(null, { status: 204 });
     }
 
-    // ---- DELETE ----
     if (req.method === "DELETE") {
       const targets = applyFilters(t.rows, url.searchParams);
       for (const row of targets) {
         const idx = t.rows.indexOf(row);
         if (idx >= 0) t.rows.splice(idx, 1);
       }
-      // PostgreSQL: trip_vehicles.vehicle_id ON DELETE CASCADE.
       if (table === "vehicles") {
         const removed = new Set(targets.map((r) => String(r.id)));
         const links = TABLES.trip_vehicles.rows;
@@ -289,8 +260,15 @@ function startFakePostgrest() {
   return { url: `http://127.0.0.1:${server.addr.port}`, close: () => server.shutdown() };
 }
 
+
+
 const fake = startFakePostgrest();
+
+
+
 const TMP_DIR = await Deno.makeTempDir({ prefix: "trip-test-" });
+
+
 
 async function loadHandler() {
   Deno.env.set("JWT_SECRET", "secret-untuk-uji");
@@ -300,8 +278,16 @@ async function loadHandler() {
   return module as typeof import("./trips.ts");
 }
 
+
+
 const OFFICER_ID = "11111111-1111-4111-8111-111111111111";
+
+
+
 const REGION_ID = "22222222-2222-4222-8222-222222222222";
+
+
+
 const DERMAGA_ID = "33333333-3333-4333-8333-333333333333";
 
 /** PNG 1x1 - berkas uji, bukan foto asli. */
@@ -312,6 +298,8 @@ const PNG = Uint8Array.from(
   ),
   (c) => c.charCodeAt(0),
 );
+
+
 
 function multipart(
   payload: unknown,
@@ -351,6 +339,8 @@ function multipart(
   return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
+
+
 function basePayload(clientTripId: string) {
   return {
     clientTripId,
@@ -383,6 +373,8 @@ function basePayload(clientTripId: string) {
   };
 }
 
+
+
 function requestFor(
   payload: unknown,
   photoCount: number,
@@ -397,18 +389,20 @@ function requestFor(
   });
 }
 
+
+
 function resetTables() {
   for (const t of Object.values(TABLES)) t.rows.length = 0;
-  // Handler memverifikasi officer ada di tabel (penjaga FK).
   TABLES.officers.rows.push({ id: OFFICER_ID });
 }
+
+
 
 Deno.test("petugas tanpa region: trip tetap tersimpan (region_id null)", async () => {
   resetTables();
   const { completeTrip } = await loadHandler();
   const { signToken } = await import("../_shared.ts");
 
-  // Petugas yang TIDAK punya region -> token regionId null.
   const token = await signToken({ officerId: OFFICER_ID, regionId: null as unknown as string, role: "officer" });
 
   const res = await completeTrip(requestFor(basePayload("TRP-2026-0001"), 3, DERMAGA_ID, token));
@@ -420,6 +414,8 @@ Deno.test("petugas tanpa region: trip tetap tersimpan (region_id null)", async (
   assertEquals(trips[0].officer_id, OFFICER_ID);
   assertEquals(trips[0].region_id, null, "region_id harus null, bukan string kosong");
 });
+
+
 
 Deno.test("id dermaga bukan UUID: trip tetap tersimpan (dermaga_id null)", async () => {
   resetTables();
@@ -436,6 +432,8 @@ Deno.test("id dermaga bukan UUID: trip tetap tersimpan (dermaga_id null)", async
   assertEquals(TABLES.trips.rows[0].dermaga_id, null, "dermaga_id harus null");
 });
 
+
+
 Deno.test("client_trip_id yang sama -> trip BARU dibuat, bukan trip lama yang ditimpa", async () => {
   resetTables();
   const { completeTrip } = await loadHandler();
@@ -445,9 +443,7 @@ Deno.test("client_trip_id yang sama -> trip BARU dibuat, bukan trip lama yang di
   const first = await completeTrip(requestFor(basePayload("TRP-2026-0001"), 3, DERMAGA_ID, token));
   assertEquals(first.status, 201);
 
-  // Percobaan kedua dengan client_trip_id sama tapi trip yang BERBEDA
-  // (mis. perangkat lain, atau riwayat perangkat dihapus sehingga penomoran
-  // mulai dari nol lagi). Waktu selesai juga berbeda karena ini trip lain.
+  // Percobaan kedua dengan client_trip_id sama tapi trip yang BERBEDA (mis.
   const payload2 = basePayload("TRP-2026-0001");
   payload2.routeFrom = "LAIN";
   payload2.routeTo = "LAIN2";
@@ -458,6 +454,8 @@ Deno.test("client_trip_id yang sama -> trip BARU dibuat, bukan trip lama yang di
   assertEquals(second.status, 201, "percobaan kedua harus membuat trip baru");
   assertEquals(TABLES.trips.rows.length, 2, "harus ada DUA baris trip, bukan satu yang ditimpa");
 });
+
+
 
 Deno.test("pengiriman ulang trip yang sama (retry) tetap idempoten", async () => {
   resetTables();
@@ -475,14 +473,15 @@ Deno.test("pengiriman ulang trip yang sama (retry) tetap idempoten", async () =>
   assertEquals(second.status, 200, "retry identik boleh mengembalikan 200 updated");
 });
 
+
+
 Deno.test("error penyimpanan berkas diteruskan dengan pesan yang bisa ditindaklanjuti", async () => {
   resetTables();
   const { completeTrip } = await loadHandler();
   const { signToken } = await import("../_shared.ts");
   const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
 
-  // Folder bucket foto dibuat read-only -> upload foto harus gagal dengan
-  // pesan yang bisa ditindaklanjuti, bukan "gagal mengunggah" yang kabur.
+  // Folder bucket foto dibuat read-only -> upload foto harus gagal dengan pesan yang bisa ditindaklanjuti, bukan "gagal mengunggah" yang kabur.
   const bucketDir = `${TMP_DIR}/trip-photos`;
   await Deno.mkdir(bucketDir, { recursive: true });
   await Deno.chmod(bucketDir, 0o500);
@@ -496,15 +495,15 @@ Deno.test("error penyimpanan berkas diteruskan dengan pesan yang bisa ditindakla
   }
 });
 
+
+
 Deno.test("harga saat trip dikirim tersimpan sebagai snapshot (perubahan tarif tidak menimpa)", async () => {
   resetTables();
   const { completeTrip } = await loadHandler();
   const { signToken } = await import("../_shared.ts");
   const { invalidateTariffCache } = await import("./tariffRules.ts");
-  // Cache tarif bisa saja sudah terisi dari file uji lain -> bersihkan dulu.
   invalidateTariffCache();
 
-  // Region + baris tarif: Truck bermuatan 50.000.
   TABLES.regions.rows.push({ id: REGION_ID, name: "BADAU", code: "BADAU" });
   TABLES.region_tariff_rows.rows.push({
     id: "aaaaaaaa-1111-4111-8111-111111111111",
@@ -525,7 +524,6 @@ Deno.test("harga saat trip dikirim tersimpan sebagai snapshot (perubahan tarif t
   const res = await completeTrip(requestFor(payload, 3, DERMAGA_ID, token));
   assertEquals(res.status, 201, `harus 201, dapat ${res.status}: ${await res.clone().text()}`);
 
-  // Harga yang tercatat = harga tarif SAAT INI (saat trip dikirim).
   const vehicles = TABLES.vehicles.rows;
   assertEquals(vehicles.length, 1);
   assertEquals(vehicles[0].tariff_amount, 50_000, "harga harus mengikuti tarif saat trip dikirim");

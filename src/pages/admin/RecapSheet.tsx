@@ -5,10 +5,16 @@ import { fetchTripReports, type ReportFilters, type ReportTrip } from '../../ser
 import { buildRecap, recapRouteKey, recapRouteLabel } from '../../services/recap'
 import { downloadXlsx } from '../../services/xlsx'
 
+
+
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+
+
 type LoadState = 'loading' | 'ready' | 'offline'
+
+
 
 export default function RecapSheet() {
   const [rows, setRows] = useState<ReportTrip[]>([])

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { formatPlateNumber, sanitizePlateInput, validatePlate } from './plateFormatter'
 
+
+
 const fmt = (raw: string) => formatPlateNumber(sanitizePlateInput(raw))
+
+
 
 describe('formatPlateNumber', () => {
   it('menyisipkan spasi otomatis dan membatasi tiap bagian', () => {

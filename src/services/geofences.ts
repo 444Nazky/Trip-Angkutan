@@ -5,9 +5,7 @@ import { api, toActionResult, failureReason, type ActionResult } from './api'
 export interface GeofenceRule {
   id: string
   locationName: string
-  /** Dermaga pemilik titik. Wajib dikirim agar titik TIDAK berlaku untuk semua
-   *  dermaga (NULL = "berlaku umum"), yang dulu membuat daftar geofence petugas
-   *  saling bercampur antar dermaga. */
+  // Dermaga pemilik titik. Wajib dikirim agar titik TIDAK berlaku untuk semua dermaga (NULL = "berlaku umum"), yang dulu membuat daftar geofence petugas…
   dermagaId?: string | null
   latitude: number
   longitude: number
@@ -15,7 +13,6 @@ export interface GeofenceRule {
   allowedRouteCodes: string[]
   allowedDirections: string[]
   description: string
-  /** admin dashboard bisa menonaktifkan titik tanpa menghapusnya */
   enabled?: boolean
 }
 
@@ -38,10 +35,7 @@ export async function createGeofenceRule(
 ): Promise<ActionResult<string>> {
   const res = await api.post<{ id: string }>('/geofences', {
     locationName: data.locationName,
-    // ponytail: dermagaId WAJIB ikut. Dulu field ini tidak pernah dikirim sehingga
-    // setiap titik tersimpan dermaga_id = NULL ("berlaku umum") → semua dermaga
-    // mendapat semua titik, radius saling tumpang tindih, dan filter per-dermaga
-    // di aplikasi mobile tidak pernah bisa diandalkan.
+    // ponytail: dermagaId WAJIB ikut. Dulu field ini tidak pernah dikirim sehingga setiap titik tersimpan dermaga_id = NULL ("berlaku umum") → semua…
     dermagaId: data.dermagaId ?? null,
     latitude: data.latitude,
     longitude: data.longitude,

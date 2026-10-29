@@ -1,5 +1,3 @@
-// Auth route handlers (port of backend/src/routes/auth.js).
-// db helpers, signToken, auth etc. live in __shared.
 import bcryptjs from "npm:bcryptjs@2.4.3";
 import {
   db,
@@ -13,19 +11,14 @@ import {
 } from "../_shared.ts";
 import { clientIp } from "../_ratelimit.ts";
 
+
+
 const OFFICER_TOKEN_TTL = 90 * 24 * 60 * 60;
 
-// Pembatas percobaan login.
-//
-// CATATAN: state ini hidup di memori proses. Server intranet berjalan satu
-// proses, jadi bucket ini berlaku untuk semua request, tetapi tetap
-// diperlakukan sebagai jaring pengaman pertama (bukan pengganti rate limiter
-// di _ratelimit.ts).
-//
-// Versi lama memakai satu kunci "global": satu instance menahan login untuk
-// SEMUA pengguna sekaligus, sehingga(admin yang sah ikut terkunci). Sekarang
-// dipisah per IP.
+// Pembatas percobaan login. CATATAN: state ini hidup di memori proses.
 const rateBuckets = new Map<string, number[]>();
+
+
 
 function rateLimit(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
@@ -36,11 +29,12 @@ function rateLimit(key: string, max: number, windowMs: number): boolean {
   rateBuckets.set(key, hits);
   return true;
 }
+
+
+
 const authRateLimiter = (req: Request) => rateLimit(`auth:ip:${clientIp(req)}`, 20, 60_000);
 
-// ============================================
-// ADMIN LOGIN
-// ============================================
+
 
 export async function adminLogin(req: Request): Promise<Response> {
   if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
@@ -49,15 +43,6 @@ export async function adminLogin(req: Request): Promise<Response> {
     const adminUser = (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
     // Dashboard admin pada server intranet TIDAK memakai password.
-    //
-    // Server ini hanya melayani jaringan lokal kantor, dan dashboard sudah
-    // sebelumnya terbuka otomatis dengan kredensial bawaan. Mode ini
-    // dipertahankan supaya instalasi baru tidak pernah tersangkut di layar
-    // login (mis. karena kredensial admin belum dikonfigurasi).
-    //
-    // Token tetap diterbitkan supaya klien punya sesi yang konsisten; isinya
-    // tidak menambah keamanan apa pun karena server sudah memperlakukan
-    // request tanpa token sebagai admin (lihat _shared.ts `auth`).
     if (Deno.env.get("ADMIN_AUTH_DISABLED") === "1") {
       const token = await signToken({ role: "admin", username: adminUser }, 24 * 60 * 60);
       return json({ token, admin: { username: adminUser, role: "admin" } });
@@ -68,9 +53,7 @@ export async function adminLogin(req: Request): Promise<Response> {
       .select("id, username, password")
       .order("id", { ascending: true });
 
-    // Baris pertama yang dipakai. Baris sisanya dibuang supaya pembacaan
-    // kredensial selalu tunggal (tabel ini tidak punya batasan unik, dan
-    // `single()` akan gagal kalau ada lebih dari satu baris).
+    // Baris pertama yang dipakai. Baris sisanya dibuang supaya pembacaan kredensial selalu tunggal (tabel ini tidak punya batasan unik, dan `single()` akan…
     const list = (rows ?? []) as { id?: number; username?: string; password?: string }[];
     const adminRow = list[0];
 
@@ -78,18 +61,12 @@ export async function adminLogin(req: Request): Promise<Response> {
     let effectiveUser = adminUser;
 
     if (adminRow?.password) {
-      // Baris di database adalah sumber kebenaran. Password di situ bisa
-      // diubah operator lewat dashboard, jadi environment tidak boleh
-      // menimpanya (kalau tidak, password lama tetap berlaku selamanya).
+      // Baris di database adalah sumber kebenaran.
       effectiveUser = adminRow.username || adminUser;
       if (username === effectiveUser) {
         try { valid = bcryptjs.compareSync(password, adminRow.password); } catch { valid = false; }
       }
     } else {
-      // Belum ada kredensial tersimpan: pakai ADMIN_PASSWORD dari environment
-      // sebagai jalur bootstrap. Nilai environment TIDAK ditulis ke database,
-      // jadi password tetap bisa diubah dari .env.local selama operator belum
-      // memakai menu Ganti Password di dashboard.
       const envPassword = (Deno.env.get("ADMIN_PASSWORD") ?? "").trim();
       if (!envPassword) {
         return json({
@@ -114,9 +91,7 @@ export async function adminLogin(req: Request): Promise<Response> {
   }
 }
 
-// ============================================
-// REGION LOGIN
-// ============================================
+
 
 export async function regionLogin(req: Request): Promise<Response> {
   if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
@@ -160,9 +135,7 @@ export async function regionLogin(req: Request): Promise<Response> {
   }
 }
 
-// ============================================
-// MEMBER LOGIN (Officer by username)
-// ============================================
+
 
 export async function memberLogin(req: Request): Promise<Response> {
   if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
@@ -186,7 +159,7 @@ export async function memberLogin(req: Request): Promise<Response> {
       if (!r.pin) continue;
       try {
         if (bcryptjs.compareSync(pin, r.pin)) { officer = r; break; }
-      } catch { /* hash damaged */ }
+      } catch {  }
     }
 
     if (!officer) return json({ error: "PIN salah" }, 401);
@@ -222,9 +195,7 @@ export async function memberLogin(req: Request): Promise<Response> {
   }
 }
 
-// ============================================
-// LOGIN (Officer by ID + PIN)
-// ============================================
+
 
 export async function login(req: Request): Promise<Response> {
   if (!authRateLimiter(req)) return json({ error: "Terlalu banyak percobaan. Coba lagi nanti." }, 429);
@@ -277,9 +248,7 @@ export async function login(req: Request): Promise<Response> {
   }
 }
 
-// ============================================
-// SELECT DERMAGA
-// ============================================
+
 
 export async function selectDermaga(req: Request): Promise<Response> {
   try {
@@ -325,9 +294,7 @@ export async function selectDermaga(req: Request): Promise<Response> {
   }
 }
 
-// ============================================
-// REFRESH TOKEN
-// ============================================
+
 
 export async function refreshToken(req: Request): Promise<Response> {
   try {
@@ -364,5 +331,7 @@ export async function refreshToken(req: Request): Promise<Response> {
     return json({ error: "Token refresh failed" }, 500);
   }
 }
+
+
 
 export type { OfficerClaims };

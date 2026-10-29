@@ -1,5 +1,7 @@
 import { reportGolongan, type ReportTrip } from './trips'
 
+
+
 export interface RecapRow {
   jenis: string
   loaded: number
@@ -7,6 +9,8 @@ export interface RecapRow {
   total: number
   revenue: number
 }
+
+
 
 export interface RecapGroup {
   golongan: string
@@ -17,21 +21,11 @@ export interface RecapGroup {
   revenue: number
 }
 
+
+
 const GOLONGAN_ORDER = ['Internal', 'Eksternal', 'Lokal']
 
-/**
- * Urutan jenis kendaraan untuk tabel rekap.
- *
- * Dulu daftar ini ditulis manual di frontend ('Mobil', 'Motor', 'Truck
- * Besar', ...) dan baris yang tidak ada di database ikut disuntikkan dengan
- * nilai nol - jadi rekap menampilkan jenis kendaraan yang tidak pernah ada
- * (dan ejaannya "Truck", berbeda dari database yang "Truk").
- *
- * Sekarang: hanya jenis yang benar-benar muncul di data trip yang
- * ditampilkan. Urutan diambil dari master jenis kendaraan di database
- * (lihat services/vehicleTypes.ts) kalau tersedia, kalau tidak diurutkan
- * berdasarkan nama.
- */
+// Urutan jenis kendaraan untuk tabel rekap. Dulu daftar ini ditulis manual di frontend ('Mobil', 'Motor', 'Truck Besar', ...) dan baris yang tidak ada…
 
 export function recapRouteKey(trip: ReportTrip): string {
   const from = (trip.route_from_name || trip.route_from || '').trim()
@@ -39,11 +33,15 @@ export function recapRouteKey(trip: ReportTrip): string {
   return from || to ? `${from}|${to}` : ''
 }
 
+
+
 export function recapRouteLabel(trip: ReportTrip): string {
   const from = (trip.route_from_name || trip.route_from || '').trim()
   const to = (trip.route_to_name || trip.route_to || '').trim()
   return [from, to].filter(Boolean).join(' - ')
 }
+
+
 
 export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
   const groups = new Map<string, Map<string, RecapRow>>()
@@ -65,8 +63,7 @@ export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
 
   return [...groups.entries()]
     .map(([golongan, jenisMap]) => {
-      // Hanya jenis yang benar-benar ada di data trip. Tidak ada lagi
-      // baris kosong untuk jenis kendaraan yang tidak pernah dipakai.
+      // Hanya jenis yang benar-benar ada di data trip. Tidak ada lagi baris kosong untuk jenis kendaraan yang tidak pernah dipakai.
       const rows = [...jenisMap.values()].sort((a, b) => a.jenis.localeCompare(b.jenis))
       return {
         golongan,

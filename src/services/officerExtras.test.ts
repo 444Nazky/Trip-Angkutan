@@ -1,13 +1,8 @@
-/**
- * Test untuk helper grouping relasi officer (bulk vs per-officer).
- *
- * Helper ini menjaga hasil endpoint /officers tetap sama dengan versi lama
- * (yang query per officer), padahal sekarang datanya diambil 2 query untuk
- * semua officer sekaligus.
- */
 
 import { describe, it, expect } from 'vitest'
 import { groupOfficerExtras } from '../../server/api/_officerExtras'
+
+
 
 describe('groupOfficerExtras', () => {
   const regionRows = [
@@ -64,7 +59,6 @@ describe('groupOfficerExtras', () => {
   })
 
   it('menyamakan hasil dengan query per-officer (regresi N+1)', () => {
-    // Simulasi versi lama: satu query per officer, lalu digabung.
     const perOfficer = (id: string) => ({
       regions: regionRows.filter(r => String(r.officer_id) === id).map(r => r.regions).filter(Boolean),
       dermagas: dermagaRows.filter(d => String(d.officer_id) === id).map(d => d.dermagas).filter(Boolean),

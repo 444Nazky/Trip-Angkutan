@@ -6,11 +6,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface TripConditionScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -87,7 +85,7 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
           </div>
         </button>
 
-        {/* Muatan */}
+
         <button
           onClick={() => {
             setCondition('muatan')

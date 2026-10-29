@@ -1,30 +1,8 @@
-/**
- * Tab "Master Dermaga" — kelola dermaga. Wilayah (region) bersifat tetap
- * (hardcoded lewat migrasi), tidak bisa ditambah/dihapus/diubah dari dashboard.
- *
- * Prinsip tab ini: DASHBOARD HARUS SAMA DENGAN DATABASE.
- *
- *   - Tidak ada data contoh/kosong: baris hanya muncul kalau benar-benar ada
- *     di server (`GET /regions`, `GET /dermagas`). Bila server tidak bisa
- *     dihubungi, tabel menampilkan pesan, bukan baris palsu.
- *   - Setiap tambah/hapus menulis ke server lebih dulu, lalu data dimuat ULANG
- *     dari server (`load()`). State lokal tidak pernah diubah sendiri, jadi
- *     yang tampil selalu apa yang tersimpan di database.
- *   - Dermaga yang wilayahnya sudah tidak ada di database tetap ditampilkan
- *     di bagian "tanpa wilayah" supaya tidak ada data yang tersembunyi.
- *
- * Tampilan tab ini memakai bahasa visual yang sama dengan tab master lain
- * (Master Tarif / Master Rute / Master Plat): kartu putih `rounded-2xl`,
- * input `rounded-xl`, tombol utama biru, pill status hijau/amber, dan tabel
- * dengan header uppercase kecil.
- */
+// Tab "Master Dermaga" — kelola dermaga. Wilayah (region) bersifat tetap (hardcoded lewat migrasi), tidak bisa ditambah/dihapus/diubah dari dashboard.
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Landmark, MapPin, Pencil, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
-import {
-  fetchAdminRegions,
-  type AdminRegionRow,
-} from '../../../services/tariffs'
+import { fetchAdminRegions, type AdminRegionRow, } from '../../../services/tariffs'
 import {
   fetchDermagas,
   createDermaga,
@@ -37,39 +15,65 @@ import {
 import { api } from '../../../services/api'
 import type { BackendOfficerRow } from '../components/types'
 
+
+
 interface RegionTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
-/** Wilayah master (tarif induk) — selalu tampil paling atas. */
+
+
 const MASTER_REGION_NAME = 'BADAU'
 
-/** Kunci kelompok untuk dermaga yang wilayahnya sudah tidak ada di database. */
+
+
 const ORPHAN_KEY = '__orphan__'
 
-/** Kode wilayah/dermaga: 2–16 karakter tanpa spasi. */
+
+
 const CODE_RE = /^\S{2,16}$/
+
+
 
 const labelOf = (row: { name?: string | null; code?: string | null }) =>
   String(row.name ?? '').trim() || String(row.code ?? '').trim() || '(tanpa nama)'
 
-/* ------------------------------------------------------------------ */
-/* Class bersama dengan tab master lain                                */
-/* ------------------------------------------------------------------ */
+
 
 const INPUT_CLS =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
+
+
+
 const BTN_PRIMARY =
   'inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
+
+
+
 const BTN_GHOST =
   'inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+
+
+
 const LABEL_CLS = 'text-[11px] text-slate-500 block mb-1'
 
-/** Badge kecil untuk kode / jumlah pemakaian. */
+
+
 const BADGE_NEUTRAL = 'inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600'
+
+
+
 const BADGE_INFO = 'inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600'
+
+
+
 const BADGE_OK = 'inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600'
+
+
+
 const BADGE_WARN = 'inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700'
+
+
 
 export function RegionTab({ showToast }: RegionTabProps) {
   const [regions, setRegions] = useState<AdminRegionRow[]>([])
@@ -81,19 +85,13 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const [state, setState] = useState<'loading' | 'ready' | 'offline'>('loading')
   const [saving, setSaving] = useState(false)
   const [dermagaForm, setDermagaForm] = useState({ regionId: '', name: '', code: '' })
-  /** Pesan error yang tampil di dalam kartu form (toast tetap muncul). */
   const [formError, setFormError] = useState('')
   /** Pencarian di tabel (hanya tampilan, bukan query server). */
   const [query, setQuery] = useState('')
-  /** Dermaga yang sedang diedit (ubah nama) — null = tidak ada. */
   const [editingDermagaId, setEditingDermagaId] = useState<string | null>(null)
-  /** Nama baru yang diketik untuk dermaga yang sedang diedit. */
   const [editingName, setEditingName] = useState('')
 
-  /**
-   * Muat ulang seluruh data dari server. Dipanggil saat tab dibuka dan setiap
-   * selesai tambah/hapus, supaya tampilan selalu cerminan database.
-   */
+  // Muat ulang seluruh data dari server. Dipanggil saat tab dibuka dan setiap selesai tambah/hapus, supaya tampilan selalu cerminan database.
   const load = useCallback(async (): Promise<boolean> => {
     setState('loading')
     const [regionsRes, dermagasRes, routesRes, officersRes] = await Promise.all([
@@ -103,8 +101,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
       api.getOk<BackendOfficerRow[]>('/officers'),
     ])
 
-    // Wilayah & dermaga adalah isi utama tab ini. Kalau salah satunya gagal,
-    // tampilan tidak boleh menampilkan data lama seolah masih sinkron.
+    // Wilayah & dermaga adalah isi utama tab ini. Kalau salah satunya gagal, tampilan tidak boleh menampilkan data lama seolah masih sinkron.
     if (!regionsRes || !dermagasRes) {
       setState('offline')
       return false
@@ -122,7 +119,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     void load()
   }, [load])
 
-  /** Petugas yang memakai wilayah ini (kolom region_id atau relasi officer_regions). */
   const officersOfRegion = useCallback(
     (regionId: string) =>
       (officers ?? []).filter(
@@ -138,14 +134,12 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [routes],
   )
 
-  /** Petugas yang punya akses ke sebuah dermaga. */
   const officersOfDermaga = useCallback(
     (dermagaId: string) =>
       (officers ?? []).filter((o) => (o.dermagas ?? []).some((x) => String(x.id) === dermagaId)),
     [officers],
   )
 
-  /** Wilayah terurut: BADAU (master) di atas, sisanya urut nama. */
   const orderedRegions = useMemo(
     () =>
       [...regions].sort(
@@ -157,7 +151,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [regions],
   )
 
-  /** Kelompokkan dermaga per wilayah; yang wilayahnya sudah hilang masuk "tanpa wilayah". */
   const { byRegion, orphans } = useMemo(() => {
     const regionIds = new Set(regions.map((r) => String(r.id)))
     const grouped = new Map<string, Dermaga[]>()
@@ -170,7 +163,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     return { byRegion: grouped, orphans: grouped.get(ORPHAN_KEY) ?? [] }
   }, [regions, dermagas])
 
-  /** Pencarian: cocok bila nama/kode dermaga atau nama wilayah mengandung kata kunci. */
   const matches = useCallback(
     (d: Dermaga, regionName?: string) => {
       const q = query.trim().toLowerCase()
@@ -184,7 +176,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [query],
   )
 
-  /** Dermaga yang cocok dengan pencarian, dikelompokkan per wilayah. */
   const visibleByRegion = useMemo(() => {
     const map = new Map<string, Dermaga[]>()
     for (const [regionId, list] of byRegion) {
@@ -229,9 +220,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
       setFormError(msg)
       return showToast(msg, 'error')
     }
-    // Kode dermaga hanya wajib unik DI DALAM satu wilayah. Di database kantor
-    // setiap wilayah memakai kode yang sama (D1, D2, ...), jadi aturan unik
-    // global akan memblokir penambahan dermaga di wilayah yang masih kosong.
+    // Kode dermaga hanya wajib unik DI DALAM satu wilayah.
     if (
       dermagas.some(
         (d) =>
@@ -265,7 +254,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  /** Mulai mengubah nama dermaga (kode & wilayah tidak disentuh). */
   const startEditDermaga = (d: Dermaga) => {
     setEditingDermagaId(d.id)
     setEditingName(String(d.name ?? ''))
@@ -277,10 +265,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
     setEditingName('')
   }
 
-  /**
-   * Simpan nama baru ke server, lalu muat ulang tabel. Tampilan tidak pernah
-   * diubah sendiri: yang tampil setelah simpan adalah hasil baca server.
-   */
+  // Simpan nama baru ke server, lalu muat ulang tabel. Tampilan tidak pernah diubah sendiri: yang tampil setelah simpan adalah hasil baca server.
   const handleSaveDermagaName = async (d: Dermaga) => {
     const name = editingName.trim()
     if (!name) {
@@ -315,9 +300,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
     const routeCount = routeCountOfDermaga(dermaga.id)
     const users = officersOfDermaga(dermaga.id)
 
-    // Server MENOLAK hapus dermaga yang masih punya rute atau masih dipakai
-    // petugas (FK cascade). Jadi dialog konfirmasi harus jujur soal itu —
-    // bukan menjanjikan "rute ikut terhapus".
+    // Server MENOLAK hapus dermaga yang masih punya rute atau masih dipakai petugas (FK cascade). Jadi dialog konfirmasi harus jujur soal itu
     const lines = [`Hapus dermaga ${labelOf(dermaga)} (${dermaga.code}) dari database?`, '']
     lines.push(
       routeCount === null
@@ -348,7 +331,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
     }
   }
 
-  /** Baris tabel untuk satu dermaga. */
   const dermagaRow = (d: Dermaga, alt = false) => {
     const routeCount = routeCountOfDermaga(d.id)
     const users = officersOfDermaga(d.id)
@@ -464,7 +446,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header halaman */}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-black text-slate-900">Master Dermaga</h3>
@@ -491,7 +473,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         </div>
       </div>
 
-      {/* Ringkasan cepat */}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: 'Wilayah', value: regions.length, Icon: Landmark, tone: 'text-slate-700' },
@@ -515,7 +497,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         </div>
       )}
 
-      {/* Form tambah dermaga */}
+
       <div className="max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -601,7 +583,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         </div>
       </div>
 
-      {/* Tabel dermaga */}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div>

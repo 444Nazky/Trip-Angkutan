@@ -7,42 +7,43 @@ import { api } from './api'
 
 
 
-/**
- * Detect if running in localhost development environment (Chrome dev)
- * Disables update notifications and version reporting for local dev
- *
- * Catatan: helper-nya ada di `runtimeEnv.ts` karena WAJIB mengecualikan
- * aplikasi native (origin `https://localhost`). Aplikasi native memuat halaman
- * dari origin lokal, jadi bila dianggap dev, tombol "Cek Update" di Profil
- * mati total di perangkat.
- */
+// Detect if running in localhost development environment (Chrome dev) Disables update notifications and version reporting for local dev Catatan:…
 export { isLocalhostDev }
 
 
-// Manifest & berkas modul dilayani server API intranet sendiri
-// (/api/ota-manifest dan /files/ota/<versi>/...), sehingga penerbitan tidak
-// bergantung layanan di internet.
+
 function manifestUrl(): string {
   return `${api.baseUrl}/ota-manifest`
 }
 
+
+
 export function otaAssetsBase(): string {
-  // Berkas bundel disimpan di server intranet pada STORAGE_DIR bucket "ota"
-  // dan disajikan lewat /files/ota/. Origin diturunkan dari base URL yang
-  // sedang aktif supaya unduhan selalu menuju server yang sama dengan API.
+  // Berkas bundel disimpan di server intranet pada STORAGE_DIR bucket "ota" dan disajikan lewat /files/ota/.
   return `${api.baseUrl.replace(/\/api$/, '')}/files/ota/`
 }
 
 
 
-
 const OTA_META_CACHE = 'trip-ota-meta'
+
+
+
 const VERSION_CACHE_PREFIX = 'trip-ota-v'
+
+
+
 const META_ACTIVE_KEY = '__active__.json'
+
+
+
 const MARKER_KEY_PREFIX = 'trip.ota.marker.'
 
-// Device ID cache
+
+
 let _cachedDeviceId: string | null = null
+
+
 
 async function getDeviceId(): Promise<string> {
   if (_cachedDeviceId) return _cachedDeviceId
@@ -66,7 +67,6 @@ async function getDeviceId(): Promise<string> {
  * LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
  */
 async function reportOtaVersion(version: string): Promise<boolean> {
-  // Disable update reporting for localhost development
   if (isDevMode()) {
     console.log('[OTA] DEV/Localhost MODE: Skip report version ke server')
     return false
@@ -103,25 +103,30 @@ async function reportOtaVersion(version: string): Promise<boolean> {
 
 
 
-
 function forEachStorageKey(fn: (key: string) => void): void {
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
       if (key) fn(key)
     }
-  } catch { /* akses localStorage ditolak */ }
+  } catch {  }
 }
 
+
+
 const OTA_DIR = 'ota'
+
+
+
 const LEGACY_OTA_DIR = 'trip-ota'
+
+
+
 const MARKER = '.complete.json'
 
 
 
-
 const ERROR_COOLDOWN_MS = 2 * 60 * 1000
-
 
 
 
@@ -134,7 +139,6 @@ export interface VersionManifest {
 
 
 
-
 export interface UpdateState {
   status: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'offline'
   progress?: number
@@ -143,12 +147,25 @@ export interface UpdateState {
   activeVersion?: string
 }
 
-const STATE_KEY = 'trip.ota.state'
-const CURRENT_VER_KEY = 'trip.ota.currentVersion'
-const BUNDLED_VERSION = '0.0.0'
-const LAST_ERROR_KEY = 'trip.ota.lastError'
-const APPLIED_VER_KEY = 'trip.ota.appliedVersion'
 
+
+const STATE_KEY = 'trip.ota.state'
+
+
+
+const CURRENT_VER_KEY = 'trip.ota.currentVersion'
+
+
+
+const BUNDLED_VERSION = '0.0.0'
+
+
+
+const LAST_ERROR_KEY = 'trip.ota.lastError'
+
+
+
+const APPLIED_VER_KEY = 'trip.ota.appliedVersion'
 
 
 
@@ -158,11 +175,9 @@ export async function getCurrentVersion(): Promise<string | null> {
 
 
 
-
 export function setCurrentVersion(v: string): void {
-  try { localStorage.setItem(CURRENT_VER_KEY, v) } catch { /* quota */ }
+  try { localStorage.setItem(CURRENT_VER_KEY, v) } catch {  }
 }
-
 
 
 
@@ -175,11 +190,9 @@ export function getCachedState(): UpdateState | null {
 
 
 
-
 function saveState(s: UpdateState): void {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(s)) } catch { /* quota */ }
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(s)) } catch {  }
 }
-
 
 
 
@@ -187,15 +200,15 @@ function isOnline(): boolean {
   try { return navigator.onLine !== false } catch { return true }
 }
 
+
+
 export const PERSIST_BUNDLE_ACTIVE_KEY = 'trip.ota.persistActive'
 
 
 
-
 export async function markBundlePersisted(): Promise<void> {
-  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch { /* quota */ }
+  try { localStorage.setItem(PERSIST_BUNDLE_ACTIVE_KEY, '1') } catch {  }
 }
-
 
 
 
@@ -205,9 +218,7 @@ export async function hasPersistFlag(): Promise<boolean> {
 
 
 
-
 const isNative = () => Capacitor.isNativePlatform()
-
 
 
 
@@ -217,11 +228,9 @@ function urlOf(path: string): string {
 
 
 
-
 export function versionCacheName(version: string): string {
   return `${VERSION_CACHE_PREFIX}${version}`
 }
-
 
 
 
@@ -236,7 +245,6 @@ function toBase64(bytes: Uint8Array): string {
 
 
 
-
 function fromBase64(b64: string): Uint8Array {
   const bin = atob(b64)
   const out = new Uint8Array(bin.length)
@@ -246,11 +254,9 @@ function fromBase64(b64: string): Uint8Array {
 
 
 
-
 export function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
-
 
 
 
@@ -268,13 +274,11 @@ async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
 
 
 
-
 interface ActiveMeta {
   version: string
   assets: string[]
   savedAt: number
 }
-
 
 
 
@@ -288,7 +292,6 @@ async function writeActiveMeta(version: string, assets: string[]): Promise<void>
     }),
   )
 }
-
 
 
 
@@ -306,11 +309,9 @@ export async function readActiveMeta(): Promise<ActiveMeta | null> {
 
 
 
-
 function assetPath(version: string, path: string): string {
   return `${OTA_DIR}/${version}/${path}`
 }
-
 
 
 
@@ -323,7 +324,6 @@ async function persistToStorage(version: string, path: string, bytes: Uint8Array
     recursive: true,
   })
 }
-
 
 
 
@@ -341,11 +341,10 @@ async function readFromStorage(version: string, path: string): Promise<Uint8Arra
 
 
 
-
 async function writeMarker(version: string, assets: string[], integrity?: Record<string, string>): Promise<void> {
   const data = JSON.stringify({ version, assets, integrity, savedAt: Date.now() })
   if (!isNative()) {
-    try { localStorage.setItem(MARKER_KEY_PREFIX + version, data) } catch { /* quota */ }
+    try { localStorage.setItem(MARKER_KEY_PREFIX + version, data) } catch {  }
     return
   }
   await Filesystem.writeFile({
@@ -356,7 +355,6 @@ async function writeMarker(version: string, assets: string[], integrity?: Record
     recursive: true,
   })
 }
-
 
 
 
@@ -381,20 +379,18 @@ async function readMarker(version: string): Promise<VersionManifest | null> {
 
 
 
-
 async function removeVersionStorage(version: string): Promise<void> {
   if (typeof caches !== 'undefined') {
-    try { await caches.delete(versionCacheName(version)) } catch { /* */ }
+    try { await caches.delete(versionCacheName(version)) } catch {  }
   }
   if (!isNative()) {
-    try { localStorage.removeItem(MARKER_KEY_PREFIX + version) } catch { /* quota */ }
+    try { localStorage.removeItem(MARKER_KEY_PREFIX + version) } catch {  }
     return
   }
   try {
     await Filesystem.rmdir({ path: `${OTA_DIR}/${version}`, directory: Directory.Data, recursive: true })
-  } catch { /* tidak ada */ }
+  } catch {  }
 }
-
 
 
 
@@ -404,11 +400,9 @@ async function listCaches(): Promise<string[]> {
 
 
 
-
 function isOtaCacheName(name: string): boolean {
   return name.startsWith('trip-ota')
 }
-
 
 
 
@@ -418,10 +412,9 @@ async function deleteOtaCaches(keep: Iterable<string> = []): Promise<void> {
   await Promise.all(names.map(async n => {
     if (keepSet.has(n)) return
     if (!isOtaCacheName(n)) return
-    try { await caches.delete(n) } catch { /* */ }
+    try { await caches.delete(n) } catch {  }
   }))
 }
-
 
 
 
@@ -445,15 +438,14 @@ export async function purgeOtherVersions(keep: string[] = []): Promise<void> {
       if (keep.includes(f.name)) continue
       try {
         await Filesystem.rmdir({ path: `${OTA_DIR}/${f.name}`, directory: Directory.Data, recursive: true })
-      } catch { /* */ }
+      } catch {  }
     }
-  } catch { /* folder belum ada */ }
+  } catch {  }
 
   try {
     await Filesystem.rmdir({ path: LEGACY_OTA_DIR, directory: Directory.Cache, recursive: true })
-  } catch { /* sudah tidak ada */ }
+  } catch {  }
 }
-
 
 
 
@@ -472,7 +464,6 @@ async function clearStuckOtaState(): Promise<void> {
   }
   saveState({ status: 'idle', latestVersion: state.latestVersion })
 }
-
 
 
 
@@ -501,7 +492,6 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
         headers: new Headers((response.headers ?? {}) as Record<string, string>),
       })
     } catch {
-      // jatuh ke fetch biasa
     }
   }
 
@@ -510,11 +500,9 @@ async function nativeFetch(url: string, options: RequestInit = {}): Promise<Resp
 
 
 
-
 type ManifestResult =
   | { ok: true; manifest: VersionManifest }
   | { ok: false; reason: 'not-found' | 'network' | 'invalid' }
-
 
 
 
@@ -561,7 +549,6 @@ async function fetchManifest(signal: AbortSignal): Promise<ManifestResult> {
 
 
 
-
 export function isNewer(remote: string, local: string): boolean {
   if (!local) return true
   if (!remote) return false
@@ -592,13 +579,11 @@ export function isNewer(remote: string, local: string): boolean {
 
 
 
-
 export function semverLabel(version: string): string {
   if (!version) return '—'
   const m = version.match(/^([\d.]+)/)
   return m ? m[1] : version
 }
-
 
 
 
@@ -640,7 +625,6 @@ async function fetchBytes(url: string, signal: AbortSignal): Promise<Uint8Array>
 
 
 
-
 async function downloadAsset(
   version: string,
   path: string,
@@ -666,7 +650,6 @@ async function downloadAsset(
 
 
 
-
 async function verifyBytes(
   bytes: Uint8Array,
   path: string,
@@ -678,7 +661,6 @@ async function verifyBytes(
   if (actual == null) return bytes.byteLength > 0
   return actual.toLowerCase() === expected.toLowerCase()
 }
-
 
 
 
@@ -700,17 +682,15 @@ async function stageAsset(version: string, path: string, bytes: Uint8Array): Pro
 
 
 
-
 async function readFromVersionCache(version: string, path: string): Promise<Uint8Array | null> {
   if (typeof caches === 'undefined') return null
   try {
     const cache = await caches.open(versionCacheName(version))
     const res = await cache.match(urlOf(path))
     if (res) return new Uint8Array(await res.arrayBuffer())
-  } catch { /* cache tidak tersedia */ }
+  } catch {  }
   return null
 }
-
 
 
 
@@ -725,7 +705,6 @@ function contentTypeOf(path: string): string {
   if (path.endsWith('.woff2')) return 'font/woff2'
   return 'application/octet-stream'
 }
-
 
 
 
@@ -749,7 +728,6 @@ async function ensureVersionBundleReady(version: string, assets: string[]): Prom
 
 
 
-
 export async function activateStagedBundle(version: string, assets: string[]): Promise<boolean> {
   if (!assets.length || typeof caches === 'undefined') return false
   try {
@@ -765,7 +743,7 @@ export async function activateStagedBundle(version: string, assets: string[]): P
     await purgeOtherVersions([version])
 
     setCurrentVersion(version)
-    try { localStorage.setItem(APPLIED_VER_KEY, version) } catch { /* quota */ }
+    try { localStorage.setItem(APPLIED_VER_KEY, version) } catch {  }
     await markBundlePersisted()
     return true
   } catch (err) {
@@ -776,11 +754,9 @@ export async function activateStagedBundle(version: string, assets: string[]): P
 
 
 
-
 export async function activateBundle(version: string, assets: string[]): Promise<boolean> {
   return activateStagedBundle(version, assets)
 }
-
 
 
 
@@ -806,8 +782,6 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
     if ((await cache.keys()).length < assets.length) return false
     if (meta?.version !== local) await writeActiveMeta(local, assets)
 
-    // LAPORKAN VERSI KE BACKEND saat startup dengan OTA bundle aktif
-    // Ini memastikan server tahu versi yang terinstall
     if (local !== BUNDLED_VERSION) {
       await reportOtaVersion(local)
     }
@@ -815,7 +789,6 @@ export async function restoreBundleFromStorage(): Promise<boolean> {
     return true
   } catch { return false }
 }
-
 
 
 
@@ -829,7 +802,7 @@ export async function resetOtaStorage(): Promise<void> {
     for (const [path, directory] of [[OTA_DIR, Directory.Data], [LEGACY_OTA_DIR, Directory.Cache]] as const) {
       try {
         await Filesystem.rmdir({ path, directory, recursive: true })
-      } catch { /* sudah tidak ada */ }
+      } catch {  }
     }
   }
 
@@ -839,11 +812,10 @@ export async function resetOtaStorage(): Promise<void> {
     localStorage.removeItem(LAST_ERROR_KEY)
     localStorage.removeItem(PERSIST_BUNDLE_ACTIVE_KEY)
     localStorage.removeItem(APPLIED_VER_KEY)
-  } catch { /* quota */ }
+  } catch {  }
 
   console.log('[OTA] resetOtaStorage() selesai — semua bundle & state OTA dibuang')
 }
-
 
 
 
@@ -889,7 +861,7 @@ export async function auditOta(): Promise<{
       const cache = await caches.open(versionCacheName(meta.version))
       cacheActiveEntries = (await cache.keys()).length
     }
-  } catch { /* cache tidak tersedia */ }
+  } catch {  }
 
   return {
     localVersion,
@@ -903,15 +875,15 @@ export async function auditOta(): Promise<{
 
 
 
-
 export interface CheckResult {
   available: boolean
   version?: string
   assets?: string[]
 }
 
-let controller: AbortController | undefined
 
+
+let controller: AbortController | undefined
 
 
 
@@ -935,7 +907,7 @@ export async function checkForUpdate(
     }
 
     if (force) {
-      try { localStorage.removeItem(LAST_ERROR_KEY) } catch { /* quota */ }
+      try { localStorage.removeItem(LAST_ERROR_KEY) } catch {  }
     } else {
       const lastErr = parseInt(localStorage.getItem(LAST_ERROR_KEY) ?? '0', 10)
       if (Date.now() - lastErr < ERROR_COOLDOWN_MS) return { available: false }
@@ -1042,7 +1014,7 @@ export async function checkForUpdate(
       })
     }
 
-    try { await writeMarker(remote.version, remote.assets, remote.integrity) } catch { /* web */ }
+    try { await writeMarker(remote.version, remote.assets, remote.integrity) } catch {  }
 
     emit({
       status: 'ready',
@@ -1064,7 +1036,6 @@ export async function checkForUpdate(
 
 
 
-
 export async function applyUpdate(): Promise<boolean> {
   try {
     const version = getCachedState()?.latestVersion
@@ -1082,11 +1053,10 @@ export async function applyUpdate(): Promise<boolean> {
 
     saveState({ status: 'idle', latestVersion: version, activeVersion: version })
 
-    // LAPORKAN VERSI KE BACKEND setelah OTA update berhasil
-    // Ini penting agar server tahu mobile sudah menarik update OTA
+    // LAPORKAN VERSI KE BACKEND setelah OTA update berhasil Ini penting agar server tahu mobile sudah menarik update OTA
     await reportOtaVersion(version)
 
-    try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch { /* quota */ }
+    try { localStorage.setItem(FORCE_ROSTER_SYNC_KEY, '1') } catch {  }
 
     try {
       const audit = await auditOta()

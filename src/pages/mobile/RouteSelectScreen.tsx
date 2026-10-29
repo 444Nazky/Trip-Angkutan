@@ -15,12 +15,10 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface RouteSelectScreenProps {
   go: (s: MobileScreen) => void
   selectedDockId?: string | null
 }
-
 
 
 
@@ -32,10 +30,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const dock = dockId ? accessibleDermagas.find(d => d.id === dockId) ?? null : null
   const dockName = dock?.name ?? null
 
-  // ponytail: rute HARUS tampil seketika dari cache localStorage. Dulu list
-  // disembunyikan selama `loading` → petugas menunggu satu round-trip server
-  // hanya untuk melihat daftar rute. Sekarang: cache tampil dulu, refresh
-  // server jalan di background tanpa menutupi list.
+  // ponytail: rute HARUS tampil seketika dari cache localStorage.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
   const [loading, setLoading] = useState(() => getStoredRoutes().length === 0)
 
@@ -45,7 +40,6 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     if (cached.length) {
       setRoutes(cached)
       setLoading(false)
-      // Refresh diam-diam; list tetap terlihat.
       refreshStoredRoutes().then(fresh => {
         if (alive && fresh?.length) setRoutes(fresh)
       }).catch(() => {})
@@ -58,10 +52,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     return () => { alive = false }
   }, [])
 
-  // ponytail: scope akses dermaga dipakai saat offline. Rute yang dermaganya
-  // tidak termasuk akses petugas tidak boleh muncul. Kalau cache akses kosong
-  // (petugas lama / belum pernah sync), jangan sembunyikan semua rute —
-  // penguncian geofence tetap menjadi pengaman terakhir.
+  // ponytail: scope akses dermaga dipakai saat offline. Rute yang dermaganya tidak termasuk akses petugas tidak boleh muncul.
   const accessIds = new Set(accessibleDermagas.map(d => d.id))
   const scopedRoutes = accessIds.size === 0
     ? routes
@@ -96,9 +87,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setSyncNote('GPS tidak tersedia. Pastikan izin lokasi aktif dan GPS perangkat menyala.')
         return null
       }
-      // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik
-      // dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2
-      // yang radiusnya tumpang tindih.
+      // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2 yang…
       const result = await getActiveGeofenceSnapshot(
         { latitude: position.lat, longitude: position.lng },
         dockId ?? undefined,
@@ -110,10 +99,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setConfigMissing(false)
         setSyncNote(null)
 
-        // ponytail: bandingkan hanya UUID asli vs UUID asli. Dulu perbandingan
-        // mentah menyalakan "Lokasi Tidak Sesuai Dermaga" untuk titik umum/warisan
-        // yang radiusnya tumpang tindih → petugas yang BENAR di dermaga terpilih
-        // tetap terkunci (tombol Lanjut mati).
+        // ponytail: bandingkan hanya UUID asli vs UUID asli.
         if (dockId && pointIsForOtherDermaga(result.activePoint, dockId)) {
           setDockMismatch({
             selectedDock: dockId,
@@ -160,9 +146,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     }
 
     void evaluateWithSelfHeal()
-    // ponytail: JANGAN paksa GPS tiap 15 detik. GPS watch (lihat geofence.ts)
-    // sudah menjaga cache tetap hangat, jadi evaluate() tanpa force = instan.
-    // evaluate(true) dulu memicu request GPS baru (8 detik) tiap 15 detik.
+    // ponytail: JANGAN paksa GPS tiap 15 detik. GPS watch (lihat geofence.ts) sudah menjaga cache tetap hangat, jadi evaluate() tanpa force = instan.
     const timer = window.setInterval(() => { void evaluate() }, 15000)
     const onFocus = () => { void evaluate() }
     const onOnline = () => { void evaluateWithSelfHeal(true) }
@@ -227,15 +211,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     )
   }
 
-  // ponytail: SEMUA rute dock ditampilkan; rute yang tidak cocok dengan titik
-  // GPS aktif di-lock (bukan disembunyikan) sesuai SOP rute ganda. Bila rute
-  // untuk dock terpilih belum tersinkron, tampilkan seluruh rute tersimpan —
-  // kedua arah (mis. SBDZ→SJRE dan SJRE→SBDZ) tetap tampak, dan locking
-  // geofence tetap membatasi input ke rute yang sesuai titik GPS aktif.
+  // ponytail: SEMUA rute dock ditampilkan; rute yang tidak cocok dengan titik GPS aktif di-lock (bukan disembunyikan) sesuai SOP rute ganda.
   const list = dockId ? dermagaFiltered : scopedRoutes
 
-  // ponytail: normalisasi kode rute — format "SBDZ-SJRE" vs "SBDZ→SJRE" harus
-  // dianggap rute yang sama, jadi locking geofence tidak salah kunci.
+  // ponytail: normalisasi kode rute — format "SBDZ-SJRE" vs "SBDZ→SJRE" harus dianggap rute yang sama, jadi locking geofence tidak salah kunci.
   const normalizeRouteCode = (code: string): string =>
     code.toUpperCase().trim().replace(/→|->|>/g, '-')
 
@@ -278,7 +257,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             : 'Pilih rute perjalanan'}
       </p>
 
-      {/* Banner */}
+
       <div className="bg-[#0F172A] rounded-2xl p-4 mb-4 flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
           <MapPin size={16} className="text-emerald-400" />
@@ -296,7 +275,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         <Map size={16} className="text-slate-600 shrink-0" />
       </div>
 
-      {/* ── Status geofence real-time ── */}
+
       {geoStatus === 'checking' && (
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-3 flex items-center gap-2 text-[12px] text-slate-500">
           <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin shrink-0" />
@@ -312,7 +291,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           </p>
         </div>
       )}
-      {/* ── DERMAGA MISMATCH: petugas di dermaga berbeda ── */}
+
       {geoStatus === 'mismatch' && dockMismatch && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-3 shadow-sm">
           <div className="flex items-start gap-3">

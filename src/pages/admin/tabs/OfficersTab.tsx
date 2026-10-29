@@ -8,7 +8,6 @@ import type { Officer, BackendOfficerRow, RouteRow, RouteDermaga } from '../comp
 
 
 
-
 interface OfficersTabProps {
   officers: Officer[]
   onSaveOfficers: (o: Officer[]) => void
@@ -17,16 +16,12 @@ interface OfficersTabProps {
 
 
 
-
-
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
   return rows.map(b => {
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
     const region = b.regions?.[0]?.name ?? b.region_code ?? b.region_id
     const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.name) : [region]
-    // Tidak ada akses dermaga = kosong. Dulu fallback-nya dummy
-    // `{ id: '', name: '', code: 'D1' }` - data palsu yang tampil sebagai
-    // kolom "Dermaga" padahal tidak ada di database.
+    // Tidak ada akses dermaga = kosong. Dulu fallback-nya dummy `{ id: '', name: '', code: 'D1' }` - data palsu yang tampil sebagai kolom "Dermaga" padahal…
     const dermagaAccess = b.dermagas && b.dermagas.length > 0
       ? b.dermagas
       : old?.dermagaAccess && old.dermagaAccess.length > 0
@@ -52,15 +47,13 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
 
 
 
-/**
- * Menu aksi petugas.
- *
- * Menu dirender lewat portal ke `document.body` dengan posisi fixed: kalau
- * dirender di dalam sel tabel, container grup wilayah memakai
- * `overflow-hidden` sehingga menu ikut terpotong.
- */
 const MENU_WIDTH = 160
+
+
+
 const MENU_HEIGHT = 132
+
+
 
 function ActionMenu({ onEdit, onToggle, onDelete, isActive }: { onEdit: () => void; onToggle: () => void; onDelete: () => void; isActive: boolean }) {
   const [open, setOpen] = useState(false)
@@ -143,9 +136,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
 
-  // Fetch ini sengaja hanya sekali saat mount: menambahkan `officers` ke
-  // dependency array akan memicu siklus fetch -> onSaveOfficers -> parent
-  // berubah -> fetch lagi. Nilai terbaru dibaca lewat ref.
+  // Fetch ini sengaja hanya sekali saat mount: menambahkan `officers` ke dependency array akan memicu siklus fetch -> onSaveOfficers -> parent berubah ->…
   const officersRef = useRef(officers)
   useEffect(() => { officersRef.current = officers })
 
@@ -173,10 +164,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return () => { alive = false }
   }, [onSaveOfficers])
 
-  // Seluruh wilayah dari database ditampilkan apa adanya. Dulu ada daftar
-  // kode wilayah yang dikecualikan secara hardcode ('SBDZ', 'SJRE') - daftar
-  // itu bukan data database, dan membuat admin tidak bisa memberi akses
-  // wilayah yang memang ada.
+  // Seluruh wilayah dari database ditampilkan apa adanya.
   const regionNames = [...new Set(regions.map(r => r.name))]
   const officerRegions = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
@@ -197,15 +185,10 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     return ids.size > 0 ? routeRows.filter(r => ids.has(r.dermaga_id)) : []
   }
 
-  /**
-   * Format routes for display - shows route_from -> route_to for each route
-   * Groups by dermaga for officers with dual access (2 dermagas)
-   */
   const formatOfficerRoutes = (o: Officer): string => {
     const routes = routesForOfficer(o)
     if (routes.length === 0) return '—'
 
-    // Group routes by dermaga
     const byDermaga = new Map<string, typeof routes>()
     for (const r of routes) {
       const dermagaId = r.dermaga_id
@@ -213,7 +196,6 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       byDermaga.get(dermagaId)!.push(r)
     }
 
-    // Format: DERMAGA · ROUTE: ASAL -> TUJUAN | ASAL -> TUJUAN
     const parts: string[] = []
     for (const [dermagaId, dermagaRoutes] of byDermaga) {
       const dermaga = routeDermagas.find(d => d.id === dermagaId)
@@ -242,8 +224,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     if (offForm.pin.length < 4) return showToast('PIN minimal 4 digit!', 'error')
     const region = regions.find(r => r.name === offForm.region)
     if (!region) return showToast('Pilih wilayah', 'error')
-    // ponytail: username dikirim eksplisit — rumus SAMA dengan fallback tampilan
-    // (nama lowercase tanpa spasi) dan derivasi backend, jadi @ di tabel = login.
+    // ponytail: username dikirim eksplisit — rumus SAMA dengan fallback tampilan (nama lowercase tanpa spasi) dan derivasi backend, jadi @ di tabel = login.
     const username = offForm.name.trim().toLowerCase().replace(/\s+/g, '')
     const res = await api.post<{ id: string }>('/officers', {
       name: offForm.name.trim(), username, pin: offForm.pin, regionId: region?.id,
@@ -274,13 +255,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       return
     }
 
-    // SEMUA panggilan harus dicek. Versi lama mengabaikan hasilnya lalu
-    // selalu menampilkan "Petugas diupdate" - padahal server bisa saja
-    // menolak (403/500) dan akses dermaga tidak berubah sama sekali.
-    //
-    // Nama ikut dikirim. Dulu kolom "Nama" bisa diedit tapi TIDAK pernah
-    // dikirim ke server, jadi UI menampilkan "diupdate" padahal di database
-    // masih nama lama (dan kembali lagi setelah reload).
+    // SEMUA panggilan harus dicek. Versi lama mengabaikan hasilnya lalu selalu menampilkan "Petugas diupdate" - padahal server bisa saja menolak (403/500)…
     const newName = String(editOff.name ?? '').trim()
     if (newName && newName !== String(be.name ?? '').trim()) {
       const nameRes = await api.put(`/officers/${be.id}`, { name: newName })
@@ -296,8 +271,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const dmRes = await api.put(`/officers/${be.id}/dermagas`, { dermagaIds: dmIds })
     if (!dmRes.ok) return showToast(failureReason(dmRes, 'Akses dermaga gagal disimpan karena server menolak permintaan'), 'error')
 
-    // ponytail: ambang PIN disamakan dengan create (≥4). Dulu hanya ==6 yang
-    // dikirim sehingga PIN 4-5 digit "terupdate" di UI tapi tidak di DB.
+    // ponytail: ambang PIN disamakan dengan create (≥4). Dulu hanya ==6 yang dikirim sehingga PIN 4-5 digit "terupdate" di UI tapi tidak di DB.
     if (editOff.pin && editOff.pin.length >= 4) {
       const pinRes = await api.put(`/officers/${be.id}/pin`, { pin: editOff.pin })
       if (!pinRes.ok) return showToast(failureReason(pinRes, 'PIN gagal disimpan karena server menolak permintaan'), 'error')
@@ -315,9 +289,6 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const officer = localOfficers[localIdx]
     const be = findBackendOfficer(officer)
     if (!be) {
-      // Dulu di sini tetap muncul "Petugas dihapus" padahal tidak ada
-      // request yang dikirim - jadi UI mengklaim sukses palsu. Sekarang
-      // jelas-Jelas gagal.
       return showToast('Petugas ini belum ada di server — tidak bisa dihapus', 'error')
     }
     const res = await api.delete(`/officers/${be.id}`)

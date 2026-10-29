@@ -1,25 +1,20 @@
-/**
- * Klien panel statistik server.
- *
- * Data diambil SELALU dari server INTRANET port 3000
- * (http://192.168.1.123:3000/api/server-stats) - bukan dari alamat lain yang
- * sedang diisi pengguna.
- *
- * Alasannya: angka statistik itu kumulatif di dalam satu proses Deno yang
- * hidup terus di PC kantor. Proses yang di-restart akan mengulang hitungan
- * dari nol.
- */
+// Klien panel statistik server. Data diambil SELALU dari server INTRANET port 3000 (http://192.168.1.123:3000/api/server-stats) - bukan dari alamat…
 
 import { environment } from '../environments/environment'
 import { getAuthToken } from './api'
 
-/** Base URL API intranet (port 3000) - sumber data statistik. */
+
+
 export function intranetStatsBaseUrl(): string {
   const url = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl ?? ''
   return url.trim().replace(/\/+$/, '')
 }
 
+
+
 export type ComponentStatus = 'ok' | 'degraded' | 'down' | 'unknown'
+
+
 
 export interface ServerComponent {
   id: string
@@ -29,12 +24,16 @@ export interface ServerComponent {
   ms: number
 }
 
+
+
 export interface MetricsBucket {
   minute: number
   total: number
   ok: number
   err: number
 }
+
+
 
 export interface PathStat {
   path: string
@@ -43,6 +42,8 @@ export interface PathStat {
   avgMs: number
   lastMs: number
 }
+
+
 
 export interface ServerMetrics {
   startedAt: number
@@ -64,23 +65,20 @@ export interface ServerMetrics {
   uniqueClientsLastHour: number
 }
 
-/** Metrik CPU mesin server (dari /proc). */
+
+
 export interface SystemCpuMetrics {
   /** Persentase 0-100 sejak sampel sebelumnya. null saat belum ada pembanding. */
   usagePercent: number | null
-  /** Rata-rata penggunaan sejak boot (0-100). */
   averageSinceBootPercent: number
-  /** Jumlah core processor yang terlihat. */
   cores: number
-  /** Nama model processor. */
   model: string
-  /** Frekuensi MHz rata-rata kalau bisa dibaca. */
   mhz: number | null
-  /** Load average 1 menit, 5 menit, 15 menit. */
   loadAvg: [number, number, number]
 }
 
-/** Metrik RAM + swap mesin server (dari /proc/meminfo). */
+
+
 export interface SystemMemoryMetrics {
   total: number
   used: number
@@ -91,7 +89,8 @@ export interface SystemMemoryMetrics {
   swapUsedPercent: number
 }
 
-/** Metrik satu filesystem (dari `df`). */
+
+
 export interface SystemDiskMetrics {
   label: string
   path: string
@@ -101,19 +100,20 @@ export interface SystemDiskMetrics {
   usedPercent: number
 }
 
-/** Ringkasan kondisi hardware mesin server. */
+
+
 export interface SystemMetrics {
   hostname: string
   os: string
   arch: string
-  /** Uptime mesin dalam detik. */
   uptimeSeconds: number
   cpu: SystemCpuMetrics
   memory: SystemMemoryMetrics
   disks: SystemDiskMetrics[]
-  /** True kalau minimal satu sumber data berhasil dibaca. */
   available: boolean
 }
+
+
 
 export interface ServerStats {
   ok: true
@@ -127,17 +127,13 @@ export interface ServerStats {
   components: ServerComponent[]
 }
 
+
+
 export type ServerStatsResult =
   | { ok: true; data: ServerStats }
   | { ok: false; error: string; ms: number }
 
-/**
- * Ambil statistik dari server intranet port 3000.
- *
- * Token admin dikirim kalau tersedia supaya endpoint `/server-stats` (yang
- * mewajibkan role admin) menerimanya. Token diterbitkan server intranet itu
- * sendiri dengan JWT_SECRET yang sama.
- */
+// Ambil statistik dari server intranet port 3000.
 export async function fetchServerStats(timeoutMs = 8000): Promise<ServerStatsResult> {
   const base = intranetStatsBaseUrl()
   if (!base) {
@@ -192,7 +188,8 @@ export async function fetchServerStats(timeoutMs = 8000): Promise<ServerStatsRes
   }
 }
 
-/** Ubah byte menjadi MB dengan 1 angka desimal. */
+
+
 export function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 MB'
   const mb = bytes / (1024 * 1024)
@@ -200,7 +197,8 @@ export function formatBytes(bytes: number): string {
   return `${mb.toFixed(1)} MB`
 }
 
-/** Ubah milidetik menjadi durasi pendek. */
+
+
 export function formatMs(ms: number): string {
   if (!ms || ms < 0) return '-'
   if (ms < 1000) return `${Math.round(ms)} ms`
@@ -210,7 +208,8 @@ export function formatMs(ms: number): string {
   return `${m}m ${s}s`
 }
 
-/** Ubah durasi uptime menjadi teks ringkas. */
+
+
 export function formatUptime(ms: number): string {
   const s = Math.floor(Math.max(0, ms) / 1000)
   const h = Math.floor(s / 3600)

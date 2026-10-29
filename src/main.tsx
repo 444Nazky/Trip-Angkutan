@@ -6,12 +6,16 @@ import { api } from './services/api'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 
+
+
 const root = document.getElementById('root')!
+
+
 
 if (document.documentElement.dataset['admin'] !== undefined) {
   const adminLogout = () => {
     api.setToken(null)
-    try { localStorage.removeItem('trip.admin') } catch { /* quota */ }
+    try { localStorage.removeItem('trip.admin') } catch {  }
     location.reload()
   }
   ReactDOM.createRoot(root).render(

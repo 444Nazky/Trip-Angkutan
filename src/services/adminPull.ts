@@ -4,9 +4,7 @@ import { api } from './api'
 
 
 
-
 export const FORCE_ROSTER_SYNC_KEY = 'trip.sync.forceRoster'
-
 
 
 
@@ -18,24 +16,23 @@ export async function syncOnResume(force = false): Promise<void> {
     const last = Number(localStorage.getItem(LAST_SYNC_KEY) || 0)
     if (!force && !forced && Date.now() - last < LAST_SYNC_MS) return
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
-  } catch { /* quota */ }
+  } catch {  }
 
-  // ponytail: renew DULU sebelum 4 panggilan authed paralel. Dulu semuanya
-  // ditembak serentak dengan token basi → semua 401 → api.request menghapus
-  // token saat 401 pertama → sesi mati sendiri + geofence "renewal failed"
-  // padahal petugas sudah login. Tanpa sesi valid, jangan tembak sama sekali.
+  // ponytail: renew DULU sebelum 4 panggilan authed paralel.
   const sessionOk = await renewSessionIfNeeded().catch(() => false)
   if (!sessionOk) return
 
-  // ponytail: SATU prefetch mengambil semua yang dibutuhkan (rute + geofence
-  // + tarif + akses dermaga + roster petugas) secara PARALEL. Dulu tiap
-  // resume menembak 4-5 request terpisah -> lambat & boros.
   void prefetchAllCriticalData({ force: true }).catch(() => null)
   const dermaga = getStoredDermaga()
   if (dermaga?.id) void syncDermagaOfficersToDb(dermaga.id)
 }
 
+
+
 const LAST_SYNC_KEY = 'trip.officers.lastSync'
+
+
+
 const LAST_SYNC_MS = 5 * 60 * 1000
 
 
@@ -52,11 +49,7 @@ export interface StoredRegion {
 
 
 
-/**
- * Daftar region yang tersimpan di perangkat.
- * Region dipakai lintas layar (pemilihan dermaga, tarif, label petugas), jadi
- * harus tersedia offline — bukan hanya region milik petugas yang sedang login.
- */
+// Daftar region yang tersimpan di perangkat. Region dipakai lintas layar (pemilihan dermaga, tarif, label petugas), jadi harus tersedia offline
 export function getStoredRegions(): StoredRegion[] {
   try {
     const raw = localStorage.getItem(REGIONS_STORAGE_KEY)
@@ -76,18 +69,12 @@ export function getStoredRegions(): StoredRegion[] {
 
 
 function saveRegions(regions: StoredRegion[]): void {
-  try { localStorage.setItem(REGIONS_STORAGE_KEY, JSON.stringify(regions)) } catch { /* quota */ }
+  try { localStorage.setItem(REGIONS_STORAGE_KEY, JSON.stringify(regions)) } catch {  }
 }
 
 
 
-/**
- * Tarik daftar region dari admin ke penyimpanan lokal.
- *
- * Hasil kosong TIDAK menimpa cache — sama seperti geofence: respons kosong
- * sesaat (mis. tabel server sedang di-reset) tidak boleh menghapus data bagus
- * yang sudah dipakai petugas.
- */
+// Tarik daftar region dari admin ke penyimpanan lokal. Hasil kosong TIDAK menimpa cache — sama seperti geofence: respons kosong sesaat (mis.
 export async function pullRegionsToLocal(): Promise<number> {
   const cached = getStoredRegions()
   const res = await api.get<StoredRegion[]>('/regions').catch(() => null)
@@ -102,9 +89,7 @@ export async function pullRegionsToLocal(): Promise<number> {
 
 
 
-// ── Tarif ────────────────────────────────────────────────────────────────────
-// ponytail: implementasi tarif dipindah ke services/tariffs.ts supaya bisa
-// dipakai prefetch.ts TANPA cycle import (prefetch <-> adminPull).
+// ── Tarif ──────────────────────────────────────────────────────────────────── ponytail: implementasi tarif dipindah ke services/tariffs.ts supaya…
 import {
   TARIFFS_STORAGE_KEY,
   TARIFF_UPDATED_EVENT,
@@ -115,6 +100,8 @@ import {
 
 import { pullVehicleTypesToLocal } from './vehicleTypes'
 
+
+
 export {
   TARIFFS_STORAGE_KEY,
   TARIFF_UPDATED_EVENT,
@@ -124,7 +111,7 @@ export {
 }
 
 
-/** Satu tarikan master data, tanpa UI. Aman dipanggil kapan pun. */
+
 export async function silentMasterSync(): Promise<void> {
   try {
     // Belum pernah login = tidak ada yang bisa ditarik; jangan mengganggu.
@@ -133,10 +120,7 @@ export async function silentMasterSync(): Promise<void> {
     if (!sessionOk) return
     await pullRegionsToLocal().catch(() => 0)
     await pullTariffsToLocal().catch(() => 0)
-    // Master jenis kendaraan: satu-satunya daftar yang dipakai form kendaraan
-    // di HP dan dashboard admin.
     await pullVehicleTypesToLocal().catch(() => 0)
-    // Petugas, ketersediaan dermaga, rute, dan geofence ditangani syncOnResume.
     await syncOnResume(true).catch(() => {})
-  } catch { /* senyap: saat offline tetap memakai cache lokal */ }
+  } catch {  }
 }

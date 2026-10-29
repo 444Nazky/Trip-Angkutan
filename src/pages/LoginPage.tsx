@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '../services/api'
-import {
-  loginOffline,
-  memberLogin,
-  SESSION_READY_EVENT,
-  verifyPinOffline,
-} from '../services/auth'
+import { loginOffline, memberLogin, SESSION_READY_EVENT, verifyPinOffline, } from '../services/auth'
 import { initializeSync } from '../services/sync'
 import { getStoredOfficers, syncOfficersToLocal } from '../services/officers'
 import { prefetchAllCriticalData } from '../services/prefetch'
@@ -14,11 +9,9 @@ import ServerSettingsModal from '../components/ServerSettingsModal'
 
 
 
-
 interface LoginPageProps {
   onLogin: () => void
 }
-
 
 
 
@@ -32,7 +25,6 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
       return true
     }
   } catch {
-    /* database offline belum siap — lanjut ke roster */
   }
 
   try {
@@ -54,10 +46,9 @@ export async function tryOfflineLogin(u: string, p: string): Promise<boolean> {
         return true
       }
     }
-  } catch { /* no-op */ }
+  } catch {  }
   return false
 }
-
 
 
 
@@ -90,15 +81,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     const p = password
     try {
       // ponytail: online-first — 401 server = kredensial salah, jangan ditutupi login offline.
-      // Offline hanya fallback saat jaringan mati, bukan saat kredensial ditolak.
       if (navigator.onLine) {
         const result = await memberLogin(u, p)
         if (result.success) {
           void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)
-          // ponytail: setelah login pertama, TARIK SEMUA data sekaligus
-          // (rute, geofence, tarif, akses dermaga) supaya langkah berikutnya
-          // (pilih rute, form kendaraan) instan — tidak ada spinner jaringan.
+          // ponytail: setelah login pertama, TARIK SEMUA data sekaligus (rute, geofence, tarif, akses dermaga) supaya langkah berikutnya (pilih rute, form…
           void prefetchAllCriticalData({ force: true }).catch(() => undefined)
           window.dispatchEvent(new Event(SESSION_READY_EVENT))
           onLogin()
@@ -115,8 +103,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           }
           setError('Server tidak terjangkau dan PIN lokal tidak cocok. Masuk online lalu sinkronkan data petugas.')
         } else {
-          // ponytail: tampilkan pesan spesifik backend (tidak terdaftar/nonaktif/PIN salah)
-          // supaya admin tahu apa yang harus dicocokkan di dashboard.
+          // ponytail: tampilkan pesan spesifik backend (tidak terdaftar/nonaktif/PIN salah) supaya admin tahu apa yang harus dicocokkan di dashboard.
           setError(/tidak terdaftar|nonaktif|PIN salah/i.test(msg) ? msg : 'Username atau password salah.')
         }
       return
@@ -143,7 +130,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
 
-      {/* ── Minimalist Header ── */}
+
       <div className="px-6 pt-16 pb-8">
         <div className="flex items-center gap-4">
           <img src="./assets/karyamas_clean.png" alt="Logo" className="w-14 h-14 object-contain" />
@@ -162,23 +149,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
       </div>
 
-      {/* ── Status & Form ── */}
+
       <div className="flex-1 px-6">
-        {/* Online Status */}
+
         <div className="flex items-center gap-2 mb-6">
           <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           <span className="text-xs text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
         </div>
 
-        {/* Welcome Text */}
+
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
           <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
         </div>
 
-        {/* Form */}
+
         <div className="space-y-4">
-          {/* Username */}
+
           <div>
             <input
               type="text"
@@ -192,7 +179,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             />
           </div>
 
-          {/* Password */}
+
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
@@ -214,14 +201,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </button>
           </div>
 
-          {/* Error */}
+
           {error && (
             <div className="px-4 py-3 bg-red-50 rounded-xl">
               <p className="text-xs text-red-500">{error}</p>
             </div>
           )}
 
-          {/* Submit */}
+
           <button
             onClick={() => void handleLogin()}
             disabled={loading}
@@ -232,7 +219,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
       </div>
 
-      {/* ── Footer ── */}
+
       <p className="text-center text-[11px] text-slate-300 pb-8">
         Trip Angkutan Kalimantan Barat
       </p>

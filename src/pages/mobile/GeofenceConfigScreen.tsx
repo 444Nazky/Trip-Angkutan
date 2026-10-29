@@ -35,6 +35,8 @@ interface DraftPoint {
   dermagaId: string
 }
 
+
+
 const emptyDraft: DraftPoint = {
   id: '',
   name: '',
@@ -60,7 +62,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const { userType, officer } = useApp()
   const isAdmin = userType === 'admin'
 
-  // Buat Map untuk lookup dermaga yang cepat - di-refresh saat officer berubah
   const [dermagaMap, setDermagaMap] = useState(() => {
     const map = new Map<string, { id: string; name: string; code?: string }>()
     for (const d of (officer.dermagaAccess ?? [])) {
@@ -86,13 +87,11 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   const [syncing, setSyncing] = useState(false)
   const [diag, setDiag] = useState<GeofenceScopeDiagnosis | null>(() => getLastGeofenceDiagnosis())
 
-  // Helper untuk mendapatkan nama dermaga yang valid
   const getDermagaDisplay = (dermagaId: string | undefined): string | null => {
     if (!dermagaId) return null
     const found = dermagaMap.get(dermagaId)
     if (found) return found.name
-    // Fallback: cari di seed data atau data lain yang mungkin tersimpan
-    // Jika tidak ditemukan, tampilkan ID untuk debugging
+    // Fallback: cari di seed data atau data lain yang mungkin tersimpan Jika tidak ditemukan, tampilkan ID untuk debugging
     console.warn(`[GeofenceConfig] dermagaId "${dermagaId}" tidak ditemukan di akses petugas. Mungkin data server tidak cocok.`)
     return null
   }
@@ -125,7 +124,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       console.log('[GeofenceConfig] Sync result:', result)
 
       if (result.reason === 'unauthorized') {
-        // Jika unauthorized tapi ada cache, tetap tampilkan dan beri info
         const cachedPoints = getStoredGeofencePoints()
         if (cachedPoints.length > 0) {
           setError('Sesi server belum siap — data lokal (' + cachedPoints.length + ' titik) tetap dipakai.')
@@ -144,10 +142,8 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       } else if (result.count === 0) {
         setError('Belum ada titik geofence di server untuk dermaga/rute Anda. Minta admin mendaftarkannya di Master Rute.')
       } else {
-        // Success - tidak perlu error message
         setError(null)
       }
-      // Ambil data terbaru dari storage
       setPoints(scopedGeofencePoints(getStoredGeofencePoints()))
       setDiag(getLastGeofenceDiagnosis())
 
@@ -155,7 +151,6 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
       const latestPoints = getStoredGeofencePoints()
       const invalidDermagaPoints = latestPoints.filter(p => {
         if (!p.dermagaId) return false
-        // Legacy/warisan IDs (non-UUID) tidak dianggap invalid
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.dermagaId)) return false
         return !dermagaMap.has(p.dermagaId)
       })
@@ -401,9 +396,7 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
                       <span key={r} className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{r}</span>
                     ))}
                     {(() => {
-                      // Rute milik dermaga lain = data tidak sinkron dengan Master
-                      // Rute admin (mis. titik Dermaga 2 mengizinkan rute SJRE/SBDZ
-                      // milik Dermaga 1). Tampilkan apa adanya supaya kelihatan.
+                      // Rute milik dermaga lain = data tidak sinkron dengan Master Rute admin (mis. titik Dermaga 2 mengizinkan rute SJRE/SBDZ milik Dermaga 1).
                       const asing = foreignRouteCodesForPoint(p)
                       return asing.length > 0 ? (
                         <span

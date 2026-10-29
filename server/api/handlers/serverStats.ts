@@ -1,32 +1,24 @@
-/**
- * Endpoint `GET /server-stats` - panel statistik server untuk Admin Dashboard.
- *
- * Dipakai oleh tab "Endpoint" di admin dashboard untuk memantau server
- * intranet port 3000: total request, success rate, latensi, memori proses,
- * grafik request per menit, dan status tiap komponen server.
- *
- * Akses:
- *   - Wajib punya token admin (sama seperti endpoint master data lain),
- *     KECUALI server dijalankan dengan `ADMIN_AUTH_DISABLED=1` (mode intranet
- *     tanpa auth, untuk mesin yang benar-benar tertutup di LAN).
- *   - Komponen yang dicek: proses API, database lokal, JWT/auth, dan
- *     direktori penyimpanan file. Tidak ada pengecekan ke internet.
- */
+// Endpoint `GET /server-stats` - panel statistik server untuk Admin Dashboard.
 
 import { db, json, requireAdmin } from "../_shared.ts";
 import { snapshot, type MetricsSnapshot } from "../_metrics.ts";
 import { systemSnapshot, type SystemMetrics } from "../_system.ts";
 
+
+
 type ComponentStatus = "ok" | "degraded" | "down" | "unknown";
+
+
 
 type Component = {
   id: string;
   label: string;
   status: ComponentStatus;
   detail: string;
-  /** Latensi pengecekan terakhir (ms). */
   ms: number;
 };
+
+
 
 type ServerStatsResponse = {
   ok: true;
@@ -38,6 +30,8 @@ type ServerStatsResponse = {
   system: SystemMetrics;
   components: Component[];
 };
+
+
 
 async function checkDatabase(): Promise<Component> {
   const started = Date.now();
@@ -73,6 +67,8 @@ async function checkDatabase(): Promise<Component> {
   }
 }
 
+
+
 async function checkStorage(): Promise<Component> {
   const started = Date.now();
   const dir = Deno.env.get("STORAGE_DIR") || "/data/storage";
@@ -100,6 +96,8 @@ async function checkStorage(): Promise<Component> {
     };
   }
 }
+
+
 
 function checkAuth(): Component {
   const secret = Deno.env.get("JWT_SECRET");
@@ -129,6 +127,8 @@ function checkAuth(): Component {
     ms: 0,
   };
 }
+
+
 
 export async function serverStats(req: Request): Promise<Response> {
   const authDisabled = Deno.env.get("ADMIN_AUTH_DISABLED") === "1";
@@ -166,6 +166,8 @@ export async function serverStats(req: Request): Promise<Response> {
 
   return json(body);
 }
+
+
 
 function formatUptime(ms: number): string {
   const s = Math.floor(ms / 1000);

@@ -22,10 +22,12 @@ import {
 import { otaAssetsBase } from './ota'
 import { environment } from '../environments/environment'
 
-// `native` = apakah aplikasi dianggap berjalan di WebView native (Capacitor).
-// Di native, halaman dimuat dari origin lokal https://localhost sehingga
-// aturan mixed content browser TIDAK berlaku untuk request http:// ke LAN.
+
+
 const h = vi.hoisted(() => ({ native: false }))
+
+
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: () => h.native,
@@ -33,7 +35,11 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
+
+
 const OVERRIDE_KEY = 'trip.api.baseUrl'
+
+
 
 describe('endpoint intranet tunggal', () => {
   beforeEach(() => {
@@ -92,19 +98,16 @@ describe('endpoint intranet tunggal', () => {
   })
 
   it('bundel OTA diambil dari server intranet yang sedang aktif', () => {
-    // Bundel disajikan server yang sama dengan API (/files/ota), jadi origin
-    // aset harus mengikuti base URL aktif.
+    // Bundel disajikan server yang sama dengan API (/files/ota), jadi origin aset harus mengikuti base URL aktif.
     setApiBaseUrlOverride('http://192.168.1.123:3000/api')
     expect(otaAssetsBase()).toBe('http://192.168.1.123:3000/files/ota/')
   })
 })
 
+
+
 describe('split-brain endpoint: mobile app & dashboard admin wajib server sama', () => {
   it('apiBaseUrl dan intranetApiBaseUrl menunjuk server yang sama', () => {
-    // Dua slot ini dibaca kode yang berbeda (mobile & dashboard), jadi kalau
-    // satu menunjuk cloud dan satu intranet, aplikasi mobile menulis ke
-    // database yang TIDAK dibaca dashboard admin. Gejalanya: "berhasil
-    // terkirim" di aplikasi, trip tidak pernah muncul di dashboard.
     expect(environment.apiBaseUrl).toBe(environment.intranetApiBaseUrl)
   })
 
@@ -119,15 +122,14 @@ describe('split-brain endpoint: mobile app & dashboard admin wajib server sama',
   })
 })
 
+
+
 describe('normalisasi http/https hanya punya satu aturan', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
   it('host publik tanpa skema tidak lagi menjadi http', () => {
-    // Regresi: dulu normalizeApiBaseInput() selalu menambah http:// saat skema
-    // tidak diketik, sehingga host publik tersimpan sebagai http dan mati
-    // sebagai mixed content di halaman https.
     expect(normalizeApiBaseInput('contoh.example.com')).toBe('https://contoh.example.com/api')
     expect(normalizeApiBaseInput('contoh.example.com')).toBe(normalizeBaseUrl('contoh.example.com'))
   })
@@ -138,6 +140,8 @@ describe('normalisasi http/https hanya punya satu aturan', () => {
     expect(normalizeApiBaseInput('172.16.4.9:3000')).toBe('http://172.16.4.9:3000/api')
   })
 })
+
+
 
 describe('validateEndpointInput: aturan tunggal untuk semua layar pengaturan server', () => {
   beforeEach(() => {
@@ -189,6 +193,8 @@ describe('validateEndpointInput: aturan tunggal untuk semua layar pengaturan ser
     expect(resolveApiBaseUrl()).toBe('http://192.168.1.123:3000/api')
   })
 })
+
+
 
 describe('mixed content: aplikasi native boleh pakai endpoint LAN http://', () => {
   beforeEach(() => {
@@ -251,6 +257,8 @@ describe('mixed content: aplikasi native boleh pakai endpoint LAN http://', () =
   })
 })
 
+
+
 describe('probeServerHealth: membedakan host mati dari CORS', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -272,7 +280,6 @@ describe('probeServerHealth: membedakan host mati dari CORS', () => {
     expect(r.reachable).toBe(false)
     expect(r.hostAlive).toBe(true)
     expect(r.blockedByCors).toBe(true)
-    // Probe opaque dijalankan sekali sebagai pembeda.
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ mode: 'no-cors' })
   })

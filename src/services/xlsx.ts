@@ -27,7 +27,13 @@ function crc32(data: Uint8Array): number {
 
 
 const encoder = new TextEncoder()
+
+
+
 const DOS_TIME = (12 << 11) | (0 << 5) | 0
+
+
+
 const DOS_DATE = ((2026 - 1980) << 9) | (9 << 5) | 25
 
 

@@ -1,17 +1,4 @@
-/**
- * Render harness — tab "Endpoint" + tab "Pengaturan" (admin dashboard).
- *
- * Yang diuji:
- *  1. Tab Endpoint menampilkan pemilih endpoint (Pilih Endpoint) dan TIDAK
- *     lagi menampilkan panel statistik — statistik dipindah ke tab Pengaturan
- *     (layar penuh) sejak commit 43ab45f.
- *  2. Tab Pengaturan menampilkan panel statistik server port 3000 dengan
- *     URL sumber `http://192.168.1.123:3000/api/server-stats` — BUKAN
- *     host lain di internet.
- *  3. Angka statistik dari server tampil di panel Pengaturan.
- *
- * Semua sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
- */
+// Render harness — tab "Endpoint" + tab "Pengaturan" (admin dashboard). Yang diuji: 1.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
@@ -19,8 +6,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { EndpointTab } from './EndpointTab'
 import { SettingsTab } from './SettingsTab'
 
+
+
 let container: HTMLDivElement
+
+
+
 let root: Root
+
+
 
 const statsPayload = {
   ok: true,
@@ -53,6 +47,8 @@ const statsPayload = {
   ],
 }
 
+
+
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -65,12 +61,16 @@ beforeEach(() => {
   ))
 })
 
+
+
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
+
+
 
 describe('tab Endpoint — pemilih endpoint', () => {
   it('menampilkan pemilih endpoint dan bukan panel statistik', async () => {
@@ -86,6 +86,8 @@ describe('tab Endpoint — pemilih endpoint', () => {
     expect(container.textContent).not.toContain('Statistik Server Port 3000')
   })
 })
+
+
 
 describe('tab Pengaturan — panel statistik server port 3000', () => {
   it('menampilkan panel statistik dengan URL sumber server intranet', async () => {

@@ -1,12 +1,4 @@
-/**
- * Render harness — tab "Master Tarif" (TariffTab).
- *
- * Fokus test ini: accordion tabel tarif per region harus **terbuka secara
- * default** saat halaman dimuat (tidak perlu klik "Tampilkan" satu per satu),
- * dan tombol toggle tetap bisa dipakai untuk menutup/membuka lagi.
- *
- * Tidak ada panggilan jaringan sungguhan: service `services/tariffs` dimock.
- */
+// Render harness — tab "Master Tarif" (TariffTab).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
@@ -15,17 +7,14 @@ import { TariffTab } from './TariffTab'
 import { fetchRegionTariffs } from '../../../services/tariffs'
 import { fetchVehicleTypes } from '../../../services/vehicleTypes'
 
+
+
 const regionRows = vi.hoisted(() => ({
   list: [] as unknown[],
 }))
 
-/**
- * Master jenis kendaraan di database.
- *
- * Dulu tab ini punya daftar jenis hardcode di dalam kodenya sendiri, jadi
- * dashboard admin dan aplikasi petugas bisa punya pilihan yang berbeda.
- * Sekarang daftarnya dibaca dari database - test ini memock "database" itu.
- */
+
+
 const MASTER_TYPES = [
   { id: 'vt-1', name: 'Motor', key: 'motor', sortOrder: 1, isActive: true },
   { id: 'vt-2', name: 'Mobil', key: 'mobil', sortOrder: 2, isActive: true },
@@ -34,6 +23,8 @@ const MASTER_TYPES = [
   { id: 'vt-5', name: 'Truk Besar', key: 'trukbesar', sortOrder: 5, isActive: true },
 ]
 
+
+
 vi.mock('../../../services/vehicleTypes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/vehicleTypes')>()
   return {
@@ -41,6 +32,8 @@ vi.mock('../../../services/vehicleTypes', async (importOriginal) => {
     fetchVehicleTypes: vi.fn(async () => MASTER_TYPES.map((t) => ({ ...t }))),
   }
 })
+
+
 
 vi.mock('../../../services/tariffs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/tariffs')>()
@@ -53,6 +46,8 @@ vi.mock('../../../services/tariffs', async (importOriginal) => {
 // React 19 butuh penanda ini agar act() boleh dipakai di luar test renderer.
 ;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+
+
 const REGION_BADAU = {
   id: 'r-badau',
   name: 'Badau',
@@ -63,6 +58,8 @@ const REGION_BADAU = {
   eksternal_active: null,
   rows: [],
 }
+
+
 
 const REGION_BELITUNG = {
   id: 'r-belitung',
@@ -77,8 +74,11 @@ const REGION_BELITUNG = {
   ],
 }
 
-/** Jumlah baris tarif yang tampil = 5 jenis dari master database. */
+
+
 const TYPES_PER_REGION = MASTER_TYPES.length
+
+
 
 describe('TariffTab (accordion per region)', () => {
   let container: HTMLDivElement
@@ -113,7 +113,6 @@ describe('TariffTab (accordion per region)', () => {
     await act(async () => {})
   }
 
-  /** Baris header region (tombol yang Expansion) */
   function regionHeader(text: string): HTMLTableRowElement | undefined {
     return Array.from(container.querySelectorAll('tbody tr')).find(
       (tr) => (tr.textContent ?? '').includes(`Region ${text}`),
@@ -140,15 +139,11 @@ describe('TariffTab (accordion per region)', () => {
 
     expect(fetchRegionTariffs).toHaveBeenCalled()
     const body = container.textContent ?? ''
-    // Kedua region terlihat sebagai header accordion.
     expect(body).toContain('Region Badau')
     expect(body).toContain('Region Belitung')
 
-    // Semua region menampilkan 5 jenis kendaraan -> 10 baris. Kalau accordion
-    // masih tertutup, baris ini 0.
     expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
 
-    // Kedua region berlabel "Sembunyikan" -> keduanya dalam kondisi TERBUKA.
     expect(regionHeader('Badau')?.textContent).toContain('Sembunyikan')
     expect(regionHeader('Belitung')?.textContent).toContain('Sembunyikan')
   })
@@ -158,7 +153,6 @@ describe('TariffTab (accordion per region)', () => {
     const text = container.textContent ?? ''
     expect(text).toContain('45.000')
     expect(text).toContain('40.000')
-    // Badau belum punya baris tarif -> kolom eksternal Rp 0.
     expect(text).toContain('Rp 0')
   })
 
@@ -166,11 +160,9 @@ describe('TariffTab (accordion per region)', () => {
     await renderTab()
     expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
 
-    // Klik header region -> accordion-nya menutup.
     await click(regionHeader('Belitung'))
     expect(tariffRows().length).toBe(TYPES_PER_REGION)
 
-    // Klik lagi -> terbuka kembali.
     await click(regionHeader('Belitung'))
     expect(tariffRows().length).toBe(2 * TYPES_PER_REGION)
   })
@@ -180,7 +172,6 @@ describe('TariffTab (accordion per region)', () => {
 
     await click(regionHeader('Badau'))
     expect(tariffRows().length).toBe(TYPES_PER_REGION)
-    // Region yang tidak diklik tetap terbuka.
     expect(regionHeader('Belitung')?.textContent).toContain('Sembunyikan')
   })
 
@@ -199,15 +190,12 @@ describe('TariffTab (accordion per region)', () => {
 
     const form = container.querySelector('#tariff-form') as HTMLElement | null
     const selects = Array.from(form!.querySelectorAll('select')) as HTMLSelectElement[]
-    // 2 select: Region + Jenis Kendaraan.
     expect(selects.length).toBeGreaterThanOrEqual(2)
     const typeSelect = selects[1]
     const labels = Array.from(typeSelect.options).map((o) => o.textContent ?? '')
-    // Daftar jenis = master di database (persis, tanpa tambahan hardcode).
     expect(labels.filter((l) => l && !l.includes('Pilih jenis'))).toEqual(
       MASTER_TYPES.map((t) => t.name),
     )
-    // Tidak ada input teks untuk jenis kendaraan di form tarif.
     const typeInputs = Array.from(
       form!.querySelectorAll('input'),
     ).filter((i) => (i.getAttribute('placeholder') ?? '').toLowerCase().includes('jenis kendaraan'))
@@ -231,7 +219,6 @@ describe('TariffTab (accordion per region)', () => {
     expect(deleteButtons.length).toBe(1)
     expect(deleteButtons[0].disabled).toBe(false)
 
-    // Baris tanpa baris tersimpan tidak punya tombol hapus aktif.
     const disabled = Array.from(
       container.querySelectorAll('[title="Belum ada baris tarif untuk dihapus"]'),
     ) as HTMLButtonElement[]

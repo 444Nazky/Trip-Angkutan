@@ -1,10 +1,4 @@
-/**
- * ErrorBoundary harus benar-benar menahan error render-time.
- *
- * Tanpa boundary, satu error di subtree membuat seluruh React tree unmount
- * -> layar putih (blank screen). Boundary ini harus memotong kegagalan di
- * area yang gagal dan tetap menampilkan tombol "Coba Lagi".
- */
+// ErrorBoundary harus benar-benar menahan error render-time.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
@@ -13,9 +7,13 @@ import { ErrorBoundary } from './ErrorBoundary'
 
 ;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+
+
 function Boom(): React.ReactElement {
   throw new Error('ledakan render')
 }
+
+
 
 describe('ErrorBoundary', () => {
   let container: HTMLDivElement

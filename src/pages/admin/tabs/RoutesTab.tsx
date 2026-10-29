@@ -9,7 +9,6 @@ import { emptyRouteForm } from '../components/types'
 
 
 
-
 interface RoutesTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
@@ -36,10 +35,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
   const resolveTimer = useRef<number | null>(null)
 
-  /**
-   * Kelompokkan rute berdasarkan Region → Dermaga
-   * Agar admin mudah mengedit data tanpa tercampur berdasarkan kode rute
-   */
+  // Kelompokkan rute berdasarkan Region → Dermaga Agar admin mudah mengedit data tanpa tercampur berdasarkan kode rute
   function groupRoutesByRegionAndDermaga(rows: RouteRow[]): Record<string, Record<string, RouteRow[]>> {
     const grouped: Record<string, Record<string, RouteRow[]>> = {}
     for (const r of rows) {
@@ -49,11 +45,9 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       if (!grouped[region][dermaga]) grouped[region][dermaga] = []
       grouped[region][dermaga].push(r)
     }
-    // Urutkan region berdasarkan nama
     const sorted: Record<string, Record<string, RouteRow[]>> = {}
     Object.keys(grouped).sort().forEach(key => {
       sorted[key] = grouped[key]
-      // Urutkan dermaga dalam setiap region
       const dermagaSorted: Record<string, RouteRow[]> = {}
       Object.keys(sorted[key]).sort().forEach(dKey => {
         dermagaSorted[dKey] = sorted[key][dKey]
@@ -102,10 +96,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     const f = routeForm
     if (!f.name.trim() || !f.route_from.trim() || !f.route_to.trim()) return showToast('Nama, asal, tujuan wajib!', 'error')
     if (!editRouteId && !f.dermaga_id) return showToast('Pilih dermaga!', 'error')
-    // Perkiraan jarak & durasi tidak lagi dikelola dari dashboard, tapi nilainya
-    // di server tidak boleh hilang saat rute diedit: handler server SELALU
-    // menulis `distance: distance || null`, jadi field yang tidak dikirim akan
-    // dihapus. Karena itu nilai lama ikut dikirimkan apa adanya.
+    // Perkiraan jarak & durasi tidak lagi dikelola dari dashboard, tapi nilainya di server tidak boleh hilang saat rute diedit: handler server SELALU…
     const existing = editRouteId ? routeRows.find(r => r.id === editRouteId) : undefined
     const payload = {
       dermaga_id: f.dermaga_id,
@@ -293,9 +284,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       return
     }
 
-    // ponytail: titik baru WAJIB memakai dermaga rute ini. Dulu dermagaId tidak
-    // pernah dikirim → titik tersimpan "berlaku umum" dan muncul di SEMUA dermaga
-    // petugas (radius saling menimpa → "Lokasi Tidak Sesuai Dermaga" palsu).
+    // ponytail: titik baru WAJIB memakai dermaga rute ini.
     const routeDermagaId = currentRouteForGeofence?.dermaga_id ?? null
     const data = {
       locationName: locationName.trim(),
@@ -306,8 +295,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     }
 
     if (id) {
-      // Edit titik lama (mis. ubah koordinat): sekalian ikat ke dermaga rute ini
-      // supaya data lama yang NULL ikut terrapikan, tanpa pernah mengosongkannya.
+      // Edit titik lama (mis. ubah koordinat): sekalian ikat ke dermaga rute ini supaya data lama yang NULL ikut terrapikan, tanpa pernah mengosongkannya.
       const res = await updateGeofenceRule(id, {
         ...data,
         ...(routeDermagaId ? { dermagaId: routeDermagaId } : {}),
@@ -421,7 +409,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
-            {/* Kelompokkan berdasarkan Region → Dermaga */}
+
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
                 <tr className="bg-slate-800">

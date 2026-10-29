@@ -1,35 +1,31 @@
-// Plates handlers (port of backend/src/routes/plates.js).
 import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
+
+
 
 function normalizePlate(raw: unknown): string {
   return String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-/** 1-2 huruf + 1-4 angka + 1-3 huruf, sama dengan plateFormatter mobile. */
+
+
 const PLATE_SHAPE = /^([A-Z]{1,2})([0-9]{1,4})([A-Z]{1,3})$/;
+
+
 
 function parsePlate(raw: unknown): { plate: string } | null {
   const match = normalizePlate(raw).match(PLATE_SHAPE);
   return match ? { plate: `${match[1]} ${match[2]} ${match[3]}` } : null;
 }
 
-/**
- * Pola ILIKE yang cocok dengan nomor plat berapa pun bentuk spasinya.
- *
- * Plat bisa tersimpan "B1234XY" maupun "B 1234 XY". `ilike("plate", "B1234XY")`
- * hanya cocok yang tanpa spasi, sehingga plat yang diinput admin dengan spasi
- * selalu dianggap "tidak terdaftar" — petugas lalu salah melihat status
- * kendaraan (internal dikira eksternal). Pola ini menyisipkan wildcard di antara
- * kelompok huruf dan angka, jadi semua bentuk spasi ikut cocok; hasil akhir
- * tetap dibandingkan ulang dengan normalisasi di dalam JS.
- */
+// Pola ILIKE yang cocok dengan nomor plat berapa pun bentuk spasinya. Plat bisa tersimpan "B1234XY" maupun "B 1234 XY".
 function plateMatchPattern(norm: string): string {
   const runs = norm.match(/[A-Z]+|[0-9]+/g);
   if (!runs || runs.length === 0) return `%${norm}%`;
   return `%${runs.join("%")}%`;
 }
 
-// GET /plates
+
+
 export async function getPlates(req: Request, url: URL): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -59,7 +55,8 @@ export async function getPlates(req: Request, url: URL): Promise<Response> {
   }
 }
 
-// POST /plates
+
+
 export async function createPlate(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -101,7 +98,8 @@ export async function createPlate(req: Request): Promise<Response> {
   }
 }
 
-// PUT /plates/:id
+
+
 export async function updatePlate(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -148,7 +146,8 @@ export async function updatePlate(req: Request, id: string): Promise<Response> {
   }
 }
 
-// DELETE /plates/:id
+
+
 export async function deletePlate(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -163,7 +162,8 @@ export async function deletePlate(req: Request, id: string): Promise<Response> {
   }
 }
 
-// POST /plates/check
+
+
 export async function checkPlate(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
@@ -175,7 +175,6 @@ export async function checkPlate(req: Request): Promise<Response> {
 
     const checkpointRegionId = ctx.regionId ? String(ctx.regionId) : null;
 
-    // Find registered plate (spasi di nomor plat diabaikan).
     const { data: candidateRows } = await db
       .from("vehicle_plates")
       .select("*")

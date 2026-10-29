@@ -1,19 +1,12 @@
-// Officers handlers (port of backend/src/routes/officers.js).
 import bcryptjs from "npm:bcryptjs@2.4.3";
 import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 import { groupOfficerExtras } from "../_officerExtras.ts";
 
-/** Id region/dermaga bertipe uuid di database. */
+
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Extras untuk BANYAK officer sekaligus — 2 query, bukan 2 per officer.
- *
- * Versi lama memanggil `officerExtras` satu per officer di dalam
- * `Promise.all`, jadi 20 officer = 40 query (N+1) pada satu endpoint
- * /officers yang dipanggil dashboard admin. Sekarang relasi diambil
- * sekali dengan filter `.in()` lalu dikelompokkan di memori.
- */
+// Extras untuk BANYAK officer sekaligus — 2 query, bukan 2 per officer.
 async function officerExtrasBulk(officerIds: string[]) {
   if (officerIds.length === 0) return {} as Record<string, { regions: any[]; dermagas: any[] }>;
 
@@ -31,6 +24,8 @@ async function officerExtrasBulk(officerIds: string[]) {
   return groupOfficerExtras(officerIds, regionRows, dermagaRows);
 }
 
+
+
 function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
   return {
     ...o,
@@ -42,7 +37,8 @@ function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
   };
 }
 
-// GET /officers
+
+
 export async function getOfficers(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -67,8 +63,7 @@ export async function getOfficers(req: Request): Promise<Response> {
   }
 }
 
-// GET /officers/:id/dermaga-access — daftar dermaga akses petugas.
-// Petugas hanya boleh melihat akses dirinya sendiri; admin boleh siapa pun.
+// GET /officers/:id/dermaga-access — daftar dermaga akses petugas. Petugas hanya boleh melihat akses dirinya sendiri; admin boleh siapa pun.
 export async function officerDermagaAccess(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await auth(req);
@@ -91,7 +86,8 @@ export async function officerDermagaAccess(req: Request, officerId: string): Pro
   }
 }
 
-// GET /officers/my-region
+
+
 export async function myRegionOfficers(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
@@ -107,9 +103,7 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
       .select("*, regions!officers_region_id_fkey(name, code)")
       .order("name", { ascending: true });
 
-    // Extras (regions + dermaga) diambil sekaligus untuk semua officer —
-    // 2 query total, bukan 2 per petugas. Endpoint ini dipanggil aplikasi
-    // mobile saat buka roster, jadi N+1 di sini terasa sekali everyone's slow.
+    // Extras (regions + dermaga) diambil sekaligus untuk semua officer — 2 query total, bukan 2 per petugas.
     const officers_ = officers ?? [];
     const extrasMap = await officerExtrasBulk(officers_.map((o: any) => String(o.id)));
     const result: any[] = [];
@@ -128,7 +122,8 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
   }
 }
 
-// POST /officers
+
+
 export async function createOfficer(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -153,8 +148,7 @@ export async function createOfficer(req: Request): Promise<Response> {
 
     const hashedPin = bcryptjs.hashSync(String(pin), 10);
     const id = crypto.randomUUID();
-    // Id region/dermaga harus uuid; nilai lain akan membuat INSERT gagal
-    // dengan "invalid input syntax for type uuid".
+    // Id region/dermaga harus uuid; nilai lain akan membuat INSERT gagal dengan "invalid input syntax for type uuid".
     const primaryRegionId = Array.isArray(regionIds) && regionIds.length > 0 ? regionIds[0] : regionId;
     const regionUuid = UUID_RE.test(String(primaryRegionId ?? "")) ? String(primaryRegionId) : null;
     const regionUuids = [...new Set((Array.isArray(regionIds) ? regionIds : [])
@@ -200,7 +194,8 @@ export async function createOfficer(req: Request): Promise<Response> {
   }
 }
 
-// PUT /officers/:id/dermagas
+
+
 export async function updateOfficerDermagas(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -209,17 +204,12 @@ export async function updateOfficerDermagas(req: Request, officerId: string): Pr
     const { dermagaIds } = await req.json().catch(() => ({})) as any;
     if (!Array.isArray(dermagaIds)) return json({ error: "dermagaIds harus berupa array" }, 400);
 
-    // Id dermaga HARUS uuid - kolomnya bertipe uuid dan rekannya ke
-    // dermagas(id). Nilai bukan uuid (mis. id lawas "BADAU-D1") akan membuat
-    // INSERT gagal; kalau galatnya diabaikan, petugas kehilangan akses ke
-    // SEMUA dermaga tanpa ada pesan error.
+    // Id dermaga HARUS uuid - kolomnya bertipe uuid dan rekannya ke dermagas(id). Nilai bukan uuid (mis. id lawas "BADAU-D1") akan membuat INSERT gagal;
     const ids = [...new Set(dermagaIds
       .map((v: unknown) => String(v ?? "").trim())
       .filter((v: string) => UUID_RE.test(v)))];
 
-    // Urutan: TAMBAHKAN dulu, baru HAPUS yang tidak lagi dipilih. Kalau
-    // urutan dibalik (hapus dulu, lalu tambah) dan penambahan gagal, akses
-    // petugas hilang seluruhnya.
+    // Urutan: TAMBAHKAN dulu, baru HAPUS yang tidak lagi dipilih.
     if (ids.length) {
       const { error } = await db
         .from("officer_dermagas")
@@ -256,7 +246,8 @@ export async function updateOfficerDermagas(req: Request, officerId: string): Pr
   }
 }
 
-// PUT /officers/:id/regions
+
+
 export async function updateOfficerRegions(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -271,7 +262,6 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
       .filter((v: string) => UUID_RE.test(v)))];
     if (ids.length === 0) return json({ error: "Tidak ada region valid yang dipilih" }, 400);
 
-    // Tambah dulu, baru hapus yang lama (lihat updateOfficerDermagas).
     const { error: upsertError } = await db
       .from("officer_regions")
       .upsert(ids.map((rid: string) => ({ officer_id: officerId, region_id: rid })));
@@ -315,13 +305,7 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
   }
 }
 
-// PUT /officers/:id  (profil dasar: nama + username)
-//
-// DULU dashboard admin punya kolom "Nama" yang bisa diedit, tapi tidak ada
-// endpoint yang mengubahnya - formnya hanya mengirim wilayah/dermaga/PIN.
-// Akibatnya UI menampilkan "Petugas diupdate" padahal nama di database
-// tetap nama lama (dan kembali lagi setelah reload). Endpoint ini menutup
-// celah itu: apa yang diedit admin = apa yang tersimpan di database.
+// PUT /officers/:id (profil dasar: nama + username) DULU dashboard admin punya kolom "Nama" yang bisa diedit, tapi tidak ada endpoint yang mengubahnya…
 export async function updateOfficerProfile(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -339,8 +323,7 @@ export async function updateOfficerProfile(req: Request, officerId: string): Pro
     if (body?.username !== undefined) {
       const cleanUsername = String(body.username ?? "").trim().toLowerCase().replace(/\s+/g, "");
       if (!cleanUsername) return json({ error: "Username wajib diisi" }, 400);
-      // Username harus unik - kalau dipakai petugas lain, tolak (jangan
-      // diam-diam memakai username yang bentrok).
+      // Username harus unik - kalau dipakai petugas lain, tolak (jangan diam-diam memakai username yang bentrok).
       const { data: clash } = await db
         .from("officers")
         .select("id")
@@ -362,7 +345,8 @@ export async function updateOfficerProfile(req: Request, officerId: string): Pro
   }
 }
 
-// PUT /officers/:id/pin
+
+
 export async function updateOfficerPin(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -381,7 +365,8 @@ export async function updateOfficerPin(req: Request, officerId: string): Promise
   }
 }
 
-// PUT /officers/:id/status
+
+
 export async function updateOfficerStatus(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -397,7 +382,8 @@ export async function updateOfficerStatus(req: Request, officerId: string): Prom
   }
 }
 
-// DELETE /officers/:id
+
+
 export async function deleteOfficer(req: Request, officerId: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);

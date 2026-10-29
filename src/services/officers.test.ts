@@ -1,11 +1,7 @@
-/**
- * Tes fallback sinkronisasi petugas — dulu "Sesi petugas tidak valid" DILEMPAR
- * tiap kali token kosong/kedaluwarsa sehingga console penuh error dan siklus
- * offline-online ikut gagal. Sekarang: sesi mati atau jaringan putus = fallback
- * senyap ke data lokal, token DIPERTAHANKAN (sesi dibuat tidak expired) supaya
- * percobaan berikutnya bisa memakai token yang sama.
- */
+// Tes fallback sinkronisasi petugas — dulu "Sesi petugas tidak valid" DILEMPAR tiap kali token kosong/kedaluwarsa sehingga console penuh error dan…
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+
 
 const h = vi.hoisted(() => ({
   authed: false,
@@ -17,6 +13,8 @@ const h = vi.hoisted(() => ({
   pins: new Map<string, string>(),
 }))
 
+
+
 vi.mock('./api', () => ({
   api: {
     get isAuthenticated() { return h.authed },
@@ -25,9 +23,13 @@ vi.mock('./api', () => ({
   },
 }))
 
+
+
 vi.mock('./auth', () => ({
   ensureBackendSession: async () => h.ensure,
 }))
+
+
 
 vi.mock('./offlineDb', () => ({
   getPinHash: async (id: string) => h.pins.get(String(id)) ?? null,
@@ -36,11 +38,19 @@ vi.mock('./offlineDb', () => ({
   listOfficers: async () => h.saved.flat(),
 }))
 
+
+
 vi.mock('./seedData', () => ({ seedRoster: () => [] }))
+
+
 
 import { syncOfficersToLocal } from './officers'
 
+
+
 const CACHE_KEY = 'trip.officers.cache.v1'
+
+
 
 const BACKEND_ROW = {
   id: 'off-1',
@@ -53,9 +63,13 @@ const BACKEND_ROW = {
   pin_hash: '$2a$10$abcdefghijklmnopqrstuv',
 }
 
+
+
 function seedCache(rows: unknown[]): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify({ officers: rows, timestamp: Date.now() }))
 }
+
+
 
 beforeEach(() => {
   localStorage.clear()
@@ -67,6 +81,8 @@ beforeEach(() => {
   h.saved.length = 0
   h.pins.clear()
 })
+
+
 
 describe('sesi petugas tidak valid', () => {
   it('tanpa token → fallback lokal, tanpa lempar error & tanpa request', async () => {
@@ -111,6 +127,8 @@ describe('sesi petugas tidak valid', () => {
     expect(h.tokens).toEqual([])
   })
 })
+
+
 
 describe('sinkronisasi normal', () => {
   it('roster dari server disimpan ke perangkat + cache', async () => {

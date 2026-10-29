@@ -12,15 +12,11 @@ import {
   type SystemMetrics,
 } from '../../../services/serverStats'
 
-/**
- * Panel statistik server untuk tab "Endpoint".
- *
- * Gaya visual: terminal/btop - panel gelap, angka monospace, bar horizontal,
- * dan grafik batang per menit. Data diambil dari server intranet port 3000
- * (`http://192.168.1.123:3000/api/server-stats`), bukan dari alamat lain.
- */
+// Panel statistik server untuk tab "Endpoint". Gaya visual: terminal/btop - panel gelap, angka monospace, bar horizontal, dan grafik batang per menit.
 
 const POLL_INTERVAL_MS = 5000
+
+
 
 const STATUS_COLOR: Record<ComponentStatus, string> = {
   ok: '#10B981',
@@ -29,12 +25,16 @@ const STATUS_COLOR: Record<ComponentStatus, string> = {
   unknown: '#94A3B8',
 }
 
+
+
 const STATUS_LABEL: Record<ComponentStatus, string> = {
   ok: 'Normal',
   degraded: 'Terbatas',
   down: 'Gangguan',
   unknown: 'Tidak diketahui',
 }
+
+
 
 function statusIcon(status: ComponentStatus) {
   if (status === 'ok') return <ShieldCheck size={13} />
@@ -43,7 +43,8 @@ function statusIcon(status: ComponentStatus) {
   return <Activity size={13} />
 }
 
-/** Bar horizontal dengan rasio terisi (0..1). */
+
+
 function Meter({ ratio, color }: { ratio: number; color: string }) {
   const pct = Math.max(0, Math.min(1, ratio)) * 100
   return (
@@ -63,7 +64,6 @@ function useElementWidth(): [RefObject<HTMLDivElement | null>, number] {
     if (!el) return
     const update = () => setWidth(el.getBoundingClientRect().width)
     update()
-    // jsdom (unit test) tidak punya ResizeObserver -> pakai event resize.
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', update)
       return () => window.removeEventListener('resize', update)
@@ -76,12 +76,8 @@ function useElementWidth(): [RefObject<HTMLDivElement | null>, number] {
   return [ref, width]
 }
 
-/**
- * Path kurva mulus (cardinal spline) dari titik-titik data.
- *
- * Inilah yang bikin grafik terasa "kripto": garisnya tidak patah-patah
- * seperti diagram batang, tapi melengkung mulus seperti grafik harga aset.
- */
+
+
 function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return ''
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
@@ -95,10 +91,8 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return d
 }
 
-/**
- * Grafik request per menit bergaya kripto: area gradien, garis melengkung
- * glowing, titik terakhir yang menonjol, plus garis tipis untuk error.
- */
+
+
 function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   const data = useMemo(() => buckets.slice(-60), [buckets])
   const [wrapRef, width] = useElementWidth()
@@ -162,7 +156,7 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
               </filter>
             </defs>
 
-            {/* Grid + label sumbu Y */}
+
             {gridLines.map(r => {
               const y = PAD_T + innerH - r * innerH
               return (
@@ -183,15 +177,15 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
               )
             })}
 
-            {/* Area gradien di bawah garis */}
+
             <path d={areaPath} fill="url(#trafficFill)" />
 
-            {/* Garis error (merah tipis) */}
+
             {data.some(b => b.err > 0) && (
               <path d={errPath} fill="none" stroke="#EF4444" strokeWidth={1} strokeOpacity={0.7} />
             )}
 
-            {/* Garis utama + glow */}
+
             <path
               d={linePath}
               fill="none"
@@ -202,11 +196,11 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
               filter="url(#trafficGlow)"
             />
 
-            {/* Titik terakhir */}
+
             <circle cx={last.x} cy={last.y} r={9} fill="#22D3EE" fillOpacity={0.15} />
             <circle cx={last.x} cy={last.y} r={3.5} fill="#22D3EE" stroke="#0F172A" strokeWidth={1.5} />
 
-            {/* Label sumbu X */}
+
             <text x={PAD_L} y={H - 5} fontSize={9} fill="#64748B" fontFamily="monospace">
               {data.length ? new Date(data[0].minute).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
             </text>
@@ -230,7 +224,8 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   )
 }
 
-/** Tabel angka pendamping grafik: 10 menit terakhir, terbaru di atas. */
+
+
 function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
   const rows = useMemo(() => buckets.slice(-10).reverse(), [buckets])
   if (rows.length === 0) return null
@@ -268,10 +263,8 @@ function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
   )
 }
 
-/**
- * Panel kondisi hardware mesin server: processor, RAM, storage, load
- * average, dan uptime mesin. Data berasal dari `/proc` + `df` di server.
- */
+
+
 function SystemPanel({ system }: { system: SystemMetrics }) {
   const cpu = system.cpu
   const mem = system.memory
@@ -291,7 +284,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        {/* Processor */}
+
         <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -313,7 +306,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
           </p>
         </div>
 
-        {/* Memori */}
+
         <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -335,7 +328,7 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
           </div>
         </div>
 
-        {/* Storage */}
+
         <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -371,6 +364,8 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
   )
 }
 
+
+
 export function ServerStatsPanel() {
   const [stats, setStats] = useState<ServerStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -398,8 +393,7 @@ export function ServerStatsPanel() {
     return () => { mounted.current = false; clearInterval(id) }
   }, [])
 
-  // Tick 1 detik supaya teks waktu relatif ("3 detik lalu") terus bergerak
-  // walau data statistik tidak berubah.
+  // Tick 1 detik supaya teks waktu relatif ("3 detik lalu") terus bergerak walau data statistik tidak berubah.
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(id)
@@ -410,7 +404,7 @@ export function ServerStatsPanel() {
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-slate-900 p-5">
-      {/* Header */}
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
@@ -437,7 +431,7 @@ export function ServerStatsPanel() {
         </div>
       </div>
 
-      {/* Status koneksi */}
+
       {!stats && (
         <div className={`rounded-xl border px-4 py-3 text-[12px] ${error ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-slate-700 bg-slate-800/40 text-slate-400'}`}>
           {error
@@ -448,7 +442,7 @@ export function ServerStatsPanel() {
 
       {stats && m && (
         <div className="flex flex-1 flex-col gap-4">
-          {/* Kartu metrik utama */}
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Total Requests" value={m.total.toLocaleString('id-ID')} hint={`${m.ok} sukses · ${m.clientError} 4xx · ${m.serverError} 5xx`} color="#3B82F6" />
             <StatCard
@@ -461,7 +455,7 @@ export function ServerStatsPanel() {
             <StatCard label="Latensi Rata-rata" value={formatMs(m.avgMs)} hint={`p95 ${formatMs(m.p95Ms)} · maks ${formatMs(m.maxMs)}`} color="#A78BFA" />
           </div>
 
-          {/* Bilah sumber daya + uptime */}
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -501,7 +495,7 @@ export function ServerStatsPanel() {
             </div>
           </div>
 
-          {/* Kondisi hardware mesin server */}
+
           {stats.system && (
             <div className="flex flex-col">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -511,7 +505,7 @@ export function ServerStatsPanel() {
             </div>
           )}
 
-          {/* Grafik + status komponen */}
+
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
             <div className="flex min-h-0 flex-col lg:col-span-3">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -544,7 +538,7 @@ export function ServerStatsPanel() {
             </div>
           </div>
 
-          {/* Top endpoint */}
+
           {m.topPaths.length > 0 && (
             <div className="flex min-h-0 flex-1 flex-col">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Endpoint Teramai</p>
@@ -585,6 +579,8 @@ export function ServerStatsPanel() {
     </div>
   )
 }
+
+
 
 function StatCard({
   label,

@@ -1,45 +1,16 @@
-/**
- * Metrik sistem mesin server (CPU, RAM, storage, load, uptime).
- *
- * Dashboard admin memakai ini untuk menampilkan kondisi hardware server
- * intranet (port 3000) - bukan cuma metrik proses Deno seperti
- * `Deno.memoryUsage()`.
- *
- * Sumber data (Linux):
- *   - `/proc/stat`       -> penggunaan CPU (delta antara dua sampel)
- *   - `/proc/cpuinfo`    -> jumlah core + model processor
- *   - `/proc/meminfo`    -> MemTotal / MemAvailable / Swap
- *   - `/proc/loadavg`    -> load average 1/5/15 menit
- *   - `/proc/uptime`     -> uptime mesin
- *   - `df -k`            -> kapasitas disk (izin dibatasi ke `df` saja)
- *   - `cat <file /proc>` -> isi file /proc (Deno memblokir pembacaan /proc
- *                           langsung, jadi dibaca lewat subprocess `cat`
- *                           dengan izin dibatasi ke `cat` saja)
- *
- * Semua pembacaan dibungkus try/catch: kalau dijalankan di lingkungan yang
- * tidak menyediakan /proc (mis. sandbox tanpa akses), fungsi mengembalikan
- * nilai nol - panel tetap bisa dirender, hanya angkanya yang kosong.
- *
- * CATATAN: di dalam Docker, `/proc/stat` dan `/proc/meminfo` masih membaca
- * data host (kernel yang sama), jadi angkanya tetap mencerminkan mesin
- * server. Storage yang dicek adalah filesystem tempat `STORAGE_DIR` berada
- * yang di-mount), jadi angkanya relevan untuk data yang benar-benar disimpan.
- */
+// Metrik sistem mesin server (CPU, RAM, storage, load, uptime).
 
 export type CpuMetrics = {
   /** Persentase 0-100 sejak sampel sebelumnya. null saat belum ada pembanding. */
   usagePercent: number | null;
-  /** Rata-rata penggunaan sejak boot (0-100). */
   averageSinceBootPercent: number;
-  /** Jumlah core processor yang terlihat. */
   cores: number;
-  /** Nama model processor (dari /proc/cpuinfo). */
   model: string;
-  /** Frekuensi MHz rata-rata kalau bisa dibaca. */
   mhz: number | null;
-  /** Load average 1 menit, 5 menit, 15 menit. */
   loadAvg: [number, number, number];
 };
+
+
 
 export type MemoryMetrics = {
   total: number;
@@ -51,6 +22,8 @@ export type MemoryMetrics = {
   swapUsedPercent: number;
 };
 
+
+
 export type DiskMetrics = {
   label: string;
   path: string;
@@ -60,28 +33,29 @@ export type DiskMetrics = {
   usedPercent: number;
 };
 
+
+
 export type SystemMetrics = {
   hostname: string;
   os: string;
   arch: string;
-  /** Uptime mesin (detik). */
   uptimeSeconds: number;
   cpu: CpuMetrics;
   memory: MemoryMetrics;
   disks: DiskMetrics[];
-  /** True kalau minimal satu sumber data berhasil dibaca. */
   available: boolean;
 };
 
+
+
 type CpuSample = { total: number; idle: number };
+
+
 
 let prevCpuSample: CpuSample | null = null;
 
-/**
- * Jalankan perintah eksternal dan kembalikan stdout sebagai teks.
- *
- * Dipakai untuk `df` (kapasitas disk) dan `cat` (file /proc).
- */
+
+
 async function runCommand(cmd: string, args: string[]): Promise<string | null> {
   try {
     const out = await new Deno.Command(cmd, {
@@ -96,21 +70,7 @@ async function runCommand(cmd: string, args: string[]): Promise<string | null> {
   }
 }
 
-/**
- * Baca file teks.
- *
- * PENTING 1: `Deno.readTextFile()` GAGAL untuk file pseudo-filesystem Linux
- * (/proc/*) karena `st_size` file itu 0, sedangkan Deno memverifikasi jumlah
- * byte yang dibaca terhadap ukuran file. Jadi file dibaca manual lewat
- * `Deno.open()` + loop `read()` sampai EOF.
- *
- * PENTING 2: Deno MEMBLOKIR pembacaan /proc dan /sys kecuali dijalankan
- * dengan `--allow-all` ("Requires all access to /proc/meminfo"). Server
- * intranet sengaja tidak memakai --allow-all, jadi /proc dibaca lewat
- * subprocess `cat` (izin dibatasi ke `cat` saja lewat --allow-run=cat).
- * Pembacaan langsung tetap dicoba lebih dulu supaya tetap jalan kalau
- * server dijalankan dengan izin lebih longgar.
- */
+// Baca file teks. PENTING 1: `Deno.readTextFile()` GAGAL untuk file pseudo-filesystem Linux (/proc/*) karena `st_size` file itu 0, sedangkan Deno…
 async function readText(path: string): Promise<string | null> {
   const direct = await readDirect(path);
   if (direct !== null) return direct;
@@ -118,7 +78,8 @@ async function readText(path: string): Promise<string | null> {
   return await runCommand("cat", [path]);
 }
 
-/** Baca file langsung lewat Deno.open + loop read (untuk file biasa & /proc). */
+
+
 async function readDirect(path: string): Promise<string | null> {
   let file: Deno.FsFile;
   try {
@@ -149,10 +110,11 @@ async function readDirect(path: string): Promise<string | null> {
     try {
       file.close();
     } catch {
-      // abaikan
     }
   }
 }
+
+
 
 async function readCpu(): Promise<CpuMetrics> {
   const empty: CpuMetrics = {
@@ -170,9 +132,8 @@ async function readCpu(): Promise<CpuMetrics> {
     const line = stat.split("\n").find((l) => l.startsWith("cpu "));
     if (line) {
       const parts = line.trim().split(/\s+/).slice(1).map((v) => Number(v) || 0);
-      // user nice system idle iowait irq softirq steal ...
       const total = parts.reduce((a, b) => a + b, 0);
-      const idle = (parts[3] ?? 0) + (parts[4] ?? 0); // idle + iowait
+      const idle = (parts[3] ?? 0) + (parts[4] ?? 0);
       sample = { total, idle };
     }
   }
@@ -193,7 +154,6 @@ async function readCpu(): Promise<CpuMetrics> {
     prevCpuSample = sample;
   }
 
-  // Jumlah core + model.
   let cores = 0;
   let model = "";
   let mhzSum = 0;
@@ -220,7 +180,6 @@ async function readCpu(): Promise<CpuMetrics> {
     }
   }
 
-  // Load average.
   let loadAvg: [number, number, number] = [0, 0, 0];
   const loadavg = await readText("/proc/loadavg");
   if (loadavg) {
@@ -241,6 +200,8 @@ async function readCpu(): Promise<CpuMetrics> {
     loadAvg,
   };
 }
+
+
 
 async function readMemory(): Promise<MemoryMetrics> {
   const empty: MemoryMetrics = {
@@ -283,15 +244,14 @@ async function readMemory(): Promise<MemoryMetrics> {
   };
 }
 
+
+
 async function readDisk(label: string, path: string): Promise<DiskMetrics | null> {
-  // `Deno.statfs` belum stabil di Deno 2.9, jadi kapasitas disk dibaca lewat
-  // perintah `df` (izin akses dibatasi ke `df` saja lewat --allow-run=df).
   try {
     const out = await runCommand("df", ["-k", path]);
     if (!out) return null;
     const lines = out.trim().split("\n");
     if (lines.length < 2) return null;
-    // Kolom: Filesystem 1K-blocks Used Available Use% Mounted
     const cols = lines[lines.length - 1].trim().split(/\s+/);
     if (cols.length < 5) return null;
     const total = Number(cols[1]) * 1024;
@@ -311,6 +271,8 @@ async function readDisk(label: string, path: string): Promise<DiskMetrics | null
   }
 }
 
+
+
 async function readUptimeSeconds(): Promise<number> {
   const raw = await readText("/proc/uptime");
   if (!raw) return 0;
@@ -318,8 +280,9 @@ async function readUptimeSeconds(): Promise<number> {
   return Number.isFinite(seconds) ? Math.floor(seconds) : 0;
 }
 
+
+
 async function hostname(): Promise<string> {
-  // Deno.hostname() butuh izin --allow-sys; kalau tidak tersedia, baca file.
   try {
     const name = Deno.hostname();
     if (name) return name;
@@ -333,12 +296,8 @@ async function hostname(): Promise<string> {
   return "server";
 }
 
-/**
- * Ambil satu snapshot metrik sistem.
- *
- * Aman dipanggil berulang kali (setiap polling dashboard): pembacaan file
- * lokal sangat murah dan tidak menyentuh jaringan.
- */
+
+
 export async function systemSnapshot(): Promise<SystemMetrics> {
   const storageDir = Deno.env.get("STORAGE_DIR") || "/data/storage";
 

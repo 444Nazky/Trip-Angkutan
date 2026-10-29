@@ -4,7 +4,6 @@ import { appUpdate, type AppUpdateState } from '../services/appUpdate'
 
 
 
-// Satu sumber status pembaruan untuk seluruh UI.
 export function useAppUpdate(): AppUpdateState {
   const [state, setState] = useState<AppUpdateState>(appUpdate.state)
   useEffect(() => appUpdate.subscribe(setState), [])

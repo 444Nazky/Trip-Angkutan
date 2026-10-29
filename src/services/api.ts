@@ -1,40 +1,38 @@
-/**
- * API service utama untuk mobile app.
- * Auto-simpan token, tidak ada sesi expired.
- * Cache geofence & auth locally.
- */
 
 import { Capacitor } from '@capacitor/core'
 import { environment } from '../environments/environment'
 
+
+
 const TOKEN_KEY = 'trip.auth.token.v2'
+
+
+
 const API_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+
 
 export interface ApiError {
   message: string
   code?: string
 }
 
-/**
- * Hasil aksi (tambah/hapus/simpan).
- *
- * `reason` dipakai kalau gagal: kalimat penjelasan yang SUDAH mentioning
- * penyebabnya (dari server, atau "server tidak bisa dihubungi" kalau offline).
- * UI tinggal menampilkannya — tanpa menebak-nebak alasannya sendiri.
- */
+// Hasil aksi (tambah/hapus/simpan). `reason` dipakai kalau gagal: kalimat penjelasan yang SUDAH mentioning penyebabnya (dari server, atau "server tidak…
 export interface ActionResult<T = void> {
   ok: boolean
   data?: T
   reason?: string
 }
 
+
+
 export interface ApiResponse<T> {
   data?: T
   error?: ApiError
   ok: boolean
 }
+
+
 
 export interface Officer {
   id: string
@@ -46,6 +44,8 @@ export interface Officer {
   dermagaAccess?: { id: string; name?: string; code?: string }[]
 }
 
+
+
 export interface Dermaga {
   id: string
   name: string
@@ -53,6 +53,8 @@ export interface Dermaga {
   region_name?: string
   region_code?: string
 }
+
+
 
 export interface Route {
   id: string
@@ -64,7 +66,7 @@ export interface Route {
   dermagaId?: string
 }
 
-// ─── URL resolution ───────────────────────────────────────────────────────────────
+
 
 function getBaseUrl(): string {
   try {
@@ -74,33 +76,33 @@ function getBaseUrl(): string {
   return normalizeUrl(defaultApiBaseUrl())
 }
 
-/**
- * Endpoint default sistem = backend INTRANET kantor (port 3000).
- *
- * Aplikasi tidak punya endpoint cadangan di internet: seluruh permintaan
- * berhenti di jaringan lokal.
- */
+
+
 export function defaultApiBaseUrl(): string {
   const intranet = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
   return (intranet && intranet.trim()) || environment.apiBaseUrl
 }
 
-/** True kalau endpoint default/aktif adalah server intranet. */
+
+
 export function isDefaultIntranet(): boolean {
   return isIntranetBaseUrl(defaultApiBaseUrl())
 }
+
+
 
 function normalizeUrl(raw: string): string {
   let url = String(raw || '').trim().replace(/\/+$/, '')
   if (!url) return defaultApiBaseUrl()
   if (!/^https?:\/\//i.test(url)) {
-    // Host privat/LAN hanya boleh http (server intranet tidak punya TLS).
-    // Host publik dipaksa https.
+    // Host privat/LAN hanya boleh http (server intranet tidak punya TLS). Host publik dipaksa https.
     url = `${isPrivateHostUrl(url) ? 'http' : 'https'}://${url}`
   }
   if (!/\/api$/i.test(url)) url = `${url}/api`
   return url
 }
+
+
 
 export function setApiBaseUrl(url: string | null) {
   try {
@@ -109,23 +111,28 @@ export function setApiBaseUrl(url: string | null) {
   } catch {}
 }
 
+
+
 export function resolveApiBaseUrl(): string {
   return getBaseUrl()
 }
+
+
 
 export function getApiBaseUrl(): string {
   return getBaseUrl()
 }
 
+
+
 export function normalizeBaseUrl(raw: string): string {
   return normalizeUrl(raw)
 }
 
+
+
 export interface PingResult {
-  /**
-   * true = host menjawab (HTTP apa pun), termasuk saat browser memblokir
-   * pembacaan respons karena CORS. Lihat `blockedByCors` untuk membedakannya.
-   */
+  // true = host menjawab (HTTP apa pun), termasuk saat browser memblokir pembacaan respons karena CORS. Lihat `blockedByCors` untuk membedakannya.
   ok: boolean
   ms: number
   blockedByCors?: boolean
@@ -136,21 +143,15 @@ export interface PingResult {
   detail?: string
 }
 
-/**
- * Ping cepat ke sebuah endpoint.
- *
- * `pageProtocol` bisa dioper eksplisit (untuk test / pemanggil yang tahu
- * konteksnya) - kalau tidak, protokol halaman yang sedang berjalan dipakai.
- */
+
+
 export async function pingBaseUrl(url: string, timeoutMs = 5000, pageProtocol?: string): Promise<PingResult> {
-  // Mixed content hanya berlaku di halaman https yang BUKAN aplikasi native
-  // dan bukan loopback. Di APK (WebView) endpoint LAN http:// tetap boleh.
+  // Mixed content hanya berlaku di halaman https yang BUKAN aplikasi native dan bukan loopback. Di APK (WebView) endpoint LAN http:// tetap boleh.
   if (isMixedContentBlocked(url, pageProtocol)) {
     return { ok: false, ms: 0, mixedContent: true, detail: 'http:// diblokir dari halaman https (mixed content)' }
   }
   const r = await probeServerHealth(url, timeoutMs)
-  // Host yang hidup tetap dianggap ok walau browser memblokir bacaannya (CORS):
-  // URL-nya benar, hanya origin pemanggil belum terdaftar di CORS_ORIGIN.
+  // Host yang hidup tetap dianggap ok walau browser memblokir bacaannya (CORS): URL-nya benar, hanya origin pemanggil belum terdaftar di CORS_ORIGIN.
   return {
     ok: r.reachable || r.hostAlive === true,
     ms: r.ms ?? 0,
@@ -162,16 +163,20 @@ export async function pingBaseUrl(url: string, timeoutMs = 5000, pageProtocol?: 
   }
 }
 
-// ─── Token storage ───────────────────────────────────────────────────────────────
 
-/** Token admin/petugas yang tersimpan (atau null). */
+
 export function getAuthToken(): string | null {
   return loadToken()
 }
 
+
+
 function loadToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
 }
+
+
+
 function saveToken(token: string | null) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token)
@@ -179,20 +184,8 @@ function saveToken(token: string | null) {
   } catch {}
 }
 
-// ─── Request ──────────────────────────────────────────────────────────────────
 
-/**
- * Ambil kalimat alasan dari body error server.
- *
- * Bentuk body error di server itu BERCAMPUR:
- *   - `{ error: "Dermaga masih dipakai petugas" }`  (paling sering)
- *   - `{ error: { message: "..." } }`
- *   - `{ error: "KODE", message: "..." }`  (appVersion)
- *
- * Dulu hanya bentuk kedua yang dibaca, jadi alasan server yang sudah jelas
- * (mis. "Dermaga masih dipakai petugas") dibuang dan notifikasi berubah
- * jadi "HTTP 500". Sekarang semua bentuk diterjemahkan jadi satu string.
- */
+// Ambil kalimat alasan dari body error server.
 export function extractErrorMessage(body: unknown): string | null {
   if (!body || typeof body !== 'object') return null
   const b = body as { error?: unknown; message?: unknown }
@@ -205,13 +198,7 @@ export function extractErrorMessage(body: unknown): string | null {
   return null
 }
 
-/**
- * Alasan umum kalau server tidak memberi teks yang bisa dipakai.
- *
- * Dipakai untuk kasus yang TIDAK bisa dijelaskan server (jaringan putus,
- * timeout, CORS) — di situ DASAR LAIN menulis "server gagal", padahal
- * penyebabnya jelas: server tidak terjangkau.
- */
+// Alasan umum kalau server tidak memberi teks yang bisa dipakai.
 export function offlineReason(code: string | undefined): string {
   if (code === 'NETWORK' || code === 'TIMEOUT') {
     return 'Server tidak bisa dihubungi — cek koneksi dan endpoint yang dipakai'
@@ -222,13 +209,7 @@ export function offlineReason(code: string | undefined): string {
   return 'Server menolak permintaan tanpa penjelasan'
 }
 
-/**
- * Pesan server yang masih berbahasa Inggris -> kalimat Indonesia.
- *
- * Hanya untuk pesan yang DASAR (bukan pesan Domain). Kalau server sudah
- * mengirim kalimat Domain ("Dermaga gagal dihapus karena ..."), pesan itu
- * dipakai apa adanya.
- */
+// Pesan server yang masih berbahasa Inggris -> kalimat Indonesia. Hanya untuk pesan yang DASAR (bukan pesan Domain).
 const SERVER_MSG_ID: Record<string, string> = {
   'invalid token': 'Sesi sudah berakhir — silakan login ulang',
   'admin access required': 'Akses ditolak — tindakan ini butuh hak admin',
@@ -236,10 +217,7 @@ const SERVER_MSG_ID: Record<string, string> = {
   'forbidden': 'Akses ditolak — tindakan ini butuh hak admin',
 }
 
-/**
- * Kalimat final untuk sebuah kegagalan: pakai alasan server kalau ada,
- * kalau tidak pakai penjelasan bawaan sesuai kode status.
- */
+// Kalimat final untuk sebuah kegagalan: pakai alasan server kalau ada, kalau tidak pakai penjelasan bawaan sesuai kode status.
 export function failureReason(res: ApiResponse<unknown>, fallback: string): string {
   const code = res.error?.code
   const msg = res.error?.message?.trim()
@@ -252,14 +230,13 @@ export function failureReason(res: ApiResponse<unknown>, fallback: string): stri
   return fallback
 }
 
-/**
- * Bungkus hasil request jadi `ActionResult` dengan alasan yang SUDAH
- * enak dibaca user (siap tampil di notifikasi).
- */
+// Bungkus hasil request jadi `ActionResult` dengan alasan yang SUDAH enak dibaca user (siap tampil di notifikasi).
 export function toActionResult<T>(res: ApiResponse<T>, fallback: string): ActionResult<void> {
   if (res.ok) return { ok: true }
   return { ok: false, reason: failureReason(res, fallback) }
 }
+
+
 
 async function request<T>(
   method: string,
@@ -298,16 +275,12 @@ async function request<T>(
   }
 }
 
-/**
- * Base URL aktif.
- *
- * Sengaja TIDAK di-cache di level modul: endpoint bisa diganti saat runtime
- * lewat "Pengaturan Server" (pindah antar-server intranet). Kalau di-cache,
- * `api.baseUrl` masih menunjuk ke server lama sampai aplikasi di-reload.
- */
+// Base URL aktif. Sengaja TIDAK di-cache di level modul: endpoint bisa diganti saat runtime lewat "Pengaturan Server" (pindah antar-server intranet).
 function currentBaseUrl(): string {
   return getBaseUrl()
 }
+
+
 
 export const api = {
   get: async <T>(path: string, timeoutMs = 12000): Promise<ApiResponse<T>> => request<T>('GET', path, undefined, timeoutMs),
@@ -344,7 +317,7 @@ export const api = {
   },
   postMultipart: async <T>(path: string, body: FormData): Promise<ApiResponse<T>> => {
     let token: string | null = null
-    try { token = loadToken() } catch { /* storage offline */ }
+    try { token = loadToken() } catch {  }
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -365,11 +338,7 @@ export const api = {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        // ponytail: 401 TIDAK boleh menghapus token — dulu satu 401 (token basi
-        // di salah satu dari 4 request paralel) menghapus token di storage,
-        // sehingga renew tak pernah bisa dipanggil dan sesi mati permanen
-        // ("session renewal failed" padahal petugas sudah login). Token hanya
-        // diganti saat login/refresh eksplisit.
+        // ponytail: 401 TIDAK boleh menghapus token
         return { ok: false, error: { message: data.error || 'Request failed', code: String(res.status) } }
       }
       return { ok: true, data }
@@ -383,12 +352,23 @@ export const api = {
   },
 }
 
-// ─── Officer storage ───────────────────────────────────────────────────────────
+
 
 const OFFICER_KEY = 'trip.officer.v2'
+
+
+
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
+
+
+
 const ROUTES_KEY = 'trip.routes.v2'
+
+
+
 const CREDENTIALS_KEY = 'trip.credentials'
+
+
 
 export function getStoredOfficer(): Officer | null {
   try {
@@ -397,12 +377,16 @@ export function getStoredOfficer(): Officer | null {
   } catch { return null }
 }
 
+
+
 export function saveOfficer(officer: Officer) {
   try {
     if (officer) localStorage.setItem(OFFICER_KEY, JSON.stringify(officer))
     else localStorage.removeItem(OFFICER_KEY)
   } catch {}
 }
+
+
 
 export function getStoredDermaga(): Dermaga | null {
   try {
@@ -411,12 +395,16 @@ export function getStoredDermaga(): Dermaga | null {
   } catch { return null }
 }
 
+
+
 export function storeDermaga(d: Dermaga | null) {
   try {
     if (d) localStorage.setItem(DERMAGA_KEY, JSON.stringify(d))
     else localStorage.removeItem(DERMAGA_KEY)
   } catch {}
 }
+
+
 
 export function getStoredRoutes(): Record<string, Route[]> {
   try {
@@ -425,12 +413,16 @@ export function getStoredRoutes(): Record<string, Route[]> {
   } catch { return {} }
 }
 
+
+
 export function saveRoutes(routes: Record<string, Route[]>) {
   try {
     if (routes && Object.keys(routes).length) localStorage.setItem(ROUTES_KEY, JSON.stringify(routes))
     else localStorage.removeItem(ROUTES_KEY)
   } catch {}
 }
+
+
 
 export function getCredentials(): { username?: string; pin?: string; officerId?: string } {
   try {
@@ -439,6 +431,8 @@ export function getCredentials(): { username?: string; pin?: string; officerId?:
   } catch { return {} }
 }
 
+
+
 export function storeCredentials(cred: { username?: string; pin?: string; officerId?: string }) {
   try {
     if (cred) localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(cred))
@@ -446,11 +440,13 @@ export function storeCredentials(cred: { username?: string; pin?: string; office
   } catch {}
 }
 
+
+
 export function clearCredentials() {
   storeCredentials({})
 }
 
-// ─── Server Settings helpers ─────────────────────────────────────────────────
+
 
 export function apiBaseCandidateLabel(candidate: string): string {
   try {
@@ -461,35 +457,35 @@ export function apiBaseCandidateLabel(candidate: string): string {
   }
 }
 
+
+
 export interface ApiBaseCandidate {
   url: string
   label: string
   hint?: string
 }
 
-/** URL backend intranet (PC kantor, port 3000). */
+
+
 export function intranetApiBaseUrl(): string {
   const url = (environment as { intranetApiBaseUrl?: string }).intranetApiBaseUrl
   return (url ?? '').trim()
 }
 
-/**
- * URL backend intranet dengan TLS (opsional).
- *
- * Kosong kalau server port 3000 hanya serves http (default). Kalau diisi,
- * kandidat https muncul di layar "Pilih Endpoint" - berguna saat aplikasi
- * dibuka lewat https (mixed content) dan server sudah punya sertifikat.
- */
+// URL backend intranet dengan TLS (opsional). Kosong kalau server port 3000 hanya serves http (default).
 export function intranetHttpsApiBaseUrl(): string {
   const url = (environment as { intranetHttpsApiBaseUrl?: string }).intranetHttpsApiBaseUrl
   return (url ?? '').trim()
 }
 
-/** True kalau URL tersebut mengarah ke backend intranet (host privat/LAN). */
+
+
 export function isIntranetBaseUrl(url: string): boolean {
   if (!url) return false
   return isPrivateHostUrl(url)
 }
+
+
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
   // Intranet lebih dulu karena ia endpoint DEFAULT sistem.
@@ -513,6 +509,8 @@ export function apiBaseCandidates(): ApiBaseCandidate[] {
   return candidates
 }
 
+
+
 export function isPrivateHostUrl(url: string): boolean {
   try {
     const u = new URL(url.startsWith('http') ? url : `https://${url}`)
@@ -520,23 +518,8 @@ export function isPrivateHostUrl(url: string): boolean {
   } catch { return false }
 }
 
-// ─── Mixed content (halaman https → endpoint http://) ─────────────────────────
 
-/**
- * True kalau aplikasi sedang berjalan di APLIKASI NATIVE (Capacitor/WebView).
- *
- * Di native, halaman aplikasi dimuat dari origin LOKAL (`https://localhost`),
- * BUKAN dari server https jarak jauh. Aturan "mixed content" browser tidak
- * berlaku di sini: yang menentukan boleh/tidaknya request `http://` adalah
- * WebView (android `allowMixedContent` di capacitor.config.ts) + network
- * security config, dan keduanya sudah disetel untuk mengizinkan cleartext ke
- * LAN kantor.
- *
- * Tanpa pengecualian ini, aplikasi native akan menolak endpoint intranet
- * (`http://192.168.1.123:3000`) dengan pesan "mixed content" padahal
- * request-nya legally boleh dan LAN-nya sehat - persis gejala "data tidak
- * bisa dikirim saat seluler dimatikan".
- */
+// True kalau aplikasi sedang berjalan di APLIKASI NATIVE (Capacitor/WebView).
 export function isNativeApp(): boolean {
   try {
     return Capacitor?.isNativePlatform?.() === true
@@ -545,7 +528,8 @@ export function isNativeApp(): boolean {
   }
 }
 
-/** True kalau URL menunjuk ke loopback (localhost / 127.0.0.1) - exempt dari mixed content. */
+
+
 export function isLoopbackUrl(url: string): boolean {
   try {
     const u = new URL(url.startsWith('http') ? url : `https://${url}`)
@@ -553,16 +537,7 @@ export function isLoopbackUrl(url: string): boolean {
   } catch { return false }
 }
 
-/**
- * True kalau request ke `url` AKAN diblokir browser karena mixed content
- * (halaman https memanggil endpoint http://).
- *
- * Yang TIDAK terblokir:
- *   - aplikasi native (WebView) - lihat `isNativeApp()`;
- *   - loopback (localhost/127.0.0.1) - origin loopback dianggap "potentially
- *     trustworthy" oleh browser, jadi http:// ke sana tetap boleh;
- *   - endpoint https (memang bukan mixed content).
- */
+// True kalau request ke `url` AKAN diblokir browser karena mixed content (halaman https memanggil endpoint http://).
 export function isMixedContentBlocked(url: string, pageProtocol?: string): boolean {
   if (!/^http:\/\//i.test(url)) return false
   const page = pageProtocol
@@ -573,16 +548,7 @@ export function isMixedContentBlocked(url: string, pageProtocol?: string): boole
   return true
 }
 
-/**
- * Normalisasi input URL dari layar pengaturan server.
- *
- * Sengaja mendelegasikan aturan http/https ke `normalizeUrl()` supaya hanya ada
- * SATU aturan: host privat/LAN boleh http, host publik wajib https. Versi lama
- * fungsi ini selalu menambahkan `http://` saat skema tidak diketik, sehingga
- * `contoh.example.com` tersimpan sebagai `http://contoh.example.com/api` —
- * lolos dari guard di UI (yang hanya memeriksa `http://` eksplisit) dan langsung
- * mati sebagai mixed content di halaman https.
- */
+// Normalisasi input URL dari layar pengaturan server.
 export function normalizeApiBaseInput(raw: string): string {
   const url = String(raw ?? '').trim()
   if (!url) return normalizeUrl(defaultApiBaseUrl())
@@ -592,19 +558,13 @@ export function normalizeApiBaseInput(raw: string): string {
   return normalizeUrl(withScheme)
 }
 
+
+
 export type EndpointValidation =
   | { ok: true; url: string }
   | { ok: false; msg: string }
 
-/**
- * Aturan validasi endpoint TUNGGAL.
- *
- * Semua layar pengaturan server (EndpointPicker di mobile & admin,
- * ServerSettingsModal di login/profil, SettingsTab di dashboard) memakai fungsi
- * ini supaya URL yang sama tidak diterima di satu layar dan ditolak di layar
- * lain. `pageProtocol` bisa dioper eksplisit agar bisa diuji tanpa bergantung
- * pada protokol halaman yang sedang berjalan.
- */
+// Aturan validasi endpoint TUNGGAL. Semua layar pengaturan server (EndpointPicker di mobile & admin, ServerSettingsModal di login/profil, SettingsTab…
 export function validateEndpointInput(raw: string, pageProtocol?: string): EndpointValidation {
   const value = String(raw ?? '').trim()
   if (!value) return { ok: false, msg: 'URL kosong.' }
@@ -620,15 +580,7 @@ export function validateEndpointInput(raw: string, pageProtocol?: string): Endpo
   const page = pageProtocol
     ?? (typeof window !== 'undefined' ? window.location?.protocol : undefined)
 
-  // Halaman https yang DIBUKA DI BROWSER tidak boleh memanggil http://
-  // (mixed content): browser memblokir sebelum request keluar, sehingga
-  // server yang hidup akan tampak "tidak merespon".
-  //
-  // Pengecualian penting: APLIKASI NATIVE (Capacitor/WebView) memuat
-  // halaman dari origin lokal `https://localhost`, jadi aturan mixed
-  // content browser tidak berlaku - request http:// ke LAN kantor berjalan
-  // normal (android `allowMixedContent` + network security config).
-  //loopback juga exempt (origin loopback dianggap potentially trustworthy).
+  // Halaman https yang DIBUKA DI BROWSER tidak boleh memanggil http:// (mixed content): browser memblokir sebelum request keluar, sehingga server yang…
   if (isMixedContentBlocked(url, page)) {
     return {
       ok: false,
@@ -639,24 +591,18 @@ export function validateEndpointInput(raw: string, pageProtocol?: string): Endpo
   return { ok: true, url }
 }
 
-/**
- * Validasi lalu terapkan endpoint aktif. Mengembalikan hasil validasi supaya
- * pemanggil bisa menampilkan pesan yang sama tanpa menduplikasi aturannya.
- */
+// Validasi lalu terapkan endpoint aktif. Mengembalikan hasil validasi supaya pemanggil bisa menampilkan pesan yang sama tanpa menduplikasi aturannya.
 export function applyEndpointInput(raw: string, pageProtocol?: string): EndpointValidation {
   const result = validateEndpointInput(raw, pageProtocol)
   if (result.ok) setApiBaseUrl(result.url)
   return result
 }
 
+
+
 export interface ServerProbeResult {
-  /** true = respons berhasil dibaca (status HTTP apa pun). */
   reachable: boolean
-  /**
-   * true = host benar-benar menjawab, walau isi responsnya tidak bisa dibaca
-   * karena CORS. Ini pembeda antara "server mati" dan "server hidup tapi
-   * origin kita belum diizinkan".
-   */
+  // true = host benar-benar menjawab, walau isi responsnya tidak bisa dibaca karena CORS.
   hostAlive?: boolean
   ms?: number
   blockedByCors?: boolean
@@ -666,15 +612,7 @@ export interface ServerProbeResult {
   detail?: string
 }
 
-/**
- * Probe tanpa CORS (`mode: 'no-cors'`).
- *
- * Respons opaque tidak bisa dibaca, tetapi promise HANYA resolve kalau host
- * benar-benar menjawab. Jadi resolve = host hidup, reject = host tidak
- * terjangkau. Inilah satu-satunya cara andal membedakan kegagalan jaringan
- * biasa dari pemblokiran CORS: pesan `TypeError: Failed to fetch` dipakai
- * browser untuk keduanya.
- */
+// Probe tanpa CORS (`mode: 'no-cors'`). Respons opaque tidak bisa dibaca, tetapi promise HANYA resolve kalau host benar-benar menjawab.
 async function probeHostAlive(url: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -692,6 +630,8 @@ async function probeHostAlive(url: string, timeoutMs: number): Promise<boolean> 
     clearTimeout(timer)
   }
 }
+
+
 
 export async function probeServerHealth(url: string, timeoutMs = 5000): Promise<ServerProbeResult> {
   const start = Date.now()
@@ -730,24 +670,26 @@ export async function probeServerHealth(url: string, timeoutMs = 5000): Promise<
 
     return { reachable: false, hostAlive: false, ms, detail: err.message }
   } finally {
-    // Dulu timer hanya dibersihkan di jalur sukses, sehingga setiap probe gagal
-    // meninggalkan timer yang tetap hidup sampai timeoutMs.
+    // Dulu timer hanya dibersihkan di jalur sukses, sehingga setiap probe gagal meninggalkan timer yang tetap hidup sampai timeoutMs.
     clearTimeout(timer)
   }
 }
+
+
 
 export function setApiBaseUrlOverride(url: string | null): void {
   setApiBaseUrl(url)
 }
 
-// Default URL (synchronous) - tanpa override memakai endpoint intranet.
+
+
 export async function autoDetectApiBaseUrl(_timeoutMs?: number): Promise<string | null> {
   console.log('[API] Menggunakan endpoint default:', defaultApiBaseUrl())
   return defaultApiBaseUrl()
 }
 
-// Async version for chained calls. Tidak ada auto-detect ke localhost acak:
-// default tetap server intranet kantor (port 3000) yang sudah dikonfigurasi.
+
+
 export async function autoDetectApiBaseUrlAsync(_timeoutMs = 30000): Promise<string> {
   console.log('[API] Menggunakan endpoint default:', defaultApiBaseUrl())
   return defaultApiBaseUrl()

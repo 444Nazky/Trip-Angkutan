@@ -3,17 +3,7 @@ import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
-import {
-
-
-
-
-  formatPlateNumber,
-  validatePlate,
-  sanitizePlateInput,
-  PLATE_REGEX_STRICT,
-} from '../../utils/plateFormatter'
-
+import { formatPlateNumber, validatePlate, sanitizePlateInput, PLATE_REGEX_STRICT, } from '../../utils/plateFormatter'
 
 
 
@@ -21,9 +11,13 @@ interface VehicleFormScreenProps {
   go: (s: MobileScreen) => void
 }
 
-const TYPE_PLACEHOLDER = 'Pilih jenis kendaraan'
-const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
+
+const TYPE_PLACEHOLDER = 'Pilih jenis kendaraan'
+
+
+
+const CATEGORY_PLACEHOLDER = 'Pilih kategori'
 
 
 
@@ -51,17 +45,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const plateInputRef = useRef<HTMLInputElement>(null)
   const lastValueRef = useRef(plate)
 
-  /**
-   * Pilihan jenis kendaraan.
-   *
-   * Sumbernya master jenis kendaraan di database (sama dengan yang dipakai
-   * dashboard admin). Kalau master belum terisi - misalnya perangkat baru
-   * belum pernah sync - dipakai daftar dari master tarif server.
-   *
-   * Dulu daftar ini DIHARDEKODE di sini ('Motor', 'Mobil', 'Truck Kecil', ...)
-   * dan berbeda dari daftar admin, jadi pilihan di HP tidak sama dengan
-   * pilihan di dashboard. Tidak ada lagi daftar hardcode.
-   */
   const vehicleTypes = useMemo(() => {
     const fromMaster = masterTypes.map((t) => t.name).filter(Boolean)
     if (fromMaster.length > 0) return fromMaster
@@ -88,10 +71,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) =>
     patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
 
-  // `setField` menutup `draft.vehicleForm`, jadi identitasnya berubah setiap
-  // render. Effect OCR di bawah hanya boleh dipicu oleh `draft.ocrResult`;
-  // versi terbaru disimpan di ref supaya dependency array tetap sempit dan
-  // effect tidak jalan ulang tiap kali form berubah.
+  // `setField` menutup `draft.vehicleForm`, jadi identitasnya berubah setiap render. Effect OCR di bawah hanya boleh dipicu oleh `draft.ocrResult`;
   const setFieldRef = useRef(setField)
   useEffect(() => { setFieldRef.current = setField })
 
@@ -150,10 +130,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return false
     }
     if (!isFormComplete) return false
-    // Kategori = pilihan petugas (Internal / Eksternal / Lokal).
-    // Golongan = gol master tarif (I..V) — BEDA hal, jangan dicampur.
-    // Kendaraan Internal tidak ditagih (kebijakan: tarif Internal = Rp 0),
-    // jadi nominal yang ditampilkan ikut 0 supaya sama dengan server.
+    // Kategori = pilihan petugas (Internal / Eksternal / Lokal). Golongan = gol master tarif (I..V) — BEDA hal, jangan dicampur.
     const entry = {
       plate: plate.trim().toUpperCase(),
       type: vehicleType,
@@ -220,9 +197,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </span>
       </div>
 
-      {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk */}
+
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-        {/* Foto Dokumentasi */}
+
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[13px] font-medium text-slate-600">
@@ -259,7 +236,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </button>
         </div>
 
-        {/* Nomor Plat */}
+
         <div className="px-4 py-3.5">
           <label className="text-[13px] font-medium text-slate-600 block mb-2">
             Nomor Plat <span className="text-red-500">*</span>
@@ -371,7 +348,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       </div>
 
-      {/* Tombol Simpan — terkunci sampai 4/4 */}
+
       <button
         onClick={() => isFormComplete && setShowModal(true)}
         disabled={!isFormComplete}
@@ -400,7 +377,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
-      {/* Kendaraan Tersimpan */}
+
       {draft.vehicles.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-semibold text-slate-500 mb-2">
@@ -446,7 +423,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </button>
       )}
 
-      {/* Modal Konfirmasi */}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="w-full bg-white rounded-t-2xl p-6">

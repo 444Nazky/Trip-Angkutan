@@ -1,23 +1,20 @@
-/**
- * Image utility - KOMPRESI & DOWNSCALE foto dokumentasi.
- *
- * PERFORMANCE FIRST:
- * - Foto dokumentasi cukup 360p-ish (edge maks 640px) — tidak perlu HD.
- * - Watermark digambar pada ukuran akhir (satu kali canvas pass), bukan
- *   resize→watermark→re-encode (yang sebelumnya 3x kerjaan & lambat).
- * - Hasil akhir disimpan sebagai data URL JPEG kompres, sehingga:
- *   - localStorage/IndexedDB jauh lebih ringan
- *   - upload multipart jauh lebih kecil & cepat
- */
+// Image utility - KOMPRESI & DOWNSCALE foto dokumentasi. PERFORMANCE FIRST: - Foto dokumentasi cukup 360p-ish (edge maks 640px) — tidak perlu HD.
 
-/** Sisi terpanjang untuk foto dokumentasi (≈360p / 640x360). */
 export const DOC_MAX_EDGE = 640
-/** Sisi terpanjang untuk foto yang perlu dibaca OCR (plat). */
+
+
+
 export const OCR_MAX_EDGE = 1280
-/** Kualitas JPEG untuk foto dokumentasi. */
+
+
+
 export const DOC_QUALITY = 0.6
-/** Kualitas JPEG untuk foto OCR. */
+
+
+
 export const OCR_QUALITY = 0.78
+
+
 
 export interface WatermarkData {
   capturedAt: Date
@@ -25,6 +22,8 @@ export interface WatermarkData {
   lon?: number | null
   region?: string | null
 }
+
+
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -35,7 +34,8 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Perkiraan ukuran data URL dalam byte. */
+
+
 export function dataUrlByteLength(dataUrl: string): number {
   if (!dataUrl) return 0
   const idx = dataUrl.indexOf(',')
@@ -43,6 +43,8 @@ export function dataUrlByteLength(dataUrl: string): number {
   const b64 = dataUrl.slice(idx + 1)
   return Math.floor((b64.length * 3) / 4)
 }
+
+
 
 function formatWatermarkLines(wm: WatermarkData): Array<{ text: string; color: string }> {
   const lines: Array<{ text: string; color: string }> = [
@@ -62,10 +64,8 @@ function formatWatermarkLines(wm: WatermarkData): Array<{ text: string; color: s
   return lines
 }
 
-/**
- * Scale + watermark + kompres dalam SATU canvas pass.
- * Mengembalikan data URL JPEG baru.
- */
+
+
 export async function compressImage(
   src: string,
   opts: {
@@ -81,7 +81,6 @@ export async function compressImage(
   try {
     img = await loadImage(src)
   } catch {
-    // Gambar tidak bisa dimuat — kirim apa adanya.
     return src
   }
 
@@ -117,7 +116,8 @@ export async function compressImage(
   }
 }
 
-/** Gambar overlay waktu/lokasi di pojok kanan bawah. */
+
+
 function drawWatermark(ctx: CanvasRenderingContext2D, w: number, h: number, wm: WatermarkData): void {
   const lines = formatWatermarkLines(wm)
   // Font diskalakan relatif terhadap lebar gambar supaya tetap proporsional.
@@ -164,9 +164,8 @@ function drawWatermark(ctx: CanvasRenderingContext2D, w: number, h: number, wm: 
   ctx.shadowOffsetY = 0
 }
 
-/**
- * Konversi data URL → Blob tanpa `fetch` (fetch(dataURL) lambat di WebView).
- */
+
+
 export function dataUrlToBlob(dataUrl: string): Blob | null {
   try {
     const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(dataUrl)

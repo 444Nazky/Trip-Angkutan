@@ -9,6 +9,8 @@ import {
   type PlateStatus,
 } from './offlineMaster'
 
+
+
 export type { PlateStatus }
 
 
@@ -24,29 +26,19 @@ export interface PlateCheck {
   checkpointRegionId: string | null
   checkpointRegionCode: string | null
   tariffAmount: number
-  /** true bila hasil dihitung dari cache lokal (server tidak terjangkau). */
   offline?: boolean
 }
 
 
 
-// ponytail: cache hasil cek plat di memori supaya plat yang sama tidak
-// memicu request server berulang (mis. saat user mengoreksi lalu mengetik ulang).
+// ponytail: cache hasil cek plat di memori supaya plat yang sama tidak memicu request server berulang (mis. saat user mengoreksi lalu mengetik ulang).
 const plateCheckCache = new Map<string, { at: number; data: PlateCheck | null }>()
+
+
+
 const PLATE_CACHE_TTL = 5 * 60 * 1000
 
-/**
- * Cek status plat TANPA server, memakai paket master offline.
- *
- * Aturan penentuan status disalin dari `handlers/plates.ts` (checkPlate) agar
- * hasil offline sama dengan hasil online:
- * - plat terdaftar internal  -> internal (tidak ditagih)
- * - plat terdaftar lokal     -> lokal, atau eksternal bila region asal != region cek
- * - plat terdaftar eksternal -> eksternal
- * - plat tidak terdaftar    -> lokal (bila region asal = region cek)
- *
- * Mengembalikan null bila paket master offline belum pernah ditarik.
- */
+// Cek status plat TANPA server, memakai paket master offline.
 export function checkPlateOffline(
   plate: string,
   originRegionId?: string | null,
@@ -54,10 +46,7 @@ export function checkPlateOffline(
   const key = normalizePlateKey(plate)
   if (!key) return null
 
-  // Tanpa paket master offline TIDAK boleh ditebak: kita tidak tahu apakah
-  // plat itu terdaftar internal (Rp 0) atau bukan. Menebak "lokal" yang
-  // salah akan kenakan tarif pada kendaraan internal — lebih baik tidak ada
-  // jawaban sama sekali.
+  // Tanpa paket master offline TIDAK boleh ditebak: kita tidak tahu apakah plat itu terdaftar internal (Rp 0) atau bukan.
   if (!getOfflineMaster()) return null
 
   const officer = getStoredOfficer()
@@ -99,6 +88,8 @@ export function checkPlateOffline(
   }
 }
 
+
+
 export async function checkPlate(
   plate: string,
   originRegionId?: string | null,
@@ -116,14 +107,14 @@ export async function checkPlate(
     return res.data
   }
 
-  // Server tidak terjangkau (offline / timeout / sesi habis): pakai paket
-  // master offline supaya petugas tetap bisa menentukan status kendaraan.
+  // Server tidak terjangkau (offline / timeout / sesi habis): pakai paket master offline supaya petugas tetap bisa menentukan status kendaraan.
   const offline = checkPlateOffline(plate, originRegionId)
-  // Kalau paket master offline belum ada, jangan di-cache: begitu paketnya
-  // tiba, pemeriksaan berikutnya harus langsung memakai data baru.
+  // Kalau paket master offline belum ada, jangan di-cache: begitu paketnya tiba, pemeriksaan berikutnya harus langsung memakai data baru.
   if (offline) plateCheckCache.set(key, { at: Date.now(), data: offline })
   return offline
 }
+
+
 
 export interface PlateRecord {
   id: string
@@ -137,9 +128,13 @@ export interface PlateRecord {
   created_at: string
 }
 
+
+
 export async function fetchPlates(): Promise<PlateRecord[] | null> {
   return api.getOk<PlateRecord[]>('/plates')
 }
+
+
 
 export async function createPlate(input: {
   plate: string
@@ -157,6 +152,8 @@ export async function createPlate(input: {
     : { ok: false, reason: 'Plat gagal didaftarkan karena server tidak mengembalikan id' }
 }
 
+
+
 export async function updatePlate(
   id: string,
   input: { plate?: string; owner?: string; originRegionId?: string | null; status?: PlateStatus; isActive?: boolean },
@@ -164,6 +161,8 @@ export async function updatePlate(
   const res = await api.put(`/plates/${id}`, input)
   return toActionResult(res, 'Plat gagal diperbarui karena server menolak permintaan')
 }
+
+
 
 export async function deletePlate(id: string): Promise<ActionResult> {
   const res = await api.delete(`/plates/${id}`)

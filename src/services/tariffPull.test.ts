@@ -1,16 +1,7 @@
-/**
- * Tes penarikan master tarif admin → perangkat petugas.
- *
- * Sebelum ini tarif hanya hidup di sisi admin (`/api/tariffs` = requireAdmin),
- * jadi HP petugas selalu memakai angka contoh di `data.ts` — nominal yang
- * tersimpan di trip tidak pernah sama dengan tarif resmi. Sekarang HP membaca
- * `/master/tariffs` (cukup token petugas) dan menyimpannya di kunci yang sama
- * dengan yang dipakai `tariffFor()`.
- *
- * Dua hal yang dijaga tes ini: hasil kosong/gagal TIDAK menghapus cache yang
- * sudah dipakai petugas, dan baris tanpa jenis kendaraan tidak ikut tersimpan.
- */
+// Tes penarikan master tarif admin → perangkat petugas.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+
 
 const h = vi.hoisted(() => ({
   response: { ok: true, data: [] as unknown[] } as { ok: boolean; data?: unknown; error?: { code?: string; message?: string } },
@@ -18,12 +9,16 @@ const h = vi.hoisted(() => ({
   renew: true,
 }))
 
+
+
 vi.mock('./api', () => ({
   api: {
     get isAuthenticated() { return true },
     async get(url: string) { h.urls.push(url); return h.response },
   },
 }))
+
+
 
 vi.mock('./auth', () => ({
   cacheDockOfficers: async () => {},
@@ -34,19 +29,29 @@ vi.mock('./auth', () => ({
   renewSessionIfNeeded: async () => h.renew,
 }))
 
+
+
 vi.mock('./geofence', () => ({ syncGeofencesFromBackend: async () => 0 }))
 
+
+
 import { TARIFFS_STORAGE_KEY, getStoredTariffs, pullTariffsToLocal, silentMasterSync } from './adminPull'
+
+
 
 const BACKEND_ROWS = [
   { id: 't1', golongan: 'I', vehicle_type: 'Motor', loaded_tariff: 15000, empty_tariff: 8000, description: 'Sepeda motor' },
   { id: 't2', golongan: 'V', vehicle_type: 'Truck Besar', loaded_tariff: 275000, empty_tariff: 190000 },
 ]
 
+
+
 function stored(): { type: string }[] {
   const raw = localStorage.getItem(TARIFFS_STORAGE_KEY)
   return raw ? (JSON.parse(raw) as { type: string }[]) : []
 }
+
+
 
 beforeEach(() => {
   localStorage.clear()
@@ -54,6 +59,8 @@ beforeEach(() => {
   h.renew = true
   h.response = { ok: true, data: BACKEND_ROWS }
 })
+
+
 
 describe('pullTariffsToLocal', () => {
   it('menyimpan tarif server dalam bentuk yang dipakai tariffFor()', async () => {
@@ -110,6 +117,8 @@ describe('pullTariffsToLocal', () => {
     expect(stored().map(t => t.type)).toEqual(['Motor'])
   })
 })
+
+
 
 describe('silentMasterSync', () => {
   it('menarik tarif bersama region saat koneksi kembali', async () => {

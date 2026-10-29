@@ -6,7 +6,6 @@ import type { MobileScreen } from '../types'
 
 
 
-
 function SyncBadge({ state }: { state: TripSyncState }) {
   if (state === 'synced') {
     return (
@@ -30,7 +29,6 @@ function SyncBadge({ state }: { state: TripSyncState }) {
     </span>
   )
 }
-
 
 
 
@@ -62,11 +60,9 @@ function ConnectionIndicator() {
 
 
 
-
 interface HistoryScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -75,8 +71,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
-  // supaya trip yang ditolak server tampil "Gagal", bukan "Terkirim".
+  // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja), supaya trip yang ditolak server tampil "Gagal", bukan "Terkirim".
   const [queue, setQueue] = useState<SyncItem[]>([])
   useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
   const stateOf = (id: string, synced: boolean | undefined) =>
@@ -84,7 +79,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
-    // Urutkan kronologis terbaru lebih dulu; sumbernya tetap data lokal.
     .sort((a, b) => {
       const ta = Date.parse(a.completedAt ?? '') || 0
       const tb = Date.parse(b.completedAt ?? '') || 0
@@ -108,7 +102,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         <ConnectionIndicator />
       </div>
 
-      {/* Summary Stats */}
+
       <div className="flex gap-2 text-[11px] flex-wrap">
         <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-semibold">
           <Cloud size={10} />
@@ -135,7 +129,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         )}
       </div>
 
-      {/* Filter */}
+
       <div className="flex gap-2">
         {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong']] as [typeof filter, string][]).map(([k, l]) => (
           <button
@@ -146,7 +140,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         ))}
       </div>
 
-      {/* List */}
+
       <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
@@ -185,7 +179,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         ))}
       </div>
 
-      {/* Delete Confirmation Dialog */}
+
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">

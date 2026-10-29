@@ -19,9 +19,7 @@ import { dbAll, dbClear, dbGet, dbPutMany, initLocalDb, metaGet, metaSet } from 
 import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
-import type { MobileScreen } from './types'
-import type { Officer } from './types'
-
+import type { MobileScreen, Officer } from './types'
 
 
 
@@ -30,7 +28,6 @@ export interface VehicleEntry {
   type: string
   category: string
   golongan?: string
-  /** Kondisi kendaraan saat trip ini: bermuatan atau kosong. */
   load?: 'loaded' | 'empty'
   tariff: number
 
@@ -47,23 +44,9 @@ export interface VehicleEntry {
 
 
 
-
 export interface Trip {
   id: string
-  /**
-   * Id trip yang dipakai SEBAGAI KUNCI IDEMPOTEN di server.
-   *
-   * Dulu server memakai `id` (format "TRP-2026-0001") sebagai kunci. Format
-   * itu dihitung dari daftar trip DI PERANGKAI, jadi nomor yang sama dipakai
-   * ulang ketika riwayat perangkat dihapus atau petugas memakai perangkat
-   * kedua. Server lalu menganggap trip itu "sama" dan MENIMPA trip lama:
-   * baris baru tidak pernah dibuat dan created_at tetap tanggal lama, jadi
-   * petugas melihat "terkirim" padahal trip-nya tidak muncul di dashboard.
-   *
-   * Sekarang `id` hanya untuk tampilan; kunci idempoten memakai UUID yang
-   * dibuat sekali saat trip dicatat dan ikut tersimpan di IndexedDB, jadi
-   * unik lintas perangkat dan tetap sama saat retry.
-   */
+  // Id trip yang dipakai SEBAGAI KUNCI IDEMPOTEN di server. Dulu server memakai `id` (format "TRP-2026-0001") sebagai kunci.
   clientTripId?: string
   route: string
   routeCode?: string
@@ -89,14 +72,12 @@ export interface Trip {
   completedAt?: string
   vehicles?: VehicleEntry[]
   synced?: boolean
-  /** Base URL server yang menerima trip ini (menampilkan mismatch endpoint). */
   syncedTarget?: string
   officerId?: string
   selfieUrl?: string
   selfieCapturedAt?: string
   updatedAt?: number
 }
-
 
 
 
@@ -134,13 +115,6 @@ export interface Draft {
 
 
 
-
-/**
- * Baris tarif untuk dipakai di perangkat.
- *
- * Tipe ini TIDAK lagi diturunkan dari data contoh bawaan - semua nilainya
- * berasal dari master tarif server (lihat services/masterTariffs.ts).
- */
 export interface TariffRow {
   id?: string
   golongan: string
@@ -154,9 +128,7 @@ export interface TariffRow {
 
 
 
-
 export type VerifyIntent = 'switch' | 'security'
-
 
 
 
@@ -172,7 +144,6 @@ interface StoreValue {
   /** true setelah riwayat dimuat dari IndexedDB (sumber kebenaran). */
   tripsLoaded: boolean
   tariffs: TariffRow[]
-  /** Master jenis kendaraan (dari database) - sumber daftar pilihan di form kendaraan. */
   vehicleTypes: VehicleType[]
   officers: Officer[]
   saveOfficers: (rows: Officer[]) => void
@@ -199,7 +170,11 @@ interface StoreValue {
   clearAllTrips: () => void
 }
 
+
+
 const DRAFT_STORAGE_KEY = 'trip.draft.v1'
+
+
 
 const emptyDraft: Draft = {
   routeCode: null,
@@ -227,8 +202,9 @@ const emptyDraft: Draft = {
   startedAt: null,
 }
 
-const StoreCtx = createContext<StoreValue | null>(null)
 
+
+const StoreCtx = createContext<StoreValue | null>(null)
 
 
 
@@ -239,7 +215,6 @@ const LS = {
   tariffs: 'trip.tariffs.v1',
   officers: 'trip.officers.v1',
 }
-
 
 
 
@@ -254,7 +229,6 @@ function load<T>(key: string, fallback: T): T {
 
 
 
-
 export function parseRp(s: string): number {
   const digits = s.replace(/[^\d]/g, '')
   return digits ? parseInt(digits, 10) : 0
@@ -262,12 +236,13 @@ export function parseRp(s: string): number {
 
 
 
-
 export function formatRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
-const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
+
+
+const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
 
 
@@ -277,18 +252,15 @@ export function fmtDate(d: Date): string {
 
 
 
-
 export function fmtTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 
 
-
 export function fmtClock(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-
 
 
 
@@ -303,19 +275,7 @@ export function fmtElapsed(totalSec: number): string {
 
 
 
-
-/**
- * Cari tarif master untuk satu jenis kendaraan.
- *
- * Pencocokan memakai kunci normalisasi yang sama dengan server
- * ("Truk Kecil" = "truk kecil" = "Truck Kecil"). Kalau jenisnya tidak ada di
- * master, hasilnya `undefined` - BUKAN tarif contoh.
- *
- * Dulu fallback-nya "Truck Sedang" (atau baris pertama daftar contoh), jadi
- * kendaraan yang tidak dikenal ikut membawa angka fiktif yang tersimpan di
- * laporan. Harga yang dipakai server dihitung ulang dari master region saat
- * trip dikirim, jadi angka di perangkat hanya perkiraan tampilan.
- */
+// Cari tarif master untuk satu jenis kendaraan.
 export function tariffFor(vehicleType: string): TariffRow | undefined {
   const list = load<TariffRow[]>(LS.tariffs, [])
   const want = vehicleTypeKey(vehicleType)
@@ -323,16 +283,13 @@ export function tariffFor(vehicleType: string): TariffRow | undefined {
   return list.find(t => vehicleTypeKey(t.type) === want)
 }
 
-// Get golongan from tariff table for a vehicle type (for backend submission)
+
+
 export function golonganFor(vehicleType: string): string {
   return tariffFor(vehicleType)?.golongan ?? ''
 }
 
-/**
- * Tarif satu kendaraan sesuai kondisi muatannya.
- * Internal tidak ditagih; selain itu pakai loadedNum / emptyNum master tarif.
- * Jenis tanpa tarif master -> 0 (tanpa tarif), bukan angka contoh.
- */
+// Tarif satu kendaraan sesuai kondisi muatannya. Internal tidak ditagih; selain itu pakai loadedNum / emptyNum master tarif.
 export function vehicleTariff(vehicleType: string, category: string, load: 'loaded' | 'empty'): number {
   if (category.trim().toLowerCase() === 'internal') return 0
   const t = tariffFor(vehicleType)
@@ -342,17 +299,10 @@ export function vehicleTariff(vehicleType: string, category: string, load: 'load
 
 
 
-/**
- * Nomor urut trip.
- *
- * Disimpan di localStorage TERPISAH dari daftar trip, supaya penomoran tidak
- * reset ketika petugas menghapus riwayat ("Hapus Semua Riwayat"). Dulu
- * penomoran dihitung dari daftar trip, jadi setelah riwayat dihapus nomor
- * mulai dari 1 lagi - dan nomor yang sama dipakai untuk trip yang berbeda.
- * Local memakai id sebagai kunci, jadi dua trip dengan id sama saling
- * menimpa di riwayat, dan server ikut menganggapnya trip yang sama.
- */
+// Nomor urut trip. Disimpan di localStorage TERPISAH dari daftar trip, supaya penomoran tidak reset ketika petugas menghapus riwayat ("Hapus Semua…
 const TRIP_SEQ_KEY = 'trip.seq.v1'
+
+
 
 function readTripSeq(): number {
   try {
@@ -364,9 +314,13 @@ function readTripSeq(): number {
   }
 }
 
+
+
 function writeTripSeq(value: number): void {
-  try { localStorage.setItem(TRIP_SEQ_KEY, String(value)) } catch { /* quota */ }
+  try { localStorage.setItem(TRIP_SEQ_KEY, String(value)) } catch {  }
 }
+
+
 
 export function nextTripId(trips: Trip[]): string {
   let max = readTripSeq()
@@ -377,9 +331,7 @@ export function nextTripId(trips: Trip[]): string {
   const next = max + 1
   writeTripSeq(next)
   const base = `TRP-${new Date().getFullYear()}-${String(next).padStart(4, '0')}`
-  // Pengaman: kalau id yang dihitung sudah dipakai (mis. localStorage
-  // dibersihkan tapi IndexedDB masih ada), tambahkan sufiks acak supaya
-  // riwayat lokal tidak menimpa trip sebelumnya.
+  // Pengaman: kalau id yang dihitung sudah dipakai (mis.
   if (trips.some(t => t.id === base)) {
     const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
     return `${base}-${suffix}`
@@ -387,12 +339,7 @@ export function nextTripId(trips: Trip[]): string {
   return base
 }
 
-/**
- * Kunci idempoten untuk trip: UUID, dibuat SEKALI saat trip dicatat.
- *
- * Berbeda dari `id` (yang hanya untuk tampilan), nilai ini ikut tersimpan
- * di IndexedDB, jadi tetap sama saat retry dan tetap berbeda antar perangkat.
- */
+// Kunci idempoten untuk trip: UUID, dibuat SEKALI saat trip dicatat.
 export function newClientTripId(): string {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -404,15 +351,12 @@ export function newClientTripId(): string {
 
 
 
-
-
 export function normalizeCategory(c?: string): string | undefined {
   if (!c) return c
 
   if (!/^ekst/i.test(c)) return c
   return /tanpa|bebas/i.test(c) ? 'Eksternal Bebas' : 'Eksternal'
 }
-
 
 
 
@@ -431,7 +375,6 @@ export function unitLabel(list: VehicleEntry[] | undefined, index: number): stri
 
 
 
-
 function normalizeTrips(list: Trip[]): Trip[] {
   return list.map(t => ({
     ...t,
@@ -439,7 +382,6 @@ function normalizeTrips(list: Trip[]): Trip[] {
     vehicles: t.vehicles?.map(v => ({ ...v, category: normalizeCategory(v.category) ?? v.category })),
   }))
 }
-
 
 
 
@@ -452,28 +394,14 @@ function hasTripPhoto(trip: Trip): boolean {
 
 
 
-
-/**
- * Perbandingan murah untuk memutuskan "state tidak berubah": cukup ada/tidaknya
- * foto. Isi foto hanya berubah lewat aksi yang menaikkan `updatedAt`
- * (patchTripPhoto / patchVehiclePhoto), jadi perbandingan boolean sudah cukup —
- * dan penting: tanpa cek ini, optimasi "sama → pakai state lama" justru
- * membuang foto yang baru dipulihkan dari IndexedDB.
- */
+// Perbandingan murah untuk memutuskan "state tidak berubah": cukup ada/tidaknya foto.
 function samePhotoPresence(a: Trip | undefined, b: Trip | undefined): boolean {
   if (!a || !b) return a === b
   return hasTripPhoto(a) === hasTripPhoto(b)
 }
 
 
-/**
- * Buang data foto (base64) dari sebuah trip.
- *
- * Dipakai untuk cache metadata di localStorage: foto disimpan penuh di
- * IndexedDB (kuota besar), sedangkan localStorage hanya ~5 MB. Kalau foto
- * ikut disimpan di localStorage, 3-5 trip sudah menghabiskan kuota dan trip
- * berikutnya hilang dari riwayat.
- */
+// Buang data foto (base64) dari sebuah trip.
 export function stripTripPhotos(trip: Trip): Trip {
   return {
     ...trip,
@@ -485,18 +413,7 @@ export function stripTripPhotos(trip: Trip): Trip {
 
 
 
-
-/**
- * Salin foto (beserta metadata jepretannya) dari versi yang SUDAH tersimpan ke
- * versi baru yang tidak membawa foto.
- *
- * Aturan: foto hanya bergerak MAJU. State `trips` awalnya diisi dari cache
- * metadata `localStorage` — yang sengaja TIDAK memuat foto — sehingga menulis
- * state itu mentah-mentah ke IndexedDB menghapus foto yang tersimpan permanen
- * (gejala: "Foto Dokumentasi (0)" di Riwayat setelah aplikasi dibuka ulang).
- * Versi baru yang benar-benar membawa foto (termasuk hasil ambil ulang) selalu
- * menang, jadi tidak ada foto yang "nyangkut" di data lama.
- */
+// Salin foto (beserta metadata jepretannya) dari versi yang SUDAH tersimpan ke versi baru yang tidak membawa foto. Aturan: foto hanya bergerak MAJU.
 export function withStoredPhotos(next: Trip, stored?: Trip): Trip {
   if (!stored) return next
   const picked: Partial<Trip> = {}
@@ -513,8 +430,7 @@ export function withStoredPhotos(next: Trip, stored?: Trip): Trip {
   const vehicles = next.vehicles?.map(v => {
     if (v.photoUrl) return v
     const plate = v.plate?.trim().toUpperCase()
-    // Cocokkan per plat, bukan per index: urutan kendaraan bisa berubah dan
-    // index yang bergeser akan menempelkan foto ke unit yang salah.
+    // Cocokkan per plat, bukan per index: urutan kendaraan bisa berubah dan index yang bergeser akan menempelkan foto ke unit yang salah.
     const match = stored.vehicles?.find(s => !!s.photoUrl && !!plate && s.plate?.trim().toUpperCase() === plate)
     return match
       ? {
@@ -531,8 +447,6 @@ export function withStoredPhotos(next: Trip, stored?: Trip): Trip {
 
 
 
-
-/** Isi foto yang masih KOSONG dari salinan antrean (foto yang sudah ada dibiarkan). */
 function applyQueuedPhotos(trip: Trip, q: QueuedPhotos): Trip {
   const vehicles = trip.vehicles?.map((v, i) => {
     const url = q.vehiclePhotos[i]
@@ -548,15 +462,6 @@ function applyQueuedPhotos(trip: Trip, q: QueuedPhotos): Trip {
 
 
 
-
-/**
- * Pemulihan terakhir untuk foto yang sudah terlanjur hilang dari store `trips`.
- *
- * Antrean sync (`pending`) menyimpan foto secara utuh dan tidak pernah ditulis
- * sebagai metadata-only, jadi selama trip masih menunggu kirim, fotonya masih
- * bisa dikembalikan ke Riwayat — sekaligus memastikan upload tetap membawa blob
- * foto yang valid.
- */
 async function recoverPhotosFromQueue(trips: Trip[]): Promise<Trip[]> {
   const missing = trips.filter(t => !hasTripPhoto(t))
   if (!missing.length) return trips
@@ -571,18 +476,13 @@ async function recoverPhotosFromQueue(trips: Trip[]): Promise<Trip[]> {
 
 
 
-
-/**
- * Simpan riwayat ke IndexedDB tanpa pernah menghapus foto yang sudah tersimpan.
- * Diekspor agar bisa diuji langsung (lihat store.persistence.test.tsx).
- */
+// Simpan riwayat ke IndexedDB tanpa pernah menghapus foto yang sudah tersimpan. Diekspor agar bisa diuji langsung (lihat store.persistence.test.tsx).
 export async function persistTrips(trips: Trip[]): Promise<void> {
   try {
     const rows: Trip[] = []
     for (const t of trips) {
       if (hasTripPhoto(t)) { rows.push(t); continue }
-      // Trip tanpa foto = lapisan cache metadata. Baca versi tersimpan dulu
-      // supaya foto tetap utuh di IndexedDB.
+      // Trip tanpa foto = lapisan cache metadata. Baca versi tersimpan dulu supaya foto tetap utuh di IndexedDB.
       const stored = await dbGet<Trip>('trips', t.id).catch(() => null)
       rows.push(withStoredPhotos(t, stored ?? undefined))
     }
@@ -594,6 +494,7 @@ export async function persistTrips(trips: Trip[]): Promise<void> {
     console.warn('[store] riwayat gagal disimpan ke IndexedDB:', err)
   }
 }
+
 
 
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
@@ -611,10 +512,6 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
       prev.synced === true && t.synced !== true ? prev :
       t.synced === true && prev.synced !== true ? t :
       nextTs >= prevTs ? t : prev
-    // When two versions of the same trip are equally recent, keep the one
-    // that still has photos. The localStorage cache only holds metadata
-    // (photos live in IndexedDB), so blindly picking the newest one would
-    // strip the photos from the history list.
     if (winner === t && !hasTripPhoto(t) && hasTripPhoto(prev)) winner = prev
     byId.set(key, winner)
   }
@@ -623,16 +520,7 @@ export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
 
 
 
-
-/**
- * Isi ulang `dermagaAccess` yang kosong dari roster yang sudah tersinkron
- * dari server.
- *
- * Dulu sumbernya adalah roster seed bawaan (nama & region contoh yang sudah
- * DIHAPUS dari database) - jadi petugas bisa mendapat akses dermaga untuk
- * wilayah yang tidak ada. Sekarang satu-satunya sumber adalah data server.
- */
-/** Petugas kosong - dipakai kalau roster belum tersedia (bukan data contoh). */
+// Isi ulang `dermagaAccess` yang kosong dari roster yang sudah tersinkron dari server.
 const EMPTY_OFFICER: Officer = {
   id: '',
   name: '',
@@ -649,6 +537,8 @@ const EMPTY_OFFICER: Officer = {
   dermagaAccess: [],
 }
 
+
+
 export function healDermagaAccess(list: Officer[]): Officer[] {
   const byId = new Map(getStoredOfficers().map(s => [String(s.id), s.dermagaAccess ?? []]))
   return list.map(o => {
@@ -660,19 +550,14 @@ export function healDermagaAccess(list: Officer[]): Officer[] {
 
 
 
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loggedIn, setLoggedIn] = useState<boolean>(() => load(LS.session, false))
   const [userType, setUserType] = useState<'admin' | 'member'>(() => load('trip.userType', 'member'))
   const [officerId, setOfficerIdState] = useState<string>(() => String(load(LS.officer, '')))
-  // ponytail: JANGAN mengisi riwayat dengan data contoh. Riwayat & laporan
-  // harus murni berasal dari trip yang benar-benar dicatat petugas di perangkat.
+  // ponytail: JANGAN mengisi riwayat dengan data contoh. Riwayat & laporan harus murni berasal dari trip yang benar-benar dicatat petugas di perangkat.
   const [trips, setTrips] = useState<Trip[]>(() => normalizeTrips(load(LS.trips, [] as Trip[])))
-  // ponytail: tarif bisa di-update runtime oleh prefetch (master tarif server).
-  // Dulu state-nya read-only -> hasil prefetch tidak pernah masuk ke UI.
   const [tariffs, setTariffs] = useState<TariffRow[]>(() => load<TariffRow[]>(LS.tariffs, []))
-  // Master jenis kendaraan (dari database). Dipakai form kendaraan supaya
-  // pilihannya sama persis dengan dashboard admin.
+  // Master jenis kendaraan (dari database). Dipakai form kendaraan supaya pilihannya sama persis dengan dashboard admin.
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(() => getStoredVehicleTypes())
   const [officers, setOfficers] = useState<Officer[]>(() => {
     // Tidak ada roster contoh: daftar petugas hanya berasal dari server.
@@ -680,8 +565,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return healDermagaAccess(saved)
   })
   const [draft, setDraft] = useState<Draft>(emptyDraft)
-  // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh /
-  // aplikasi ditutup. Sebelumnya draft hanya di useState → semua foto hilang.
+  // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh / aplikasi ditutup. Sebelumnya draft hanya di useState → semua foto hilang.
   const draftHydratedRef = useRef(false)
   useEffect(() => {
     let alive = true
@@ -703,8 +587,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { alive = false }
   }, [])
 
-  // Simpan draft (debounce) supaya foto yang baru diambil tidak hilang saat
-  // layar di-refresh atau aplikasi ditutup paksa.
+  // Simpan draft (debounce) supaya foto yang baru diambil tidak hilang saat layar di-refresh atau aplikasi ditutup paksa.
   useEffect(() => {
     if (!draftHydratedRef.current) return
     const timer = setTimeout(() => {
@@ -724,24 +607,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void initLocalDb()
-    // Foto (base64) hanya di IndexedDB; localStorage menyimpan metadata saja
-    // supaya kuota localStorage tidak habis dan trip tidak hilang dari riwayat.
+    // Foto (base64) hanya di IndexedDB; localStorage menyimpan metadata saja supaya kuota localStorage tidak habis dan trip tidak hilang dari riwayat.
     try {
       localStorage.setItem(LS.trips, JSON.stringify(trips.map(stripTripPhotos)))
     } catch (err) {
       console.warn('[store] localStorage penuh — data aman di IndexedDB:', err)
     }
-    // JANGAN menulis ke IndexedDB sebelum hidrasi selesai: state awal diisi
-    // dari cache metadata (tanpa foto), dan menulisnya lebih dulu menghapus
-    // SEMUA foto yang tersimpan. `tripsLoaded` ikut jadi dependency supaya
-    // state hasil hidrasi tetap tersimpan setelah hidrasi tuntas.
+    // JANGAN menulis ke IndexedDB sebelum hidrasi selesai: state awal diisi dari cache metadata (tanpa foto), dan menulisnya lebih dulu menghapus SEMUA…
     if (!tripsLoaded) return
     void persistTrips(trips)
   }, [trips, tripsLoaded])
 
   // Sumber kebenaran riwayat = IndexedDB (lengkap dengan foto).
-  // localStorage hanya cache metadata, jadi trip yang masih ada di sana tapi
-  // belum tersimpan ke IndexedDB tetap ditampilkan.
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -770,8 +647,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onStorage = () => {
-      // Data dari tab lain hanya metadata (foto disimpan di IndexedDB),
-      // jadi merge tanpa menimpa foto yang sudah ada di state.
+      // Data dari tab lain hanya metadata (foto disimpan di IndexedDB), jadi merge tanpa menimpa foto yang sudah ada di state.
       setTrips(prev => mergeTrips(prev, normalizeTrips(load(LS.trips, [] as Trip[])).map(stripTripPhotos)))
       setLoggedIn(load(LS.session, false))
       const so = getStoredOfficer()
@@ -784,7 +660,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
   useEffect(() => {
-    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.tariffs, JSON.stringify(tariffs)) } catch {  }
   }, [tariffs])
   useEffect(() => {
     const onTariffs = () => {
@@ -800,16 +676,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(VEHICLE_TYPES_UPDATED_EVENT, onTypes)
   }, [])
   useEffect(() => {
-    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.officers, JSON.stringify(officers)) } catch {  }
   }, [officers])
   useEffect(() => {
-    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.officer, JSON.stringify(officerId)) } catch {  }
   }, [officerId])
   useEffect(() => {
-    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch { /* quota */ }
+    try { localStorage.setItem(LS.session, JSON.stringify(loggedIn)) } catch {  }
   }, [loggedIn])
   useEffect(() => {
-    try { localStorage.setItem('trip.userType', userType) } catch { /* quota */ }
+    try { localStorage.setItem('trip.userType', userType) } catch {  }
   }, [userType])
 
   const officer = useMemo(() => {
@@ -834,9 +710,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dermagaAccess: (so as { dermagaAccess?: Officer['dermagaAccess'] }).dermagaAccess ?? [],
         } as Officer
       }
-    } catch { /* fallthrough */ }
-    // Tidak ada roster (belum sync / belum login) -> petugas kosong, bukan
-    // data contoh. Dulu fallback-nya `officerList[0]` (petugas palsu).
+    } catch {  }
+    // Tidak ada roster (belum sync / belum login) -> petugas kosong, bukan data contoh. Dulu fallback-nya `officerList[0]` (petugas palsu).
     return officers[0] ?? (EMPTY_OFFICER as Officer)
   }, [officers, officerId])
 
@@ -917,8 +792,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tripPhoto?: { dataUrl: string; mimeType: string },
   ) => {
     // Kunci idempoten dibuat SEKALI di sini. Kalau trip ini di-retry (mis.
-    // foto belum lengkap lalu dilengkapi), clientTripId yang sama dipakai
-    // lagi -> server tahu itu trip yang sama, bukan trip baru.
     const tripWithSync: Trip = { ...t, clientTripId: t.clientTripId ?? newClientTripId(), synced: false }
     setTrips(prev => [tripWithSync, ...prev])
     setDetailTripId(t.id)
@@ -1005,9 +878,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       status: 'Selesai',
       time: fmtClock(now),
       date: fmtDate(now),
-      // `load` = kondisi TRIP, bukan kondisi muatan tiap kendaraan. Trip dengan
-      // kendaraan tetap 'Ada Muatan' walau semua unitnya mengangkut kosong;
-      // status muatan per-unit tetap disimpan di vehicle.load dan payload sync.
+      // `load` = kondisi TRIP, bukan kondisi muatan tiap kendaraan. Trip dengan kendaraan tetap 'Ada Muatan' walau semua unitnya mengangkut kosong;
       load: vehicles.length > 0 ? 'Ada Muatan' : 'Kosong',
       vehicle: vehicles[0]?.plate ?? '-',
       type: vehicles[0]?.type ?? '-',
@@ -1061,7 +932,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearAllTrips = useCallback(() => {
     setTrips([])
     setDetailTripId(null)
-    try { localStorage.removeItem(LS.trips) } catch { /* ignore */ }
+    try { localStorage.removeItem(LS.trips) } catch {  }
     void dbClear('trips')
     void dbClear('pending')
     notifyQueueListeners()
@@ -1090,8 +961,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     if (force) {
-      // tarik manual = segarkan semua: petugas + titik (tanpa logout)
-      // ponytail: foreground = force agar edit admin langsung sampai
+      // tarik manual = segarkan semua: petugas + titik (tanpa logout) ponytail: foreground = force agar edit admin langsung sampai
       void prefetchAllCriticalData({ force: true }).catch(() => undefined)
 
       const ok = await refreshBackendSession(String(officerId))
@@ -1120,9 +990,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [markTripSynced])
 
   useEffect(() => {
-    // ponytail: begitu perangkat ONLINE (atau sesi siap), TARIK SEMUA master
-    // data dari dashboard admin: PIN baru, petugas baru, akses dermaga baru,
-    // rute, geofence, tarif. Hasilnya langsung menggantikan cache lokal.
     const pullAuthorizedMasterData = () => {
       void refreshOfficers(true)
       void prefetchAllCriticalData({ force: true }).catch(() => undefined)
@@ -1137,8 +1004,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshOfficers])
 
-  // Roster yang ditarik dari server (PIN/petugas/akses baru) langsung
-  // menggantikan roster di UI.
   useEffect(() => {
     const onUpdated = (e: Event) => {
       const roster = (e as CustomEvent).detail?.roster
@@ -1179,7 +1044,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }
-
 
 
 

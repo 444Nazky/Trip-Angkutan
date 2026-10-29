@@ -1,30 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import {
-  checkEndpointConsistency,
-  parseEnvFromSource,
-} from '../../scripts/check-endpoint-consistency.mjs'
+import { checkEndpointConsistency, parseEnvFromSource, } from '../../scripts/check-endpoint-consistency.mjs'
 
-/**
- * Regression test untuk penjaga "split-brain" endpoint.
- *
- * Script ini memblokir build kalau aplikasi mobile dan dashboard admin
- * menunjuk server berbeda. Karena itu parser-nya harus tahan terhadap
- * bentuk bundle hasil minify — yang biasanya MELEMPARKAN nilai string ke
- * konstanta terpisah, bukan menuliskannya inline:
- *
- *     Se$1=`http://192.168.1.123:3000/api`
- *     B$1={production:!0,apiBaseUrl:Se$1,intranetApiBaseUrl:Se$1}
- *
- * Parser versi lama hanya mencari literal, jadi bundle yang BENAR justru
- * dilaporkan "tidak ditemukan" dan build gagal (false positive).
- */
+// Regression test untuk penjaga "split-brain" endpoint. Script ini memblokir build kalau aplikasi mobile dan dashboard admin menunjuk server berbeda.
 
 const LAN = 'http://192.168.1.123:3000/api'
 
-/** Parse bundle dari string (tanpa I/O, jadi aman dipanggil dari test). */
+
+
 function parseBundle(source: string) {
   return parseEnvFromSource(source)
 }
+
+
 
 describe('readEnvFromBundle: nilai environment di bundle minify', () => {
   it('membaca nilai literal langsung', () => {
@@ -36,7 +23,6 @@ describe('readEnvFromBundle: nilai environment di bundle minify', () => {
   })
 
   it('mengikuti identifier yang di-hoist oleh minifier', () => {
-    // Bentuk yang TELAH menggagalkan build: nilai tidak lagi inline.
     const env = parseBundle(
       `var Se$1=\`${LAN}\`;var B$1={production:!0,apiBaseUrl:Se$1,intranetApiBaseUrl:Se$1};`,
     )
@@ -67,6 +53,8 @@ describe('readEnvFromBundle: nilai environment di bundle minify', () => {
     expect(env.intranetApiBaseUrl).toBeNull()
   })
 })
+
+
 
 describe('checkEndpointConsistency: aturan split-brain', () => {
   it('meloloskan mobile & admin yang menunjuk server sama', () => {

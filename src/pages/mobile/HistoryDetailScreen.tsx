@@ -6,11 +6,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -20,7 +18,6 @@ interface DocPhoto {
   kind: 'trip' | 'vehicle' | 'selfie'
   index?: number
 }
-
 
 
 
@@ -43,8 +40,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const [preview, setPreview] = useState<DocPhoto | null>(null)
 
   // Foto yang gagal dimuat (data URL rusak / gambar tidak bisa didekode WebView).
-  // Diperlakukan sama seperti foto yang belum ada: placeholder + tombol ambil
-  // ulang, bukan thumbnail rusak atau hitungan foto yang menipu.
   const [broken, setBroken] = useState<Record<string, true>>({})
   const usableUrl = (url?: string): string | undefined => (url && !broken[url] ? url : undefined)
   const markBroken = (url: string) => setBroken(b => (b[url] ? b : { ...b, [url]: true }))
@@ -69,9 +64,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   }
 
   // Klasifikasi HARUS dari ada/tidaknya kendaraan, bukan `t.load`.
-  // Dulu trip ber-kendaraan yang semua muatannya "empty" tersimpan
-  // load='Kosong' → foto kendaraan tidak pernah ditampilkan dan labelnya
-  // tertukar menjadi "Foto Bukti Kapal Kosong".
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
   const isEmptyTrip = !realVehicles
 
@@ -105,9 +97,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const brokenCount = Object.keys(broken).length
 
-  // Setelah trip BERHASIL terkirim ke server, foto dokumentasi tidak boleh
-  // ditambah/diambil ulang lagi: data di server sudah final (snapshot),
-  // dan pengambilan ulang hanya memicu upload ulang trip yang sudah sah.
+  // Setelah trip BERHASIL terkirim ke server, foto dokumentasi tidak boleh ditambah/diambil ulang lagi: data di server sudah final (snapshot), dan…
   const canCapturePhoto = !isSynced
 
   const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
@@ -140,7 +130,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </span>
       </div>
 
-      {/* Info Card */}
+
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="grid grid-cols-2 gap-4">
           {[{ l: 'Tanggal', v: t.date }, { l: 'Jam Mulai', v: t.time }, { l: 'Durasi', v: t.duration }, { l: 'Petugas', v: t.officer }].map(({ l, v }) => (
@@ -197,7 +187,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                   )}
                 </div>
 
-                {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
+
                 {editing && (
                   <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
                     <input
@@ -338,7 +328,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         )}
       </div>
 
-      {/* Lightbox dokumentasi */}
+
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white">
@@ -364,7 +354,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {/* Sync Status */}
+
       <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
         sendFailed
           ? 'bg-red-50 border-red-200'

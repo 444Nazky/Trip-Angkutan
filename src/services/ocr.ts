@@ -2,14 +2,12 @@ import { createWorker } from 'tesseract.js'
 
 
 
-
 function normalizePlate(text: string): string {
   let result = text.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ')
   result = result.trim()
   result = result.replace(/\s+/g, ' ')
   return result
 }
-
 
 
 
@@ -27,7 +25,6 @@ function toStandardFormat(text: string): string {
 
   return text
 }
-
 
 
 
@@ -73,7 +70,6 @@ function preprocessImage(src: HTMLCanvasElement | HTMLImageElement | HTMLVideoEl
 
 
 
-
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -82,7 +78,6 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob)
   })
 }
-
 
 
 
@@ -101,7 +96,6 @@ async function preprocessSrc(src: string): Promise<string> {
     img.src = src
   })
 }
-
 
 
 

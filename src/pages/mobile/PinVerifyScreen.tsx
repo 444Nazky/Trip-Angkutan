@@ -9,11 +9,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface PinVerifyScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -58,13 +56,11 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     setError(false)
 
     try {
-      // Check if we can do offline login (already has stored credentials)
       const local = await loginOffline()
       if (local.success) {
         if (navigator.onLine) {
           void refreshSessionInBackground(targetId, pressedPin)
         } else {
-          // Offline mode - prefetch dari cache
           prefetchAllCriticalData().catch(() => {})
         }
         finishAuth()
@@ -105,11 +101,10 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
       await loginWithPin(id, pin)
       if (api.isAuthenticated) {
         void syncNow().catch(() => undefined)
-        // Prefetch data kritis di background
         void prefetchAllCriticalData().catch(() => undefined)
         window.dispatchEvent(new Event(SESSION_READY_EVENT))
       }
-    } catch { /* tetap mode offline — sinkron menyusul */ }
+    } catch {  }
   }
 
   return (
@@ -121,7 +116,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         <ChevronLeft size={16} /> Kembali
       </button>
 
-      {/* Icon + judul */}
+
       <div className="w-16 h-16 rounded-3xl bg-[#0F172A] flex items-center justify-center mb-4 shadow-lg">
         <Lock size={28} className="text-amber-400" />
       </div>
@@ -137,7 +132,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         </p>
       )}
 
-      {/* Dot indicators */}
+
       <div className="flex gap-3 mb-7">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
@@ -161,7 +156,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         </p>
       )}
 
-      {/* Numpad */}
+
       <div className="grid grid-cols-3 gap-3 w-full max-w-[260px]">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => (
           k === '' ? <div key="empty" />
@@ -178,7 +173,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
         ))}
       </div>
 
-      {/* Konfirmasi */}
+
       <button
         onClick={() => void confirm()}
         disabled={pressedPin.length < 6 || loading}

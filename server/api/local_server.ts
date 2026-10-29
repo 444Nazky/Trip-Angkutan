@@ -1,52 +1,30 @@
-/**
- * Server API INTRANET (port 3000).
- *
- * Menjalankan router API di dalam jaringan lokal kantor (PC Ubuntu
- * 192.168.1.123). Aplikasi mobile dan dashboard admin hanya memanggil
- * endpoint ini: http://192.168.1.123:3000/api
- *
- * Tidak ada koneksi ke internet:
- *   - Database : PostgreSQL lokal di container `db` (diakses lewat PostgREST
- *                container `rest`, lihat `_db.ts`).
- *   - File     : direktori lokal `STORAGE_DIR` (default /data/storage),
- *                dilayani di /files/<bucket>/<path>.
- *
- * Syarat environment (lihat server/api/.env.example):
- *   JWT_SECRET     - WAJIB. Dipakai menandatangani token admin/petugas.
- *   POSTGREST_URL  - opsional, default http://127.0.0.1:3001 (docker: http://rest:3000)
- *   STORAGE_DIR    - opsional, default /data/storage
- *   ADMIN_USERNAME / ADMIN_PASSWORD - opsional, kredensial dashboard
- *   LAN_IP, PORT, HOST, TLS_CERT_FILE, TLS_KEY_FILE - opsional
- */
+// Server API INTRANET (port 3000). Menjalankan router API di dalam jaringan lokal kantor (PC Ubuntu 192.168.1.123).
 
 import { join } from "node:path";
 
+
+
 const PORT = Number(Deno.env.get("PORT") ?? "3000");
+
+
+
 const HOST = Deno.env.get("HOST") ?? "0.0.0.0";
 
-// Nonaktifkan server bawaan di index.ts supaya tidak ada dua Deno.serve
-// dalam satu proses. Harus di-set SEBELUM import modul index.
+// Nonaktifkan server bawaan di index.ts supaya tidak ada dua Deno.serve dalam satu proses. Harus di-set SEBELUM import modul index.
 Deno.env.set("API_DISABLE_EMBEDDED_SERVER", "1");
 
 // ── Pre-flight: secrets wajib ada ─────────────────────────────────────────────
 
-// JWT_SECRET WAJIB ada di server intranet.
-//
-// Kenapa wajib (bukan sekadar peringatan):
-//   `_shared.ts` memakai fallback `|| "trip-angkut-secret-key"` kalau env
-//   kosong. Fallback itu tertulis di source repo, jadi anybody yang bisa
-//   membaca repo bisa MEMBUAT TOKEN ADMIN SENDIRI secara offline (HMAC-SHA256
-//   dengan key yang diketahui). Server intranet ini listen di 0.0.0.0:3000
-//   -> reachable dari device mana pun di LAN.
-//
-//   Plus CORS API intranet mengizinkan origin `*` (_shared.ts), jadi halaman
-//   web yang dibuka petugas di browser pun bisa menembak API intranet.
-//
-//   Pre-flight ini hanya jalan di server intranet (file ini).
+// JWT_SECRET WAJIB ada di server intranet. Kenapa wajib (bukan sekadar peringatan): `_shared.ts` memakai fallback `|| "trip-angkut-secret-key"` kalau…
 const REQUIRED = [
   "JWT_SECRET",
 ] as const;
+
+
+
 const missing = REQUIRED.filter((k) => !Deno.env.get(k));
+
+
 
 if (missing.length > 0) {
   console.error(
@@ -67,47 +45,16 @@ if (missing.length > 0) {
   Deno.exit(1);
 }
 
-// ── Mode akses dashboard admin ────────────────────────────────────────────────
-//
-// Dashboard admin pada server intranet TIDAK memakai password.
-//
-// Server ini hanya melayani jaringan lokal kantor (192.168.1.0/24), dan
-// dashboard sudah sebelumnya terbuka otomatis tanpa interaksi login. Mode ini
-// dipertahankan supaya instalasi baru tidak pernah tersangkut di layar login
-// karena kredensial admin belum dikonfigurasi.
-//
-// Set ADMIN_AUTH_DISABLED=0 (di .env.local) kalau dashboard memang perlu
-// dilindungi password. Setelah dimatikan, kredensial diambil dari tabel
-// admin_credentials; pakai `node scripts/reset-admin-password.mjs` untuk
-// membuat atau mengganti password-nya.
+// ── Mode akses dashboard admin ──────────────────────────────────────────────── Dashboard admin pada server intranet TIDAK memakai password.
 if (Deno.env.get("ADMIN_AUTH_DISABLED") === undefined) {
   Deno.env.set("ADMIN_AUTH_DISABLED", "1");
 }
 
-// ── Pre-flight: direktori penyimpanan berkas ─────────────────────────────────
-//
-// Server menyimpan berkas (foto trip, APK, bundel OTA) di STORAGE_DIR, yang di
-// dalam container berupa bind-mount dari host (`./data/storage`).
-//
-// Dua hal bisa menggagalkan penulisan berkas:
-//
-//   1. Direktori tidak ada sama sekali -> `mkdir` gagal.
-//   2. Direktori ada tapi dimiliki user lain. Ini kasus yang paling sering
-//      terjadi: container berjalan sebagai user non-root `deno` (uid 1000),
-//      sedangkan direktori di host dibuat oleh `docker` sebagai root dengan
-//      mode 755. User `deno` lalu tidak boleh menulis di dalamnya.
-//
-// Gejalanya: SEMUA unggahan berkas gagal dengan "Permission denied
-// (os error 13)", termasuk unggahan foto trip dari aplikasi petugas, yang
-// berakhir sebagai HTTP 500 dari /trips/complete. Galat itu muncul jauh dari
-// penyebabnya, jadiukar dihentikan di sini dengan pesan yang menyebutkan
-// perbaikannya.
-//
-// Perbaikan: pastikan direktori ada dan bisa ditulis. Kalau tidak bisa
-// ditulis, server tetap jalan (endpoint lain tetap berfungsi) tetapi
-///storage menandai kondisi ini supaya operator tahu apa yang harus dibetulkan.
+// ── Pre-flight: direktori penyimpanan berkas ───────────────────────────────── Server menyimpan berkas (foto trip, APK, bundel OTA) di STORAGE_DIR,…
 
 const STORAGE_DIR = Deno.env.get("STORAGE_DIR") || "/data/storage";
+
+
 
 async function prepareStorageDir(): Promise<boolean> {
   try {
@@ -120,9 +67,6 @@ async function prepareStorageDir(): Promise<boolean> {
     return false;
   }
 
-  // Uji tulis nyata. Akses directory (stat/mkdir) bisa succeeds sementara
-  // file di dalamnya tetap tidak bisa ditulis, jadi yang diuji adalah
-  // menulis file sungguhan.
   const probe = join(STORAGE_DIR, ".write-probe");
   try {
     await Deno.writeFile(probe, new Uint8Array([0]));
@@ -146,21 +90,16 @@ async function prepareStorageDir(): Promise<boolean> {
   }
 }
 
+
+
 const STORAGE_READY = await prepareStorageDir();
 
-// ── Import router utama ───────────────────────────────────────────────────────
+
 
 const { handleRequest } = await import("./index.ts");
 
-// ── Server ────────────────────────────────────────────────────────────────────
 
-// Deno 2.x: `Deno.networkInterfaces()` mengembalikan DAFTAR ALAMAT yang datar
-// (NetworkInterfaceInfo: { name, family, address, ... }), BUKAN array interface
-// yang masing-masing punya `.addresses` seperti Deno 1.x.
-//
-// Kalau ditulis ala Deno 1 (`iface.addresses`), hasilnya ALWAYS array kosong:
-// `iface.addresses` undefined -> `?? []` -> tidak ada satu pun IP yang
-// tercetak, tanpa error. Itu sebabnya banner LAN pernah kosong.
+// Deno 2.x: `Deno.networkInterfaces()` mengembalikan DAFTAR ALAMAT yang datar (NetworkInterfaceInfo: { name, family, address, ...
 async function lanAddresses(): Promise<string[]> {
   const out: string[] = [];
   try {
@@ -173,78 +112,46 @@ async function lanAddresses(): Promise<string[]> {
       if (!out.includes(ip)) out.push(ip);
     }
   } catch {
-    // networkInterfaces tidak tersedia di beberapa runtime -> abaikan.
   }
   return out;
 }
 
-// Alamat LAN dihitung SEBELUM Deno.serve: callback `onListen` dijalankan
-// sinkron oleh Deno, jadi kalau isinya `await`, sisa kode setelah await
-// tidak ikut tercetak tepat waktu (banner LAN pernah kosong).
+// Alamat LAN dihitung SEBELUM Deno.serve: callback `onListen` dijalankan sinkron oleh Deno, jadi kalau isinya `await`, sisa kode setelah await tidak…
 const LAN_IPS = await lanAddresses();
 
 // IP LAN HOST opsional, mis. "192.168.1.123".
-//
-// Di dalam container Docker, `Deno.networkInterfaces()` hanya melihat
-// interface container (172.18.x.x) - bukan IP host yang diketik petugas di
-// HP. Jadi IP host boleh diberikan lewat env `LAN_IP` supaya banner
-// menampilkan URL yang benar-benar bisa dibuka perangkat di jaringan.
 const EXTRA_LAN_IPS = (Deno.env.get("LAN_IP") ?? "")
   .split(/[,\s]+/)
   .map((s) => s.trim())
   .filter((s) => s.length > 0 && !s.startsWith("127."));
+
+
+
 for (const ip of EXTRA_LAN_IPS) {
   if (!LAN_IPS.includes(ip)) LAN_IPS.push(ip);
 }
 
-// ── Suntik IP peer asli ke request ───────────────────────────────────────────
-//
-// Rate limiter (_ratelimit.ts) menentukan IP klien dari header
-// `x-forwarded-for` -> `x-real-ip` -> `cf-connecting-ip`, fallback "unknown".
-//
-// Di belakang reverse proxy, `x-forwarded-for` diisi oleh proxy -> benar.
-// Di server intranet TIDAK ADA reverse proxy di depan Deno, jadi header itu
-// datang langsung dari klien dan bisa DIPALSUKAN. Akibatnya:
-//   - rate limit per-IP jadi tidak berguna (klien putar header => bucket baru
-//     tiap request, dan "unknown" jadi bucket bersama semua device), dan
-//   - log request mencatat IP yang tidak akurat.
-//
-// Solusinya: Deno menyediakan IP peer asli lewat `info.remoteAddr` pada
-// handler Deno.serve. Kita BUNGKUS handleRequest dan menimpa `x-forwarded-for`
-// dengan nilai itu.
-//
-// PENTING: header pada Request dari Deno.serve bersifat immutable
-// ("Cannot change headers: headers are immutable"), jadi WAJIB lewat
-// `new Request(req, { headers })` - bukan `req.headers.set(...)`.
-//
-// Body tetap utuh: `new Request(req, {headers})` mempertahankan stream body
-// yang sama, jadi `req.formData()` di /trips/complete tetap bisa membaca
-// multipart (sudah diverifikasi).
-// ── TLS opsional ──────────────────────────────────────────────────────────────
-//
-// Default: server intranet serves HTTP polos (http://192.168.1.123:3000/api).
-// Itu cukup untuk aplikasi native (WebView) karena cleartext ke LAN sudah
-// diizinkan lewat `android.allowMixedContent` + network security config.
-//
-// Kalau aplikasi dibuka lewat https di browser (atau kebijakan kantor mau
-// server intranet punya TLS), set dua env berikut:
-//
-//   TLS_CERT_FILE=/path/ke/sertifikat.pem
-//   TLS_KEY_FILE=/path/ke/private-key.pem
-//
-// Server lalu serve HTTPS di port yang sama, dan kandidat
-// "Intranet Kantor (HTTPS)" bisa dipakai di aplikasi (isi
-// `intranetHttpsApiBaseUrl` di src/environments/environment.ts).
-//
-// CATATAN PENTING: sertifikat self-signed harus DIINSTALL di perangkat
-// petugas, kalau tidak WebView/browser menolak koneksi ("sertifikat tidak
-// dipercaya") - gejalanya mirip "server tidak merespon".
+// ── Suntik IP peer asli ke request ─────────────────────────────────────────── Rate limiter (_ratelimit.ts) menentukan IP klien dari header…
 const TLS_CERT_FILE = (Deno.env.get("TLS_CERT_FILE") ?? "").trim();
+
+
+
 const TLS_KEY_FILE = (Deno.env.get("TLS_KEY_FILE") ?? "").trim();
+
+
+
 const TLS_ENABLED = Boolean(TLS_CERT_FILE && TLS_KEY_FILE);
 
+
+
 let tlsCert = "";
+
+
+
 let tlsKey = "";
+
+
+
 if (TLS_ENABLED) {
   try {
     tlsCert = await Deno.readTextFile(TLS_CERT_FILE);
@@ -257,13 +164,16 @@ if (TLS_ENABLED) {
   }
 }
 
+
+
 const SCHEME = TLS_ENABLED ? "https" : "http";
+
+
 
 Deno.serve(
   {
     port: PORT,
     hostname: HOST,
-    // Deno.serve menerima `cert`/`key` (isi PEM) untuk HTTPS.
     ...(TLS_ENABLED ? { cert: tlsCert, key: tlsKey } : {}),
     onListen: ({ hostname, port }) => {
       console.log(`[api-intranet] API lokal siap di ${SCHEME}://${hostname}:${port}/api`);
@@ -277,12 +187,13 @@ Deno.serve(
     if (!peer) return handleRequest(req);
 
     const headers = new Headers(req.headers);
-    // Timpa apa pun yang dikirim klien - inilah IP yang benar.
     headers.set("x-forwarded-for", peer);
     headers.set("x-real-ip", peer);
 
     return handleRequest(new Request(req, { headers }));
   },
 );
+
+
 
 console.log(`[api-intranet] Database: ${Deno.env.get("POSTGREST_URL") ?? "http://127.0.0.1:3001"} | File: ${Deno.env.get("STORAGE_DIR") ?? "/data/storage"}`);

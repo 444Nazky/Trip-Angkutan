@@ -5,16 +5,9 @@ import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
 import { readPlateFromImage } from '../../services/ocr'
-import {
-  compressImage,
-  DOC_MAX_EDGE,
-  DOC_QUALITY,
-  OCR_MAX_EDGE,
-  OCR_QUALITY,
-} from '../../services/imageUtil'
+import { compressImage, DOC_MAX_EDGE, DOC_QUALITY, OCR_MAX_EDGE, OCR_QUALITY, } from '../../services/imageUtil'
 import { getCurrentPosition } from '../../services/geofence'
 import type { MobileScreen } from '../types'
-
 
 
 
@@ -24,12 +17,6 @@ interface CameraScreenProps {
 
 
 
-
-/**
- * Ambil posisi GPS untuk watermark SEKARANG.
- * Prioritas: fix yang sudah di-cache (hampir instan) → request langsung
- * dengan timeout pendek. Tidak pernah menahan proses lebih dari ~2.5 detik.
- */
 async function getPhotoPosition(): Promise<{ lat: number | null; lon: number | null }> {
   try {
     const cached = await Promise.race([
@@ -53,7 +40,6 @@ async function getPhotoPosition(): Promise<{ lat: number | null; lon: number | n
 
 
 
-
 export default function CameraScreen({ go }: CameraScreenProps) {
   const { draft, patchDraft, officer, patchTripPhoto, patchVehiclePhoto } = useApp()
   const [busy, setBusy] = useState(false)
@@ -67,11 +53,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
   const isOcr = draft.cameraMode === 'ocr'
-  // Swafoto = foto petugas dengan kamera depan. Tidak memakai kamera native
-  // (plugin Camera Android membuka aplikasi kamera sistem dan tidak bisa
-  // memaksa kamera depan), jadi selalu lewat getUserMedia di WebView.
   const isSelfie = draft.cameraMode === 'selfie'
   const retake = draft.retakeTarget
   const returnTo: MobileScreen = isSelfie
@@ -92,7 +74,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
   useEffect(() => {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
@@ -100,21 +81,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
   const stopStream = () => {
-
-
-
-
-
-
 
 
 
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
   }
-
 
 
 
@@ -130,7 +103,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => { /* autoplay blocked */ })
+        await videoRef.current.play().catch(() => {  })
       }
       setLiveState('ready')
     } catch {
@@ -142,7 +115,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       }
     }
   }
-
 
 
 
@@ -160,15 +132,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
   useEffect(() => {
     const v = videoRef.current
     if (liveState === 'ready' && v && streamRef.current && v.srcObject !== streamRef.current) {
       v.srcObject = streamRef.current
-      void v.play().catch(() => { /* autoplay blocked */ })
+      void v.play().catch(() => {  })
     }
   }, [liveState])
-
 
 
 
@@ -183,11 +153,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-  // ponytail: watermark + resize + kompresi sekarang SATU canvas pass
-  // (lihat services/imageUtil.ts). Sebelumnya: load gambar ukuran penuh ->
-  // canvas penuh -> encode q0.92, lalu encode LAGI saat upload. itu 3x kerjaan
-  // dan penyebab utama "loading lama" setelah jepret.
+  // ponytail: watermark + resize + kompresi sekarang SATU canvas pass (lihat services/imageUtil.ts).
   const processPhoto = (
     dataUrl: string,
     lat: number | null,
@@ -202,14 +168,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-
   const deliver = async (rawDataUrl: string) => {
     const capturedAt = new Date()
     setBusy(true)
 
-    // GPS: pakai fix cache kalau ada (hampir instan), fallback request singkat.
-    // Tidak pernah menahan proses lebih dari ~2.5 detik.
+    // GPS: pakai fix cache kalau ada (hampir instan), fallback request singkat. Tidak pernah menahan proses lebih dari ~2.5 detik.
     const { lat, lon } = await getPhotoPosition()
 
     if (isOcr) {
@@ -232,8 +195,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-    
     const capturedIso = capturedAt.toISOString()
 
     if (retake) {
@@ -264,7 +225,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
     if (isSelfie) {
       patchDraft({
         selfieUrl: watermarked,
@@ -275,7 +235,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       go(returnTo)
       return
     }
-
 
 
 
@@ -304,8 +263,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-
   async function openNativeCamera() {
     if (busyRef.current) return
     busyRef.current = true
@@ -314,16 +271,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     try {
       const image = await CapCamera.getPhoto({
         // ponytail: kualitas kamera TIDAK perlu HD untuk foto dokumentasi.
-        // q85 menghasilkan data URL raksasa (puluhan MB string base64) yang
-        // bikin encode + upload lambat. q30 + downscale 640px jauh lebih cepat
-        // dan ukurannya ~20x lebih kecil.
-        // Mode OCR tetap perlu kualitas lebih tinggi (teks plat harus terbaca).
         quality: isOcr ? 60 : 30,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
       })
-
 
 
 
@@ -357,8 +309,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-
   const handleCapture = async () => {
     if (busy) return
     setErrorMsg('')
@@ -370,8 +320,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-
     if (!streamRef.current) await startStream()
     const dataUrl = snapshotFromCanvas()
     if (!dataUrl) {
@@ -380,8 +328,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     }
     await deliver(dataUrl)
   }
-
-
 
 
 
@@ -402,8 +348,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-      {/* ── Header overlay ── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <button
           onClick={() => go(returnTo)}
@@ -419,8 +363,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-      {/*GPS ama waktu */}
       <div className="absolute right-4 bottom-32 z-20 flex flex-col items-end gap-1 text-right pointer-events-none">
         <div className="flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1.5 backdrop-blur">
           <Clock size={11} className="text-white/80" />
@@ -438,16 +380,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-
-      {/* ── Kontrol bawah ── */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-10 pb-9 px-6 flex flex-col items-center gap-3">
         {errorMsg && (
           <div className="flex items-center gap-1.5 text-red-400 text-[11px] font-medium">
             <AlertCircle size={12} /> {errorMsg}
           </div>
         )}
-
 
 
 
@@ -459,7 +397,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         >
 
 
-          
+
           {busy
             ? <Loader2 size={28} className="animate-spin text-slate-500" />
             : <span className="w-14 h-14 rounded-full ring-4 ring-black/10" />

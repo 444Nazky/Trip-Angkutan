@@ -1,20 +1,19 @@
-// Region tariffs (admin). Port of backend/src/routes/region-tariffs.js.
-//
-// Dua lapis tarif per region:
-//   - flat  : region_tariffs (lokal/eksternal nominal datar) — nilai cadangan
-//             kalau baris per jenis belum punya lokal sendiri.
-//   - rows  : region_tariff_rows (lokal/muatan/kosong per jenis kendaraan) —
-//             tarif tiap wilayah; region tanpa baris = Rp 0.
 import { db, json, requireAdmin, dbDetail } from "../_shared.ts";
 import { invalidateTariffCache } from "./tariffRules.ts";
 
+
+
 const isUuid = (s: string) =>
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(s);
+
+
 
 const asInt = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 };
+
+
 
 export async function getRegionTariffs(_req: Request): Promise<Response> {
   try {
@@ -67,7 +66,8 @@ export async function getRegionTariffs(_req: Request): Promise<Response> {
   }
 }
 
-/** Upsert satu baris tarif per jenis kendaraan per region. */
+
+
 async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   const vehicleType = String(body.vehicleType ?? body.vehicle_type ?? "").trim();
   if (!vehicleType) return json({ error: "vehicleType wajib diisi" }, 400);
@@ -76,8 +76,7 @@ async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   const kosong = asInt(body.kosongTariff ?? body.kosong);
   const active = body.isActive === undefined ? 1 : body.isActive ? 1 : 0;
 
-  // lokal_tariff hanya dikirim kalau memang diubah. Upsert bulk (semua region)
-  // tidak menyertakannya, jadi nilai yang sudah diisi per jenis tidak terhapus.
+  // lokal_tariff hanya dikirim kalau memang diubah. Upsert bulk (semua region) tidak menyertakannya, jadi nilai yang sudah diisi per jenis tidak terhapus.
   const payload: Record<string, unknown> = {
     region_id: regionId,
     vehicle_type: vehicleType,
@@ -101,10 +100,9 @@ async function updateRegionRow(body: any, regionId: string): Promise<Response> {
   return json({ success: true, regionId, vehicleType, muatanTariff: muatan, kosongTariff: kosong });
 }
 
-/** Upsert tarif flat (lokal/eksternal) per region. */
-async function updateRegionFlat(body: any, regionId: string): Promise<Response> {  // Dua bentuk payload yang diterima:
-  //   legacy : { tariffType: 'lokal'|'eksternal', nominalTariff, isActive }
-  //   UI     : { lokal_tariff, lokal_active } | { eksternal_tariff, eksternal_active }
+
+
+async function updateRegionFlat(body: any, regionId: string): Promise<Response> {
   let type: string | undefined = body.tariffType;  let nominal = body.nominalTariff;
   let active = body.isActive;
   if (type === undefined) {
@@ -143,6 +141,8 @@ async function updateRegionFlat(body: any, regionId: string): Promise<Response> 
   });
 }
 
+
+
 export async function updateRegionTariff(req: Request, regionId: string, _url?: URL): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -153,7 +153,6 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
     if (regionErr) throw regionErr;
     if (!region || !region.length) return json({ error: "Region not found" }, 404);
 
-    // Bentuk payload menentukan target: baris per jenis atau flat.
     const body = await req.json().catch(() => ({} as any));
     const isRowPayload = body?.vehicleType !== undefined || body?.vehicle_type !== undefined;
     if (isRowPayload) return await updateRegionRow(body, regionId);
@@ -164,7 +163,8 @@ export async function updateRegionTariff(req: Request, regionId: string, _url?: 
   }
 }
 
-/** Normalisasi jenis kendaraan (sama dengan aturan resolver tarif). */
+
+
 const typeKey = (raw: unknown): string =>
   String(raw ?? "")
     .trim()
@@ -172,13 +172,7 @@ const typeKey = (raw: unknown): string =>
     .replace(/truck/g, "truk")
     .replace(/[^a-z0-9]/g, "");
 
-/**
- * Hapus satu baris tarif (region + jenis kendaraan).
- *
- * Pencocokan dilakukan di DALAM server (bukan lewat filter ilike) supaya
- * ejaan jenis kendaraan yang berbeda ("Truk Kecil" vs "truk kecil") tetap
- * ketemu, dan supaya nama dengan spasi tidak tertukar oleh encoding URL.
- */
+// Hapus satu baris tarif (region + jenis kendaraan).
 export async function deleteRegionTariffRow(
   req: Request,
   regionId: string,
@@ -208,7 +202,6 @@ export async function deleteRegionTariffRow(
 
     const key = typeKey(type);
     const hit = (rows ?? []).find((r: any) => typeKey(r.vehicle_type) === key);
-    // Tidak ada baris -> sudah bersih, tetap dianggap sukses (idempoten).
     if (!hit) return json({ success: true, regionId, vehicleType: type, deleted: false });
 
     const { error } = await db.from("region_tariff_rows").delete().eq("id", String(hit.id));
@@ -225,26 +218,7 @@ export async function deleteRegionTariffRow(
   }
 }
 
-/**
- * Terapkan tarif satu jenis kendaraan ke BANYAK region sekaligus.
- *
- * Body:
- *   {
- *     vehicleType: string,
- *     muatanTariff: number,
- *     kosongTariff: number,
- *     scope: "all" | "existing"
- *   }
- *
- * scope "all"      -> semua region dapat baris (region yang belum punya
- *                      baris untuk jenis ini dibuat dengan nominal ini).
- * scope "existing" -> hanya region yang SUDAH punya baris untuk jenis ini
- *                      yang diperbarui (dipakai saat edit massal).
- *
- * Baris yang sudah ada diupdate memakai ejaan vehicle_type yang tersimpan
- * (bukan ejaan dari payload) supaya tidak tercipta baris duplikat untuk
- * region yang sama.
- */
+// Terapkan tarif satu jenis kendaraan ke BANYAK region sekaligus.
 export async function bulkUpdateRegionTariffRows(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -271,7 +245,6 @@ export async function bulkUpdateRegionTariffRows(req: Request): Promise<Response
       .select("id, region_id, vehicle_type");
     if (rowsErr) throw rowsErr;
 
-    // Baris existing per region (case-insensitive).
     const existingByRegion = new Map<string, any>();
     for (const r of existingRows ?? []) {
       const rid = String(r.region_id);
@@ -284,7 +257,6 @@ export async function bulkUpdateRegionTariffRows(req: Request): Promise<Response
       const rid = String(region.id);
       const row = existingByRegion.get(rid);
       if (scope === "existing" && !row) continue;
-      // Pertahankan ejaan yang tersimpan di DB (hindari baris duplikat).
       targets.push({ id: rid, vehicleType: row ? String(row.vehicle_type) : vehicleType });
     }
     if (!targets.length) {

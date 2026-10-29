@@ -1,9 +1,13 @@
 import EndpointPicker from '../../components/EndpointPicker'
 import type { MobileScreen } from '../types'
 
+
+
 interface EndpointScreenProps {
   go: (s: MobileScreen) => void
 }
+
+
 
 export default function EndpointScreen({ go }: EndpointScreenProps) {
   return (

@@ -1,13 +1,4 @@
-/**
- * Master tarif untuk APLIKASI MOBILE — sumber tunggal data tarif di perangkat.
- *
- * Dipakai oleh: adminPull (sinkron master), prefetch (pengisian data awal),
- * dan store (state UI form kendaraan).
- *
- * Format simpan: localStorage `trip.tariffs.v1` (dipakai store sebagai LS.tariffs).
- * Catatan: `services/tariffs.ts` adalah modul CRUD tarif untuk ADMIN dashboard —
- * jangan dipakai mobile.
- */
+// Master tarif untuk APLIKASI MOBILE — sumber tunggal data tarif di perangkat.
 
 import { api } from './api'
 
@@ -16,6 +7,8 @@ export const TARIFFS_STORAGE_KEY = 'trip.tariffs.v1'
 
 /** Dipancarkan saat tarif berubah supaya UI (form kendaraan) langsung ikut. */
 export const TARIFF_UPDATED_EVENT = 'trip:tariffs-updated'
+
+
 
 export interface StoredTariff {
   id: string
@@ -28,6 +21,8 @@ export interface StoredTariff {
   desc: string
 }
 
+
+
 interface ServerTariff {
   id?: string
   golongan?: string
@@ -37,9 +32,13 @@ interface ServerTariff {
   description?: string | null
 }
 
+
+
 function fmtRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
+
+
 
 function toStoredTariff(s: ServerTariff): StoredTariff | null {
   const type = String(s.vehicle_type ?? '').trim()
@@ -58,7 +57,8 @@ function toStoredTariff(s: ServerTariff): StoredTariff | null {
   }
 }
 
-/** Tarif yang tersimpan di perangkat (kosong = belum pernah tersinkron). */
+
+
 export function getStoredTariffs(): StoredTariff[] {
   try {
     const raw = localStorage.getItem(TARIFFS_STORAGE_KEY)
@@ -84,19 +84,14 @@ export function getStoredTariffs(): StoredTariff[] {
   }
 }
 
+
+
 export function saveTariffs(tariffs: StoredTariff[]): void {
-  try { localStorage.setItem(TARIFFS_STORAGE_KEY, JSON.stringify(tariffs)) } catch { /* quota */ }
-  try { window.dispatchEvent(new Event(TARIFF_UPDATED_EVENT)) } catch { /* ignore */ }
+  try { localStorage.setItem(TARIFFS_STORAGE_KEY, JSON.stringify(tariffs)) } catch {  }
+  try { window.dispatchEvent(new Event(TARIFF_UPDATED_EVENT)) } catch {  }
 }
 
-/**
- * Tarik master tarif admin ke perangkat petugas.
- *
- * Dipakai `tariffFor()` saat petugas menambah kendaraan, jadi nominal yang
- * tersimpan di trip = tarif admin terakhir, bukan angka contoh bawaan.
- * Hasil kosong TIDAK menimpa cache (sama seperti geofence/region): tabel yang
- * sedang kosong sesaat tidak boleh menghapus tarif yang sudah dipakai.
- */
+// Tarik master tarif admin ke perangkat petugas.
 export async function pullTariffsToLocal(): Promise<number> {
   const cached = getStoredTariffs()
   const res = await api.get<ServerTariff[]>('/master/tariffs').catch(() => null)

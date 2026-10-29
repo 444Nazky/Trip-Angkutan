@@ -1,21 +1,4 @@
-// Master jenis kendaraan.
-//
-// SEBELUM ada handler ini, daftar jenis kendaraan hidup di tiga tempat:
-//   - hardcode di dashboard admin ("motor, mobil, truk kecil, ...")
-//   - hardcode di aplikasi petugas ("Motor, Mobil, Truck Kecil, ...")
-//   - baris tarif per region (tiap region boleh punya ejaan sendiri)
-// Akibatnya pilihan di admin dan di HP tidak sinkron, dan satu jenis bisa
-// muncul sebagai dua baris di region yang sama.
-//
-// Sekarang `vehicle_types` jadi sumber tunggal: dashboard admin, aplikasi
-// petugas, dan resolver tarif semuanya membaca daftar yang sama dari
-// database. Menambah/menghapus jenis di admin LANGSUNG menulis ke tabel ini
-// (tidak ada daftar lokal di frontend), jadi tidak ada data palsu.
-//
-// Kunci pencocokan (`key`) = bentuk normalisasi: lowercase, "truck" -> "truk",
-// tanpa spasi. Jadi "Truk Kecil", "truk kecil", dan "Truck Kecil" adalah jenis
-// yang sama - ini aturan yang sama dengan `normalizeVehicleType` di
-// tariffRules.ts.
+// Master jenis kendaraan. SEBELUM ada handler ini, daftar jenis kendaraan hidup di tiga tempat: - hardcode di dashboard admin ("motor, mobil, truk…
 import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 
 /** Kunci perbandingan jenis kendaraan (harus sama dengan tariffRules). */
@@ -26,6 +9,8 @@ export const vehicleTypeKey = (raw: unknown): string =>
     .replace(/truck/g, "truk")
     .replace(/[^a-z0-9]/g, "");
 
+
+
 export interface VehicleTypeRow {
   id: string;
   name: string;
@@ -34,6 +19,8 @@ export interface VehicleTypeRow {
   isActive: boolean;
 }
 
+
+
 type RawRow = {
   id?: unknown;
   name?: unknown;
@@ -41,6 +28,8 @@ type RawRow = {
   sort_order?: unknown;
   is_active?: unknown;
 };
+
+
 
 function toRow(r: RawRow): VehicleTypeRow {
   return {
@@ -52,13 +41,7 @@ function toRow(r: RawRow): VehicleTypeRow {
   };
 }
 
-/**
- * Daftar jenis kendaraan.
- *
- * Auth wajib (petugas butuh daftar ini untuk form kendaraan). Admin boleh
- * meminta jenis nonaktif juga (`?includeInactive=1`) supaya bisa melihat dan
- * mengaktifkan kembali jenis lama.
- */
+// Daftar jenis kendaraan. Auth wajib (petugas butuh daftar ini untuk form kendaraan).
 export async function getVehicleTypes(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
@@ -88,7 +71,8 @@ export async function getVehicleTypes(req: Request): Promise<Response> {
   }
 }
 
-/** Tambah jenis kendaraan baru ke master. */
+
+
 export async function createVehicleType(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -132,13 +116,7 @@ export async function createVehicleType(req: Request): Promise<Response> {
   }
 }
 
-/**
- * Ubah jenis kendaraan (nama / urutan / status aktif).
- *
- * Kalau nama berubah, baris tarif yang memakai ejaan lama ikut ditulis
- * memakai ejaan baru. Tanpa ini, "Truk Kecil" yang diubah jadi "Truk Ringan"
- * akan meninggalkan baris tarif yatim pada ejaan lama.
- */
+// Ubah jenis kendaraan (nama / urutan / status aktif). Kalau nama berubah, baris tarif yang memakai ejaan lama ikut ditulis memakai ejaan baru.
 export async function updateVehicleType(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -177,7 +155,6 @@ export async function updateVehicleType(req: Request, id: string): Promise<Respo
     const { error } = await db.from("vehicle_types").update(update).eq("id", id);
     if (error) throw error;
 
-    // Tulis ulang baris tarif yang memakai ejaan lama.
     let renamedRows = 0;
     if (renamed) {
       const oldKey = vehicleTypeKey(renamed.from);
@@ -209,13 +186,8 @@ export async function updateVehicleType(req: Request, id: string): Promise<Respo
   }
 }
 
-/**
- * Hapus jenis kendaraan dari master.
- *
- * Baris tarif milik jenis ini ikut dihapus (baris itu tidak berguna lagi
- * kalau jenisnya sudah tidak ada). Riwayat trip lama TIDAK disentuh: kolom
- * `vehicles.vehicle_type` berisi teks, jadi history tetap terbaca apa adanya.
- */
+
+
 export async function deleteVehicleType(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -228,7 +200,6 @@ export async function deleteVehicleType(req: Request, id: string): Promise<Respo
     const name = String(current.name ?? "");
     const key = String(current.key ?? vehicleTypeKey(name));
 
-    // Baris tarif dengan ejaan berbeda ("truk kecil") ikut dihitung.
     const { data: rows } = await db.from("region_tariff_rows").select("id, vehicle_type");
     const affected = ((rows ?? []) as any[]).filter((r) => vehicleTypeKey(r.vehicle_type) === key);
     let deletedRows = 0;

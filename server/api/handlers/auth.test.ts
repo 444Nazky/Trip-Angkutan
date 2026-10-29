@@ -1,21 +1,9 @@
-/**
- * Uji handler login admin.
- *
- * Fokusnya satu: dashboard admin harus selalu bisa dibuka.
- *
- * Dua mode yang diuji:
- *   1. ADMIN_AUTH_DISABLED=1 - mode bawaan server intranet. Dashboard dibuka
- *      tanpa password sama sekali.
- *   2. ADMIN_AUTH_DISABLED tidak aktif - dashboard memakai kredensial dari
- *      tabel admin_credentials, atau dari ADMIN_PASSWORD selama tabel itu
- *      masih kosong.
- *
- * Jalankan:
- *   deno test --allow-net --allow-env server/api/handlers/auth.test.ts
- */
+// Uji handler login admin. Fokusnya satu: dashboard admin harus selalu bisa dibuka. Dua mode yang diuji: 1.
 
 import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import bcryptjs from "npm:bcryptjs@2.4.3";
+
+
 
 interface AdminRow {
   id: number;
@@ -23,12 +11,7 @@ interface AdminRow {
   password: string | null;
 }
 
-/**
- * PostgREST tiruan untuk tabel admin_credentials.
- *
- * Hanya operasi yang dipakai handler yang didukung: GET (daftar), POST
- * (sisip), PATCH (ubah), DELETE (hapus).
- */
+// PostgREST tiruan untuk tabel admin_credentials.
 function startFakePostgrest(rows: AdminRow[]): { url: string; rows: AdminRow[]; close: () => void } {
   const state = { nextId: rows.reduce((max, row) => Math.max(max, row.id), 0) + 1 };
   const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, async (req) => {
@@ -75,17 +58,12 @@ function startFakePostgrest(rows: AdminRow[]): { url: string; rows: AdminRow[]; 
 }
 
 // SATU server tiruan dipakai seluruh pengujian.
-//
-// Alasannya: modul _db.ts membaca POSTGREST_URL saat modul itu sendiri
-// diimpor, dan impor ES hanya dieksekusi sekali. Kalau tiap pengujian
-// membuat server sendiri, semua request akan-Acuan ke server pertama yang
-// dibuat - dan pengujian yang butuh baris kredensial akan selalu melihat
-// tabel kosong.
 const fake = startFakePostgrest([]);
 
+
+
 async function loadHandler() {
-  // Handler membaca JWT_SECRET saat modul dimuat, jadi env harus di-set
-  // SEBELUM import. Impor dinamis dipakai untuk itu.
+  // Handler membaca JWT_SECRET saat modul dimuat, jadi env harus di-set SEBELUM import. Impor dinamis dipakai untuk itu.
   Deno.env.set("JWT_SECRET", "secret-untuk-uji");
   Deno.env.set("POSTGREST_URL", fake.url);
   const module = await import("./auth.ts");
@@ -97,6 +75,8 @@ function resetRows(rows: AdminRow[]): void {
   rows.length = 0;
 }
 
+
+
 function loginRequest(username = "admin", password = ""): Request {
   return new Request("http://127.0.0.1:3000/api/auth/admin-login", {
     method: "POST",
@@ -104,6 +84,8 @@ function loginRequest(username = "admin", password = ""): Request {
     body: JSON.stringify({ username, password }),
   });
 }
+
+
 
 Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", async () => {
   resetRows(fake.rows);
@@ -119,9 +101,10 @@ Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", a
     assertStringIncludes(String(body.token ?? ""), ".");
     assertEquals(body.admin?.role, "admin");
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
+
+
 
 Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async () => {
   resetRows(fake.rows);
@@ -132,9 +115,10 @@ Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async (
     await adminLogin(loginRequest());
     assertEquals(fake.rows.length, 0);
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
+
+
 
 Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel kosong", async () => {
   resetRows(fake.rows);
@@ -150,9 +134,10 @@ Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel
     const salah = await adminLogin(loginRequest("admin", "password-keliru"));
     assertEquals(salah.status, 401);
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
+
+
 
 Deno.test("login admin memberi pesan yang bisa ditindaklanjuti saat kredensial belum diatur", async () => {
   resetRows(fake.rows);
@@ -167,9 +152,10 @@ Deno.test("login admin memberi pesan yang bisa ditindaklanjuti saat kredensial b
     const body = await res.json();
     assertStringIncludes(String(body.error), "ADMIN_PASSWORD");
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
+
+
 
 Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
   const hash = bcryptjs.hashSync("password-yang-sudah-diubah", 10);
@@ -188,9 +174,10 @@ Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
     const lama = await adminLogin(loginRequest("admin", "password-bootstrap"));
     assertEquals(lama.status, 401);
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });
+
+
 
 Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
   const hash = bcryptjs.hashSync("password-sama", 10);
@@ -207,6 +194,5 @@ Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
     assertEquals(res.status, 200);
     assertEquals(fake.rows.length, 1);
   } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
 });

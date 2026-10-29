@@ -1,30 +1,25 @@
-// Klien database lokal.
-//
-// Semua query dari handler memakai API builder yang sama seperti sebelumnya
-// (`db.from(...).select(...).eq(...)`), tetapi diterjemahkan menjadi HTTP ke
-// PostgREST lokal (container `rest` di docker-compose). Penyimpanan berkas
-// memakai direktori lokal, bukan layanan penyimpanan daring.
-//
-// Path berkas disimpan RELATIF (`/files/<bucket>/<path>`), bukan URL absolut.
-// Alasannya: alamat IP PC kantor bisa berubah, dan data hasil migrasi dari
-// server lama tidak boleh ikut menyimpan host lama di dalam database. Klien
-// (aplikasi mobile dan dashboard admin) menyelesaikan path relatif terhadap
-// origin server yang sedang aktif.
-//
-// ponytail: hanya method yang benar-benar dipakai handler yang diimplementasi.
-// Kalau nanti ada method baru, tambahkan di sini.
+// Klien database lokal. Semua query dari handler memakai API builder yang sama seperti sebelumnya (`db.from(...).select(...).eq(...)`), tetapi…
 
 import { join, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 // Dibaca per pemakaian (bukan saat import) supaya uji bisa menyetel env dulu.
 const postgrestUrl = () =>
   (Deno.env.get("POSTGREST_URL") || "http://127.0.0.1:3001").replace(/\/$/, "");
+
+
+
 const storageDir = () => Deno.env.get("STORAGE_DIR") || "/data/storage";
 
-/** Prefix URL untuk menyajikan berkas lokal. */
+
+
 export const FILES_PREFIX = "/files";
 
+
+
 export type DbError = { message: string; details?: string | null; hint?: string | null; code?: string | null };
+
+
+
 export type DbResult<T = unknown> = {
   data: T | null;
   error: DbError | null;
@@ -32,7 +27,12 @@ export type DbResult<T = unknown> = {
   status: number;
   statusText: string;
 };
+
+
+
 type Row = Record<string, unknown>;
+
+
 
 function q(value: unknown): string {
   if (value === null || value === undefined) return "null";
@@ -41,9 +41,13 @@ function q(value: unknown): string {
   return s;
 }
 
+
+
 function list(values: unknown[]): string {
   return `(${values.map(q).join(",")})`;
 }
+
+
 
 function parseError(status: number, statusText: string, body: string): DbError {
   try {
@@ -59,23 +63,56 @@ function parseError(status: number, statusText: string, body: string): DbError {
   }
 }
 
+
+
 class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
   private table: string;
-  private method: "GET" | "POST" | "PATCH" | "DELETE" | "HEAD" = "GET";
-  private params = new URLSearchParams();
-  private headers: Record<string, string> = {};
-  private body: unknown = undefined;
-  private returning = false;
-  private wantSingle = false;
-  private wantMaybeSingle = false;
-  private wantsCount = false;
-  private prefer: string[] = [];
 
-  constructor(table: string) {
+
+
+private method: "GET" | "POST" | "PATCH" | "DELETE" | "HEAD" = "GET";
+
+
+
+private params = new URLSearchParams();
+
+
+
+private headers: Record<string, string> = {};
+
+
+
+private body: unknown = undefined;
+
+
+
+private returning = false;
+
+
+
+private wantSingle = false;
+
+
+
+private wantMaybeSingle = false;
+
+
+
+private wantsCount = false;
+
+
+
+private prefer: string[] = [];
+
+
+
+constructor(table: string) {
     this.table = table;
   }
 
-  select(columns = "*", options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): QueryBuilder<any> {
+
+
+select(columns = "*", options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): QueryBuilder<any> {
     if (this.method === "GET" || this.method === "HEAD") {
       this.params.set("select", columns);
     } else {
@@ -88,24 +125,28 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
       this.prefer.push(`count=${options.count}`);
       if (options.head) this.method = "HEAD";
     }
-    // Hasil select selalu berupa array baris; `single()` di bawah yang
-    // mengubahnya jadi satu objek.
     return this as unknown as QueryBuilder<any>;
   }
 
-  insert(values: Row | Row[]): this {
+
+
+insert(values: Row | Row[]): this {
     this.method = "POST";
     this.body = values;
     return this;
   }
 
-  update(values: Row): this {
+
+
+update(values: Row): this {
     this.method = "PATCH";
     this.body = values;
     return this;
   }
 
-  upsert(values: Row | Row[], options?: { onConflict?: string }): this {
+
+
+upsert(values: Row | Row[], options?: { onConflict?: string }): this {
     this.method = "POST";
     this.body = values;
     this.prefer.push("resolution=merge-duplicates");
@@ -113,82 +154,114 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     return this;
   }
 
-  delete(): this {
+
+
+delete(): this {
     this.method = "DELETE";
     return this;
   }
 
-  eq(column: string, value: unknown): this {
+
+
+eq(column: string, value: unknown): this {
     this.params.append(column, `eq.${q(value)}`);
     return this;
   }
 
-  neq(column: string, value: unknown): this {
+
+
+neq(column: string, value: unknown): this {
     this.params.append(column, `neq.${q(value)}`);
     return this;
   }
 
-  gt(column: string, value: unknown): this {
+
+
+gt(column: string, value: unknown): this {
     this.params.append(column, `gt.${q(value)}`);
     return this;
   }
 
-  gte(column: string, value: unknown): this {
+
+
+gte(column: string, value: unknown): this {
     this.params.append(column, `gte.${q(value)}`);
     return this;
   }
 
-  lt(column: string, value: unknown): this {
+
+
+lt(column: string, value: unknown): this {
     this.params.append(column, `lt.${q(value)}`);
     return this;
   }
 
-  lte(column: string, value: unknown): this {
+
+
+lte(column: string, value: unknown): this {
     this.params.append(column, `lte.${q(value)}`);
     return this;
   }
 
-  like(column: string, pattern: string): this {
+
+
+like(column: string, pattern: string): this {
     this.params.append(column, `like.${q(pattern)}`);
     return this;
   }
 
-  ilike(column: string, pattern: string): this {
+
+
+ilike(column: string, pattern: string): this {
     this.params.append(column, `ilike.${q(pattern)}`);
     return this;
   }
 
-  is(column: string, value: unknown): this {
+
+
+is(column: string, value: unknown): this {
     this.params.append(column, `is.${value === null ? "null" : q(value)}`);
     return this;
   }
 
-  in(column: string, values: unknown[]): this {
+
+
+in(column: string, values: unknown[]): this {
     this.params.append(column, `in.${list(values)}`);
     return this;
   }
 
-  not(column: string, operator: string, value: unknown): this {
+
+
+not(column: string, operator: string, value: unknown): this {
     this.params.append(column, `not.${operator}.${value === null ? "null" : q(value)}`);
     return this;
   }
 
-  or(expression: string): this {
+
+
+or(expression: string): this {
     this.params.set("or", `(${expression})`);
     return this;
   }
 
-  filter(column: string, operator: string, value: unknown): this {
+
+
+filter(column: string, operator: string, value: unknown): this {
     this.params.append(column, `${operator}.${q(value)}`);
     return this;
   }
 
-  match(values: Row): this {
+
+
+match(values: Row): this {
     for (const [column, value] of Object.entries(values)) this.eq(column, value);
     return this;
   }
 
-  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this {
+
+
+order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this {
     const direction = options?.ascending === false ? "desc" : "asc";
     const nulls = options?.nullsFirst === undefined ? "" : options.nullsFirst ? ".nullsfirst" : ".nullslast";
     const existing = this.params.get("order");
@@ -197,28 +270,38 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     return this;
   }
 
-  limit(count: number): this {
+
+
+limit(count: number): this {
     this.params.set("limit", String(count));
     return this;
   }
 
-  range(from: number, to: number): this {
+
+
+range(from: number, to: number): this {
     this.params.set("offset", String(from));
     this.params.set("limit", String(Math.max(0, to - from + 1)));
     return this;
   }
 
-  single(): QueryBuilder<any> {
+
+
+single(): QueryBuilder<any> {
     this.wantSingle = true;
     return this as unknown as QueryBuilder<any>;
   }
 
-  maybeSingle(): QueryBuilder<any> {
+
+
+maybeSingle(): QueryBuilder<any> {
     this.wantMaybeSingle = true;
     return this as unknown as QueryBuilder<any>;
   }
 
-  private async execute(): Promise<DbResult<T>> {
+
+
+private async execute(): Promise<DbResult<T>> {
     const url = `${postgrestUrl()}/${encodeURIComponent(this.table)}?${this.params.toString()}`;
     const headers: Record<string, string> = { ...this.headers };
     if (this.returning || this.method === "POST" || this.method === "PATCH") {
@@ -284,7 +367,9 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     return { data: data as T, error: null, count, status: response.status, statusText: response.statusText };
   }
 
-  then<R1 = DbResult<T>, R2 = never>(
+
+
+then<R1 = DbResult<T>, R2 = never>(
     onfulfilled?: ((value: DbResult<T>) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
   ): PromiseLike<R1 | R2> {
@@ -292,12 +377,14 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
   }
 }
 
-// ── Penyimpanan file lokal ───────────────────────────────────────────────────
+
 
 function bucketDir(bucket: string): string {
   if (!/^[a-zA-Z0-9._-]+$/.test(bucket)) throw new Error(`Bucket tidak valid: ${bucket}`);
   return join(storageDir(), bucket);
 }
+
+
 
 function objectPath(bucket: string, path: string): string {
   const root = bucketDir(bucket);
@@ -306,7 +393,11 @@ function objectPath(bucket: string, path: string): string {
   return full;
 }
 
+
+
 type UploadOptions = { contentType?: string; upsert?: boolean };
+
+
 
 function storageBucket(bucket: string) {
   return {
@@ -334,6 +425,8 @@ function storageBucket(bucket: string) {
   };
 }
 
+
+
 export const db = {
   from<T = Row>(table: string): QueryBuilder<T> {
     return new QueryBuilder<T>(table);
@@ -346,12 +439,6 @@ export const db = {
 };
 
 // Dipakai index.ts untuk menyajikan /files/<bucket>/<path>.
-//
-// Prefiks `/api` juga diterima karena sebagian klien menyusun URL berkas dari
-// base URL API (`http://host:3000/api`), sedangkan berkas disajikan di root
-// server (`http://host:3000/files/...`). Tanpa pengecualian ini, path relatif
-// yang diselesaikan terhadap base URL API berakhir di /api/files/... dan
-// selalu 404.
 export async function serveStoredFile(pathname: string): Promise<Response | null> {
   const normalized = pathname.replace(/^\/api(?=\/|$)/, "");
   const match = normalized.match(/^\/files\/([^/]+)\/(.+)$/);

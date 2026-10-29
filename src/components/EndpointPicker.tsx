@@ -11,20 +11,22 @@ import {
   validateEndpointInput,
 } from '../services/api'
 
+
+
 interface Props {
   /** Dipanggil setelah endpoint berhasil diterapkan. */
   onApplied?: (url: string) => void
-  /** Tampilkan judul + deskripsi di atas daftar. */
   withHeader?: boolean
 }
 
+
+
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
 
+
+
 function messageFor(r: Awaited<ReturnType<typeof probeServerHealth>>): Status {
-  // `blockedByCors` hanya diisi saat probe opaque membuktikan host benar-benar
-  // menjawab. Dulu syaratnya `r.reachable && r.blockedByCors`, kombinasi yang
-  // tidak pernah terjadi karena jalur CORS selalu reachable=false — pesan ini
-  // jadi dead code dan URL yang benar ikut dibuang.
+  // `blockedByCors` hanya diisi saat probe opaque membuktikan host benar-benar menjawab.
   if (r.blockedByCors) {
     return { kind: 'warn', msg: `Server hidup (${r.ms} ms), tetapi browser memblokir CORS. URL tetap disimpan — minta admin menambahkan origin ini ke CORS_ORIGIN.` }
   }
@@ -37,6 +39,8 @@ function messageFor(r: Awaited<ReturnType<typeof probeServerHealth>>): Status {
   if (r.timedOut) return { kind: 'fail', msg: `Server tidak merespon (timeout ${r.ms} ms). URL lama tetap dipakai.` }
   return { kind: 'fail', msg: `Server tidak merespon (${r.ms} ms)${r.detail && r.detail !== 'Failed to fetch' ? ` — ${r.detail}` : ''}. URL lama tetap dipakai.` }
 }
+
+
 
 export default function EndpointPicker({ onApplied, withHeader = true }: Props) {
   const [url, setUrl] = useState(() => resolveApiBaseUrl())
@@ -65,8 +69,7 @@ export default function EndpointPicker({ onApplied, withHeader = true }: Props) 
     setStatus({ kind: 'checking', msg: 'Mengetes koneksi…' })
     const r = await probeServerHealth(check.url)
     setBusy(false)
-    // Host yang hidup tetap disimpan walau browser memblokir bacaannya (CORS):
-    // URL-nya benar, yang kurang hanya origin ini di CORS_ORIGIN server.
+    // Host yang hidup tetap disimpan walau browser memblokir bacaannya (CORS): URL-nya benar, yang kurang hanya origin ini di CORS_ORIGIN server.
     if (r.reachable || r.hostAlive) {
       apply(check.url)
     }

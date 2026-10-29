@@ -1,7 +1,10 @@
-// Shared helper API. Database lokal (PostgREST) dan penyimpanan file lokal.
 import { db } from "./_db.ts";
 
+
+
 export { db, serveStoredFile } from "./_db.ts";
+
+
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +14,8 @@ export const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
 
+
+
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -18,14 +23,7 @@ export function json(body: unknown, status = 200): Response {
   });
 }
 
-/**
- * Ambil pesan galat dari berbagai bentuk error.
- *
- * Galat PostgREST itu objek biasa ({ message, details, hint, code }), BUKAN
- * instance Error. Kalau dipanggil `String(error)`, hasilnya "[object Object]"
- * — pesan aslinya hilang, jadi penyebab kegagalan tidak pernah sampai ke
- * notifikasi admin.
- */
+// Ambil pesan galat dari berbagai bentuk error. Galat PostgREST itu objek biasa ({ message, details, hint, code }), BUKAN instance Error.
 export function errorText(error: unknown): string {
   if (error instanceof Error) return error.message;
   const msg = (error as { message?: unknown } | null)?.message;
@@ -33,14 +31,7 @@ export function errorText(error: unknown): string {
   return String(error ?? "");
 }
 
-/**
- * Detail singkat dari galat database untuk pesan 500.
- *
- * Notifikasi "Gagal menghapus dermaga" tanpa penjelasan tidak berguna bagi
- * operator: penyebabnya (mis. pelanggaran foreign key) justru yang dibutuhkan
- * untuk memperbaiki data. Detail ini hanya untuk log internal server intranet —
- * bukan data sensitif yang dikirim ke pelanggan.
- */
+// Detail singkat dari galat database untuk pesan 500.
 export function dbDetail(error: unknown): string {
   const raw = errorText(error).replace(/\s+/g, " ").trim();
   const code = (error as { code?: unknown } | null)?.code;
@@ -49,14 +40,14 @@ export function dbDetail(error: unknown): string {
   return `${raw.slice(0, 200)}${codeText}`;
 }
 
-// PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG
-// (mis. baris `JWT_SECRET=` di .env.local), `??` tidak menangkapnya karena
-// "" bukan null/undefined -> kunci HMAC jadi 0 byte -> SubtleCrypto melempar
-// "Key length is zero" -> setiap request auth gagal dengan 500, bukan 401.
-// String kosong diperlakukan sama dengan tidak di-set -> memakai default.
+// PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG (mis.
 const JWT_SECRET = Deno.env.get("JWT_SECRET") || "trip-angkut-secret-key";
-// Token TTL: 90 hari - cukup untuk sesi aktif, tidak terlalu panjang jika browser compromise
+
+
+
 const OFFICER_TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+
 
 export type OfficerClaims = {
   officerId?: string;
@@ -66,6 +57,8 @@ export type OfficerClaims = {
   isDualAccess?: boolean;
   [k: string]: unknown;
 };
+
+
 
 function b64urlDecode(s: string): string {
   const pad = "=".repeat((4 - (s.length % 4)) % 4);
@@ -79,12 +72,16 @@ function b64urlDecode(s: string): string {
   }
 }
 
+
+
 function b64urlEncode(s: string): string {
   const bytes = new TextEncoder().encode(s);
   let bin = "";
   bytes.forEach((b) => (bin += String.fromCharCode(b)));
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+/, "");
 }
+
+
 
 async function hmac(key: string, data: string): Promise<string> {
   const cryptoKey = await crypto.subtle.importKey(
@@ -101,6 +98,8 @@ async function hmac(key: string, data: string): Promise<string> {
     .replace(/=+/, "");
 }
 
+
+
 export async function signToken(claims: OfficerClaims, ttlSeconds = OFFICER_TOKEN_TTL_SECONDS): Promise<string> {
   const header = b64urlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const payload = b64urlEncode(
@@ -114,6 +113,8 @@ export async function signToken(claims: OfficerClaims, ttlSeconds = OFFICER_TOKE
   return `${header}.${payload}.${signature}`;
 }
 
+
+
 export async function verifyToken(token: string): Promise<OfficerClaims | null> {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -124,7 +125,8 @@ export async function verifyToken(token: string): Promise<OfficerClaims | null> 
   return claims;
 }
 
-/** Extract auth context from the request. Returns null when unauthenticated. */
+
+
 export async function auth(req: Request): Promise<OfficerClaims | null> {
   const header = req.headers.get("authorization");
   if (!header) {
@@ -136,12 +138,15 @@ export async function auth(req: Request): Promise<OfficerClaims | null> {
   return verifyToken(token);
 }
 
+
+
 export async function requireAdmin(req: Request): Promise<OfficerClaims | null> {
   const ctx = await auth(req);
   return ctx?.role === "admin" ? ctx : null;
 }
 
-// Reuse behaviour from backend helpers.
+
+
 export async function getOfficerDermagas(officerId: string) {
   const { data, error } = await db
     .from("officer_dermagas")
@@ -157,6 +162,8 @@ export async function getOfficerDermagas(officerId: string) {
   }));
 }
 
+
+
 export async function getDermagaRoutes(dermagaId: string) {
   const { data, error } = await db
     .from("routes")
@@ -166,15 +173,7 @@ export async function getDermagaRoutes(dermagaId: string) {
   return data ?? [];
 }
 
-/**
- * Rute milik seorang officer, dikelompokkan per dermaga — SATU query.
- *
- * Versi lama memanggil `getDermagaRoutes` satu per dermaga di dalam loop,
- * jadi login dengan 2 dermaga saja sudah 3 query (N+1). Sekarang semua rute
- * diambil sekali lewat join officer_dermagas -> dermagas -> routes.
- *
- * Bentuk hasil sama dengan `getDermagaRoutes`: array per `dermagaId`.
- */
+// Rute milik seorang officer, dikelompokkan per dermaga — SATU query.
 export async function getOfficerRoutesByDermaga(
   officerId: string,
 ): Promise<Record<string, unknown[]>> {
@@ -199,6 +198,8 @@ export async function getOfficerRoutesByDermaga(
   }
   return map;
 }
+
+
 
 export function generateTripNo(): string {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");

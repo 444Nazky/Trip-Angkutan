@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildRecap } from './recap'
 import type { ReportTrip, ReportVehicle } from './trips'
 
+
+
 const vehicle = (over: Partial<ReportVehicle>): ReportVehicle => ({
   id: 'V1',
   no_polisi: 'BG 1 AA',
@@ -12,6 +14,8 @@ const vehicle = (over: Partial<ReportVehicle>): ReportVehicle => ({
   foto_path: null,
   ...over,
 })
+
+
 
 const trip = (over: Partial<ReportTrip> = {}, vehicles: ReportVehicle[] = []): ReportTrip => ({
   id: 'T1',
@@ -27,6 +31,8 @@ const trip = (over: Partial<ReportTrip> = {}, vehicles: ReportVehicle[] = []): R
   vehicles,
   ...over,
 })
+
+
 
 describe('buildRecap', () => {
   it('mengelompokkan per golongan dan jenis serta menjumlahkan muatan, unit, dan pendapatan', () => {
@@ -49,9 +55,7 @@ describe('buildRecap', () => {
     expect(eksternal.empty).toBe(1)
     expect(eksternal.total).toBe(3)
     expect(eksternal.revenue).toBe(280000 + 130000 + 450000)
-    // Hanya jenis yang benar-benar ada di data trip. Dulu baris kosong
-    // ("Mobil", "Motor", "Truck Kecil", ...) ikut disuntikkan walau tidak
-    // ada kendaraan dengan jenis itu - data palsu di layar rekap.
+    // Hanya jenis yang benar-benar ada di data trip.
     expect(eksternal.rows.map(r => r.jenis)).toEqual(['Truck Besar', 'Truck Sedang'])
     expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 410000 })
     expect(eksternal.rows[0]).toMatchObject({ loaded: 1, empty: 0, total: 1, revenue: 450000 })

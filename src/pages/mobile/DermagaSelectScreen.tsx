@@ -5,14 +5,12 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface DermagaSelectScreenProps {
   go: (s: MobileScreen) => void
   dermagas: Dermaga[]
   onSelected: (dermaga: Dermaga) => void
   onCancel: () => void
 }
-
 
 
 

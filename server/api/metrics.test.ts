@@ -1,22 +1,11 @@
-/**
- * Uji metrik server (server/api/_metrics.ts dan server/api/_system.ts).
- *
- * Fokusnya dua hal:
- *  1. Deret bucket per menit harus KONTINU (60 menit, jarak tepat 1 menit)
- *     supaya grafik "request per menit" di dashboard tidak pernah bolong.
- *  2. Snapshot sistem (CPU/RAM/disk) harus terbaca di mesin Linux.
- *
- * Jalankan:
- *   deno test --allow-env --allow-read --allow-run=df --allow-run=cat --allow-sys server/api/metrics.test.ts
- */
+// Uji metrik server (server/api/_metrics.ts dan server/api/_system.ts). Fokusnya dua hal: 1.
 
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import { recordRequest, snapshot } from "./_metrics.ts";
 import { systemSnapshot } from "./_system.ts";
+
+
 
 Deno.test("snapshot() mengirim 60 bucket per menit yang kontinu", () => {
   const snap = snapshot();
@@ -27,10 +16,11 @@ Deno.test("snapshot() mengirim 60 bucket per menit yang kontinu", () => {
     assertEquals(snap.buckets[i].minute - snap.buckets[i - 1].minute, 60_000);
   }
 
-  // Bucket terbaru = menit berjalan (dibulatkan ke bawah).
   const currentMinute = Math.floor(Date.now() / 60_000) * 60_000;
   assertEquals(snap.buckets[snap.buckets.length - 1].minute, currentMinute);
 });
+
+
 
 Deno.test("bucket terisi setelah ada request", () => {
   recordRequest({
@@ -47,11 +37,11 @@ Deno.test("bucket terisi setelah ada request", () => {
   assertEquals(last.ok >= 1, true);
 });
 
+
+
 Deno.test("snapshot sistem terbaca di mesin Linux", async () => {
   const sys = await systemSnapshot();
-  // Deno memblokir /proc kecuali --allow-all atau --allow-run=cat (subprocess
-  // `cat` yang dipakai _system.ts). Kalau tidak, metrik degrade ke nol -
-  // yang penting panel tidak error.
+  // Deno memblokir /proc kecuali --allow-all atau --allow-run=cat (subprocess `cat` yang dipakai _system.ts).
   if (!sys.available) {
     console.warn("SKIP: /proc tidak terbaca (butuh --allow-run=cat atau --allow-all)");
     return;

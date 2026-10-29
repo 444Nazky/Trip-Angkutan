@@ -1,20 +1,7 @@
-/**
- * Tes master data offline + cek status plat tanpa server.
- *
- * Masalah yang ditutup tes ini: `GET /plates` (master plat) dan
- * `GET /region-tariffs` sama-sama butuh admin, sehingga data itu TIDAK PERNAH
- * ada di HP petugas. Akibatnya `POST /plates/check` hanya bisa jalan online —
- * di lapangan tanpa sinyal, petugas tidak tahu kendaraan itu internal (Rp 0)
- * atau eksternal.
- *
- * Yang dijaga:
- * - paket master (region + plat + tarif region) tersimpan di perangkat,
- * - respons kosong/gagal TIDAK menghapus cache yang sudah dipakai petugas,
- * - nomor plat dicocokkan tanpa peduli spasi ("B 1234 XY" = "B1234XY"),
- * - status offline mengikuti aturan server (internal/lokal/eksternal),
- * - `checkPlate()` jatuh ke cache offline saat server tidak terjangkau.
- */
+// Tes master data offline + cek status plat tanpa server.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+
 
 const h = vi.hoisted(() => ({
   getResponse: { ok: true, data: {} as unknown } as {
@@ -32,6 +19,8 @@ const h = vi.hoisted(() => ({
   postUrl: '' as string,
 }))
 
+
+
 vi.mock('./api', () => ({
   api: {
     get isAuthenticated() {
@@ -48,17 +37,18 @@ vi.mock('./api', () => ({
   },
 }))
 
+
+
 vi.mock('./auth', () => ({
   getStoredOfficer: () => h.officer,
 }))
 
-import {
-  OFFLINE_MASTER_KEY,
-  getOfflineMaster,
-  getOfflineMasterStatus,
-  pullOfflineMaster,
-} from './offlineMaster'
+
+
+import { OFFLINE_MASTER_KEY, getOfflineMaster, getOfflineMasterStatus, pullOfflineMaster, } from './offlineMaster'
 import { checkPlate, checkPlateOffline } from './plates'
+
+
 
 const PACK = {
   pulledAt: 1,
@@ -77,6 +67,8 @@ const PACK = {
   ],
 }
 
+
+
 beforeEach(() => {
   localStorage.clear()
   h.getUrl = ''
@@ -85,6 +77,8 @@ beforeEach(() => {
   h.getResponse = { ok: true, data: PACK }
   h.postResponse = { ok: false, error: { code: 'NETWORK', message: 'Network error' } }
 })
+
+
 
 describe('pullOfflineMaster', () => {
   it('menyimpan paket master offline (region + plat + tarif region)', async () => {
@@ -97,7 +91,7 @@ describe('pullOfflineMaster', () => {
     expect(res.tariffs).toBe(2)
 
     const stored = getOfflineMaster()
-    expect(stored?.plates[0].key).toBe('B1234XY') // spasi dinormalkan
+    expect(stored?.plates[0].key).toBe('B1234XY')
     expect(stored?.plates[0].plate).toBe('B 1234 XY')
     expect(getOfflineMasterStatus().hasPack).toBe(true)
   })
@@ -162,6 +156,8 @@ describe('pullOfflineMaster', () => {
   })
 })
 
+
+
 describe('checkPlateOffline', () => {
   beforeEach(async () => {
     await pullOfflineMaster()
@@ -202,6 +198,8 @@ describe('checkPlateOffline', () => {
     expect(checkPlateOffline('B 1234 XY')).toBeNull()
   })
 })
+
+
 
 describe('checkPlate', () => {
   it('memakai jawaban server bila server terjangkau', async () => {

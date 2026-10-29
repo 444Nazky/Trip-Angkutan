@@ -1,25 +1,8 @@
 // Resolusi tarif terpusat — SATU-SATUNYA sumber harga di backend.
-//
-// Dipakai oleh:
-//   - /trips/complete (saat insert kendaraan) -> vehicles.tariff_amount
-//   - /reports/trips   (saat baca laporan)   -> tarif_efektif per kendaraan
-//
-// Urutan prioritas harga (kebijakan disetujui owner):
-//   1. Kategori Internal            -> Rp 0 (kendaraan internal selalu gratis)
-//   2. Baris tarif region per jenis -> region_tariff_rows (region + jenis kendaraan)
-//                                      Eksternal: hasLoad -> muatan_tariff,
-//                                      kosong -> kosong_tariff. Lokal: lokal_tariff.
-//   3. Tarif terpusat per region    -> region_tariffs (lokal / eksternal)
-//   4. Nol                          -> tidak ada sumber harga (ditandai "tanpa-tarif")
-//
-// Setiap region punya barisnya sendiri (termasuk BADAU); tidak ada fallback
-// ke master. Region tanpa baris = tarif 0, dan admin mengisinya di tabel REGION.
-//
-// Catatan normalisasi: penulisan jenis kendaraan di admin bisa "Truck Besar"
-// sedangkan label UI mobile "Truk Besar". both dinormalisasi ke kunci yang sama
-// supaya lookup tidak meleset -> penyebab utama laporan "Rp 0" sebelumnya.
 
 import { db } from "../_shared.ts";
+
+
 
 export interface MasterTariffRow {
   id?: string;
@@ -31,6 +14,8 @@ export interface MasterTariffRow {
   is_active?: number;
 }
 
+
+
 export interface FlatRegionTariff {
   region_id: string;
   tariff_type: "lokal" | "eksternal";
@@ -38,15 +23,17 @@ export interface FlatRegionTariff {
   is_active: number;
 }
 
+
+
 export type TariffSource =
   | "internal"
   | "region-row"
   | "region"
   | "tanpa-tarif"
-  // Harga yang SUDAH TERSIMPAN di vehicles.tariff_amount (snapshot saat trip
-  // dikirim). Dipakai laporan supaya perubahan tarif admin tidak mengubah
-  // trip lama — lihat reports.snapshotTariff.
+  // Harga yang SUDAH TERSIMPAN di vehicles.tariff_amount (snapshot saat trip dikirim).
   | "snapshot";
+
+
 
 export interface TariffResult {
   amount: number;
@@ -55,16 +42,23 @@ export interface TariffResult {
   empty: number;
 }
 
-// ── Cache master tarif & tarif region (per instance edge function) ────────────
+
 
 let masterCache: { at: number; rows: MasterTariffRow[] } | null = null;
+
+
+
 let regionCache: { at: number; rows: FlatRegionTariff[] } | null = null;
+
+
+
 let overrideCache: { at: number; rows: OverrideTariffRow[] } | null = null;
 
-// TTL cache sengaja pendek: admin yang baru saja mengubah tarif harus
-// langsung terpakai untuk trip BERIKUTNYA. Cache 60 detik masih bisa membuat
-// trip yang dikirim sesaat setelah perubahan ikut memakai harga lama.
+// TTL cache sengaja pendek: admin yang baru saja mengubah tarif harus langsung terpakai untuk trip BERIKUTNYA.
 const MASTER_TTL_MS = 10_000;
+
+
+
 const REGION_TTL_MS = 10_000;
 
 /** Buang cache tarif (dipanggil setelah admin mengubah master tarif). */
@@ -74,7 +68,7 @@ export function invalidateTariffCache(): void {
   overrideCache = null;
 }
 
-/** Master tarif untuk mobile = baris tarif BADAU (sumber tunggal setelah golongan dihapus). */
+// Master tarif untuk mobile = baris tarif BADAU (sumber tunggal setelah golongan dihapus).
 export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]> {
   if (!force && masterCache && Date.now() - masterCache.at < MASTER_TTL_MS) {
     return masterCache.rows;
@@ -105,6 +99,8 @@ export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]
   return rows;
 }
 
+
+
 export async function getRegionTariffs(force = false): Promise<FlatRegionTariff[]> {
   if (!force && regionCache && Date.now() - regionCache.at < REGION_TTL_MS) {
     return regionCache.rows;
@@ -125,7 +121,7 @@ export async function getRegionTariffs(force = false): Promise<FlatRegionTariff[
   return rows;
 }
 
-// ── Baris override tarif region (region_tariff_rows) ─────────────────────────
+
 
 export interface OverrideTariffRow {
   region_id: string;
@@ -135,6 +131,8 @@ export interface OverrideTariffRow {
   kosong_tariff: number;
   is_active: number;
 }
+
+
 
 export async function getRegionTariffOverrides(force = false): Promise<OverrideTariffRow[]> {
   if (!force && overrideCache && Date.now() - overrideCache.at < REGION_TTL_MS) {
@@ -156,13 +154,16 @@ export async function getRegionTariffOverrides(force = false): Promise<OverrideT
   return rows;
 }
 
-// ── Normalisasi kategori operasional ──────────────────────────────────────────
+
 
 export const OPERATIONAL_CATEGORIES = ["Internal", "Eksternal", "Lokal"] as const;
 
+
+
 export type OperationalCategory = (typeof OPERATIONAL_CATEGORIES)[number];
 
-/** Kategori dari plat/plat scan memakai huruf kecil (internal/lokal/eksternal). */
+
+
 export function normalizeCategory(raw: unknown): OperationalCategory | null {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).trim().toLowerCase();
@@ -173,9 +174,8 @@ export function normalizeCategory(raw: unknown): OperationalCategory | null {
   return null;
 }
 
-/** Kunci perbandingan jenis kendaraan.
- * "Truck Besar" / "TruckBesar" / "Truk Besar" -> "trukbesar"
- */
+
+
 export function normalizeVehicleType(raw: unknown): string {
   return String(raw ?? "")
     .trim()
@@ -195,23 +195,24 @@ export function normalizeGolongan(raw: unknown): string {
   return s;
 }
 
-// ── Resolver tarif ────────────────────────────────────────────────────────────
+
 
 export interface ResolveTariffInput {
   vehicleType: string;
   hasLoad: boolean;
   /** @deprecated golongan sudah tidak dipakai; dipertahankan agar pemanggil lama tetap kompatibel. */
   golongan?: string | null;
-  /** Kategori operasional kendaraan (Internal / Eksternal / Lokal). */
   kategori?: string | null;
-  /** Region tempat trip dicatat — dipakai untuk tarif terpusat per region. */
   regionId?: string | null;
 }
 
+
+
 export interface ResolvedTariff extends TariffResult {
-  /** Kategori final yang dipakai (Internal -> 0). */
   category: OperationalCategory | null;
 }
+
+
 
 export async function resolveTariff(input: ResolveTariffInput): Promise<ResolvedTariff> {
   const category = normalizeCategory(input.kategori);
@@ -219,12 +220,10 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
   const hasLoad = !!input.hasLoad;
   const wantType = normalizeVehicleType(vehicleType);
 
-  // 1. Internal selalu gratis.
   if (category === "Internal") {
     return { amount: 0, source: "internal", loaded: 0, empty: 0, category };
   }
 
-  // 2. Baris tarif region untuk jenis kendaraan ini (satu baris per region+jenis).
   if (input.regionId) {
     const overrides = await getRegionTariffOverrides();
     const hit = overrides.find(
@@ -234,7 +233,6 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
         (wantType ? normalizeVehicleType(o.vehicle_type) === wantType : true),
     );
     if (hit && category === "Lokal") {
-      // Tarif lokal per jenis. 0 = belum diisi -> pakai nilai flat di langkah 3.
       const lokal = Number(hit.lokal_tariff ?? 0) || 0;
       if (lokal > 0) {
         return { amount: lokal, source: "region-row", loaded: lokal, empty: lokal, category };
@@ -252,7 +250,6 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
     }
   }
 
-  // 3. Tarif terpusat per region (kategori lokal / eksternal, region aktif).
   if (category && input.regionId) {
     const regions = await getRegionTariffs();
     const wanted = category === "Lokal" ? "lokal" : "eksternal";
@@ -267,7 +264,6 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
     }
   }
 
-  // 4. Tidak ada sumber harga.
   return { amount: 0, source: "tanpa-tarif", loaded: 0, empty: 0, category };
 }
 
@@ -275,11 +271,7 @@ export async function resolveTariff(input: ResolveTariffInput): Promise<Resolved
 
 const columnSupport = new Map<string, boolean>();
 
-/**
- * Cek apakah sebuah kolom ada di tabel tertentu. Dipakai supaya backend bisa
- * jalan baik sebelum maupun sesudah migrasi kolom baru (kategori, selfie_path)
- * diterapkan — tidak sampai insert gagal total.
- */
+// Cek apakah sebuah kolom ada di tabel tertentu.
 export async function hasColumn(table: string, column: string): Promise<boolean> {
   const key = `${table}.${column}`;
   const cached = columnSupport.get(key);

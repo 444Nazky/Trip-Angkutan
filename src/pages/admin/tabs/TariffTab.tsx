@@ -1,31 +1,7 @@
-/**
- * Tab "Master Tarif Jenis Kendaraan" di admin dashboard.
- *
- * Sumber angka (resolver backend, handlers/tariffRules.ts -> resolveTariff):
- *
- *   1. Kategori Internal -> Rp 0 (kolom "internal" terkunci)
- *   2. Baris wilayah `region_tariff_rows` -> satu baris per (region, jenis):
- *      `lokal_tariff` untuk kategori Lokal, muatan/kosong untuk Eksternal.
- *   3. Tarif wilayah flat `region_tariffs` -> cadangan untuk lokal yang masih 0
- *
- * Edit seperti spreadsheet: klik angka, ubah, Enter/blur = autosave.
- * Semua region menulis barisnya sendiri.
- */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Bike,
-  Car,
-  ChevronDown,
-  ChevronRight,
-  Container,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  Truck,
-} from 'lucide-react'
+import { Bike, Car, ChevronDown, ChevronRight, Container, Pencil, Plus, Search, Trash2, Truck, } from 'lucide-react'
 import {
   RegionTariffRow,
   bulkUpsertRegionTariffRows,
@@ -40,16 +16,15 @@ import {
   type VehicleType,
 } from '../../../services/vehicleTypes'
 
+
+
 interface TariffTabProps {
-  /**
-   * Status koneksi ke server API intranet.
-   * `auth` berarti server hidup tetapi login admin ditolak.
-   */
   serverState: 'connecting' | 'online' | 'offline' | 'auth'
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
-/** Isi panel "Tambah / Edit Tarif". Semua nominal berupa string mentah. */
+
+
 interface TariffForm {
   regionId: string
   type: string
@@ -58,7 +33,8 @@ interface TariffForm {
   kosong: string
 }
 
-/** Nilai satu jenis kendaraan di satu region. `stored` = baris ada di server. */
+
+
 interface Cell {
   type: string
   lokal: number
@@ -67,17 +43,30 @@ interface Cell {
   stored: boolean
 }
 
-/** Nilai khusus: form region = "semua region". */
+
+
 const ALL_REGIONS = '__all__'
+
+
 
 const INPUT_CLS =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
+
+
+
 const BTN_PRIMARY =
   'inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-40'
+
+
+
 const BTN_GHOST =
   'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
 
+
+
 const EMPTY_FORM: TariffForm = { regionId: '', type: '', lokal: '', muatan: '', kosong: '' }
+
+
 
 const normalizeType = (t: string) =>
   String(t ?? '')
@@ -85,13 +74,7 @@ const normalizeType = (t: string) =>
     .toLowerCase()
     .replace(/truck/g, 'truk')
 
-/**
- * Ikon untuk jenis kendaraan.
- *
- * Dipilih dari kata kunci nama, bukan dari daftar hardcode. Jadi jenis baru
- * yang ditambahkan admin di database tetap tampil dengan ikon yang masuk akal
- * tanpa perlu mengubah kode.
- */
+// Ikon untuk jenis kendaraan. Dipilih dari kata kunci nama, bukan dari daftar hardcode.
 const iconForType = (type: string) => {
   const t = normalizeType(type)
   if (t.includes('motor') || t.includes('sepeda')) return Bike
@@ -100,7 +83,8 @@ const iconForType = (type: string) => {
   return Truck
 }
 
-/** "truk kecil" -> "Truk Kecil" (label tampilan). */
+
+
 const prettyType = (t: string) =>
   String(t ?? '')
     .trim()
@@ -109,8 +93,15 @@ const prettyType = (t: string) =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
 
+
+
 const fmtNum = (n: number) => Number(n || 0).toLocaleString('id-ID')
+
+
+
 const digits = (s: string) => Number(String(s).replace(/[^\d]/g, '')) || 0
+
+
 
 function Field({
   label,
@@ -132,7 +123,8 @@ function Field({
   )
 }
 
-/** Sel angka gaya spreadsheet: klik -> edit -> Enter/blur autosave. */
+
+
 function SheetCell({
   value,
   onCommit,
@@ -204,7 +196,8 @@ function SheetCell({
   )
 }
 
-/** Sel kolom "internal": terkunci (kendaraan internal selalu Rp 0). */
+
+
 function LockedInternalCell() {
   return (
     <td
@@ -216,31 +209,27 @@ function LockedInternalCell() {
   )
 }
 
+
+
 export function TariffTab({ serverState, showToast }: TariffTabProps) {
   const [regions, setRegions] = useState<RegionTariffRow[]>([])
-  /** Region yang barisnya sedang dibuka. Default: semua region terbuka. */
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   /** Id region yang sudah pernah diproses (supaya pilihan collapse user tidak ditimpa). */
   const knownRegionIds = useRef<Set<string>>(new Set())
   const [filterRegion, setFilterRegion] = useState('')
   const [filterType, setFilterType] = useState('')
   const [form, setForm] = useState<TariffForm>(EMPTY_FORM)
-  /** Master jenis kendaraan (dari database). */
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([])
-  /** Nama jenis baru yang sedang diketik di panel master. */
   const [newTypeName, setNewTypeName] = useState('')
-  /** Baris yang sedang diedit lewat panel kanan (null = mode tambah). */
   const [editTarget, setEditTarget] = useState<{ regionId: string; type: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
-  /** Muat ulang region + tarif flat + baris tarif dari server. */
   const reloadRegions = useCallback(async () => {
     const fresh = await fetchRegionTariffs()
     if (fresh) setRegions(fresh)
     else showToast('Gagal memuat tarif region', 'error')
   }, [showToast])
 
-  /** Muat ulang master jenis kendaraan dari database. */
   const reloadTypes = useCallback(async () => {
     const fresh = await fetchVehicleTypes(true)
     if (fresh) setVehicleTypes(fresh)
@@ -252,13 +241,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     void reloadTypes()
   }, [reloadRegions, reloadTypes])
 
-  /**
-   * Semua jenis kendaraan untuk tabel tarif.
-   *
-   * Sumbernya master di database (`vehicle_types`). Jenis yang hanya ada di
-   * baris tarif region tapi belum terdaftar di master ikut ditampilkan (supaya
-   * barisnya tidak "hilang"), dengan penanda bahwa jenis itu belum terdaftar.
-   */
+  // Semua jenis kendaraan untuk tabel tarif. Sumbernya master di database (`vehicle_types`).
   const allTypes = useMemo(() => {
     const map = new Map<string, { name: string; sort: number }>()
     for (const t of vehicleTypes) {
@@ -278,16 +261,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       .map((v) => v.name)
   }, [regions, vehicleTypes])
 
-  /**
-   * Katalog jenis kendaraan untuk form tarif.
-   *
-   * `registered` = jenis ini ada di master database. Jenis yang belum
-   * terdaftar (baris tarif lama) tetap bisa dipilih, tapi ditandai supaya
-   * admin bisa mendaftarkannya ke master.
-   *
-   * Ejaan asli dari DB dipakai sebagai nilai simpan supaya tidak tercipta
-   * baris duplikat untuk region yang sama (mis. "Truk Kecil" vs "truk kecil").
-   */
+  // Katalog jenis kendaraan untuk form tarif. `registered` = jenis ini ada di master database.
   const typeCatalog = useMemo(() => {
     const map = new Map<string, { value: string; label: string; registered: boolean; sort: number }>()
     for (const t of vehicleTypes) {
@@ -307,13 +281,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     return [...map.values()].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label))
   }, [regions, vehicleTypes])
 
-  /** Jenis master (aktif) - sumber daftar kartu filter. */
   const masterTypes = useMemo(
     () => vehicleTypes.filter((t) => t.isActive).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     [vehicleTypes],
   )
 
-  /** Berapa region yang memakai suatu jenis (untuk peringatan hapus). */
   const usageByType = useMemo(() => {
     const map = new Map<string, number>()
     for (const r of regions) {
@@ -325,7 +297,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     return map
   }, [regions])
 
-  /** Region urut nama. */
   const orderedRegions = useMemo(
     () =>
       [...regions].sort((a, b) =>
@@ -334,7 +305,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     [regions],
   )
 
-  /** Nilai tampil per region: baris region bila ada, selain itu Rp 0. */
   const cellsFor = useCallback(
     (region: RegionTariffRow): Cell[] => {
       const overrides = new Map(region.rows?.map((o) => [normalizeType(o.vehicleType), o]) ?? [])
@@ -342,7 +312,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         const o = overrides.get(normalizeType(type))
         return {
           type: o?.vehicleType ?? type,
-          // Baris yang belum tersimpan masih memakai tarif lokal wilayah.
           lokal: o ? o.lokalTariff : (region.lokal_tariff ?? 0),
           muatan: o ? o.muatanTariff : 0,
           kosong: o ? o.kosongTariff : 0,
@@ -368,16 +337,12 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     [orderedRegions, cellsFor, filterRegion, filterType],
   )
 
-  /** Pilih region awal + buka semua accordion region secara default. */
   useEffect(() => {
     if (!orderedRegions.length) return
     if (!form.regionId) {
       setForm((f) => (f.regionId ? f : { ...f, regionId: orderedRegions[0].id }))
     }
-    // Semua region langsung TERBUKA saat halaman dimuat - tidak perlu klik
-    // tombol "Tampilkan" satu per satu. Region yang baru muncul (mis. region
-    // tambahan) ikut dibuka, tapi region yang sengaja dik-collapse oleh user
-    // tidak dibuka lagi.
+    // Semua region langsung TERBUKA saat halaman dimuat - tidak perlu klik tombol "Tampilkan" satu per satu. Region yang baru muncul (mis.
     const fresh = orderedRegions.filter((r) => !knownRegionIds.current.has(r.id))
     if (fresh.length === 0) return
     for (const r of fresh) knownRegionIds.current.add(r.id)
@@ -397,7 +362,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     })
   }
 
-  /** Simpan satu sel: upsert baris (region, jenis) berisi lokal/muatan/kosong. */
   const commitCell = async (
     region: RegionTariffRow,
     cell: Cell,
@@ -444,7 +408,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     setExpanded((prev) => new Set(prev).add(region.id))
   }
 
-  /** Pilih jenis kendaraan → isi muatan/kosong dari baris region yang ada. */
   const changeFormType = (v: string) => {
     const region = regions.find((r) => r.id === form.regionId)
     const row = region?.rows?.find((o) => normalizeType(o.vehicleType) === normalizeType(v))
@@ -457,15 +420,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }))
   }
 
-  /**
-   * Ganti region di form.
-   *
-   * - "Semua Region" → mode massal (bulk): tarif jenis yang dipilih diterapkan
-   *   ke semua region (tambah) atau ke semua region yang sudah punya baris
-   *   untuk jenis itu (edit).
-   * - Region biasa → mode satu region. Saat sedang edit, target edit ikut
-   *   pindah ke region yang dipilih untuk jenis yang sama.
-   */
   const changeFormRegion = (id: string) => {
     if (id === ALL_REGIONS) {
       setForm((f) => ({ ...f, regionId: ALL_REGIONS, lokal: '' }))
@@ -473,7 +427,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
     const r = regions.find((x) => x.id === id)
     if (editTarget) {
-      // Mode edit: pindah target ke region lain untuk jenis yang sama.
       const row = r?.rows?.find((o) => normalizeType(o.vehicleType) === normalizeType(editTarget.type))
       setEditTarget({ regionId: id, type: editTarget.type })
       setForm((f) => ({
@@ -488,7 +441,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     setForm((f) => ({ ...f, regionId: id, lokal: String(r?.lokal_tariff ?? 0) }))
   }
 
-  /** Hapus baris tarif (region + jenis kendaraan). */
   const handleDeleteCell = async (region: RegionTariffRow, cell: Cell) => {
     const label = prettyType(cell.type)
     if (!confirm(`Hapus tarif "${label}" untuk region ${region.name || region.code}?`)) return
@@ -509,7 +461,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
   }
 
-  /** Simpan panel: upsert baris (region, jenis) + nominal lokal. */
   const submitForm = async () => {
     const isAll = form.regionId === ALL_REGIONS
     const type = form.type.trim()
@@ -518,12 +469,10 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     const muatan = digits(form.muatan)
     const kosong = digits(form.kosong)
 
-    // ---- Mode "Semua Region": satu harga untuk banyak region ----
     if (isAll) {
       setSaving(true)
       try {
-        // Tambah → semua region. Edit → hanya region yang sudah punya baris
-        // untuk jenis ini (agar jenis baru tidak muncul di region yang tak用它).
+        // Tambah → semua region. Edit → hanya region yang sudah punya baris untuk jenis ini (agar jenis baru tidak muncul di region yang tak用它).
         const scope = editTarget ? 'existing' : 'all'
         const res = await bulkUpsertRegionTariffRows({
           vehicleType: type,
@@ -600,13 +549,11 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
   }
 
-  /** Jenis yang dipakai di baris tarif tapi belum terdaftar di master. */
   const unregisteredTypes = useMemo(
     () => typeCatalog.filter((t) => !t.registered),
     [typeCatalog],
   )
 
-  /** Tambah jenis kendaraan ke master (langsung ke database). */
   const handleAddType = async () => {
     const name = newTypeName.trim()
     if (!name) return
@@ -625,7 +572,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
     }
   }
 
-  /** Hapus jenis kendaraan dari master (baris tarif ikut terhapus). */
   const handleDeleteType = async (t: VehicleType) => {
     const used = usageByType.get(normalizeType(t.name)) ?? 0
     const warn = used > 0
@@ -660,7 +606,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
   return (
     <div className="space-y-5">
-      {/* Header halaman */}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-black text-slate-900">Master Tarif Jenis Kendaraan</h3>
@@ -686,7 +632,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         </span>
       </div>
 
-      {/* Filter */}
+
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_auto]">
           <Field label="Region">
@@ -720,7 +666,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         </div>
       </div>
 
-      {/* Master jenis kendaraan - sumber tunggal, disimpan di database */}
+
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -792,7 +738,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         )}
       </div>
 
-      {/* Kartu jenis kendaraan (dari master database) */}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {masterTypes.map((t, i) => {
           const key = normalizeType(t.name)
@@ -819,7 +765,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Tabel tarif */}
+
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
@@ -957,7 +903,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           </div>
         </div>
 
-        {/* Panel tambah / edit */}
+
         <aside id="tariff-form" className="xl:sticky xl:top-6">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-start gap-2 border-b border-slate-100 px-4 py-3.5">
@@ -1106,7 +1052,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         </aside>
       </div>
 
-      {/* Keterangan singkat */}
+
       <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500 shadow-sm">
         <p>
           Tiap region punya baris tarifnya sendiri. Region yang belum punya baris untuk suatu jenis

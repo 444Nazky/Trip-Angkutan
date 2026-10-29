@@ -2,6 +2,8 @@ import { X, Camera } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
+
+
 interface Photo {
   id: string
   url: string
@@ -9,11 +11,15 @@ interface Photo {
   uploaded_at?: string
 }
 
+
+
 interface PhotoViewerProps {
   photos: Photo[]
   onClose: () => void
   baseUrl?: string
 }
+
+
 
 export function resolvePhotoUrl(url: string, baseUrl = ''): string {
   if (/^(https?:|data:|blob:)/i.test(url)) return url
@@ -25,11 +31,12 @@ export function resolvePhotoUrl(url: string, baseUrl = ''): string {
   }
 }
 
+
+
 export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps) {
   const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(() => photos.length === 1 ? photos[0] : null)
   const getSrc = (url: string) => resolvePhotoUrl(url, baseUrl)
 
-  // Handle escape key to close
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -41,7 +48,6 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [lightboxPhoto, onClose])
 
-  // Lock body scroll when lightbox open
   useEffect(() => {
     if (lightboxPhoto) {
       document.body.style.overflow = 'hidden'
@@ -63,7 +69,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      {/* Header */}
+
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
         <div>
           <p className="font-bold text-slate-800">Foto Dokumentasi</p>
@@ -74,7 +80,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
         </button>
       </div>
 
-      {/* Photo Grid */}
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 max-h-[70vh] overflow-y-auto">
         {photos.map(photo => (
           <button
@@ -102,13 +108,13 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
         ))}
       </div>
 
-      {/* Lightbox - Portal to body for viewport-fixed positioning */}
+
       {lightboxPhoto && createPortal(
         <div
           className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 animate-fadeIn"
           onClick={() => setLightboxPhoto(null)}
         >
-          {/* Close button */}
+
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setLightboxPhoto(null) }}
@@ -117,7 +123,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
             <X size={22} />
           </button>
 
-          {/* Image container */}
+
           <div
             className="max-w-[90vw] max-h-[85vh] flex flex-col items-center animate-scaleIn"
             onClick={e => e.stopPropagation()}

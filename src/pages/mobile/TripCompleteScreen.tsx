@@ -4,19 +4,13 @@ import { useApp } from '../store'
 import { classifyTripSync, onSyncQueueChange, processSyncQueue, refreshSyncQueue, type SyncItem } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
+
+
 interface TripCompleteScreenProps {
   go: (s: MobileScreen) => void
 }
 
-/**
- * Layar konfirmasi trip. Status sinkronisasi HARUS jujur:
- * - tersimpan lokal + belum terkirim  -> amber (menunggu)
- * - sudah terkirim ke server          -> hijau
- * - gagal permanen / butuh perhatian  -> merah + tombol coba lagi
- *
- * Sebelumnya layar ini selalu hijau "Trip Selesai!" walau server belum
- * menerima apa pun, sehingga petugas mengira data sudah masuk.
- */
+// Layar konfirmasi trip. Status sinkronisasi HARUS jujur: - tersimpan lokal + belum terkirim -> amber (menunggu) - sudah terkirim ke server -> hijau -…
 export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
   const { trips, detailTripId } = useApp()
   const t = trips.find(x => x.id === detailTripId)
@@ -32,9 +26,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   if (!t) return null
 
-  // SATU sumber kebenaran: antrean sync. `t.synced` saja tidak cukup —
-  // trip yang ditolak server (4xx) tetap `synced === false` tapi harus
-  // ditampilkan sebagai GAGAL, bukan "menunggu".
+  // SATU sumber kebenaran: antrean sync. `t.synced` saja tidak cukup
   const syncStatus = classifyTripSync(t.id, t.synced, queue)
   const failed = syncStatus.state === 'failed'
   const pending = syncStatus.state === 'pending'

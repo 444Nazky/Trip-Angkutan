@@ -1,20 +1,8 @@
 // Helper murni untuk mengelompokkan relasi officer (regions + dermagas).
-//
-// Dipisah dari handler supaya bisa diuji tanpa koneksi database: logika
-// grouping ini yang memastikan hasil bulk query sama dengan hasil query
-// per-officer (versi lama).
 
 export type OfficerExtras = { regions: any[]; dermagas: any[] };
 
-/**
- * Mengelompokkan baris relasi hasil query bulk ke per-officer.
- *
- * `regionRows`  : [{ officer_id, regions: {...} }]
- * `dermagaRows` : [{ officer_id, dermagas: {...} }]
- *
- * Setiap officer selalu punya entri, walau relasinya kosong, supaya
- * consumer tidak perlu memanggil `.regions` pada `undefined`.
- */
+// Mengelompokkan baris relasi hasil query bulk ke per-officer.
 export function groupOfficerExtras(
   officerIds: string[],
   regionRows: { officer_id: unknown; regions?: any }[] | null | undefined,

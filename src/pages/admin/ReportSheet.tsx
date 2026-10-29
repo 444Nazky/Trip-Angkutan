@@ -27,15 +27,22 @@ import { locationDistanceText, nearestGeofence } from '../../services/locationDi
 
 
 const fmtRp = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`
+
+
+
 const fotoUrl = (path: string | null | undefined) => {
   if (!path) return null
   return resolvePhotoUrl(path, environment.apiBaseUrl)
 }
 
+
+
 const fmtCoords = (lat?: number | null, lng?: number | null) => {
   if (!lat || !lng) return null
   return { lat: Number(lat).toFixed(5), lng: Number(lng).toFixed(5), gmaps: `https://www.google.com/maps?q=${lat},${lng}` }
 }
+
+
 
 type LocCell = { dist: string | null; lat: string; lng: string; gmaps: string; tooltip?: string }
 
@@ -88,19 +95,16 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
   )
 }
 
+
+
 type LoadState = 'loading' | 'ready' | 'offline'
 
 
 
-// Auto-refresh laporan.
-// 15 detik terlalu agresif: satu query laporan menarik hingga 1.000 trip +
-// kendaraan + tarif, jadi satu tab admin yang terbuka saja bisa menghabiskan
-// kuota egress proyek (sudah lewat 131% di siklus ini). 5 menit + refresh
-// seketika saat tab kembali kelihatan tetap terasa "live" untuk operasional.
 const AUTO_REFRESH_MS = 300_000
 
-// Kolom tabel datar: satu baris untuk satu unit kendaraan, tanpa nomor urut dan
-// tanpa kolom Unit (jenis kendaraan dan nomor polisi sudah mewakili unit tersebut).
+
+
 const COLUMNS = [
   { key: 'noTrip', label: 'No Trip' },
   { key: 'tanggal', label: 'Tanggal' },
@@ -118,13 +122,16 @@ const COLUMNS = [
   { key: 'lokasi', label: 'Lokasi' },
 ] as const
 
+
+
 const STATUS_MUATAN = [
   { value: '', label: 'Semua' },
   { value: 'ada', label: 'Ada Muatan' },
   { value: 'tanpa', label: 'Tanpa Muatan' },
 ]
 
-// Baris kendaraan: rincian satu unit di dalam sebuah trip (tampilan datar/itemized).
+
+
 type VehicleRow = {
   trip: ReportTrip
   vehicle: ReportVehicle
@@ -134,7 +141,6 @@ type VehicleRow = {
   category: string
   tarif: number
   loc: LocCell | null
-  /** Baris pertama dari trip ini, dipakai untuk menampilkan bukti foto trip. */
   firstOfTrip: boolean
 }
 
@@ -147,6 +153,8 @@ type DateGroup = {
   vehicleCount: number
   revenue: number
 }
+
+
 
 export default function ReportSheet() {
   const [rows, setRows] = useState<ReportTrip[]>([])
@@ -186,8 +194,7 @@ export default function ReportSheet() {
     alive.current = true
     void load(filters)
     const id = setInterval(() => {
-      // Jangan refresh saat tab tidak terlihat: query laporan itu berat (hingga
-      // 1.000 trip + kendaraan + tarif) dan membanjiri egress tiap 15 detik.
+      // Jangan refresh saat tab tidak terlihat: query laporan itu berat (hingga 1.000 trip + kendaraan + tarif) dan membanjiri egress tiap 15 detik.
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       setTick(t => t + 1)
       void load(filters)
@@ -218,7 +225,6 @@ export default function ReportSheet() {
 
   const golonganOptions = options.golongan.length > 0 ? options.golongan : OPERATIONAL_CATEGORIES
 
-  // Seluruh unit kendaraan dijadikan baris datar (itemized row), lalu dikelompokkan per tanggal.
   const dateGroups = useMemo<DateGroup[]>(() => {
     const byDate = new Map<string, VehicleRow[]>()
     const tripsByDate = new Map<string, Set<string>>()
@@ -303,7 +309,6 @@ export default function ReportSheet() {
       [],
     ]
 
-    // Satu baris untuk satu unit kendaraan, urut per tanggal seperti tampilan tabel.
     const body: (string | number | null)[][] = vehicleRows.map(r => [
       r.trip.no_trip,
       r.date,

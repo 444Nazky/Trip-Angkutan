@@ -5,11 +5,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface OfficerSwitchScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -127,7 +125,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         ))}
       </div>
 
-      {/* Logout button */}
+
       <button
         onClick={() => {
           logout()

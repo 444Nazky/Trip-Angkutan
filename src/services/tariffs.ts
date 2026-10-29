@@ -1,6 +1,8 @@
 import { api, toActionResult, failureReason, type ActionResult } from './api'
 import type { TariffRow } from '../pages/admin/components/types'
 
+
+
 export interface ServerTariff {
   id: string
   golongan: string
@@ -11,14 +13,17 @@ export interface ServerTariff {
   is_active: number
 }
 
+
+
 export interface RegionTariffOverrideRow {
   vehicleType: string
-  /** Tarif lokal jenis kendaraan ini (0 = pakai tarif lokal wilayah). */
   lokalTariff: number
   muatanTariff: number
   kosongTariff: number
   isActive: number
 }
+
+
 
 export interface RegionTariffRow {
   id: string
@@ -28,13 +33,16 @@ export interface RegionTariffRow {
   lokal_active: number | null
   eksternal_tariff: number | null
   eksternal_active: number | null
-  /** Baris tarif per jenis kendaraan (kosong = tarif Rp 0). */
   rows?: RegionTariffOverrideRow[] | null
 }
+
+
 
 function fmtRp(n: number): string {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
+
+
 
 function toRow(s: ServerTariff): TariffRow {
   return {
@@ -49,6 +57,8 @@ function toRow(s: ServerTariff): TariffRow {
   }
 }
 
+
+
 function toPayload(row: TariffRow) {
   return {
     golongan: row.golongan,
@@ -59,15 +69,21 @@ function toPayload(row: TariffRow) {
   }
 }
 
+
+
 export async function fetchTariffs(): Promise<TariffRow[] | null> {
   const rows = await api.getOk<ServerTariff[]>('/tariffs')
   return rows ? rows.map(toRow) : null
 }
 
+
+
 export async function createTariff(row: TariffRow): Promise<string | null> {
   const res = await api.post<{ id: string }>('/tariffs', toPayload(row))
   return res.ok && res.data ? res.data.id : null
 }
+
+
 
 export async function updateTariff(row: TariffRow): Promise<boolean> {
   if (!row.id) return false
@@ -75,15 +91,21 @@ export async function updateTariff(row: TariffRow): Promise<boolean> {
   return r.ok
 }
 
+
+
 export async function deleteTariff(row: TariffRow): Promise<boolean> {
   if (!row.id) return false
   const r = await api.delete(`/tariffs/${row.id}`)
   return r.ok
 }
 
+
+
 export async function fetchRegionTariffs(): Promise<RegionTariffRow[] | null> {
   return api.getOk<RegionTariffRow[]>('/region-tariffs')
 }
+
+
 
 export async function upsertRegionTariff(input: {
   regionId: string
@@ -98,7 +120,8 @@ export async function upsertRegionTariff(input: {
   return toActionResult(r, 'Tarif wilayah gagal disimpan karena server menolak permintaan')
 }
 
-/** Upsert tarif (muatan+kosong) satu jenis kendaraan untuk region. */
+
+
 export async function upsertRegionTariffRow(input: {
   regionId: string
   vehicleType: string
@@ -116,29 +139,22 @@ export async function upsertRegionTariffRow(input: {
   return toActionResult(r, 'Tarif kendaraan gagal disimpan karena server menolak permintaan')
 }
 
+
+
 export async function fetchRegionTariffsFresh(regionId: string): Promise<RegionTariffRow | null> {
   const rows = await api.getOk<RegionTariffRow[]>('/region-tariffs')
   if (!rows) return null
   return rows.find(r => String(r.id) === String(regionId)) ?? null
 }
 
-/**
- * Hapus baris tarif (region + jenis kendaraan).
- *
- * Jenis kendaraan ikut di URL (di-encode), jadi "truk kecil" aman walau
- * mengandung spasi.
- */
+
+
 export async function deleteRegionTariffRow(regionId: string, vehicleType: string): Promise<ActionResult> {
   const r = await api.delete(`/region-tariffs/${regionId}/rows/${encodeURIComponent(vehicleType)}`)
   return toActionResult(r, 'Tarif kendaraan gagal dihapus karena server menolak permintaan')
 }
 
-/**
- * Terapkan tarif satu jenis kendaraan ke banyak region sekaligus.
- *
- * scope 'all'      -> semua region (region yang belum punya baris ikut dibuat).
- * scope 'existing' -> hanya region yang sudah punya baris untuk jenis ini.
- */
+// Terapkan tarif satu jenis kendaraan ke banyak region sekaligus. scope 'all' -> semua region (region yang belum punya baris ikut dibuat).
 export async function bulkUpsertRegionTariffRows(input: {
   vehicleType: string
   muatanTariff: number
@@ -161,6 +177,8 @@ export async function bulkUpsertRegionTariffRows(input: {
   return { ok: true, updated: res.data?.updated ?? 0 }
 }
 
+
+
 export async function upsertRegionTariffDirect(input: {
   regionId: string
   tariffType: 'lokal' | 'eksternal'
@@ -174,22 +192,20 @@ export async function upsertRegionTariffDirect(input: {
   return toActionResult(r, 'Tarif wilayah gagal disimpan karena server menolak permintaan')
 }
 
+
+
 export async function fetchAdminRegions(): Promise<AdminRegionRow[] | null> {
   return api.getOk<AdminRegionRow[]>('/regions')
 }
+
+
 
 export async function createAdminRegion(input: { name: string; code: string }): Promise<string | null> {
   const res = await api.post<{ id: string }>('/regions', input)
   return res.ok && res.data ? res.data.id : null
 }
 
-/**
- * Ubah nama/kode sebuah region.
- *
- * Memakai endpoint region (PUT /regions/:id), BUKAN endpoint tarif. Region
- * dan tarif adalah dua tabel berbeda; mengirim id region ke endpoint tarif
- * akan mengubah baris tarif yang kebetulan memakai id tersebut.
- */
+// Ubah nama/kode sebuah region. Memakai endpoint region (PUT /regions/:id), BUKAN endpoint tarif. Region dan tarif adalah dua tabel berbeda;
 export async function updateAdminRegion(
   id: string,
   input: { name?: string; code?: string },
@@ -198,10 +214,14 @@ export async function updateAdminRegion(
   return r.ok
 }
 
+
+
 export async function deleteAdminRegion(id: string): Promise<ActionResult> {
   const r = await api.delete(`/regions/${id}`)
   return toActionResult(r, 'Wilayah gagal dihapus karena server menolak permintaan')
 }
+
+
 
 export interface AdminRegionRow {
   id: string

@@ -1,42 +1,30 @@
-/**
- * Master data untuk mode offline: region + master plat + tarif per region.
- *
- * Kenapa modul ini ada:
- * - `GET /plates` (master plat) butuh admin, dan `GET /region-tariffs` juga
- *   admin. Petugas di lapangan TIDAK PERNAH bisa menarik data itu ke HP.
- * - Akibatnya `POST /plates/check` (cek status plat: internal/lokal/eksternal)
- *   hanya jalan ketika ada sinyal. Tanpa sinyal, petugas tidak tahu apakah
- *   kendaraannya internal (Rp 0) atau eksternal — dan tarif region pun tidak
- *   pernah ada di perangkat.
- *
- * Solusi: backend menyediakan satu endpoint `GET /master/offline` yang
- * mengembalikan paket master (region + plat + tarif region) dalam satu
- * request, lalu modul ini menyimpannya di perangkat.
- *
- * Catatan privasi: paket TIDAK memuat nama pemilik kendaraan (`owner`) —
- * hanya nomor plat, status, dan region asal, karena itu yang dibutuhkan untuk
- * menentukan apakah kendaraan ditagih.
- */
+// Master data untuk mode offline: region + master plat + tarif per region.
 
 import { api } from './api'
 
+
+
 export type PlateStatus = 'internal' | 'lokal' | 'eksternal'
 
+
+
 export interface OfflinePlate {
-  /** Kunci pencocokan: huruf+angka saja, tanpa spasi (mis. "B1234XY"). */
   key: string
-  /** Nomor plat seperti tersimpan di server (untuk ditampilkan). */
   plate: string
   status: PlateStatus
   originRegionId: string | null
   originRegionCode: string | null
 }
 
+
+
 export interface OfflineRegion {
   id: string
   name: string
   code: string
 }
+
+
 
 export interface OfflineRegionTariff {
   regionId: string
@@ -46,6 +34,8 @@ export interface OfflineRegionTariff {
   isActive: boolean
 }
 
+
+
 export interface OfflineMasterPack {
   pulledAt: number
   regions: OfflineRegion[]
@@ -53,34 +43,26 @@ export interface OfflineMasterPack {
   regionTariffs: OfflineRegionTariff[]
 }
 
+
+
 export const OFFLINE_MASTER_KEY = 'trip.master.offline.v1'
 
-/**
- * Umur paket master offline yang masih dianggap segar (menit).
- *
- * Paket ini berisi seluruh master plat — bisa berukuran ratusan KB. Kalau
- * ditarik setiap siklus prefetch (30 menit) per perangkat, boros kuota Edge
- * Function dan kuota data petugas. Karena isinya master data yang jarang
- * berubah, 2 jam cukup; cek plat yang butuh data terbaru tetap memakai
- * server whenever online.
- */
+// Umur paket master offline yang masih dianggap segar (menit). Paket ini berisi seluruh master plat — bisa berukuran ratusan KB.
 export const OFFLINE_MASTER_TTL_MS = 2 * 60 * 60 * 1000
 
 
-/**
- * Kunci pencocokan plat: huruf + angka saja, huruf besar.
- *
- * Plat bisa tersimpan dengan spasi ("B 1234 XY") maupun tanpa ("B1234XY"),
- * sedangkan petugas mengetik dengan format mobile. Semua disamakan di sini
- * supaya pencocokan tidak bocor karena beda spasi.
- */
+// Kunci pencocokan plat: huruf + angka saja, huruf besar.
 export function normalizePlateKey(raw: unknown): string {
   return String(raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
+
+
 function isPlateStatus(raw: unknown): raw is PlateStatus {
   return raw === 'internal' || raw === 'lokal' || raw === 'eksternal'
 }
+
+
 
 function parsePack(raw: string | null): OfflineMasterPack | null {
   if (!raw) return null
@@ -129,7 +111,8 @@ function parsePack(raw: string | null): OfflineMasterPack | null {
   }
 }
 
-/** Paket master yang tersimpan di perangkat (null bila belum pernah ditarik). */
+
+
 export function getOfflineMaster(): OfflineMasterPack | null {
   try {
     const raw = localStorage.getItem(OFFLINE_MASTER_KEY)
@@ -139,13 +122,7 @@ export function getOfflineMaster(): OfflineMasterPack | null {
   }
 }
 
-/**
- * Simpan paket master ke perangkat.
- *
- * Hasil kosong TIDAK menimpa cache lama: respons kosong sesaat (mis. tabel
- * sedang di-reset di server) tidak boleh menghapus data yang sudah dipakai
- * petugas di lapangan.
- */
+// Simpan paket master ke perangkat. Hasil kosong TIDAK menimpa cache lama: respons kosong sesaat (mis.
 export function saveOfflineMaster(pack: OfflineMasterPack): boolean {
   try {
     const payload: OfflineMasterPack = {
@@ -157,34 +134,25 @@ export function saveOfflineMaster(pack: OfflineMasterPack): boolean {
     localStorage.setItem(OFFLINE_MASTER_KEY, JSON.stringify(payload))
     return true
   } catch {
-    // Kuota localStorage penuh → pertahankan cache lama.
     return false
   }
 }
+
+
 
 export function clearOfflineMaster(): void {
   try {
     localStorage.removeItem(OFFLINE_MASTER_KEY)
   } catch {
-    /* abaikan */
   }
 }
 
-/**
- * Tarik paket master offline dari server.
- *
- * Satu request untuk region + plat + tarif region supaya kuota Edge Function
- * tidak naik. Gagal (offline / 401) TIDAK menghapus cache lokal.
- *
- * Kalau cache masih segar (< TTL) tidak ada request sama sekali — paket itu
- * masih dipakai. Paksa dengan `{ force: true }`.
- */
+// Tarik paket master offline dari server. Satu request untuk region + plat + tarif region supaya kuota Edge Function tidak naik.
 export async function pullOfflineMaster(opts?: { force?: boolean }): Promise<{
   ok: boolean
   plates: number
   regions: number
   tariffs: number
-  /** true bila endpoint belum ada di backend (belum ter-deploy). */
   missing?: boolean
 }> {
   const cached = getOfflineMaster()
@@ -209,10 +177,7 @@ export async function pullOfflineMaster(opts?: { force?: boolean }): Promise<{
       plates: cached?.plates.length ?? 0,
       regions: cached?.regions.length ?? 0,
       tariffs: cached?.regionTariffs.length ?? 0,
-      // 404/405 = backend belum ter-deploy versi ini. Bukan kegagalan data,
-      // jadi pemanggil tidak boleh menganggap prefetch whole gagal (bikin
-      // prefetch diulang terus-menerus dan boros kuota). Error jaringan
-      // (code 'NETWORK') BUKAN missing — itu kegagalan sungguhan.
+      // 404/405 = backend belum ter-deploy versi ini.
       missing: res?.error?.code === '404' || res?.error?.code === '405',
     }
   }
@@ -264,7 +229,8 @@ export async function pullOfflineMaster(opts?: { force?: boolean }): Promise<{
   return { ok: true, plates: plates.length, regions: regions.length, tariffs: regionTariffs.length }
 }
 
-/** Cari master plat di cache offline (sudah dinormalisasi spasi). */
+
+
 export function findOfflinePlate(plate: string): OfflinePlate | null {
   const key = normalizePlateKey(plate)
   if (!key) return null
@@ -273,7 +239,8 @@ export function findOfflinePlate(plate: string): OfflinePlate | null {
   return pack.plates.find(p => p.key === key) ?? null
 }
 
-/** Kode region dari cache offline. */
+
+
 export function getOfflineRegionCode(regionId: string | null | undefined): string | null {
   if (!regionId) return null
   const pack = getOfflineMaster()
@@ -284,7 +251,8 @@ export function getOfflineRegionCode(regionId: string | null | undefined): strin
   return tariff?.regionCode ?? null
 }
 
-/** Tarif per region (lokal/eksternal) dari cache offline. */
+
+
 export function getOfflineRegionTariff(
   regionId: string | null | undefined,
   tariffType: 'lokal' | 'eksternal',

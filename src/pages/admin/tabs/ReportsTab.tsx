@@ -27,6 +27,8 @@ function vehiclePhotoCaption(
   return `${trip.no_trip} - ${unit} - ${vehicle.no_polisi} - ${vehicle.vehicle_type} - ${reportGolongan(vehicle)}${metadata ? ` - ${metadata}` : ''}`
 }
 
+
+
 interface ReportsTabProps {
   onServerTripsChange: (t: BackendTrip[]) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -48,17 +50,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
 
-  /**
-   * Muat laporan dari server.
-   *
-   * Dua jebakan yang dulu membuat trip "hilang" dari dashboard:
-   *   1. Tab Laporan bisa mount SEBELUM sesi admin siap -> 403 -> state
-   *      'offline' dan tidak pernah dicoba lagi. Sekarang: pastikan sesi,
-   *      lalu ulangi; kalau tetap gagal, tampilkan alasannya (bukan cuma
-   *      kata "Offline") supaya penyebabnya bisa ditindaklanjuti.
-   *   2. Server sempat menjawab 5xx/timeout sesaat -> satu percobaan langsung
-   *      dianggap gagal permanen. Sekarang ada beberapa percobaan berjeda.
-   */
+  // Muat laporan dari server. Dua jebakan yang dulu membuat trip "hilang" dari dashboard: 1.
   const loadReports = useCallback(async (filters?: ReportFilters, opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true
     if (!silent) {
@@ -69,7 +61,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
     let rows = await fetchTripReports(f)
     if (rows === null) {
-      // Sesi admin belum siap (atau basi) -> siapkan lalu ulangi.
       const sess = await ensureAdminSession()
       if (sess.ok) rows = await fetchTripReports(f)
       else {
@@ -80,7 +71,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     }
 
     if (rows === null) {
-      // Beberapa percobaan lagi dengan jeda pendek (server sesaat bermasalah).
       for (let attempt = 0; attempt < 2 && rows === null; attempt++) {
         await new Promise(r => setTimeout(r, 1200))
         rows = await fetchTripReports(f)
@@ -97,17 +87,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     setReportError(null)
   }, [reportFilters])
 
-  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
-  // laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
+  // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang laporan yang sebelumnya offline tanpa perlu interaksi pengguna.
   useEffect(() => {
     const onReady = () => { void loadReports() }
     window.addEventListener(SESSION_READY_EVENT, onReady)
     return () => window.removeEventListener(SESSION_READY_EVENT, onReady)
   }, [loadReports])
 
-  // Auto-refresh berkala: trip baru dari mobile harus langsung terlihat di
-  // dashboard tanpa perlu menekan tombol Refresh. Hanya jalan saat tab terlihat
-  // supaya tidak membebani server.
+  // Auto-refresh berkala: trip baru dari mobile harus langsung terlihat di dashboard tanpa perlu menekan tombol Refresh.
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
@@ -126,8 +113,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
     }
-    // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
-    // penambahan dependency tidak memicu fetch ulang saat filter berubah.
   }, [reportState, loadReports, onServerTripsChange])
 
   const applyReportFilter = (patch: Partial<ReportFilters>) => {
@@ -454,7 +439,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             ) : reportTrips.length === 0 ? (
               <tr><td colSpan={11} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
             ) : (() => {
-              // Group trips by date for cleaner hierarchy
               const groupedByDate = reportTrips.reduce((acc, t) => {
                 const date = dayKeyWib(t.created_at)
                 if (!acc[date]) acc[date] = []
@@ -473,7 +457,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                 const formattedDate = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
                 return [
-                  // Date group header row
                   <tr key={`date-${date}`} className="bg-slate-800 text-white">
                     <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
                       <span className="flex items-center gap-1">
@@ -490,7 +473,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
                     </td>
                     <td />
                   </tr>,
-                  // Trip rows for this date
                   ...dayTrips.map((t) => {
                     const open = openTripId === t.id
                     const d = formatReportDateTime(t.created_at)

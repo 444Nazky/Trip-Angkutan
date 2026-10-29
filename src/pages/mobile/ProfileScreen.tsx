@@ -9,13 +9,9 @@ import type { MobileScreen } from '../types'
 
 
 
-
-
 interface ProfileScreenProps {
   go: (s: MobileScreen) => void
 }
-
-
 
 
 
@@ -27,7 +23,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
-    // Prefetch data kritis saat app aktif
     void prefetchAllCriticalData()
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
@@ -38,8 +33,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       window.removeEventListener('offline', handleOffline)
     }
   }, [refreshOfficers])
-
-
 
 
 
@@ -57,8 +50,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
-
   const applyNow = async () => {
     setBusy(true)
     try {
@@ -72,13 +63,10 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
-
   const updateReady = update.status === 'ready'
   const appVersion = appUpdate.currentAppVersion
   const moduleVersion = appUpdate.currentModuleVersion
   const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
- // Status check untuk menentukan state tombol
   const isChecking = update.status === 'checking'
   const isDownloading = update.status === 'downloading'
   const isInstalling = update.status === 'installing'
@@ -104,8 +92,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
-  // Tentukan state tombol
   const buttonState = (() => {
     if (busy || isChecking) return { label: 'Memeriksa…', disabled: true, action: 'check' }
     if (isDownloading) return { label: 'Mengunduh…', disabled: true, action: 'check' }
@@ -119,8 +105,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
-
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
 
   const units = new Set(
@@ -128,7 +112,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
       .filter(p => p && p !== '-'),
   )
-
 
 
 
@@ -153,7 +136,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
           {[{ v: String(myTrips.length), l: 'Trip' }, { v: String(units.size), l: 'Kendaraan' }].map((stat, index) => (
             <div key={stat.l} className={`text-center ${index > 0 ? 'border-l border-white/10 pl-4' : ''}`}>
@@ -165,7 +147,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
           <Lock size={12} className="text-slate-500" />
           <span className="text-[11px] text-slate-500">Region Locked</span>
@@ -173,7 +154,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
         </div>
       </section>
-
 
 
 
@@ -197,7 +177,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           </div>
         </div>
       </section>
-
 
 
 
@@ -238,7 +217,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <button
           onClick={() => go('geofence-config')}
@@ -252,7 +230,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <ChevronRight size={16} className="text-slate-400" />
         </button>
       </section>
-
 
 
 

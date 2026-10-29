@@ -1,11 +1,8 @@
-// ─── Unit Test: mergeTrips (pages/store.tsx) ─────────────────────────────────
-// Regresi bug: EDIT trip yang sudah terkirim (plat/foto) ditimpa salinan lama
-// (synced:true) saat rekonsiliasi localStorage ↔ IndexedDB → hasil edit hilang
-// dan status "masuk antrean" seolah tidak pernah terkirim.
-// Aturan: updatedAt terbaru menang; bila seri, synced:true tidak ditimpa false.
+// ─── Unit Test: mergeTrips (pages/store.tsx) ───────────────────────────────── Regresi bug: EDIT trip yang sudah terkirim (plat/foto) ditimpa salinan…
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { healDermagaAccess, mergeTrips, vehicleTariff, type Trip } from './store'
+
 
 
 const base = (over: Partial<Trip>): Trip => ({
@@ -25,6 +22,8 @@ const base = (over: Partial<Trip>): Trip => ({
   photo: true,
   ...over,
 })
+
+
 
 describe('mergeTrips — edit pasca-kirim tidak hilang', () => {
   it('versi dengan updatedAt lebih baru menang (edit dipertahankan)', () => {
@@ -57,6 +56,8 @@ describe('mergeTrips — edit pasca-kirim tidak hilang', () => {
   })
 })
 
+
+
 describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => {
   it('akses yang sudah ada tidak diubah', () => {
     const own = [{ id: 'D9', code: 'D9', name: 'Custom' }]
@@ -65,16 +66,15 @@ describe('healDermagaAccess — scope dermaga tidak hilang setelah sync', () => 
   })
 
   it('petugas tanpa akses tidak mendapat akses dari data palsu (regresi data seed dihapus)', () => {
-    // Tidak ada lagi roster seed di perangkat: petugas yang belum sinkron
-    // TIDAK boleh mendapat akses dermaga dari data contoh.
+    // Tidak ada lagi roster seed di perangkat: petugas yang belum sinkron TIDAK boleh mendapat akses dermaga dari data contoh.
     const unknown = { id: 'server-only-1', name: 'X', region: 'X', dermagaAccess: [] } as never
     expect(healDermagaAccess([unknown])[0].dermagaAccess).toEqual([])
   })
 })
 
+
+
 describe('vehicleTariff — harga per kondisi kendaraan', () => {
-  // Master tarif datang dari server (services/masterTariffs.ts) dan disimpan di
-  // localStorage 'trip.tariffs.v1'. Tidak ada daftar harga contoh lagi.
   beforeEach(() => {
     localStorage.setItem(
       'trip.tariffs.v1',

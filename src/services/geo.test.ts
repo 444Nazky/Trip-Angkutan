@@ -1,12 +1,7 @@
-// ── Unit test parser URL Google Maps (geo.ts) — endpoint: parseMapsUrl dll. ──
-// 100% format yang didukung RoutesTab (auto-extract link geofence) teruji di sini.
 import { describe, it, expect } from 'vitest'
-import {
-  parseMapsUrl,
-  isShortMapsLink,
-  osmEmbeddedMapUrl,
-  googleMapsLink,
-} from './geo'
+import { parseMapsUrl, isShortMapsLink, osmEmbeddedMapUrl, googleMapsLink, } from './geo'
+
+
 
 describe('parseMapsUrl — URL penuh Google Maps', () => {
   it('marker place !3d..!4d..', () => {
@@ -64,6 +59,8 @@ describe('parseMapsUrl — URL penuh Google Maps', () => {
   })
 })
 
+
+
 describe('parseMapsUrl — input non-URL', () => {
   it('skema geo:', () => {
     expect(parseMapsUrl('geo:-6.1891,106.8371')).toMatchObject({ latitude: -6.1891, longitude: 106.8371 })
@@ -95,6 +92,8 @@ describe('parseMapsUrl — input non-URL', () => {
   })
 })
 
+
+
 describe('isShortMapsLink', () => {
   it('maps.app.goo.gl tanpa koordinat → true', () => {
     expect(isShortMapsLink('https://maps.app.goo.gl/1Gsfc4xo2wGbpf3k9')).toBe(true)
@@ -115,6 +114,8 @@ describe('isShortMapsLink', () => {
     expect(isShortMapsLink('')).toBe(false)
   })
 })
+
+
 
 describe('kembalian URL peta', () => {
   it('osmEmbeddedMapUrl memuat bbox & marker', () => {

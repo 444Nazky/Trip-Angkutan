@@ -1,15 +1,14 @@
-/**
- * Geofence service - sinkronisasi dari server.
- * Tidak ada sesi expired, auto-retry, fallback ke data lokal.
- */
+// Geofence service - sinkronisasi dari server. Tidak ada sesi expired, auto-retry, fallback ke data lokal.
 
 import { api } from './api'
 import { getStoredDermaga, getStoredOfficer, getStoredRoutes } from './auth'
 import { Geolocation } from '@capacitor/geolocation'
 
+
+
 export const GEOFENCE_UPDATED_EVENT = 'trip:geofence-updated'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+
 
 export interface GeofencePoint {
   id: string
@@ -23,7 +22,8 @@ export interface GeofencePoint {
   strictEnforceOutsideArea?: boolean
 }
 
-// Partial point for testing
+
+
 export interface PartialGeofencePoint {
   id?: string
   name?: string
@@ -36,6 +36,8 @@ export interface PartialGeofencePoint {
   strictEnforceOutsideArea?: boolean
 }
 
+
+
 export interface GeofenceScopeDiagnosis {
   received: number
   active: number
@@ -44,16 +46,7 @@ export interface GeofenceScopeDiagnosis {
   hasUnassigned: boolean
 }
 
-/**
- * Normalisasi kode rute agar data admin dan data petugas selalu bisa
- * dibandingkan: "SBDZ→SJRE", "SBDZ - SJRE", "sbdz-sjre" => "SBDZ-SJRE".
- *
- * Dulu perbandingan memakai string mentah, sehingga titik geofence yang
- * di-set admin dengan format panah/tanpa spasi tidak pernah cocok dengan rute
- * petugas — akibatnya aplikasi menganggap "tidak ada titik lokasi" walau
- * konfigurasinya benar (terutama pada endpoint intranet yang datanya lebih
- * baru). Normalisasi ini dipakai di SEMUA jalur (sync, scope, validasi).
- */
+// Normalisasi kode rute agar data admin dan data petugas selalu bisa dibandingkan: "SBDZ→SJRE", "SBDZ - SJRE", "sbdz-sjre" => "SBDZ-SJRE".
 export function normalizeRouteCode(code: string): string {
   return String(code ?? '')
     .toUpperCase()
@@ -63,14 +56,23 @@ export function normalizeRouteCode(code: string): string {
     .replace(/\s+/g, '')
 }
 
-// ─── Storage keys ───────────────────────────────────────────────────────────────
+
 
 const GEOFENCE_KEY = 'trip.geofence.points'
+
+
+
 const GEOFENCE_DIAG_KEY = 'trip.geofence.diagnosis'
+
+
+
 const GPS_FIX_CACHE_KEY = 'trip.geofence.gpsfix'
+
+
+
 const LAST_SYNC_KEY = 'trip.geofence.lastSync'
 
-// ─── Cached geofence storage ──────────────────────────────────────────────────
+
 
 export function getStoredGeofencePoints(): GeofencePoint[] {
   try {
@@ -100,6 +102,8 @@ export function getStoredGeofencePoints(): GeofencePoint[] {
   }
 }
 
+
+
 export function saveGeofencePoints(points: GeofencePoint[]) {
   try {
     if (points.length) {
@@ -110,9 +114,13 @@ export function saveGeofencePoints(points: GeofencePoint[]) {
   } catch {}
 }
 
+
+
 function saveDiagnosis(d: GeofenceScopeDiagnosis) {
   try { localStorage.setItem(GEOFENCE_DIAG_KEY, JSON.stringify(d)) } catch {}
 }
+
+
 
 export function getLastGeofenceDiagnosis(): GeofenceScopeDiagnosis | null {
   try {
@@ -121,25 +129,29 @@ export function getLastGeofenceDiagnosis(): GeofenceScopeDiagnosis | null {
   } catch { return null }
 }
 
+
+
 export function resetGpsFixCache() {
   _cachedFix = null
   try { localStorage.removeItem(GPS_FIX_CACHE_KEY) } catch {}
 }
 
-// UUID helpers ────────────────────────────────────────────────────────────
+
 
 export function isUuid(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id))
 }
 
-// ─── Geofence matching ─────────────────────────────────────────────────────────
+
 
 export function pointIsForOtherDermaga(point: PartialGeofencePoint, dockId: string): boolean {
-  if (!point.dermagaId) return false // Legacy = applies to all
+  if (!point.dermagaId) return false
   if (isUuid(point.dermagaId)) return point.dermagaId !== dockId
-  if (/^[A-Z]+-D\d+$/i.test(point.dermagaId)) return false // ID warisan yang diketahui = shared
+  if (/^[A-Z]+-D\d+$/i.test(point.dermagaId)) return false
   return point.dermagaId !== dockId
 }
+
+
 
 export function belongsTo(point: GeofencePoint, dockId: string | null): boolean {
   if (!dockId) return true
@@ -148,15 +160,7 @@ export function belongsTo(point: GeofencePoint, dockId: string | null): boolean 
   return !isUuid(point.dermagaId) && /^[A-Z]+-D\d+$/i.test(point.dermagaId)
 }
 
-/**
- * Filter titik yang cocok dengan dermaga/rute petugas.
- *
- * LOGIKA:
- * - Jika routes tersimpan: filter geofence berdasarkan route codes yang diizinkan
- * - Jika routes KOSONG: tampilkan SEMUA geofence aktif (fallback untuk debugging)
- * - Titik dengan allowedRoutes kosong tidak pernah ditampilkan
- * - Titik dengan dermagaId yang tidak match akan difilter (ditangani di getActiveGeofenceSnapshot)
- */
+// Filter titik yang cocok dengan dermaga/rute petugas.
 export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   const routes = getStoredRoutes()
   const routeCodes = new Set(routes.map(r => normalizeRouteCode(r.code)))
@@ -169,8 +173,7 @@ export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
     routeCodes: [...routeCodes],
   })
 
-  // Fallback: jika tidak ada routes tersimpan, tampilkan semua titik aktif
-  // Ini mencegah "Belum ada titik geofence" saat routes belum sync
+  // Fallback: jika tidak ada routes tersimpan, tampilkan semua titik aktif Ini mencegah "Belum ada titik geofence" saat routes belum sync
   if (routeCount === 0) {
     console.debug('[geofence] Tidak ada routes tersimpan - menampilkan semua titik aktif')
     const fallback = points.filter(p => p.enabled)
@@ -183,8 +186,7 @@ export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
     return !assignedDockIds.size || !p.dermagaId || !isUuid(p.dermagaId) || assignedDockIds.has(p.dermagaId)
   })
   const matching = active.filter(p => p.allowedRoutes.length === 0 || p.allowedRoutes.some(r => routeCodes.has(normalizeRouteCode(r))))
-  // Jika route assignment dan kode dari master berbeda, jangan membuat layar
-  // geofence kosong total. Validasi trip tetap membatasi rute saat dipilih.
+  // Jika route assignment dan kode dari master berbeda, jangan membuat layar geofence kosong total. Validasi trip tetap membatasi rute saat dipilih.
   const filtered = matching.length ? matching : active
 
   console.debug('[geofence] scopedGeofencePoints hasil:', {
@@ -195,7 +197,7 @@ export function scopedGeofencePoints(points: GeofencePoint[]): GeofencePoint[] {
   return filtered
 }
 
-// ─── Foreign route detection ───────────────────────────────────────────────────
+
 
 export function foreignRouteCodesForPoint(point: GeofencePoint): string[] {
   const routes = getStoredRoutes()
@@ -203,7 +205,7 @@ export function foreignRouteCodesForPoint(point: GeofencePoint): string[] {
   return point.allowedRoutes.filter(r => !localCodes.has(r))
 }
 
-// ─── GPS fix ───────────────────────────────────────────────────────────────────
+
 
 interface GpsFix {
   latitude: number
@@ -212,7 +214,11 @@ interface GpsFix {
   timestamp: number
 }
 
+
+
 let _cachedFix: GpsFix | null = null
+
+
 
 function getCachedGpsFix(): GpsFix | null {
   if (_cachedFix) return _cachedFix
@@ -224,19 +230,20 @@ function getCachedGpsFix(): GpsFix | null {
   } catch { return null }
 }
 
+
+
 let _gpsFixWrittenAt = 0
+
+
 
 function cacheGpsFix(fix: GpsFix) {
   _cachedFix = fix
-  // ponytail: GPS watch bisa update tiap beberapa detik. Menulis ke
-  // localStorage tiap update bikin jank; tulis ke storage paling sering
-  // setiap 10 detik (cache di memori tetap real-time).
   if (Date.now() - _gpsFixWrittenAt < 10_000) return
   _gpsFixWrittenAt = Date.now()
   try { localStorage.setItem(GPS_FIX_CACHE_KEY, JSON.stringify(fix)) } catch {}
 }
 
-// ─── Distance calculation ───────────────────────────────────────────────────────
+
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000
@@ -252,7 +259,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c
 }
 
-// ─── Sync from server ──────────────────────────────────────────────────────────
+
 
 export interface SyncResult {
   ok: boolean
@@ -261,14 +268,14 @@ export interface SyncResult {
   error?: string
 }
 
+
+
 export async function syncFromServer(): Promise<SyncResult> {
   const cached = getStoredGeofencePoints()
   console.debug('[geofence] syncFromServer mulai', { cachedCount: cached.length, isAuthenticated: api.isAuthenticated })
 
   if (!api.isAuthenticated) {
     console.log('[geofence] No auth, using cache:', cached.length)
-    // Jika tidak authenticated tapi ada cached, coba renew session dulu
-    // Ini akan dipanggil dari luar untuk retry auth
     return { ok: !!cached.length, count: cached.length, reason: cached.length ? 'ok' : 'unauthorized' }
   }
 
@@ -288,6 +295,8 @@ export async function syncFromServer(): Promise<SyncResult> {
     return { ok: false, count: cached.length, reason: 'network', error: String(e) }
   }
 }
+
+
 
 export interface ForceSyncResult {
   ok: boolean
@@ -326,7 +335,11 @@ export async function forceSyncGeofencesFromBackend(): Promise<ForceSyncResult> 
   }
 }
 
+
+
 type FetchRowsResult = { ok: true; data: GeofenceRaw[] } | { ok: false; reason: 'unauthorized' | 'network'; error?: string }
+
+
 
 async function fetchGeofenceRows(): Promise<FetchRowsResult> {
   const officer = getStoredOfficer()
@@ -360,6 +373,8 @@ async function fetchGeofenceRows(): Promise<FetchRowsResult> {
   }
   return { ok: true, data: [...byId.values()] }
 }
+
+
 
 function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResult {
   const routes = getStoredRoutes()
@@ -401,20 +416,21 @@ function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResul
   saveDiagnosis(buildDiagnosis(scoped))
   localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
   if (oldSerialized !== newSerialized) {
-    try { window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: scoped.length } })) } catch { /* ignore */ }
+    try { window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: scoped.length } })) } catch {  }
   }
   console.log('[geofence] Synced', scoped.length, 'points, aktif:', scoped.length)
   return { ok: true, count: scoped.length, reason: 'ok' }
 }
+
+
 
 export async function syncGeofencesFromBackend(opts?: { force?: boolean }): Promise<SyncResult> {
   console.debug('[geofence] syncGeofencesFromBackend', { force: opts?.force })
   if (opts?.force) {
     return forceSyncGeofencesFromBackend()
   }
-  // Check throttle
   const lastSync = Number(localStorage.getItem(LAST_SYNC_KEY) || 0)
-  const THROTTLE = 5 * 60 * 1000 // 5 minutes
+  const THROTTLE = 5 * 60 * 1000
   if (Date.now() - lastSync < THROTTLE && !opts?.force) {
     const cached = getStoredGeofencePoints()
     console.debug('[geofence] Throttled, pakai cache')
@@ -423,7 +439,7 @@ export async function syncGeofencesFromBackend(opts?: { force?: boolean }): Prom
   return syncFromServer()
 }
 
-// ─── Raw mapping ───────────────────────────────────────────────────────────────
+
 
 interface GeofenceRaw {
   id: string
@@ -443,6 +459,8 @@ interface GeofenceRaw {
   enabled?: boolean
 }
 
+
+
 function mapGeofence(g: GeofenceRaw): GeofencePoint | null {
   const lat = Number(g.latitude)
   const lon = Number(g.longitude)
@@ -461,7 +479,7 @@ function mapGeofence(g: GeofenceRaw): GeofencePoint | null {
   }
 }
 
-// ─── Diagnosis ─────────────────────────────────────────────────────────────────
+
 
 function buildDiagnosis(points: GeofencePoint[]): GeofenceScopeDiagnosis {
   const routes = getStoredRoutes()
@@ -480,7 +498,7 @@ function buildDiagnosis(points: GeofencePoint[]): GeofenceScopeDiagnosis {
   }
 }
 
-// ─── Active geofence snapshot ─────────────────────────────────────────────────
+
 
 export interface ActiveSnapshot {
   valid: boolean
@@ -490,10 +508,7 @@ export interface ActiveSnapshot {
   reason?: string
 }
 
-/**
- * Dapatkan titik geofence aktif berdasarkan lokasi GPS saat ini.
- * Kalau dockId disediakan → hanya titik milik dermaga tsb.
- */
+// Dapatkan titik geofence aktif berdasarkan lokasi GPS saat ini. Kalau dockId disediakan → hanya titik milik dermaga tsb.
 export async function getActiveGeofenceSnapshot(
   gpsPosition?: { latitude: number; longitude: number },
   dockId?: string | null
@@ -519,14 +534,12 @@ export async function getActiveGeofenceSnapshot(
     return { valid: false, activePoint: null, blocked: true, reason: 'GPS tidak tersedia' }
   }
 
-  // Urutkan: dermaga match duluan, lalu jarak terdekat
   const scored = points
     .map(p => {
       const dist = haversineDistance(pos.latitude, pos.longitude, p.latitude, p.longitude)
       const inRange = dist <= p.radiusMeters
       let dockMatch = true
       if (dockId) {
-        // Legacy IDs (non-UUID) selalu match
         dockMatch = !p.dermagaId || !isUuid(p.dermagaId) || p.dermagaId === dockId
       }
       const dockPriority = !dockId || dockMatch ? 0 : (p.dermagaId && isUuid(p.dermagaId) ? 2 : 1)
@@ -542,7 +555,7 @@ export async function getActiveGeofenceSnapshot(
   return { valid: true, activePoint: scored[0].point }
 }
 
-// ─── Purge ─────────────────────────────────────────────────────────────────────
+
 
 export function purgeGeofenceCache(): void {
   try {
@@ -552,7 +565,7 @@ export function purgeGeofenceCache(): void {
   } catch {}
 }
 
-// ─── Validation ────────────────────────────────────────────────────────────────
+
 
 export interface RouteValidationResult {
   valid: boolean
@@ -562,9 +575,8 @@ export interface RouteValidationResult {
   reason?: string
 }
 
-/**
- * Validasi apakah rute tertentu bisa dipakai di lokasi petugas saat ini.
- */
+
+
 export async function validateRouteForCurrentLocation(
   routeCode: string,
   gpsPosition?: { latitude: number; longitude: number },
@@ -582,14 +594,11 @@ export async function validateRouteForCurrentLocation(
 
   const point = snap.activePoint
 
-  // Normalisasi kode rute (hyphen/arrow/spasi) — satu aturan untuk semua jalur.
   const normalizedRouteCode = normalizeRouteCode(routeCode)
   const normalizedAllowed = point.allowedRoutes.map(normalizeRouteCode)
 
-  // Check direct match
   const directMatch = normalizedAllowed.includes(normalizedRouteCode)
 
-  // Check reverse direction match (e.g., "SBDZ-SJRE" matches "SJRE-SBDZ" for round-trip routes)
   const reverseCode = normalizedRouteCode.split('-').reverse().join('-')
   const reverseMatch = normalizedAllowed.includes(reverseCode)
 
@@ -618,11 +627,8 @@ export async function validateRouteForCurrentLocation(
   }
 }
 
-// ─── Validation helpers ──────────────────────────────────────────────────
 
-/**
- * Validasi apakah data titik geofence valid.
- */
+
 export function isValidGeofencePoint(p: GeofencePoint): string[] {
   const errors: string[] = []
   if (!p.name.trim()) errors.push('Nama lokasi wajib diisi')
@@ -632,23 +638,8 @@ export function isValidGeofencePoint(p: GeofencePoint): string[] {
   return errors
 }
 
-// ─── GPS location ─────────────────────────────────────────────────────────────
 
-/**
- * Coba dapat posisi GPS dari browser/device.
- * Mengembalikan null pada kegagalan (bukan throw).
- */
-/**
- * Ambil posisi GPS.
- *
- * Mengembalikan null hanya kalau benar-benar TIDAK ADA posisi yang bisa
- * dipakai - termasuk posisi lama (stale) yang masih dipakai sebagai
- * cadangan. Field `stale` menandai bahwa koordinat bukan fix terbaru.
- *
- * Timeout Android untuk GPS cold start sering lebih dari 8 detik, jadi
- * batas 8 detik guarantee kode 3 (Timeout expired) dan memblokir petugas
- * di layar "Pilih Rute".
- */
+// Coba dapat posisi GPS dari browser/device. Mengembalikan null pada kegagalan (bukan throw). Ambil posisi GPS.
 export interface GpsPosition {
   lat: number
   lng: number
@@ -659,46 +650,31 @@ export interface GpsPosition {
   ageMs?: number
 }
 
+
+
 const GPS_CACHE_TTL = 30_000
 
-// Timeout permintaan GPS.
-//
-// DULU 8 detik -> di lapangan (HP petugas di bawah naungan/beton, kondisi
-// sinyal GPS yang bersih) hampir selalu berakhir sebagai
-// `GeolocationPositionError { code: 3, message: 'Timeout expired' }`.
-// Akibatnya validasi rute terblokir padahal GPS sebenarnya bisa lock dalam
-// 10-25 detik.
-//
-// 30 detik untuk mode high-accuracy (GPS chipset butuh waktu mengunci),
-// 15 detik untuk mode jaringan (fallback, biasanya jauh lebih cepat).
+// Timeout permintaan GPS. DULU 8 detik -> di lapangan (HP petugas di bawah naungan/beton, kondisi sinyal GPS yang bersih) hampir selalu berakhir…
 const GPS_HIGH_ACCURACY_TIMEOUT_MS = 30_000
+
+
+
 const GPS_NETWORK_TIMEOUT_MS = 15_000
+
+
 
 let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } | null> | null = null
 
-// ponytail: GPS watch Keeping cache tetap hangat. Dengan watch, layar "Pilih
-// Rute" hampir selalu punya fix instan (tidak menunggu 8-15 detik GPS cold
-// start). Watch hanya hidup selama aplikasi aktif.
+// ponytail: GPS watch Keeping cache tetap hangat.
 let _gpsWatchId: string | null = null
 
-/**
- * Error GPS yang masih bisa dicoba dengan provider lain.
- *
- * Kode GeolocationPositionError:
- *   1 = PERMISSION_DENIED  -> jangan dicoba ulang (izin sudah ditolak)
- *   2 = POSITION_UNAVAILABLE -> coba provider jaringan
- *   3 = TIMEOUT -> GPS belum lock -> coba provider jaringan
- */
+// Error GPS yang masih bisa dicoba dengan provider lain.
 function isRetryableFixError(error: unknown): boolean {
   const code = (error as { code?: number } | null)?.code
   return code === 2 || code === 3
 }
 
-/**
- * Fix GPS terakhir yang diketahui (dari watch GPS atau cache), TANPA
- * permintaan jaringan. Dipakai sebagai fallback terakhir supaya petugas
- * tidak terblokir total hanya karena GPS belum lock.
- */
+// Fix GPS terakhir yang diketahui (dari watch GPS atau cache), TANPA permintaan jaringan.
 export function getLastKnownPosition():
   | { lat: number; lng: number; accuracy?: number; timestamp: number }
   | null {
@@ -711,6 +687,8 @@ export function getLastKnownPosition():
     timestamp: fix.timestamp,
   }
 }
+
+
 
 export function startGpsWatch(): void {
   if (_gpsWatchId) return
@@ -730,14 +708,18 @@ export function startGpsWatch(): void {
     )
       .then(id => { _gpsWatchId = id })
       .catch(() => { _gpsWatchId = null })
-  } catch { /* GPS tidak tersedia */ }
+  } catch {  }
 }
+
+
 
 export function stopGpsWatch(): void {
   if (!_gpsWatchId) return
-  try { void Geolocation.clearWatch({ id: _gpsWatchId }) } catch { /* ignore */ }
+  try { void Geolocation.clearWatch({ id: _gpsWatchId }) } catch {  }
   _gpsWatchId = null
 }
+
+
 
 export function getCurrentPosition(options: { force?: boolean } = {}): Promise<GpsPosition | null> {
   const cached = getCachedGpsFix()
@@ -753,8 +735,6 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<G
   })
 
   pendingGpsRequest = requestFix(true)
-      // Timeout (code 3) / POSITION_UNAVAILABLE (code 2) = GPS belum lock;
-      // coba sekali pakai provider jaringan (biasanya jauh lebih cepat).
       .catch(error => {
         if (isRetryableFixError(error)) return requestFix(false)
         throw error
@@ -771,9 +751,7 @@ export function getCurrentPosition(options: { force?: boolean } = {}): Promise<G
       })
       .catch(error => {
         console.warn('[geofence] Gagal mendapatkan GPS:', error)
-        // Fallback terakhir: pakai fix terakhir yang diketahui. Membiarkan
-        // petugas lanjut dengan posisi (sedikit) lama lebih baik daripada
-        // memblokir perjalanan hanya karena GPS belum lock.
+        // Fallback terakhir: pakai fix terakhir yang diketahui.
         const last = getLastKnownPosition()
         if (last) {
           console.warn('[geofence] Pakai fix GPS terakhir yang tersimpan (akurasi', last.accuracy, 'm)')

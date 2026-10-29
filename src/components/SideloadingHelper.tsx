@@ -3,7 +3,6 @@ import { Info, HelpCircle, X, Check, ShieldCheck, ChevronDown, ChevronUp } from 
 
 
 
-
 interface SideloadingHelperProps {
   variant?: 'full' | 'compact' | 'inline'
   onHelpRequested?: () => void
@@ -11,8 +10,6 @@ interface SideloadingHelperProps {
 
 
 
-
-// panduan instalasi apk non-playstore
 export function SideloadingHelper({
   variant = 'full',
   onHelpRequested
@@ -110,7 +107,6 @@ export function SideloadingHelper({
 
 
 
-
 interface InstallResultHandlerProps {
   onSuccess?: () => void
   onFailure?: (error: string) => void
@@ -118,15 +114,12 @@ interface InstallResultHandlerProps {
 
 
 
-
-// handler hasil install
 export function InstallResultHandler({
   onSuccess: _onSuccess,
   onFailure: _onFailure
 }: InstallResultHandlerProps) {
   return null
 }
-
 
 
 
@@ -138,8 +131,6 @@ interface InstallInstructionsModalProps {
 
 
 
-
-// modal panduan instalasi
 export function InstallInstructionsModal({
   isOpen,
   onClose,
@@ -191,9 +182,7 @@ export function InstallInstructionsModal({
 
 
 
-
 export const sideloadingStyles = ''
-
 
 
 

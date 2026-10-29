@@ -7,7 +7,6 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface ConfirmDialog {
   isOpen: boolean
   message: string
@@ -17,11 +16,9 @@ interface ConfirmDialog {
 
 
 
-
 interface TripSummaryScreenProps {
   go: (s: MobileScreen) => void
 }
-
 
 
 
@@ -58,8 +55,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
   }, [])
 
-  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh
-  // objek `confirmDialog` yang berubah setiap detik saat hitungan mundur jalan.
+  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh objek `confirmDialog` yang berubah setiap detik saat hitungan mundur…
   const pendingAction = confirmDialog.pendingAction
   const executeConfirm = useCallback(() => {
     if (pendingAction) {
@@ -74,13 +70,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     let errorTimeout: number | null = null
     const run = () => {
       setGeofenceLoading(true)
-      // Clear previous error with debounce to let GPS settle
       if (errorTimeout) clearTimeout(errorTimeout)
       setGeofenceError(null)
       validateRouteForCurrentLocation(draft.routeCode!)
         .then(result => {
           if (!alive) return
-          // Debounce error display - give GPS time to stabilize
           errorTimeout = window.setTimeout(() => {
             if (!alive) return
             setGeofenceBlocked(result.blocked === true)
@@ -101,7 +95,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     }
   }, [draft.routeCode])
 
-  // Format geofence error for user-friendly display
   const formatGeofenceError = (result: { reason?: string; activePoint?: { name?: string } | null }) => {
     if (result.activePoint) {
       return `Lokasi terdeteksi di area "${result.activePoint.name || 'titik geofence'} tapi rute tidak cocok`
@@ -127,8 +120,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const vehicles = draft.vehicles
   const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const missingVehiclePhoto = vehicles.filter(v => !v.photoUrl).length
-  // Foto bukti wajib untuk SEMUA trip. Trip muatan juga wajib swafoto petugas
-  // sebelum End Trip lokal dijalankan (validasi sama di store.finishMuatanTrip).
+  // Foto bukti wajib untuk SEMUA trip. Trip muatan juga wajib swafoto petugas sebelum End Trip lokal dijalankan (validasi sama di store.finishMuatanTrip).
   const canSubmit = hasTripPhoto && missingVehiclePhoto === 0 && (!isMuatan || hasSelfie)
 
   const handleSubmit = async () => {

@@ -4,7 +4,6 @@ import { getPinHash, listOfficers, saveOfficers, setPinHash } from './offlineDb'
 
 
 
-
 export interface BackendOfficer {
   id: string
   name: string
@@ -16,16 +15,16 @@ export interface BackendOfficer {
   pin_hash?: string | null
 }
 
+
+
 const OFFICER_CACHE_KEY = 'trip.officers.cache.v1'
+
+
+
 const OFFICER_CACHE_TTL = 5 * 60 * 1000
 
-/**
- * Dipancarkan setiap roster petugas ditarik ulang dari server (perubahan
- * admin: PIN baru, petugas baru, akses dermaga baru). Store listens ke
- * event ini supaya UI langsung ikut berubah tanpa perlu reload.
- */
+// Dipancarkan setiap roster petugas ditarik ulang dari server (perubahan admin: PIN baru, petugas baru, akses dermaga baru).
 export const OFFICERS_UPDATED_EVENT = 'trip:officers-updated'
-
 
 
 
@@ -33,7 +32,6 @@ interface CacheEntry {
   officers: BackendOfficer[]
   timestamp: number
 }
-
 
 
 
@@ -48,20 +46,17 @@ function loadCache(): CacheEntry | null {
 
 
 
-
 function saveCache(officers: BackendOfficer[]) {
   try {
     localStorage.setItem(OFFICER_CACHE_KEY, JSON.stringify({
       officers,
       timestamp: Date.now(),
     }))
-  } catch { /* quota */ }
+  } catch {  }
 }
 
 
 
-
-// null = sesi/jaringan belum siap → pemanggil pakai data lokal, tanpa error
 async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | null> {
   if (!force) {
     const cache = loadCache()
@@ -73,8 +68,6 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | n
   const ok = await ensureBackendSession()
   if (!ok || !api.isAuthenticated) {
     // ponytail: sesi belum siap → pakai cache lokal, JANGAN hapus token.
-    // Token dipertahankan agar percobaan berikutnya (atau token perpetual
-    // server) bisa dipakai; penghapusan dulu bikin roster mati permanen.
     return loadCache()?.officers ?? null
   }
 
@@ -82,9 +75,6 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | n
   if (!result.ok) {
     const code = result.error?.code
     if (code === '401' || code === '403') {
-      // ponytail: sesi ditolak server → lanjut pakai data lokal, token tetap
-      // disimpan (server kini menerima token lama; petugas aktif kembali
-      // sembuh sendiri tanpa login ulang).
       return loadCache()?.officers ?? null
     }
     if (code === '404') throw new Error('Endpoint sinkron petugas belum tersedia di server.')
@@ -95,7 +85,6 @@ async function fetchBackendOfficers(force = false): Promise<BackendOfficer[] | n
   saveCache(result.data)
   return result.data
 }
-
 
 
 
@@ -120,10 +109,8 @@ function toMobileOfficer(bo: BackendOfficer) {
 
 
 
-
 export async function syncOfficersToLocal(force = false): Promise<ReturnType<typeof toMobileOfficer>[]> {
   const backendOfficers = await fetchBackendOfficers(force)
-  // sesi mati / offline → roster lokal dipakai apa adanya
   if (!backendOfficers?.length) return []
   const mobileOfficers = backendOfficers.map(toMobileOfficer)
 
@@ -143,10 +130,7 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     payload: { ...o, username: o.username, dermagaAccess: o.dermagaAccess },
   })))
 
-  // ponytail: kegagalan simpan hash PIN TIDAK boleh membatalkan seluruh
-  // sinkron roster. Dulu satu hash gagal -> throw -> roster (nama, akses
-  // dermaga, petugas baru) TIDAK pernah ditulis ke localStorage, sehingga
-  // perubahan admin di dashboard tidak pernah sampai ke HP.
+  // ponytail: kegagalan simpan hash PIN TIDAK boleh membatalkan seluruh sinkron roster.
   const pinFailures: string[] = []
   for (const bo of backendOfficers) {
     if (!bo.pin_hash) continue
@@ -168,9 +152,7 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
     throw new Error('Gagal menyimpan daftar petugas di perangkat')
   }
 
-  // Roster di perangkat = roster dari server. Petugas yang tidak ada di
-  // server TIDAK boleh tetap tampil (dulu daftar seed bikin petugas contoh
-  // ikut muncul di HP).
+  // Roster di perangkat = roster dari server. Petugas yang tidak ada di server TIDAK boleh tetap tampil (dulu daftar seed bikin petugas contoh ikut…
   const local = new Map<string, ReturnType<typeof toMobileOfficer>>()
   for (const o of getStoredOfficers()) local.set(String(o.id), o)
 
@@ -182,12 +164,10 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   }
   const roster = [...merged.values()]
   localStorage.setItem('trip.officers.v1', JSON.stringify(roster))
-  // Beri tahu UI: roster (nama, PIN, akses dermaga) sudah replaced.
-  try { window.dispatchEvent(new CustomEvent(OFFICERS_UPDATED_EVENT, { detail: { roster } })) } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent(OFFICERS_UPDATED_EVENT, { detail: { roster } })) } catch {  }
 
   return roster
 }
-
 
 
 

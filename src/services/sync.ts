@@ -18,22 +18,45 @@ import { syncOnResume } from './adminPull'
 
 
 
-
 const BASE_BACKOFF_MS = 15_000
-const MAX_BACKOFF_MS = 600_000
-const FAST_RETRY_NETWORK_MS = 2_000
-const POLL_INTERVAL_MS = 20_000
-const LOCK_TIMEOUT_MS = 120_000
-const ITEM_TIMEOUT_MS = 90_000
-// Timeout permintaan GPS saat butuh koordinat fallback untuk kendaraan.
-// 8 detik -> sering gagal di lapangan (Timeout expired). 20 detik memberi
-// cukup waktu bagi GPS chipset lock, tanpa menggantung upload.
-const GEO_TIMEOUT_MS = 20_000
-const PING_TTL_MS = 2_500
-const PING_TIMEOUT_MS = 5_000
-const ONLINE_RETRY_ATTEMPTS = 3
-const ONLINE_RETRY_DELAY_MS = 700
 
+
+
+const MAX_BACKOFF_MS = 600_000
+
+
+
+const FAST_RETRY_NETWORK_MS = 2_000
+
+
+
+const POLL_INTERVAL_MS = 20_000
+
+
+
+const LOCK_TIMEOUT_MS = 120_000
+
+
+
+const ITEM_TIMEOUT_MS = 90_000
+// Timeout permintaan GPS saat butuh koordinat fallback untuk kendaraan. 8 detik -> sering gagal di lapangan (Timeout expired).
+const GEO_TIMEOUT_MS = 20_000
+
+
+
+const PING_TTL_MS = 2_500
+
+
+
+const PING_TIMEOUT_MS = 5_000
+
+
+
+const ONLINE_RETRY_ATTEMPTS = 3
+
+
+
+const ONLINE_RETRY_DELAY_MS = 700
 
 
 
@@ -41,7 +64,6 @@ export interface PhotoEntry {
   dataUrl: string
   mimeType: string
 }
-
 
 
 
@@ -60,17 +82,14 @@ export interface SyncItem {
 
 
 
-
 interface SyncResult {
   syncId: string
   success: boolean
   error?: string
   code?: string
   permanent?: boolean
-  /** Base URL server yang MENERIMA trip ini (untuk ditampilkan ke petugas). */
   target?: string
 }
-
 
 
 
@@ -78,28 +97,47 @@ type QueueListener = (count: number, queue: SyncItem[]) => void
 
 
 
-
 type SyncedListener = (tripId: string, target?: string) => void
 
+
+
 let queueListeners: QueueListener[] = []
+
+
+
 let syncedListeners: SyncedListener[] = []
+
+
+
 let _pendingCount = 0
 
 
 
-
 let _pingOk = false
+
+
+
 let _pingAt = 0
+
+
+
 let _pinging: Promise<boolean> | null = null
 
 
 
-
 let _syncing = false
-let _lockDeadline = 0
-let _lockWatchdog: ReturnType<typeof setTimeout> | null = null
-let _retryTimer: ReturnType<typeof setTimeout> | null = null
 
+
+
+let _lockDeadline = 0
+
+
+
+let _lockWatchdog: ReturnType<typeof setTimeout> | null = null
+
+
+
+let _retryTimer: ReturnType<typeof setTimeout> | null = null
 
 
 
@@ -107,11 +145,9 @@ let _initialized = false
 
 
 
-
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
-
 
 
 
@@ -132,11 +168,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 
 
 
-
 function isNetworkError(err?: string): boolean {
   return !!err && /timeout|network|failed.to.fetch|terjangkau|offline|request.failed|ECONNREFUSED|ENOTFOUND|server tidak merespon|unreachable/i.test(err)
 }
-
 
 
 
@@ -147,12 +181,10 @@ export function backoffMs(attempts: number): number {
 
 
 
-
 async function readQueue(): Promise<SyncItem[]> {
   const rows = await dbAll<SyncItem>('pending')
   return rows.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
 }
-
 
 
 
@@ -162,40 +194,39 @@ async function writeItem(item: SyncItem): Promise<void> {
 
 
 
-
 async function removeItem(syncId: string): Promise<void> {
   await dbDelete('pending', syncId)
 }
 
 
 
-
 export function notifyQueueListeners() {
-  // Antrean ikut dikirim ke listener: UI memakai ISI antrean (bukan hanya
-  // jumlahnya) untuk menentukan status kirim tiap trip. Kalau UI membaca
-  // cache modul, ia bisa masih melihat antrean LAMA saat render pertama.
+  // Antrean ikut dikirim ke listener: UI memakai ISI antrean (bukan hanya jumlahnya) untuk menentukan status kirim tiap trip.
   void readQueue().then(q => {
     _queueCache = q
     _pendingCount = q.length
-    for (const l of [...queueListeners]) { try { l(q.length, q) } catch { /* ignore */ } }
+    for (const l of [...queueListeners]) { try { l(q.length, q) } catch {  } }
   }).catch(() => {
     void dbCount('pending').then(n => {
       _pendingCount = n
-      for (const l of [...queueListeners]) { try { l(n, _queueCache) } catch { /* ignore */ } }
+      for (const l of [...queueListeners]) { try { l(n, _queueCache) } catch {  } }
     })
   })
 }
 
 
 
-
 function notifySyncedListeners(tripId: string, target?: string) {
-  for (const l of [...syncedListeners]) { try { l(tripId, target) } catch { /* ignore */ } }
+  for (const l of [...syncedListeners]) { try { l(tripId, target) } catch {  } }
 }
 
-const LEGACY_QUEUE_KEY = 'trip.syncQueue.v1'
-const MIGRATION_KEY = 'sync.queue.migrated.v1'
 
+
+const LEGACY_QUEUE_KEY = 'trip.syncQueue.v1'
+
+
+
+const MIGRATION_KEY = 'sync.queue.migrated.v1'
 
 
 
@@ -208,45 +239,23 @@ function derivePhotos(trip: Trip): PhotoEntry[] {
 
 
 
-
 function deriveTripPhoto(trip: Trip): PhotoEntry | undefined {
   return trip.photoUrl ? { dataUrl: trip.photoUrl, mimeType: 'image/jpeg' } : undefined
 }
 
 
 
-
-/** true bila entri foto benar-benar membawa data gambar. */
 function hasPhotoData(p?: PhotoEntry): p is PhotoEntry {
   return !!p?.dataUrl && p.dataUrl.trim().length > 0
 }
 
 
 
-
-/**
- * Normalisasi plat untuk pencocokan: huruf besar, tanpa spasi/teguk.
- */
 function plateKey(plate?: string): string {
   return String(plate ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-/**
- * Gabungkan daftar kendaraan state (baru) dengan daftar kendaraan yang
- * sudah ada di antrean (lama).
- *
- * Dua aturan, keduanya berakar dari gejala "kendaraan menghilang":
- *
- *   1. Daftar BARU tidak boleh lebih pendek dari daftar LAMA kalau state
- *      yang datang hanya metadata (foto dibuang dari cache localStorage).
- *      Dalam keadaan itu daftar lama dipertahankan — lengkap dengan fotonya.
- *   2. Pencocokan foto dilakukan per PLAT, bukan per index: urutan kendaraan
- *      bisa berubah (plat diedit, unit dihapus) dan pencocokan per index
- *      akan menempelkan foto unit yang salah.
- *
- * Kalau jumlah keduanya sama, itu berarti petugas hanya MENGEDIT platunit
- * yang sama — jadi posisinya yang jadi acuan (foto ikut unitnya).
- */
+// Gabungkan daftar kendaraan state (baru) dengan daftar kendaraan yang sudah ada di antrean (lama).
 function mergeVehicleList(
   next: VehicleEntry[],
   prev: VehicleEntry[] = [],
@@ -254,7 +263,6 @@ function mergeVehicleList(
   if (!prev.length) return next
   if (!next.length) return prev
 
-  // Jumlah sama = daftar yang sama, plat bisa saja diedit -> cocok per index.
   if (next.length === prev.length) {
     return next.map((v, i) => {
       const old = prev[i]
@@ -275,7 +283,6 @@ function mergeVehicleList(
     const key = plateKey(v.plate)
     let idx = prev.findIndex((p, j) => !used.has(j) && key && plateKey(p.plate) === key)
     if (idx < 0) {
-      // Tanpa plat yang cocok -> pakai index kalau slotnya masih kosong.
       idx = prev.findIndex((_p, j) => !used.has(j) && j === i)
     }
     if (idx < 0) return v
@@ -289,7 +296,6 @@ function mergeVehicleList(
       photoLongitude: v.photoLongitude ?? old.photoLongitude,
     }
   })
-  // Unit lama yang tidak punya pasangan ikut dipertahankan (dengan fotonya).
   for (let j = 0; j < prev.length; j++) {
     if (used.has(j)) continue
     merged.push(prev[j])
@@ -297,12 +303,7 @@ function mergeVehicleList(
   return merged
 }
 
-/**
- * Susun ulang isi antrean supaya TIDAK PERNAH kehilangan kendaraan atau foto.
- *
- * kembalikan: trip (dengan kendaraan + foto), daftar foto kendaraan (sejajar
- * dengan `trip.vehicles`), dan foto bukti trip.
- */
+// Susun ulang isi antrean supaya TIDAK PERNAH kehilangan kendaraan atau foto.
 function mergeQueuedTrip(
   next: Trip,
   prev?: SyncItem,
@@ -310,8 +311,7 @@ function mergeQueuedTrip(
   const prevVehicles = prev?.trip?.vehicles ?? []
   const vehicles = mergeVehicleList(next.vehicles ?? [], prevVehicles)
 
-  // Foto per kendaraan: pakai yang ada di state, kalau kosong ambil dari
-  // antrean (cocok per plat, fallback per index).
+  // Foto per kendaraan: pakai yang ada di state, kalau kosong ambil dari antrean (cocok per plat, fallback per index).
   const prevPhotos = prev?.photos ?? []
   const photos: PhotoEntry[] = vehicles.map((v, i) => {
     const own = v.photoUrl
@@ -323,7 +323,6 @@ function mergeQueuedTrip(
       const prevPhoto = prevPhotos[j]?.dataUrl
       return !!prevPhoto && !!key && plateKey(p.plate) === key
     })
-    // Tanpa plat yang cocok -> pakai posisi yang sama di antrean.
     if (idx < 0) idx = i < prevPhotos.length ? i : -1
     const fallback = idx >= 0 ? prevPhotos[idx] : undefined
     return {
@@ -332,8 +331,7 @@ function mergeQueuedTrip(
     }
   })
 
-  // Kembalikan foto ke dalam trip supaya isi antrean selalu konsisten:
-  // `vehicles[i].photoUrl` = `photos[i].dataUrl`.
+  // Kembalikan foto ke dalam trip supaya isi antrean selalu konsisten: `vehicles[i].photoUrl` = `photos[i].dataUrl`.
   const tripVehicles = vehicles.map((v, i) => ({
     ...v,
     photoUrl: photos[i].dataUrl || v.photoUrl,
@@ -349,7 +347,6 @@ function mergeQueuedTrip(
     tripPhoto,
   }
 }
-
 
 
 
@@ -394,7 +391,6 @@ async function migrateLegacyQueue(): Promise<void> {
 
 
 
-
 export async function addToSyncQueue(
   trip: Trip,
   photos?: PhotoEntry[],
@@ -404,9 +400,6 @@ export async function addToSyncQueue(
   const existing = (await dbGetById(trip.id))
   const createdAt = existing?.createdAt ?? Date.now()
 
-  // Foto dari parameter (kamera) adalah yang paling baru — pakai dulu.
-  // Kalau parameter tidak membawa foto, ambil dari state trip; kalau tetap
-  // kosong, pertahankan salinan di antrean.
   const incomingPhotos = photos?.length ? photos : derivePhotos(trip)
   const withPhotos: Trip = {
     ...trip,
@@ -419,8 +412,7 @@ export async function addToSyncQueue(
     ? tripPhoto
     : (hasPhotoData(deriveTripPhoto(trip)) ? deriveTripPhoto(trip) : undefined)
 
-  // Gabungkan dengan isi antrean lama: daftar kendaraan dan foto tidak boleh
-  // pernah hilang hanya karena state yang dipakai hanya metadata.
+  // Gabungkan dengan isi antrean lama: daftar kendaraan dan foto tidak boleh pernah hilang hanya karena state yang dipakai hanya metadata.
   const merged = mergeQueuedTrip(withPhotos, existing ?? undefined)
 
   const item: SyncItem = {
@@ -433,15 +425,13 @@ export async function addToSyncQueue(
     createdAt,
     lastAttemptAt: existing?.lastAttemptAt,
     photos: merged.photos,
-    // Foto trip hanya boleh diganti oleh foto BARU yang berisi data; kalau
-    // tidak ada, pertahankan salinan yang sudah ada di antrean.
+    // Foto trip hanya boleh diganti oleh foto BARU yang berisi data; kalau tidak ada, pertahankan salinan yang sudah ada di antrean.
     tripPhoto: incomingTripPhoto ?? existing?.tripPhoto,
   }
   await writeItem(item)
   notifyQueueListeners()
   window.setTimeout(() => void processSyncQueue(), 150)
 }
-
 
 
 
@@ -452,24 +442,14 @@ async function dbGetById(tripId: string): Promise<SyncItem | null> {
 
 
 
-
-/**
- * Foto yang masih tersimpan di antrean sinkronisasi untuk sebuah trip.
- *
- * Antrean (`pending`) menyimpan data URL foto secara UTUH — berbeda dari cache
- * metadata `localStorage` yang membuangnya. Kalau store `trips` kehilangan foto
- * (penulisan IndexedDB gagal, mis. kuota penuh), antrean adalah salinan terakhir
- * yang bisa dipakai memulihkan foto di halaman Riwayat dan memastikan upload
- * tetap membawa blob foto yang valid.
- */
 export interface QueuedPhotos {
-  /** Foto kendaraan; index-nya sejajar dengan `vehicles` pada trip di antrean. */
   vehiclePhotos: Array<string | undefined>
   tripPhotoUrl?: string
   selfieUrl?: string
 }
 
-/** Foto sebuah trip dari antrean sync. `null` = antrean tidak punya fotonya. */
+
+
 export async function readQueuedPhotos(tripId: string): Promise<QueuedPhotos | null> {
   try {
     await initLocalDb()
@@ -496,7 +476,6 @@ export function getPendingCount(): number { return _pendingCount }
 
 
 
-
 export async function retrySyncItem(trip: Trip): Promise<void> {
   try {
     await initLocalDb()
@@ -505,11 +484,7 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
       await addToSyncQueue(trip, derivePhotos(trip), deriveTripPhoto(trip))
       return
     }
-    // Gabungkan state yang baru dengan isi antrean lama. State bisa saja
-    // hanya metadata (foto dibuang dari cache localStorage) atau kehilangan
-    // daftar kendaraan — tanpa penggabungan ini, satu aksi "Simpan & Kirim"
-    // akan menghapus kendaraan/foto dari antrean dan trip terkirim tanpa
-    // dokumen (gejala "kendaraan menghilang" di dashboard admin).
+    // Gabungkan state yang baru dengan isi antrean lama.
     const merged = mergeQueuedTrip(trip, existing ?? undefined)
     const item: SyncItem = {
       ...existing,
@@ -532,12 +507,15 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
 
 
 
-
 export function getSyncQueue(): SyncItem[] { return _queueCache }
 
-let _queueCache: SyncItem[] = []
-void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 
+
+let _queueCache: SyncItem[] = []
+
+
+
+void readQueue().then(q => { _queueCache = q }).catch(() => {  })
 
 
 
@@ -546,11 +524,10 @@ export function onSyncQueueChange(cb: QueueListener): () => void {
   void readQueue().then(q => {
     _queueCache = q
     _pendingCount = q.length
-    try { cb(q.length, q) } catch { /* ignore */ }
+    try { cb(q.length, q) } catch {  }
   })
   return () => { queueListeners = queueListeners.filter(x => x !== cb) }
 }
-
 
 
 
@@ -561,37 +538,30 @@ export function onTripSynced(cb: SyncedListener): () => void {
 
 
 
-// ─── Notifikasi kegagalan kirim ───────────────────────────────────────────────
-
-/**
- * Event global + listener untuk memberitahu UI bahwa sebuah trip GAGAL dikirim.
- *
- * Dulu kegagalan upload hanya terlihat dari state antrean di layar "Trip
- * Tercatat" / "Riwayat". Petugas yang menutup layar atau berada di tab lain
- * bisa saja mengira trip sudah masuk ke server — persis keluhan "tapi
- * aplikasi bilang berhasil terkirim". Sekarang setiap kegagalan memunculkan
- * notifikasi eksplisit berisi alasannya.
- */
+// Event global + listener untuk memberitahu UI bahwa sebuah trip GAGAL dikirim.
 export const SYNC_FAILURE_EVENT = 'trip:sync-failure'
 
+
+
 export interface SyncFailureDetail {
-  /** ID trip lokal (client_trip_id) yang gagal dikirim. */
   tripId: string
   /** Alasan yang layak ditampilkan ke petugas. */
   error: string
-  /** Kode/status HTTP bila ada (mis. "400", "NETWORK"). */
   code?: string
-  /** true = kegagalan permanen (percobaan ulang tanpa perubahan data tak akan menolong). */
   permanent: boolean
-  /** Jumlah percobaan kirim yang sudah dilakukan. */
   attempts: number
 }
 
+
+
 type SyncFailureListener = (detail: SyncFailureDetail) => void
+
+
 
 const failureListeners: SyncFailureListener[] = []
 
-/** Daftar listener kegagalan kirim. Return: fungsi unsubscribe. */
+
+
 export function onSyncFailure(cb: SyncFailureListener): () => void {
   failureListeners.push(cb)
   return () => {
@@ -600,41 +570,32 @@ export function onSyncFailure(cb: SyncFailureListener): () => void {
   }
 }
 
+
+
 function notifySyncFailure(detail: SyncFailureDetail): void {
   for (const l of [...failureListeners]) {
     try { l(detail) } catch { /* listener yang error tidak boleh mengganggu antrean */ }
   }
   try {
     window.dispatchEvent(new CustomEvent(SYNC_FAILURE_EVENT, { detail }))
-  } catch { /* lingkungan tanpa DOM */ }
+  } catch {  }
 }
 
 
 
-// ─── Status sinkronisasi satu trip ─────────────────────────────────────────────
-
 export type TripSyncState = 'synced' | 'pending' | 'failed' | 'local'
+
+
 
 export interface TripSyncStatus {
   state: TripSyncState
   item?: SyncItem
   /** Alasan kegagalan (hanya untuk state 'failed'). */
   error?: string
-  /** Jumlah percobaan kirim. */
   attempts: number
 }
 
-/**
- * Status sinkronisasi satu trip — SATU sumber kebenaran untuk semua layar.
- *
- * previously tiap layar menebak sendiri dari `trip.synced`, sehingga trip yang
- * GAGAL kirim tetap terbaca "menunggu" (kuning) bahkan setelah server
- * menolaknya dengan 4xx. Fungsi ini memakai antrean sebagai sumber utama:
- *   - ada di antrean + needsAttention -> 'failed' (merah, GAGAL TERKIRIM)
- *   - ada di antrean                 -> 'pending' (kuning, menunggu)
- *   - tidak ada di antrean + synced  -> 'synced' (hijau, benar-benar terkirim)
- *   - tidak ada di antrean + belum   -> 'local' (abu, perlu kirim ulang manual)
- */
+// Status sinkronisasi satu trip — SATU sumber kebenaran untuk semua layar.
 export function classifyTripSync(
   tripId: string,
   synced: boolean | undefined,
@@ -658,7 +619,6 @@ export function classifyTripSync(
 
 
 
-
 export async function probeServer(force = false): Promise<boolean> {
   if (_pinging && !force) return _pinging
   if (!force && Date.now() - _pingAt < PING_TTL_MS) return _pingOk
@@ -679,7 +639,6 @@ export async function probeServer(force = false): Promise<boolean> {
 
 
 
-
 function normalizeSource(raw?: string): string | null {
   if (!raw) return null
   const s = raw.trim()
@@ -689,7 +648,6 @@ function normalizeSource(raw?: string): string | null {
   if (/^[A-Za-z0-9+/=\s]{64,}$/.test(s)) return `data:image/jpeg;base64,${s.replace(/\s/g, '')}`
   return s
 }
-
 
 
 
@@ -710,8 +668,9 @@ function dataUrlToBlobManual(dataUrl: string): Blob | null {
   }
 }
 
-const OK_MIME = /^image\/(jpeg|png|webp)$/i
 
+
+const OK_MIME = /^image\/(jpeg|png|webp)$/i
 
 
 
@@ -719,8 +678,7 @@ async function toImageBlob(raw?: string): Promise<Blob | null> {
   const src = normalizeSource(raw)
   if (!src) return null
   let blob: Blob | null = null
-  // ponytail: untuk data: URL decode manual JAUH lebih cepat daripada
-  // fetch(dataUrl) di WebView Android (tidak lewat network stack).
+  // ponytail: untuk data: URL decode manual JAUH lebih cepat daripada fetch(dataUrl) di WebView Android (tidak lewat network stack).
   if (src.startsWith('data:')) {
     blob = dataUrlToBlobManual(src)
   } else {
@@ -738,12 +696,10 @@ async function toImageBlob(raw?: string): Promise<Blob | null> {
 
 
 
-
 function photoFileName(blob: Blob, index: number): string {
   const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
   return `photo-${index}.${ext}`
 }
-
 
 
 
@@ -792,26 +748,12 @@ export function resolveRoute(trip: Trip): { routeFrom: string | null; routeTo: s
 
 
 
-
-/**
- * Ambil koordinat untuk kendaraan yang foto-nya tidak membawa GPS.
- *
- * PENTING: ini HANYA fallback. Koordinat asli diambil dari metadata foto
- * (v.photoLatitude). Yang di sini hanya dipakai kalau foto tidak punya
- * koordinat — jadi tidak boleh menunda pengiriman lebih dari perlu.
- *
- * urutan:
- *   1. fix terakhir yang sudah diketahui (watch GPS / cache) -> instan,
- *   2. permintaan GPS dengan timeout wajar.
- */
+// Ambil koordinat untuk kendaraan yang foto-nya tidak membawa GPS. PENTING: ini HANYA fallback.
 async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | null> {
-  // 1. Fix yang sudah ada di perangkat (watch GPS) -> tanpa jaringan.
   const last = getLastKnownPosition()
   if (last) return { lat: last.lat, lon: last.lng }
 
-  // 2. Permintaan GPS. Timeout 8 detik dulu -> sering "Timeout expired" di
-  //    lapangan. Sekarang 20 detik; batas luar (withTimeout) tetap menjaga
-  //    supaya upload tidak menggantung lebih lama dari itu.
+  // 2. Permintaan GPS. Timeout 8 detik dulu -> sering "Timeout expired" di lapangan. Sekarang 20 detik;
   try {
     const pos: Position | null = await withTimeout<Position | null>(
       Geolocation.getCurrentPosition({
@@ -831,15 +773,7 @@ async function getCurrentPositionSafe(): Promise<{ lat: number; lon: number } | 
 
 
 
-
-/**
- * Bentuk jawaban server untuk `POST /trips/complete`.
- *
- * `vehicleCount` / `photoCount` dipakai sebagai KONFIRMASI: server baru
- * mengirimkannya kalau seluruh kendaraan & foto benar-benar tersimpan. Kalau
- * angkanya tidak cocok, data di server tidak utuh dan trip TIDAK boleh
- * dianggap terkirim.
- */
+// Bentuk jawaban server untuk `POST /trips/complete`.
 export interface TripCompleteAck {
   id?: string
   noTrip?: string
@@ -848,14 +782,7 @@ export interface TripCompleteAck {
   photoCount?: number
 }
 
-/**
- * Periksa apakah jawaban server benar-benar mengonfirmasi trip tersimpan.
- *
- * Ini yang mencegah gejala "notifikasi berhasil terkirim tapi data tidak ada
- * di dashboard admin": status HTTP 2xx saja TIDAK cukup — server wajib
- * mengembalikan nomor trip, dan kalau ia melaporkan jumlah kendaraan/foto,
- * angka itu harus sama dengan yang dikirim.
- */
+// Periksa apakah jawaban server benar-benar mengonfirmasi trip tersimpan.
 export function verifyTripAcknowledgement(
   data: unknown,
   expectedVehicles: number,
@@ -907,7 +834,6 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const tripPhotoRaw = item.tripPhoto?.dataUrl ?? trip.photoUrl
     const tripPhotoIdx = await pushPhoto(tripPhotoRaw)
 
-    // Swafoto (foto petugas) dikirim sebagai foto tambahan pada trip.
     const selfieIdx = await pushPhoto(trip.selfieUrl ?? undefined)
 
     const hasLoad = (trip.vehicles?.length ?? 0) > 0
@@ -917,9 +843,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     interface VehiclePayload {
       noPolisi: string
       vehicleType: string
-      /** Golongan master tarif (I..V). */
       golongan: string
-      /** Kategori operasional (Internal / Eksternal / Lokal) — penentu tarif. */
       kategori: string
       hasLoad: boolean
       photoIndex: number | null
@@ -931,10 +855,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const vehicles: VehiclePayload[] = []
     const vehiclesList = trip.vehicles ?? []
-    // ponytail: GPS diambil SATU KALI untuk semua kendaraan. Dulu tiap
-    // kendaraan tanpa koordinat memanggil getCurrentPosition() (timeout 8
-    // detik) secara SEKUENSIAL -> 3 kendaraan = 24 detik extra sebelum
-    // request terkirim.
+    // ponytail: GPS diambil SATU KALI untuk semua kendaraan.
     let sharedGeo: { lat: number; lon: number } | null | undefined
     const ensureGeo = async (): Promise<{ lat: number; lon: number } | null> => {
       if (sharedGeo === undefined) sharedGeo = await getCurrentPositionSafe()
@@ -952,11 +873,8 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       vehicles.push({
         noPolisi: v.plate,
         vehicleType: v.type,
-        // Golongan master tarif — TIDAK boleh diisi kategori, supaya lookup
-        // tarif master tidak meleset.
+        // Golongan master tarif — TIDAK boleh diisi kategori, supaya lookup tarif master tidak meleset.
         golongan: v.golongan ?? '',
-        // Kategori operasional (Internal/Eksternal/Lokal) dikirim terpisah;
-        // backend memakai ini untuk menentukan tarif (Internal = Rp 0).
         kategori: v.category ?? '',
         hasLoad: v.load ? v.load === 'loaded' : hasLoad,
         photoIndex: vi,
@@ -980,9 +898,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const { routeFrom, routeTo, routeCode } = resolveRoute(trip)
 
     const payload = {
-      // Kunci idempoten: UUID per trip (lihat Trip.clientTripId). Fallback ke
-      // id lama supaya trip yang dibuat sebelum perubahan ini tetap punya
-      // kunci.
+      // Kunci idempoten: UUID per trip (lihat Trip.clientTripId). Fallback ke id lama supaya trip yang dibuat sebelum perubahan ini tetap punya kunci.
       clientTripId: trip.clientTripId ?? trip.id,
       statusMuatan: hasLoad ? 'muatan' : 'kosong',
       routeFrom,
@@ -1011,13 +927,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     const res = await api.postMultipart<TripCompleteAck>('/trips/complete', form)
 
     if (res.ok) {
-      // Server boleh membalas 2xx, tapi itu BELUM tentu berarti datanya
-      // tersimpan. Endpoint yang salah (mis. backend lain yang kebalas 200
-      // dengan body kosong) dulu dianggap "sukses" -> petugas melihat
-      // "berhasil terkirim" padahal tidak ada apa pun di dashboard admin.
-      //
-      // Jadi respons server WAJIB mengonfirmasi trip: ada nomor trip, dan
-      // (kalau ada) jumlah kendaraan & foto harus sama dengan yang dikirim.
+      // Server boleh membalas 2xx, tapi itu BELUM tentu berarti datanya tersimpan. Endpoint yang salah (mis.
       const confirm = verifyTripAcknowledgement(res.data, vehicles.length, blobs.length)
       if (!confirm.ok) {
         return {
@@ -1032,13 +942,7 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
     const code = res.error?.code
     if (code === '401' && allowReauth) {
-      // 401 = token DITOLAK server. Satu-satunya jalan keluar adalah login
-      // ulang dari PIN tersimpan (refreshBackendSession). Jangan fallback ke
-      // ensureBackendSession — ia hanya cek ADA token di storage, bukan
-      // validitasnya, sehingga token basi lolos dan retry 401 lagi lalu trip
-      // terkunci "permanent" di antrean. Kalau login ulang gagal (credentials
-      // kosong), biarkan item RETRYABLE — petugas masuk lewat layar login
-      // dan force sync berikutnya akan menyelamatkan trip.
+      // 401 = token DITOLAK server. Satu-satunya jalan keluar adalah login ulang dari PIN tersimpan (refreshBackendSession).
       const ok = await refreshBackendSession()
       if (ok) return postTripToServer(item, false)
       return {
@@ -1049,13 +953,10 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       }
     }
 
-    // 4xx = server menolak payload (permanen, retry tanpa ubah data tak akan
-    // menolong). 5xx = masalah server/sesi -> tetap retry.
+    // 4xx = server menolak payload (permanen, retry tanpa ubah data tak akan menolong). 5xx = masalah server/sesi -> tetap retry.
     const permanent = !!code && /^4\d\d$/.test(code) && code !== '408' && code !== '401'
 
-    // Pesan galat server HARUS ikut ditampilkan utuh. Dulu_generic "Server
-    // menolak payload" membuat petugas tidak tahu apa yang salah; sekarang
-    // status HTTP + pesan server ikut dibawa ke UI.
+    // Pesan galat server HARUS ikut ditampilkan utuh. Dulu_generic "Server menolak payload" membuat petugas tidak tahu apa yang salah;
     const serverMessage = (res.error?.message ?? '').trim()
     const error = serverMessage
       ? `Server menolak (HTTP ${code ?? '?'}): ${serverMessage}`
@@ -1076,7 +977,6 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
 
 
 
-
 function isSyncBusy(): boolean {
   if (!_syncing) return false
   if (Date.now() > _lockDeadline) {
@@ -1086,7 +986,6 @@ function isSyncBusy(): boolean {
   }
   return true
 }
-
 
 
 
@@ -1105,13 +1004,11 @@ function acquireLock(): void {
 
 
 
-
 function releaseLock(): void {
   _syncing = false
   _lockDeadline = 0
   if (_lockWatchdog) { clearTimeout(_lockWatchdog); _lockWatchdog = null }
 }
-
 
 
 
@@ -1125,11 +1022,8 @@ function scheduleRetry(delayMs = POLL_INTERVAL_MS): void {
 
 
 
-
 async function processItem(item: SyncItem, retryAll = false): Promise<void> {
-  // Item yang sudah ditandai butuh perhatian (mis. foto tidak lengkap)
-  // tidak diulang otomatis tanpa perubahan data — cegah churn antrean.
-  // Pengulangan manual (syncNow / setelah foto diambil) memakai retryAll.
+  // Item yang sudah ditandai butuh perhatian (mis. foto tidak lengkap) tidak diulang otomatis tanpa perubahan data — cegah churn antrean.
   if (item.needsAttention && !retryAll) return
 
   const last = item.lastAttemptAt ?? 0
@@ -1149,8 +1043,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   if (result.success) {
     await removeItem(item.syncId)
     notifyQueueListeners()
-    // Target ikut dilaporkan: petugas bisa memastikan trip-nya masuk ke
-    // server yang sama dengan yang dipakai dashboard admin.
     notifySyncedListeners(item.trip.id, result.target)
     return
   }
@@ -1165,8 +1057,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
   }
   await writeItem(updated)
 
-  // Beri tahu UI: trip ini GAGAL dikirim. Tanpa notifikasi ini petugas bisa
-  // saja melihat "berhasil terkirim" di tempat lain aplikasi.
   notifySyncFailure({
     tripId: item.trip.id,
     error: updated.lastError ?? 'Gagal mengirim trip ke server',
@@ -1182,7 +1072,6 @@ async function processItem(item: SyncItem, retryAll = false): Promise<void> {
 
 
 
-
 async function ensureSessionForQueue(): Promise<boolean> {
   try {
     return await renewSessionIfNeeded()
@@ -1193,19 +1082,12 @@ async function ensureSessionForQueue(): Promise<boolean> {
 
 
 
-
 export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<void> {
   if (isSyncBusy()) return
   acquireLock()
 
   try {
     // Antrean kosong -> jangan sentuh server sama sekali.
-    //
-    // DULU probeServer() dipanggil paling dulu, sehingga setiap perangkat
-    // yang idle tetap menembak GET /health tiap 20 detik (PING_TTL_MS hanya
-    // 2,5 detik, jadi cache pings-nya selalu kedaluwarsa). Itu 4.320
-    // request per hari per perangkat, padahal tidak ada satu byte pun yang
-    // perlu dikirim. Sekarang server tidak disentuh selama antrean kosong.
     const items = await readQueue()
     _queueCache = items
     if (items.length === 0) {
@@ -1228,9 +1110,6 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
     }
 
     for (const item of items) {
-      // Tidak ada probe per item lagi: kalau server mati di tengah siklus,
-      // processItem sudah menangani error jaringan + backoff sendiri. Probe
-      // per item menambah 1 request untuk setiap antrean entry.
       await processItem(item, opts?.retryAll ?? false)
     }
   } catch (err) {
@@ -1238,10 +1117,9 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
   } finally {
     releaseLock()
     notifyQueueListeners()
-    void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
+    void readQueue().then(q => { _queueCache = q }).catch(() => {  })
   }
 }
-
 
 
 
@@ -1256,7 +1134,6 @@ async function handleConnectionRestored(): Promise<void> {
   }
   scheduleRetry(POLL_INTERVAL_MS)
 }
-
 
 
 
@@ -1288,7 +1165,6 @@ export function initializeSync(): void {
 
 
 
-
 export async function syncNow(): Promise<{ synced: number; failed: number; busy?: boolean; reachable?: boolean }> {
   const before = await dbCount('pending')
   if (isSyncBusy()) return { synced: 0, failed: before, busy: true }
@@ -1304,7 +1180,6 @@ export async function syncNow(): Promise<{ synced: number; failed: number; busy?
   notifyQueueListeners()
   return { synced: Math.max(0, before - after), failed: after, reachable: true }
 }
-
 
 
 

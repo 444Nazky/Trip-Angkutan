@@ -1,11 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import {
-  fetchServerStats,
-  formatBytes,
-  formatMs,
-  formatUptime,
-  intranetStatsBaseUrl,
-} from './serverStats'
+import { fetchServerStats, formatBytes, formatMs, formatUptime, intranetStatsBaseUrl, } from './serverStats'
+
+
 
 describe('panel statistik server intranet', () => {
   beforeEach(() => {

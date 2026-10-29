@@ -1,18 +1,8 @@
-/**
- * Tes Service Worker OTA v4 (src/sw.js).
- *
- * Fokus (sesuai bug lapangan "update kedua tidak muncul"):
- *   1. SW HANYA menyajikan berkas dari cache VERSI AKTIF (dibaca dari meta).
- *      Chunk milik versi lama tidak boleh pernah tersaji walau masih ada di
- *      Cache Storage.
- *   2. Saat activate: sisa arsitektur v3 dibuang; cache versi non-aktif hanya
- *      dibuang bila versi aktif sudah diketahui (tidak menghapus bundel yang
- *      sedang dibangun ulang oleh halaman).
- */
+// Tes Service Worker OTA v4 (src/sw.js). Fokus (sesuai bug lapangan "update kedua tidak muncul"): 1.
 import { describe, it, expect, beforeEach } from 'vitest'
 import swSource from './sw.js?raw'
 
-// ── Cache Storage tiruan (kontrak sama dengan sw.js pakai) ───────────────────
+
 
 function fakeCaches() {
   const store = new Map<string, Map<string, Uint8Array>>()
@@ -45,37 +35,49 @@ function fakeCaches() {
   }
 }
 
+
+
 type FakeCaches = ReturnType<typeof fakeCaches>
 
+
+
 const ORIGIN = 'https://localhost'
+
+
+
 const versionCache = (version: string) => `trip-ota-v${version}`
 
-/** Isi satu berkas di cache bernama `name`. */
+
+
 async function seed(cacheName: string, path: string, body: string): Promise<void> {
   const cache = await caches().open(cacheName)
   await cache.put(new URL(path, ORIGIN).href, new Response(body))
 }
 
+
+
 let cacheStore: FakeCaches
+
+
+
 const caches = () => cacheStore
 
-/** Jaringan palsu (bundel bawaan APK / server lokal). */
+
+
 const network = (path: string) => new Response(`JARINGAN:${path}`)
+
+
 
 interface Env {
   listeners: Record<string, ((event: unknown) => void)[]>
   fire: (type: string, event: Record<string, unknown>) => void
-  /** Jalankan handler dan kembalikan promise respondWith (undefined = lewat). */
   respondWith: (req: Request) => Promise<Response> | undefined
-  /** Jalankan handler dan tunggu seluruh waitUntil. */
   waitFor: (type: string, event?: Record<string, unknown>) => Promise<void>
   fetchCalls: string[]
 }
 
-/**
- * Evaluasi src/sw.js sebagai skrip klasik dengan `self` tiruan — tanpa
- * menyalin logika SW ke dalam tes (yang membuat tes tidak bermakna).
- */
+
+
 function loadServiceWorker(): Env {
   const listeners: Env['listeners'] = { install: [], activate: [], message: [], fetch: [] }
   const fetchCalls: string[] = []
@@ -115,7 +117,11 @@ function loadServiceWorker(): Env {
   }
 }
 
+
+
 let sw: Env
+
+
 
 beforeEach(async () => {
   cacheStore = fakeCaches()
@@ -128,6 +134,8 @@ beforeEach(async () => {
   await seed(versionCache('1.0.2'), 'main-bbb.js', 'CHUNK-BARU')
 })
 
+
+
 describe('Service Worker v4 — hanya versi aktif yang disajikan', () => {
   it('navigasi dilayani index.html versi AKTIF, bukan versi lama', async () => {
     const res = await sw.respondWith(new Request(`${ORIGIN}/?ota=1.0.2`))
@@ -137,7 +145,7 @@ describe('Service Worker v4 — hanya versi aktif yang disajikan', () => {
 
   it('chunk yang hanya ada di cache versi LAMA tidak pernah disajikan', async () => {
     const res = await sw.respondWith(new Request(`${ORIGIN}/main-aaa.js`))
-    expect(res).toBeDefined() // respondWith dipanggil…
+    expect(res).toBeDefined()
     expect(await res!.text()).toBe('JARINGAN:/main-aaa.js') // …tetapi isinya dari jaringan (bukan cache lama)
     expect(sw.fetchCalls).toContain(`${ORIGIN}/main-aaa.js`)
   })
@@ -162,6 +170,8 @@ describe('Service Worker v4 — hanya versi aktif yang disajikan', () => {
   })
 })
 
+
+
 describe('Service Worker v4 — siklus hidup & purge', () => {
   it('activate: bangun sisa v3 dibuang, cache versi non-aktif dibuang', async () => {
     await seed('trip-ota-active', 'index.html', 'SISA-V3')
@@ -171,7 +181,7 @@ describe('Service Worker v4 — siklus hidup & purge', () => {
     await sw.waitFor('activate')
 
     const names = await cacheStore.keys()
-    expect(names).toContain(versionCache('1.0.2')) // versi aktif dipertahankan
+    expect(names).toContain(versionCache('1.0.2'))
     expect(names).not.toContain(versionCache('1.0.1'))
     expect(names).not.toContain(versionCache('1.0.0'))
     expect(names).not.toContain('trip-ota-active')

@@ -4,7 +4,6 @@ import { api, toActionResult, failureReason, type ActionResult } from './api'
 
 export interface Dermaga {
   id: string
-  /** Wilayah pemilik dermaga. `null` = dermaga yatim (wilayahnya sudah dihapus). */
   region_id: string | null
   name: string
   code: string
@@ -37,6 +36,7 @@ export async function fetchRoutes(): Promise<Route[] | null> {
 }
 
 
+
 export async function createDermaga(data: { region_id: string; name: string; code: string }): Promise<ActionResult<string>> {
   const result = await api.post<{ id: string }>('/dermagas', data)
   if (!result.ok) {
@@ -49,18 +49,13 @@ export async function createDermaga(data: { region_id: string; name: string; cod
 }
 
 
+
 export async function deleteDermaga(id: string): Promise<ActionResult> {
   const result = await api.delete(`/dermagas/${id}`)
   return toActionResult(result, 'Dermaga gagal dihapus karena server menolak permintaan')
 }
 
-/**
- * Ubah data dermaga (nama / kode / wilayah).
- *
- * Server hanya mengubah field yang benar-benar dikirim (`updateDermaga` di
- * `server/api/handlers/master.ts`), jadi `name` boleh dikirim sendiri tanpa
- * ikut mengubah kode atau wilayah.
- */
+// Ubah data dermaga (nama / kode / wilayah).
 export async function updateDermaga(
   id: string,
   data: { name?: string; code?: string; region_id?: string },

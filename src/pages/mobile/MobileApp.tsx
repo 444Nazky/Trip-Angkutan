@@ -22,13 +22,19 @@ import { useApp } from '../store'
 
 
 
-
 type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
-const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
-const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
-const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'endpoint', 'profile']
 
+
+const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
+
+
+
+const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
+
+
+
+const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'endpoint', 'profile']
 
 
 

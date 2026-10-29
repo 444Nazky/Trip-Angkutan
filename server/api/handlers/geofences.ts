@@ -1,5 +1,6 @@
-// Geofence handlers (port of backend/src/routes/geofences.js).
 import { db, json, auth, requireAdmin, dbDetail, type OfficerClaims } from "../_shared.ts";
+
+
 
 export function numericCoordinate(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -8,15 +9,21 @@ export function numericCoordinate(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+
+
 function validLatLng(lat: number | null, lng: number | null): boolean {
   return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 }
+
+
 
 export function clampRadius(value: unknown): number {
   const n = numericCoordinate(value);
   if (n === null || n < 1 || n > 10000) return 100;
   return n;
 }
+
+
 
 function parseCoordsFromText(text: string): { latitude: number; longitude: number } | null {
   if (!text) return null;
@@ -39,8 +46,7 @@ function parseCoordsFromText(text: string): { latitude: number; longitude: numbe
   return null;
 }
 
-// ponytail: mobil masih kirim id kode ("BADAU-D1"), DB pakai UUID —
-// resolve sekali di sini agar semua client yang pakai kode ikut jalan.
+// ponytail: mobil masih kirim id kode ("BADAU-D1"), DB pakai UUID — resolve sekali di sini agar semua client yang pakai kode ikut jalan.
 export async function resolveDermagaId(raw: unknown): Promise<string> {
   const value = String(raw ?? "").trim();
   if (!value || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value;
@@ -55,6 +61,8 @@ export async function resolveDermagaId(raw: unknown): Promise<string> {
     .maybeSingle();
   return data?.id ?? value;
 }
+
+
 
 export function shape(rows: any[] | null): unknown[] {
   return (rows ?? []).map((r) => ({
@@ -71,6 +79,8 @@ export function shape(rows: any[] | null): unknown[] {
     enabled: r.enabled === undefined || r.enabled === null ? true : Number(r.enabled) !== 0,
   }));
 }
+
+
 
 export async function getGeofences(req: Request, url: URL): Promise<Response> {
   try {
@@ -101,6 +111,8 @@ export async function getGeofences(req: Request, url: URL): Promise<Response> {
     return json({ error: "Failed to fetch geofences" }, 500);
   }
 }
+
+
 
 export async function resolveLink(req: Request, url: URL): Promise<Response> {
   try {
@@ -133,6 +145,8 @@ export async function resolveLink(req: Request, url: URL): Promise<Response> {
     return json({ error: "Gagal membuka link" }, 502);
   }
 }
+
+
 
 export async function createGeofence(req: Request): Promise<Response> {
   try {
@@ -176,6 +190,8 @@ export async function createGeofence(req: Request): Promise<Response> {
     return json({ error: `Titik geofence gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
+
+
 
 export async function updateGeofence(req: Request, id: string): Promise<Response> {
   try {
@@ -226,6 +242,8 @@ export async function updateGeofence(req: Request, id: string): Promise<Response
     return json({ error: `Titik geofence gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
+
+
 
 export async function deleteGeofence(req: Request, id: string): Promise<Response> {
   try {

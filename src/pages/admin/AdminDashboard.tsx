@@ -3,11 +3,9 @@ import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landm
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
-import type { AdminTab } from './components/types'
-import type { BackendOfficerRow } from './components/types'
+import type { AdminTab, BackendOfficerRow, Officer } from './components/types'
 import type { BackendTrip } from '../../services/trips'
 import type { PlateRecord } from '../../services/plates'
-import type { Officer } from './components/types'
 import { loadTheme, applyTheme } from '../../services/theme'
 import { environment } from '../../environments/environment'
 import ReportSheet from './ReportSheet'
@@ -71,22 +69,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { applyTheme(loadTheme()) }, [])
 
-  // Dependency array WAJIB ada di sini. Tanpa itu, efek ini jalan ulang
-  // setiap render -> setiap setState memicu render -> efek jalan lagi:
-  // request storm tak terbatas ke /trips dan /officers.
-  // `officers` sengaja TIDAK jadi dependency; state lama dipakai lewat
-  // functional update supaya tidak memicu loop.
+  // Dependency array WAJIB ada di sini. Tanpa itu, efek ini jalan ulang setiap render -> setiap setState memicu render -> efek jalan lagi: request storm…
   useEffect(() => {
     let alive = true
     ;(async () => {
       const sess = await ensureAdminSession()
       if (!alive) return
       if (!sess.ok) {
-        // Login yang DITOLAK server (kredensial salah, kredensial belum
-        // dikonfigurasi) berbeda dari server yang tidak bisa dihubungi.
-        // Dulu keduanya ditampilkan sebagai "Tidak bisa terhubung ke
-        // server", sehingga operator mengira servernya yang rusak padahal
-        // masalahnya kredensial.
         setServerState(sess.authDenied ? 'auth' : 'offline')
         setServerError(sess.error ?? 'Sesi admin tidak bisa dibuat')
         return
@@ -105,7 +94,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     return () => { alive = false }
   }, [])
 
-  // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
@@ -173,10 +161,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   setServerState('connecting')
                   setServerError(null)
                   if (serverState === 'auth') {
-                    // Kredensial ditolak: token yang tersimpan tidak berguna.
-                    // Hapus supaya halaman login muncul lagi.
+                    // Kredensial ditolak: token yang tersimpan tidak berguna. Hapus supaya halaman login muncul lagi.
                     api.setToken(null)
-                    try { localStorage.removeItem('trip.admin') } catch { /* storage tidak tersedia */ }
+                    try { localStorage.removeItem('trip.admin') } catch {  }
                     onLogout()
                     return
                   }

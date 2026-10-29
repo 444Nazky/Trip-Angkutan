@@ -31,6 +31,8 @@ export interface LocationDistance {
   pointLng: number
 }
 
+
+
 interface Coords {
   latitude?: number | null
   longitude?: number | null

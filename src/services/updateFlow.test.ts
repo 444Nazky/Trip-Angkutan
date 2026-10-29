@@ -1,30 +1,21 @@
-/**
- * Tes alur pembaruan APK (fix issue #2).
- *
- * Akar masalah yang dijaga di sini:
- *   1. Server pernah mengiklankan versi tanpa berkas → unduhan 404, tetapi klien
- *      tetap menandai versi itu sebagai "terpasang". Sekarang versi resmi HANYA
- *      berubah bila App.getInfo() benar-benar menunjukkan versi baru.
- *   2. APK yang rusak/tidak lengkap (mis. respons error 404 JSON) harus ditolak,
- *      bukan diserahkan ke installer lalu diklaim "berhasil".
- *   3. Hash SHA-256 dari server (kalau ada) wajib dicocokkan sebelum ditawarkan.
- */
+// Tes alur pembaruan APK (fix issue #2). Akar masalah yang dijaga di sini: 1.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 
 
-// jsdom tidak menyediakan SubtleCrypto (dipakai verifikasi SHA-256 APK). Ambil
-// implementasi Node tanpa import statis supaya tsconfig non-Node tetap bersih.
+// jsdom tidak menyediakan SubtleCrypto (dipakai verifikasi SHA-256 APK).
 const nodeSpecifier = ['node', 'crypto'].join(':')
+
+
+
 async function ensureSubtleCrypto(): Promise<void> {
   if (globalThis.crypto?.subtle) return
-  const mod = await import(/* @vite-ignore */ nodeSpecifier) as { webcrypto: Crypto }
+  const mod = await import( nodeSpecifier) as { webcrypto: Crypto }
   Object.defineProperty(globalThis, 'crypto', { value: mod.webcrypto, configurable: true })
 }
 
 
 
-/** base64 dari byte (jsdom tak punya Buffer). */
 function toBase64(bytes: Uint8Array): string {
   let binary = ''
   const chunk = 0x8000
@@ -41,21 +32,20 @@ const h = vi.hoisted(() => ({
   version: '1.0.8',
   bytes: new Uint8Array(0) as Uint8Array,
   statSize: 0,
-  /** Installer APK tersedia (plugin native ApkInstaller terdaftar di APK). */
   installer: true,
   opened: [] as string[],
   httpCalls: [] as { url: string; data?: unknown }[],
   deleted: [] as string[],
 }))
 
+
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: () => h.native,
     getPlatform: () => 'android',
   },
-  // Jalur pemasangan utama sekarang plugin native milik aplikasi sendiri
-  // (ApkInstallerPlugin.java, didaftarkan di MainActivity), bukan plugin Cordova
-  // file-opener2 yang tidak pernah terpasang. Di jsdom ia disimulasikan di sini.
+  // Jalur pemasangan utama sekarang plugin native milik aplikasi sendiri (ApkInstallerPlugin.java, didaftarkan di MainActivity), bukan plugin Cordova…
   registerPlugin: () => ({
     async install({ path }: { path: string }) {
       if (!h.installer) throw new Error('ApkInstaller tidak tersedia di perangkat ini')
@@ -75,6 +65,8 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
+
+
 vi.mock('@capacitor/filesystem', () => ({
   Directory: { Data: 'DATA', Cache: 'CACHE' },
   Filesystem: {
@@ -89,6 +81,8 @@ vi.mock('@capacitor/filesystem', () => ({
   },
 }))
 
+
+
 vi.mock('@capacitor/app', () => ({
   App: {
     async getInfo() { return { version: h.version } },
@@ -96,9 +90,13 @@ vi.mock('@capacitor/app', () => ({
   },
 }))
 
+
+
 vi.mock('@capacitor/device', () => ({
   Device: { async getId() { return { identifier: 'test-device' } } },
 }))
+
+
 
 import { UpdateService } from './updateService'
 
@@ -116,12 +114,12 @@ beforeEach(async () => {
   h.deleted.length = 0
   localStorage.clear()
 
-  // Shell Capacitor: plugin native ApkInstaller adalah jalur utama; plugin
-  // Cordova file-opener2 hanya jaring pengaman build lama, jadi TIDAK dipasang
-  // lagi di sini (kalau jalur native gagal, tidak boleh ada fallback diam-diam).
+  // Shell Capacitor: plugin native ApkInstaller adalah jalur utama;
   const w = window as unknown as { cordova?: unknown }
   w.cordova = { plugins: {} }
 })
+
+
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -202,7 +200,7 @@ describe('unduh APK: hash & versi yang jujur', () => {
 describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
   it('berkas tidak wajar (respons error kecil) → gagal dengan pesan jelas', async () => {
     h.bytes = new Uint8Array([1, 2, 3])
-    h.statSize = 500 // mis. body JSON 404 yang tersimpan sebagai "APK"
+    h.statSize = 500
     const svc = await makeService()
     await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
 
@@ -220,7 +218,6 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     h.statSize = h.bytes.length
     await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
 
-    // Pengguna menyelesaikan pemasangan → App.getInfo() mengembalikan versi baru.
     h.version = '1.0.9'
     const version = await svc.refreshInstalledVersion()
 
@@ -258,7 +255,6 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     expect(h.opened).toHaveLength(1)
     expect(svc.state).toBe('installing')
 
-    // Belum benar-benar terpasang (pengguna membatalkan dialog pemasangan).
     const version = await svc.refreshInstalledVersion()
 
     expect(version).toBe('1.0.8')

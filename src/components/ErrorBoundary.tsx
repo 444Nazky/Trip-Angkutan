@@ -1,47 +1,45 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
+
+
 type Props = {
   children?: ReactNode
-  /** Label yang tampil di layar error, mis. "Admin Dashboard". */
   label?: string
 }
+
+
 
 type State = {
   error: Error | null
   info: string | null
 }
 
-/**
- * Penangkap error render-time.
- *
- * Tanpa boundary, satu error di subtreeMana pun membuat seluruh React tree
- * unmount -> layar putih kosong (blank screen) dan pengguna tidak punya
- * jalan lain selain reload aplikasi. Boundary ini memotong kegagalan di
- * satu area dan menampilkan tombol "Coba Lagi" supaya aplikasi tetap bisa
- * dipakai tanpa kehilangan state di luar area yang gagal.
- *
- * Error Boundary hanya menangkap error saat RENDER/ lifecycle — bukan error
- * di dalam callback async (promise). Untuk itu tetap perlu try-catch di
- * fungsi async masing-masing.
- */
+// Penangkap error render-time. Tanpa boundary, satu error di subtreeMana pun membuat seluruh React tree unmount -> layar putih kosong (blank screen)…
 export class ErrorBoundary extends Component<Props, State> {
   override state: State = { error: null, info: null }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
+
+
+static getDerivedStateFromError(error: Error): Partial<State> {
     return { error }
   }
 
-  override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Simpan component stack untuk diagnosa lewat console / log server intranet.
+
+
+override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[ErrorBoundary]', this.props.label ?? 'app', error, info.componentStack)
     this.setState({ info: info.componentStack ?? null })
   }
 
-  handleRetry = (): void => {
+
+
+handleRetry = (): void => {
     this.setState({ error: null, info: null })
   }
 
-  override render(): ReactNode {
+
+
+override render(): ReactNode {
     const { error, info } = this.state
     if (!error) return this.props.children
 
@@ -87,5 +85,7 @@ export class ErrorBoundary extends Component<Props, State> {
     )
   }
 }
+
+
 
 export default ErrorBoundary

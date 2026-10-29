@@ -5,7 +5,6 @@ import { formatPlateNumber, sanitizePlateInput, validatePlate } from '../../../u
 
 
 
-
 interface PlatesTabProps {
   plates: PlateRecord[]
   onPlatesChange: (p: PlateRecord[]) => void
@@ -29,8 +28,6 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
       if (regs) setRegions(regs)
       setPlateState('ready')
     })
-    // `onPlatesChange` identik dengan setter state parent (stabil), jadi
-    // menambahkannya tidak memicu fetch ulang; guard `plateState` tetap penentu.
   }, [plateState, onPlatesChange])
 
   const resetForm = () => {
@@ -65,9 +62,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
     if (!confirm('Hapus plat ini?')) return
     const res = await deletePlate(id)
     if (!res.ok) return showToast(res.reason ?? 'Plat gagal dihapus karena server menolak permintaan', 'error')
-    // Muat ulang dari server, jangan cuma memfilter state lokal - kalau
-    // server menolak/memfilter baris lain (mis. constraint), tabel harus
-    // menampilkan isi database yang sebenarnya.
+    // Muat ulang dari server, jangan cuma memfilter state lokal - kalau server menolak/memfilter baris lain (mis.
     const fresh = await fetchPlates()
     if (fresh) onPlatesChange(fresh)
     else onPlatesChange(plates.filter(p => p.id !== id))

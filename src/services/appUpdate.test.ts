@@ -1,12 +1,4 @@
-/**
- * Tes alur pembaruan TUNGGAL ("Cek & Perbarui Aplikasi").
- *
- * Aturan yang dijaga:
- *   1. Satu tombol memeriksa dua kanal sekaligus (modul web + APK).
- *   2. Kalau ada paket APK baru, kanal itu yang dipakai — bukan modul.
- *   3. Kalau hanya modul yang baru, modul diterapkan tanpa ganti APK.
- *   4. Kalau keduanya terbaru, tombol berhenti di "up-to-date" tanpa aksi.
- */
+// Tes alur pembaruan TUNGGAL ("Cek & Perbarui Aplikasi"). Aturan yang dijaga: 1. Satu tombol memeriksa dua kanal sekaligus (modul web + APK). 2.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 

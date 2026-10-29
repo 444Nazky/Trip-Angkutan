@@ -1,11 +1,11 @@
-// Master data handlers: regions, dermagas, tariffs.
 import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
 import { invalidateTariffCache, getMasterTariffs as getBadauMasterTariffs } from "./tariffRules.ts";
 
-/** Id region/dermaga bertipe uuid di database. */
+
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ---------- REGIONS ----------
+
 
 export async function getRegions(req: Request): Promise<Response> {
   try {
@@ -22,6 +22,8 @@ export async function getRegions(req: Request): Promise<Response> {
     return json({ error: "Failed to fetch regions" }, 500);
   }
 }
+
+
 
 export async function createRegion(req: Request): Promise<Response> {
   try {
@@ -49,6 +51,8 @@ export async function createRegion(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function updateRegion(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -68,12 +72,12 @@ export async function updateRegion(req: Request, id: string): Promise<Response> 
   }
 }
 
+
+
 export async function deleteRegion(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    // Wilayah yang masih dipakai tidak dihapus. Tanpa cek ini, `dermagas`
-    // akan jadi yatim (region_id NULL) dan petugas kehilangan wilayah.
     const [dermagas, officers, officerRegions] = await Promise.all([
       db.from("dermagas").select("id", { count: "exact", head: true }).eq("region_id", id),
       db.from("officers").select("id", { count: "exact", head: true }).eq("region_id", id),
@@ -99,7 +103,7 @@ export async function deleteRegion(req: Request, id: string): Promise<Response> 
   }
 }
 
-// ---------- DERMAGAS ----------
+
 
 export async function getDermagas(req: Request): Promise<Response> {
   try {
@@ -123,6 +127,8 @@ export async function getDermagas(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function createDermaga(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -132,9 +138,7 @@ export async function createDermaga(req: Request): Promise<Response> {
     const cleanCode = String(code ?? "").trim();
     if (!cleanName) return json({ error: "Nama dermaga wajib diisi" }, 400);
     if (!cleanCode) return json({ error: "Kode dermaga wajib diisi" }, 400);
-    // region_id bertipe uuid dan rekannya ke regions(id). Nilai kosong ->
-    // NULL (dermaga tanpa wilayah, sah); nilai bukan uuid -> tolong dengan
-    // 400, jangan dibiarkan jadi galat database yang tidak jelas.
+    // region_id bertipe uuid dan rekannya ke regions(id). Nilai kosong -> NULL (dermaga tanpa wilayah, sah);
     const regionUuid = UUID_RE.test(String(region_id ?? "")) ? String(region_id) : null;
     if (region_id && !regionUuid) {
       return json({ error: "Wilayah tidak valid" }, 400);
@@ -154,6 +158,8 @@ export async function createDermaga(req: Request): Promise<Response> {
     return json({ error: `Dermaga gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
+
+
 
 export async function updateDermaga(req: Request, id: string): Promise<Response> {
   try {
@@ -181,12 +187,12 @@ export async function updateDermaga(req: Request, id: string): Promise<Response>
   }
 }
 
+
+
 export async function deleteDermaga(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
-    // Dermaga yang masih dipakai tidak dihapus. Dulu rute & akses petugas
-    // ikut terhapus diam-diam lewat cascade; itu kehilangan data.
     const [routes, access] = await Promise.all([
       db.from("routes").select("id, name", { count: "exact" }).eq("dermaga_id", id),
       db.from("officer_dermagas").select("officer_id", { count: "exact" }).eq("dermaga_id", id),
@@ -213,9 +219,8 @@ export async function deleteDermaga(req: Request, id: string): Promise<Response>
   }
 }
 
-// ---------- TARIFFS ----------
 
-// admin-only list.
+
 export async function getAdminTariffs(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -234,6 +239,8 @@ export async function getAdminTariffs(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function createTariff(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -243,7 +250,6 @@ export async function createTariff(req: Request): Promise<Response> {
     if (!golongan || !vehicleType) {
       return json({ error: "Golongan dan jenis kendaraan wajib diisi" }, 400);
     }
-    // Nominal 0 = semua trip bertipe itu ditagih Rp 0 di laporan.
     const loaded = Number(loadedTariff);
     const empty = Number(emptyTariff);
     if (!Number.isFinite(loaded) || loaded <= 0) {
@@ -271,6 +277,8 @@ export async function createTariff(req: Request): Promise<Response> {
     return json({ error: `Tarif gagal ditambahkan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
+
+
 
 export async function updateTariff(req: Request, id: string): Promise<Response> {
   try {
@@ -310,6 +318,8 @@ export async function updateTariff(req: Request, id: string): Promise<Response> 
   }
 }
 
+
+
 export async function deleteTariff(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -324,29 +334,8 @@ export async function deleteTariff(req: Request, id: string): Promise<Response> 
   }
 }
 
-// ---------- OFFLINE MASTER PACK ----------
 
-/**
- * Paket master data untuk mode offline (petugas HP).
- *
- * Seamula tidak ada endpoint yang bisa dipakai petugas untuk menarik
- * master plat & region ke perangkat: `GET /plates` requireAdmin, dan
- * `GET /region-tariffs` juga admin. Akibatnya cek status plat (`/plates/check`)
- * HANYA bisa jalan online — petugas di lapangan tanpa sinyal tidak tahu
- * apakah kendaraan itu internal (Rp 0) atau eksternal, dan tarif region
- * tidak pernah ada di HP.
- *
- * Isi paket (satu request, jangan dipecah jadi beberapa supaya kuota
- * Edge Function tidak naik):
- * - regions        : id/code/nama (dipakai label region & pencocokan)
- * - plates         : plat + status + region asal — TANPA nama pemilik,
- *                    supaya data pribadi tidak ikut ter-cache di HP.
- * - regionTariffs  : tarif per region (lokal/eksternal) untuk hitung nominal
- *
- * Hanya status & region yang dibutuhkan untuk menentukan apakah kendaraan
- * ditagih; `owner` sengaja tidak ikut agar perangkat petugas tidak menyimpan
- * data pemilik kendaraan.
- */
+// Paket master data untuk mode offline (petugas HP).
 export async function getOfflineMasterPack(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
@@ -356,9 +345,7 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
       db.from("regions").select("id, name, code"),
       db.from("vehicle_plates").select("plate, status, origin_region_id").eq("is_active", 1),
       db.from("region_tariffs").select("region_id, tariff_type, nominal_tariff, is_active"),
-      // Master jenis kendaraan: satu-satunya daftar yang sah. HP memakainya
-      // untuk dropdown jenis kendaraan supaya sama persis dengan dashboard
-      // admin (dulu keduanya punya daftar hardcode yang berbeda).
+      // Master jenis kendaraan: satu-satunya daftar yang sah.
       db.from("vehicle_types").select("id, name, key, sort_order, is_active").eq("is_active", 1),
     ]);
     if (regionsRes.error) throw regionsRes.error;
@@ -418,8 +405,8 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
   }
 }
 
-// Master tariffs for officers (athlete field: petugas HP caching).
-// Sumber: baris tarif BADAU (tarif tiap region dikelola di /region-tariffs).
+
+
 export async function getMasterTariffs(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);

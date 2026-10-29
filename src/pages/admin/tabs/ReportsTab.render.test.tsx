@@ -1,25 +1,12 @@
-/**
- * Render harness — tab "Laporan Trip" (ReportsTab).
- *
- * Unit test lain hanya menguji logika murni (merge, tarif, sync). Test ini
- * merender komponen sungguhan di jsdom (react-dom/client) memakai data
- * laporan tiruan, lalu memeriksa DOM hasil render:
- *
- *   1. kolom "Kendaraan" (plat + jenis + status muatan per unit) tampil,
- *   2. kolom "Foto" menampilkan strip thumbnail (swafoto, bukti trip, dan
- *      foto tiap kendaraan) — bukan hanya satu foto bukti trip,
- *   3. nominal tarif tampil dari data laporan (Master Tarif / Tarif Region),
- *   4. jumlah kolom <thead> konsisten dengan jumlah sel baris data.
- *
- * Semua sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
- */
+// Render harness — tab "Laporan Trip" (ReportsTab). Unit test lain hanya menguji logika murni (merge, tarif, sync).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ReportsTab } from './ReportsTab'
 
-// Data laporan tiruan: satu trip bermuatan dengan 2 unit (1 eksternal + 1 internal).
+
+
 const { reportTrips } = vi.hoisted(() => ({
   reportTrips: [
     {
@@ -72,6 +59,8 @@ const { reportTrips } = vi.hoisted(() => ({
   ],
 }))
 
+
+
 vi.mock('../../../services/trips', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/trips')>()
   return {
@@ -85,15 +74,21 @@ vi.mock('../../../services/trips', async (importOriginal) => {
   }
 })
 
+
+
 vi.mock('../../../services/geofences', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/geofences')>()
   return { ...actual, fetchGeofenceRules: vi.fn(async () => []) }
 })
 
+
+
 vi.mock('../../../services/xlsx', () => ({ downloadXlsx: vi.fn() }))
 
 // React 19 butuh penanda ini agar `act()` boleh dipakai di luar test renderer.
 ;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+
+
 
 describe('ReportsTab (render harness)', () => {
   let container: HTMLDivElement
@@ -122,7 +117,6 @@ describe('ReportsTab (render harness)', () => {
         }),
       )
     })
-    // Tick kedua: promise dari fetchTripReports baru selesai di flush pertama.
     await act(async () => {})
   }
 
@@ -132,8 +126,6 @@ describe('ReportsTab (render harness)', () => {
     const headers = Array.from(container.querySelectorAll('thead th'))
       .map(th => th.textContent?.trim() ?? '')
 
-    // Kolom "Unit" = jumlah kendaraan per trip; rincian plat dan jenis
-    // kendaraan muncul di baris detail ketika baris trip diklik.
     expect(headers).toContain('Unit')
     expect(headers).toContain('Foto')
   })
@@ -141,7 +133,6 @@ describe('ReportsTab (render harness)', () => {
   it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {
     await renderReports()
 
-    // Baris trip diklik -> baris detail terbuka (tabel kendaraan per unit).
     const tripRow = container.querySelector('tbody tr.cursor-pointer')
     await act(async () => {
       tripRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -174,7 +165,6 @@ describe('ReportsTab (render harness)', () => {
   it('jumlah kolom header sama dengan jumlah sel baris data', async () => {
     await renderReports()
 
-    // Baris header kolom (baris kedua <thead>).
     const headerRows = container.querySelectorAll('thead tr')
     const headerCells = headerRows[1]?.querySelectorAll('th').length ?? 0
 

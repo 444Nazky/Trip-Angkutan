@@ -1,48 +1,36 @@
-/**
- * Registry metrik runtime untuk server API intranet (port 3000).
- *
- * Tujuannya: dashboard admin bisa menampilkan statistik server yang serupa
- * panel btop - Total Requests, Success Rate, latensi, penggunaan memori, dan
- * grafik request per menit.
- *
- * PENTING: semua state di sini hanya hidup di memori proses. Server intranet
- * adalah proses Deno panjang di port 3000, jadi angkanya akurat dan kumulatif
- * sejak proses start; restart container akan mengosongkannya.
- */
+// Registry metrik runtime untuk server API intranet (port 3000).
 
 export type MetricsBucket = {
-  /** Epoch menit (epoch ms dibulatkan ke menit). */
   minute: number;
   total: number;
   ok: number;
   err: number;
 };
 
+
+
 export type PathStat = {
   path: string;
   count: number;
   errors: number;
-  /** Latensi rata-rata (ms) untuk path ini. */
   avgMs: number;
   lastMs: number;
 };
 
+
+
 export type MetricsSnapshot = {
-  /** Epoch ms saat registry dibuat (= start proses, mendekati uptime server). */
   startedAt: number;
   uptimeMs: number;
   total: number;
   ok: number;
   clientError: number;
   serverError: number;
-  /** 0 - 100. */
   successRate: number;
   avgMs: number;
   p95Ms: number;
   maxMs: number;
-  /** Request per menit pada menit terakhir yang ada isinya. */
   rpsLastMinute: number;
-  /** Total request 1 jam terakhir. */
   requestsLastHour: number;
   memory: {
     rss: number;
@@ -50,24 +38,33 @@ export type MetricsSnapshot = {
     heapTotal: number;
     external: number;
   };
-  /** Deret waktu per menit (terlama -> terbaru). */
   buckets: MetricsBucket[];
   topPaths: PathStat[];
   lastRequestAt: number | null;
-  /** Jumlah client unik (IP) yang terlihat dalam 1 jam terakhir. */
   uniqueClientsLastHour: number;
 };
 
-/** Berapa lama bucket per menit disimpan (ms). */
+
+
 const BUCKET_WINDOW_MS = 90 * 60 * 1000;
-/** Berapa banyak menit yang selalu dikirim ke dashboard (deret kontinu). */
+
+
+
 const WINDOW_MINUTES = 60;
-/** Berapa lama latensi mentah disimpan (untuk p95). */
+
+
+
 const LATENCY_WINDOW = 1000;
-/** Berapa banyak path yang dilacak. */
+
+
+
 const MAX_PATHS = 200;
 
+
+
 const startedAt = Date.now();
+
+
 
 const counters = {
   total: 0,
@@ -77,12 +74,27 @@ const counters = {
   maxMs: 0,
 };
 
+
+
 let latencySamples: number[] = [];
+
+
+
 const buckets = new Map<number, MetricsBucket>();
+
+
+
 const paths = new Map<string, { count: number; errors: number; totalMs: number; lastMs: number }>();
-/** IP klien -> epoch ms request terakhir. */
+
+
+
 const clients = new Map<string, number>();
+
+
+
 let lastRequestAt: number | null = null;
+
+
 
 function bucketFor(minute: number): MetricsBucket {
   let b = buckets.get(minute);
@@ -92,6 +104,8 @@ function bucketFor(minute: number): MetricsBucket {
   }
   return b;
 }
+
+
 
 function sweep(now: number): void {
   const cutoff = now - BUCKET_WINDOW_MS;
@@ -108,6 +122,8 @@ function sweep(now: number): void {
   }
 }
 
+
+
 export type RecordInput = {
   path: string;
   method: string;
@@ -116,14 +132,7 @@ export type RecordInput = {
   ip?: string;
 };
 
-/**
- * Catat satu request yang sudah selesai diproses.
- *
- * Dipanggil dari `handleRequest` (index.ts). Path statistik (`server-stats`)
- * sengaja DIKECUALIKAN:
- * polling dashboard setiap 5 detik akan membuat server terlihat sangat
- * sibuk padahal tidak ada pekerjaan nyata.
- */
+// Catat satu request yang sudah selesai diproses. Dipanggil dari `handleRequest` (index.ts).
 export function recordRequest(input: RecordInput): void {
   const now = Date.now();
 
@@ -153,7 +162,6 @@ export function recordRequest(input: RecordInput): void {
   paths.set(input.path, stat);
 
   if (paths.size > MAX_PATHS) {
-    // Buang path paling jarang dipakai.
     const sorted = [...paths.entries()].sort((a, b) => a[1].count - b[1].count);
     for (const [key] of sorted.slice(0, Math.floor(MAX_PATHS / 4))) paths.delete(key);
   }
@@ -164,13 +172,16 @@ export function recordRequest(input: RecordInput): void {
   sweep(now);
 }
 
+
+
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return Math.round(sorted[idx]);
 }
 
-/** Ambil penggunaan memori proses (RSS + heap). Aman dipanggil di runtime apa pun. */
+
+
 function memoryUsage(): MetricsSnapshot["memory"] {
   try {
     const m = Deno.memoryUsage();
@@ -185,7 +196,8 @@ function memoryUsage(): MetricsSnapshot["memory"] {
   }
 }
 
-/** Snapshot metrik saat ini. */
+
+
 export function snapshot(): MetricsSnapshot {
   const now = Date.now();
   sweep(now);
@@ -196,11 +208,6 @@ export function snapshot(): MetricsSnapshot {
     : 0;
 
   // Deret KONTINU 60 menit terakhir (lama -> baru).
-  //
-  // Dulu hanya menit yang punya request yang dikirim, jadi grafik
-  // "request per menit" di dashboard sering tampil kosong / bolong-bolong.
-  // Sekarang menit tanpa request diisi dengan angka 0 supaya grafik selalu
-  // berupa garis penuh yang naik-turun sesuai kondisi server.
   const currentMinute = Math.floor(now / 60_000) * 60_000;
   const bucketList: MetricsBucket[] = [];
   for (let i = WINDOW_MINUTES - 1; i >= 0; i--) {
@@ -208,8 +215,7 @@ export function snapshot(): MetricsSnapshot {
     bucketList.push(buckets.get(minute) ?? { minute, total: 0, ok: 0, err: 0 });
   }
 
-  // "Request per menit" = menit terakhir yang punya traffic (bukan menit
-  // berjalan yang mungkin masih 0 karena baru saja berganti menit).
+  // "Request per menit" = menit terakhir yang punya traffic (bukan menit berjalan yang mungkin masih 0 karena baru saja berganti menit).
   let lastMinute: MetricsBucket | null = null;
   for (let i = bucketList.length - 1; i >= 0; i--) {
     if (bucketList[i].total > 0) {
@@ -257,7 +263,8 @@ export function snapshot(): MetricsSnapshot {
   };
 }
 
-/** Reset semua counter (dipakai test). */
+
+
 export function resetMetrics(): void {
   counters.total = 0;
   counters.ok = 0;

@@ -1,32 +1,21 @@
-// ─── Unit Test: Autentikasi Offline-First ─────────────────────────────────────
-// Cakupan (sesuai audit cross-check modul 1.1 / 1.2 / 1.5):
-//   1. Enkripsi/hash PIN  — hash deterministik, ber-salt per petugas, format
-//                           bcrypt (seed/server) & sha256 (lokal) sama-sama
-//                           terverifikasi; PIN polos TIDAK PERNAH tersimpan.
-//   2. Seed data bawaan   — tertanam ke penyimpanan lokal saat init.
-//   3. tryOfflineLogin    — login offline instan (tanpa jaringan) + multi-akun:
-//                           ganti petugas tetap mulus, PIN salah / nonaktif ditolak.
-//
-// Jalankan: npm run test:unit
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import bcrypt from 'bcryptjs'
-import {
-  getPinHash,
-  hashPin,
-  initOfflineDb,
-  saveOfficers,
-  setPinHash,
-  verifyPin,
-} from './offlineDb'
+import { getPinHash, hashPin, initOfflineDb, saveOfficers, setPinHash, verifyPin, } from './offlineDb'
 import { getStoredOfficer, loginOffline, verifyPinOffline } from './auth'
 import { seedRoster, verifySeedPin } from './seedData'
 import { tryOfflineLogin } from '../pages/LoginPage'
 
+
+
 const PIN_A = '987654'
+
+
+
 const PIN_B = '555555'
 
-/** Simpan petugas uji (id/username/hash PIN) ke penyimpanan offline. */
+
+
 async function seedTestOfficer(opts: {
   id: string
   username: string
@@ -58,24 +47,25 @@ async function seedTestOfficer(opts: {
   await setPinHash(id, await hashPin(id, pin))
 }
 
+
+
 beforeAll(async () => {
   localStorage.clear()
-  // Init sekali → menanam SELURUH data bawaan (roster, hash PIN, rute)
   await initOfflineDb()
 })
 
-// ── 1. Enkripsi hash PIN ─────────────────────────────────────────────────────
+
 
 describe('enkripsi hash PIN', () => {
   it('deterministik, ber-salt per petugas, dan tidak pernah menyimpan PIN polos', async () => {
     const h1 = await hashPin('petugas-a', PIN_A)
     const h2 = await hashPin('petugas-a', PIN_A)
-    const h3 = await hashPin('petugas-b', PIN_A) // salt = officerId
+    const h3 = await hashPin('petugas-b', PIN_A)
 
-    expect(h1).toBe(h2)                 // hash sama untuk input sama
-    expect(h1).not.toBe(h3)             // beda petugas → beda hash
+    expect(h1).toBe(h2)
+    expect(h1).not.toBe(h3)
     expect(h1.startsWith('sha256:')).toBe(true)
-    expect(h1).not.toContain(PIN_A)     // PIN polos tidak pernah muncul
+    expect(h1).not.toContain(PIN_A)
     expect(h1).toMatch(/^sha256:[0-9a-f]{64}$/)
   })
 
@@ -98,33 +88,30 @@ describe('enkripsi hash PIN', () => {
     expect(await verifyPin(bcryptId, '000000')).toBe(false)
 
     const legacyId = 'off-legacy'
-    await setPinHash(legacyId, `plain:${PIN_A}`) // migrasi data lama
+    await setPinHash(legacyId, `plain:${PIN_A}`)
     expect(await verifyPin(legacyId, PIN_A)).toBe(true)
   })
 })
 
-// ── 2. Seed data bawaan ──────────────────────────────────────────────────────
+
 
 describe('seed data bawaan', () => {
   it('tidak ada roster seed sama sekali (tidak ada data palsu di perangkat)', async () => {
-    // SECURITY + KEBENARAN DATA: roster seed (nama petugas contoh, region
-    // yang sudah dihapus dari database) sudah dihapus. Satu-satunya sumber
-    // petugas adalah server.
+    // SECURITY + KEBENARAN DATA: roster seed (nama petugas contoh, region yang sudah dihapus dari database) sudah dihapus.
     expect(seedRoster()).toEqual([])
     const hash = await getPinHash('apapun')
     expect(hash).toBeNull()
   })
 
   it('verifySeedPin selalu false (seed credentials tidak tersedia)', () => {
-    // SECURITY: verifySeedPin selalu return false karena PIN hash dihapus
-    // Offline login memerlukan credentials yang sudah disinkronkan dari server
+    // SECURITY: verifySeedPin selalu return false karena PIN hash dihapus Offline login memerlukan credentials yang sudah disinkronkan dari server
     expect(verifySeedPin('petugas-tidak-ada', '999999')).toBe(false)
     expect(verifySeedPin('petugas-tidak-ada', '')).toBe(false)
     expect(verifySeedPin('petugas-tidak-ada', '123456')).toBe(false)
   })
 })
 
-// ── 3. tryOfflineLogin (login instan tanpa jaringan) ─────────────────────────
+
 
 describe('tryOfflineLogin', () => {
   it('berhasil memakai username + PIN tersimpan, tanpa menyentuh jaringan', async () => {
@@ -156,7 +143,7 @@ describe('tryOfflineLogin', () => {
   })
 })
 
-// ── 4. Ganti petugas antar-dermaga saat OFFLINE ──────────────────────────────
+
 
 describe('loginOffline (ganti petugas offline)', () => {
   it('dua petugas bisa bergantian masuk dengan PIN masing-masing', async () => {
@@ -168,11 +155,10 @@ describe('loginOffline (ganti petugas offline)', () => {
 
     const b = await loginOffline('uji-b', PIN_B)
     expect(b.success).toBe(true)
-    expect(getStoredOfficer()?.id).toBe('off-uji-b') // sesi berganti mulus
+    expect(getStoredOfficer()?.id).toBe('off-uji-b')
 
-    // PIN petugas A tidak membuka akun B (dan sebaliknya)
     expect((await loginOffline('uji-b', PIN_A)).success).toBe(false)
     expect((await loginOffline('uji-a', PIN_B)).success).toBe(false)
-    expect(getStoredOfficer()?.id).toBe('off-uji-b') // sesi tidak berubah saat gagal
+    expect(getStoredOfficer()?.id).toBe('off-uji-b')
   })
 })

@@ -2,9 +2,7 @@ export const PLATE_REGEX = /^[A-Z]{1,2}\s?[0-9]{1,4}\s?[A-Z]{1,3}$/
 
 
 
-
 export const PLATE_REGEX_STRICT = /^[A-Z]{1,2}\s[0-9]{1,4}\s[A-Z]{1,3}$/
-
 
 
 
@@ -14,18 +12,15 @@ export function isLetter(char: string): boolean {
 
 
 
-
 export function isDigit(char: string): boolean {
   return /^[0-9]$/.test(char)
 }
 
 
 
-
 export function sanitizePlateInput(input: string): string {
   return input.replace(/[^A-Za-z0-9\s]/g, '').toUpperCase()
 }
-
 
 
 
@@ -91,7 +86,6 @@ export function formatPlateNumber(input: string): string {
 
 
 
-
 export function validatePlate(plate: string): { valid: boolean; error?: string } {
   const trimmed = plate.trim()
 
@@ -119,7 +113,6 @@ export function validatePlate(plate: string): { valid: boolean; error?: string }
 
 
 
-
 export function getPlateSegments(plate: string): {
   prefix: string
   number: string
@@ -132,7 +125,6 @@ export function getPlateSegments(plate: string): {
     suffix: parts[2] || ''
   }
 }
-
 
 
 

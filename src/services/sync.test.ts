@@ -1,14 +1,5 @@
 
-// ─── Unit Test: Sync Service (services/sync.ts) ──────────────────────────────
-// Cakupan (sesuai audit offline-first):
-//   1. resolveRoute  — payload rute tidak pernah kosong ("--") di dashboard.
-//   2. backoffMs     — exponential backoff + cap 10 menit (anti-stuck).
-//   3. Antrean       — IDEMPOTEN (trip sama tak pernah terduplikasi) dan
-//                      item hanya keluar antrean SETELAH server balas 200/201.
-//
-// Jalankan: npm run test:unit
-// Mock dipasang pada './localDb' (IndexedDB → memori), './api' (HTTP → buatan),
-// '@capacitor/geolocation', dan './adminPull' agar test hermetik & offline.
+// ─── Unit Test: Sync Service (services/sync.ts) ────────────────────────────── Cakupan (sesuai audit offline-first): 1. resolveRoute
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -26,9 +17,9 @@ import {
 import { dbAll } from './localDb'
 import type { Trip } from '../pages/store'
 
-// ── State bersama untuk mock (vi.hoisted → aman dipakai di dalam vi.mock) ────
+
+
 const h = vi.hoisted(() => {
-  // btoa cukup untuk JWT palsu ini (didukung lib.dom & runtime)
   const enc = (o: unknown) => btoa(JSON.stringify(o))
   const stores: Record<string, Map<string, Record<string, unknown>>> = {
     pending: new Map(),
@@ -50,17 +41,15 @@ const h = vi.hoisted(() => {
       lastBody: null as FormData | null,
       /** Balasan error dari server (bisa diubah per test). */
       postError: { message: 'Server menolak payload', code: '500' } as { message: string; code: string },
-      /**
-       * Konfirmasi balasan server. `null` = pakai konfirmasi otomatis
-       * (dihitung dari payload yang dikirim, seperti server sungguhan).
-       */
+      // Konfirmasi balasan server. `null` = pakai konfirmasi otomatis (dihitung dari payload yang dikirim, seperti server sungguhan).
       ack: null as Record<string, unknown> | null,
-      // JWT palsu: role officer + officerId cocok dengan sesi tersimpan
       token: `${enc({ alg: 'none' })}.${enc({ role: 'officer', officerId: 'off1', exp: 4102444800 })}.sig`,
       authenticated: true,
     },
   }
 })
+
+
 
 vi.mock('./localDb', () => ({
   initLocalDb: async () => 'indexeddb',
@@ -82,13 +71,15 @@ vi.mock('./localDb', () => ({
   requestPersistentStorage: async () => true,
 }))
 
+
+
 vi.mock('./api', () => ({
   api: {
     get token() { return h.api.token },
     get isAuthenticated() { return h.api.authenticated },
     baseUrl: 'http://api.test',
     setToken(t: string | null) { h.api.token = t ?? ''; h.api.authenticated = !!t },
-    refreshBaseUrl: () => { /* no-op */ },
+    refreshBaseUrl: () => {  },
     ping: async () => h.api.pingOk,
     get: async () => ({ ok: true, data: [] }),
     post: async () => ({ ok: true, data: {} }),
@@ -99,12 +90,10 @@ vi.mock('./api', () => ({
       h.api.postCalls++
       h.api.lastBody = body
       if (!h.api.postOk) return { ok: false, error: h.api.postError }
-      // Server sungguhan mengonfirmasi trip tersimpan: nomor trip + jumlah
-      // kendaraan & foto yang benar-benar ditulis.
       let vehicleCount = 0
       try {
         vehicleCount = (JSON.parse(String(body.get('payload'))) as { vehicles?: unknown[] }).vehicles?.length ?? 0
-      } catch { /* payload rusak -> 0 */ }
+      } catch {  }
       const photoCount = body.getAll('photos').length
       return {
         ok: true,
@@ -115,21 +104,30 @@ vi.mock('./api', () => ({
   getApiBaseUrl: () => 'http://api.test',
 }))
 
+
+
 vi.mock('@capacitor/geolocation', () => ({
   Geolocation: {
     getCurrentPosition: async () => { throw new Error('geolocation dimatikan di test') },
   },
 }))
 
+
+
 vi.mock('./adminPull', () => ({
   FORCE_ROSTER_SYNC_KEY: 'trip.sync.forceRoster',
-  syncOnResume: () => { /* no-op */ },
+  syncOnResume: () => {  },
 }))
 
-// ── Fixture ──────────────────────────────────────────────────────────────────
+
 
 const IMG = `data:image/jpeg;base64,${'A'.repeat(64)}`
+
+
+
 const IMG_BARU = `data:image/jpeg;base64,${'B'.repeat(64)}`
+
+
 
 function makeTrip(over: Partial<Trip> = {}): Trip {
   const now = new Date().toISOString()
@@ -164,13 +162,13 @@ function makeTrip(over: Partial<Trip> = {}): Trip {
   }
 }
 
+
+
 const pendingRows = () => dbAll<SyncItem>('pending')
 
-// ── Lifecycle ────────────────────────────────────────────────────────────────
+
 
 beforeEach(async () => {
-  // Timer palsu: mencegah jadwal latar (retry 15 dtk / polling 20 dtk / timer
-  // 150 ms "kirim segera") ikut berjalan di tengah test dan mengaburkan hasil.
   vi.useFakeTimers({
     toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
   })
@@ -187,11 +185,9 @@ beforeEach(async () => {
   h.api.authenticated = true
 
   localStorage.clear()
-  // Sesi backend tersimpan → proses antrean tidak berhenti di "sesi berakhir"
   localStorage.setItem('trip.auth.officer.v1', JSON.stringify({
     id: 'off1', name: 'Petugas Satu', regionId: 'r1', regionName: 'R1', regionCode: 'R1',
   }))
-  // Cache rute per dermaga (dipakai resolveRoute)
   localStorage.setItem('trip.auth.routes.v1', JSON.stringify({
     dock1: [{
       id: 'route-1',
@@ -208,12 +204,14 @@ beforeEach(async () => {
   await probeServer(true)
 })
 
+
+
 afterEach(() => {
   vi.clearAllTimers()
   vi.useRealTimers()
 })
 
-// ── 1. resolveRoute (anti "--" di dashboard admin) ───────────────────────────
+
 
 describe('resolveRoute', () => {
   it('memakai kode eksplisit dan mencocokkannya ke cache rute', () => {
@@ -256,7 +254,7 @@ describe('resolveRoute', () => {
   })
 })
 
-// ── 2. Exponential backoff (anti-stuck) ──────────────────────────────────────
+
 
 describe('backoffMs', () => {
   it('menaik eksponensial 15s → 30s → 60s → … lalu ditahan di 10 menit', () => {
@@ -267,12 +265,12 @@ describe('backoffMs', () => {
     expect(backoffMs(4)).toBe(120_000)
     expect(backoffMs(5)).toBe(240_000)
     expect(backoffMs(6)).toBe(480_000)
-    expect(backoffMs(7)).toBe(600_000)   // cap 10 menit
-    expect(backoffMs(50)).toBe(600_000)  // tetap cap, tidak meledak
+    expect(backoffMs(7)).toBe(600_000)
+    expect(backoffMs(50)).toBe(600_000)
   })
 })
 
-// ── 3. Antrean sinkron: idempotensi + hapus bersyarat ───────────────────────
+
 
 describe('antrean sinkron', () => {
   it('trip dengan id sama TIDAK PERNAH terduplikasi (diperbarui di tempat)', async () => {
@@ -290,9 +288,9 @@ describe('antrean sinkron', () => {
     )
 
     const rows = await pendingRows()
-    expect(rows).toHaveLength(1)                       // ← idempoten
-    expect(rows[0].syncId).toBe(syncIdPertama)         // ← kunci tidak berubah
-    expect(rows[0].trip.officer).toBe('Petugas Dua')   // ← data diperbarui
+    expect(rows).toHaveLength(1)
+    expect(rows[0].syncId).toBe(syncIdPertama)
+    expect(rows[0].trip.officer).toBe('Petugas Dua')
     expect(rows[0].photos![0].dataUrl).toBe(IMG_BARU)
     expect(rows[0].attempts).toBe(0)
   })
@@ -308,9 +306,8 @@ describe('antrean sinkron', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].attempts).toBe(1)
     expect(rows[0].lastError).toContain('menolak payload')
-    expect(rows[0].needsAttention).toBeFalsy() // 5xx = bisa dicoba ulang otomatis
+    expect(rows[0].needsAttention).toBeFalsy()
 
-    // ── Berhasil (HTTP 200) → baru boleh keluar antrean ──
     h.api.postOk = true
     await processSyncQueue({ retryAll: true })
     rows = await pendingRows()
@@ -334,12 +331,12 @@ describe('antrean sinkron', () => {
       vehicles: Array<{ noPolisi: string; photoIndex: number }>
     }
 
-    expect(payload.clientTripId).toBe('TRP-2026-0001') // anti-duplikat di server
-    expect(payload.routeFrom).toBe('SJRE')             // tidak "--"
+    expect(payload.clientTripId).toBe('TRP-2026-0001')
+    expect(payload.routeFrom).toBe('SJRE')
     expect(payload.routeTo).toBe('SBDZ')
     expect(payload.statusMuatan).toBe('muatan')
-    expect(payload.tripPhotoIndex).toBe(0)             // index 0 = foto bukti trip
-    expect(payload.vehicles[0].photoIndex).toBe(1)     // 1..n = foto tiap kendaraan
+    expect(payload.tripPhotoIndex).toBe(0)
+    expect(payload.vehicles[0].photoIndex).toBe(1)
     expect(body!.getAll('photos')).toHaveLength(2)
   })
 
@@ -353,9 +350,9 @@ describe('antrean sinkron', () => {
     const sebelum = h.api.postCalls
     await processSyncQueue({ retryAll: true })
 
-    expect(h.api.postCalls).toBe(sebelum)              // tidak ada request keluar
+    expect(h.api.postCalls).toBe(sebelum)
     const rows = await pendingRows()
-    expect(rows).toHaveLength(1)                       // tidak dibuang sia-sia
+    expect(rows).toHaveLength(1)
     expect(rows[0].lastErrorCode).toBe('PHOTO_MISSING')
     expect(rows[0].needsAttention).toBe(true)
   })
@@ -363,7 +360,6 @@ describe('antrean sinkron', () => {
   it('server tak terjangkau (ping gagal) → siklus berhenti, antrean tidak disentuh', async () => {
     await addToSyncQueue(makeTrip())
 
-    // Buat cache ping kedaluwarsa (TTL 2,5 dtk) lalu simulasikan offline
     vi.setSystemTime(Date.now() + 10_000)
     h.api.pingOk = false
     const postSebelum = h.api.postCalls
@@ -373,11 +369,11 @@ describe('antrean sinkron', () => {
     expect(h.api.postCalls).toBe(postSebelum)
     const rows = await pendingRows()
     expect(rows).toHaveLength(1)
-    expect(rows[0].attempts).toBe(0) // tidak membakar percobaan saat offline
+    expect(rows[0].attempts).toBe(0)
   })
 })
 
-// ── 4. Tidak ada pesan sukses palsu (HTTP 500 → data BELUM masuk) ───────────
+
 
 describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
   it('HTTP 500: listener sukses tidak dipanggil, notifikasi gagal membawa pesan server', async () => {
@@ -388,23 +384,19 @@ describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
 
     try {
       await addToSyncQueue(makeTrip())
-      h.api.postOk = false // server membalas HTTP 500
+      h.api.postOk = false
 
       await processSyncQueue({ retryAll: true })
 
-      // 1. TIDAK ADA "berhasil terkirim" — jadi tidak ada toast palsu.
       expect(sukses).toHaveLength(0)
 
-      // 2. Petugas diberi tahu, dengan status HTTP + pesan server.
       expect(gagal).toHaveLength(1)
       expect(gagal[0].tripId).toBe('TRP-2026-0001')
       expect(gagal[0].error).toContain('500')
       expect(gagal[0].error).toContain('Server menolak payload')
 
-      // 3. 5xx = masalah server, masih boleh dicoba ulang otomatis.
       expect(gagal[0].permanent).toBe(false)
 
-      // 4. Data tetap aman di antrean (belum masuk dashboard admin).
       const rows = await pendingRows()
       expect(rows).toHaveLength(1)
       expect(rows[0].attempts).toBe(1)
@@ -433,7 +425,6 @@ describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
       expect(gagal[0].error).toContain('Nomor plat kendaraan ke-1 wajib diisi')
       expect(gagal[0].permanent).toBe(true)
 
-      // Item tetap di antrean (tidak hilang), tapi ditandai butuh perhatian.
       const rows = await pendingRows()
       expect(rows).toHaveLength(1)
       expect(rows[0].needsAttention).toBe(true)
@@ -444,12 +435,7 @@ describe('kegagalan server tidak pernah dilaporkan sebagai sukses', () => {
   })
 })
 
-// ── 6. Foto di antrean tidak boleh terhapus oleh state yang hanya metadata ───
-// Regresi: halaman Riwayat menampilkan "Foto Dokumentasi (0)" dan trip
-// terkirim tanpa blob foto. Penyebabnya: `retrySyncItem(trip)` (dipanggil
-// setelah petugas mengubah plat / mengambil ulang foto) menimpa entri foto di
-// antrean dengan entri KOSONG, padahal `trip` yang datang dari state bisa saja
-// tidak lagi membawa foto (foto dibuang dari cache metadata localStorage).
+// ── 6. Foto di antrean tidak boleh terhapus oleh state yang hanya metadata ─── Regresi: halaman Riwayat menampilkan "Foto Dokumentasi (0)" dan trip…
 
 describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
   it('retrySyncItem mempertahankan foto lama saat trip tidak membawa foto', async () => {
@@ -470,8 +456,6 @@ describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
   it('setelah edit dari state tanpa foto, upload tetap membawa blob foto lengkap', async () => {
     await addToSyncQueue(makeTrip())
 
-    // Aksi nyata dari Riwayat ("Simpan & Kirim" / ubah plat) dengan state yang
-    // sudah kehilangan foto — dulu ini menghapus foto di antrean.
     const metadataOnly = makeTrip({ photoUrl: undefined, vehicles: [
       { plate: 'B 1234 XY', type: 'Truck Besar', category: 'Internal', tariff: 100_000 },
     ] })
@@ -521,20 +505,11 @@ describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
   })
 })
 
-// ── 7. "Berhasil terkirim" TIDAK BOLEH bohong ────────────────────────────────
-// Regresi yang dilaporkan: aplikasi mobile memberi tahu "trip berhasil
-// terkirim", padahal data tidak pernah muncul di dashboard admin.
-//
-// Dua sumber falsehood:
-//   a) Server membalas 2xx tapi TIDAK mengonfirmasi trip (mis. endpoint yang
-//      salah membalas 200 dengan body kosong).
-//   b) Server mengonfirmasi tapi hanya sebagian kendaraan yang tersimpan
-//      (dashboard menampilkan trip dengan 0 kendaraan).
+// ── 7. "Berhasil terkirim" TIDAK BOLEH bohong ──────────────────────────────── Regresi yang dilaporkan: aplikasi mobile memberi tahu "trip berhasil…
 
 describe('sukses upload hanya sah kalau server mengonfirmasi', () => {
   it('2xx tanpa konfirmasi trip TIDAK dianggap terkirim (tetap di antrean)', async () => {
     await addToSyncQueue(makeTrip())
-    // Endpoint yang salah / server yang membalas 200 tanpa isi.
     h.api.ack = { id: 'srv-1' }
 
     await processSyncQueue({ retryAll: true })
@@ -548,7 +523,6 @@ describe('sukses upload hanya sah kalau server mengonfirmasi', () => {
   it('2xx dengan body kosong juga tidak dianggap terkirim', async () => {
     await addToSyncQueue(makeTrip())
     h.api.ack = null
-    // Simulasikan respons tanpa body: postMultipart mengembalikan data undefined.
     const mod = await import('./api')
     const spy = vi.spyOn(mod.api, 'postMultipart').mockResolvedValue({ ok: true, data: undefined } as never)
 
@@ -595,10 +569,7 @@ describe('sukses upload hanya sah kalau server mengonfirmasi', () => {
   })
 })
 
-// ── 8. Kendaraan & fotonya tidak boleh hilang dari antrean ──────────────────
-// Regresi: "kendaraan menghilang" — daftar kendaraan pada trip yang-BARU
-// dibuat bisa lebih pendek dari yang sudah ada di antrean (state hanya
-// metadata), sehingga trip terkirim tanpa satu pun kendaraan.
+// ── 8. Kendaraan & fotonya tidak boleh hilang dari antrean ────────────────── Regresi: "kendaraan menghilang"
 
 describe('kendaraan di antrean tidak pernah hilang', () => {
   const TRIP_2_KENDARAAN = makeTrip({
@@ -648,7 +619,6 @@ describe('kendaraan di antrean tidak pernah hilang', () => {
   it('edit plat satu kendaraan tidak menggeser foto kendaraan lain', async () => {
     await addToSyncQueue(TRIP_2_KENDARAAN)
 
-    // Petugas mengedit plat unit PERTAMA lewat Riwayat.
     const edited = makeTrip({
       vehicles: [
         { plate: 'B 9999 ZZ', type: 'Truck Besar', category: 'Internal', tariff: 100_000 },
@@ -660,8 +630,6 @@ describe('kendaraan di antrean tidak pernah hilang', () => {
     const rows = await pendingRows()
     const vehicles = rows[0].trip.vehicles ?? []
     expect(vehicles.map(v => v.plate)).toEqual(['B 9999 ZZ', 'B 2222 BB'])
-    // Foto ikut unitnya: unit pertama tetap punya fotonya, unit kedua tidak
-    // tertukar dengan foto unit pertama.
     expect(vehicles[0].photoUrl).toBe(IMG)
     expect(vehicles[1].photoUrl).toBe(IMG_BARU)
   })

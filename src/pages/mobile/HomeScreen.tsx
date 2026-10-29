@@ -7,7 +7,6 @@ import type { MobileScreen } from '../types'
 
 
 
-
 interface HomeScreenProps {
   go: (s: MobileScreen) => void
   onStartTrip: () => void
@@ -15,9 +14,7 @@ interface HomeScreenProps {
 
 
 
-
 type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: boolean } | null
-
 
 
 
@@ -42,8 +39,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     setSyncState(null)
     try {
       let r = await syncNow()
-      // Agresif: kalau online tapi masih ada yg gagal (token basi/foto gagal
-      // di pasangan request pertama), coba sekali lagi sebelum menyerah.
+      // Agresif: kalau online tapi masih ada yg gagal (token basi/foto gagal di pasangan request pertama), coba sekali lagi sebelum menyerah.
       if (r.reachable && r.failed > 0) {
         r = await syncNow()
       }
@@ -55,8 +51,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
       }
     } catch (err) {
-      // Jangan telan penyebabnya: tanpa log, error non-jaringan (bug) tampil
-      // identik dengan "offline" di UI.
+      // Jangan telan penyebabnya: tanpa log, error non-jaringan (bug) tampil identik dengan "offline" di UI.
       console.warn('[sync] gagal menyinkronkan:', err)
       setSyncState({ synced: 0, failed: getPendingCount(), reachable: false })
     } finally {
@@ -101,7 +96,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   )
   return (
     <div className="flex flex-col px-4 pt-2 pb-4" style={{ gap: 16 }}>
-      {/* Trip CTA */}
+
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-[28px] p-5 relative overflow-hidden">
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
@@ -171,7 +166,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         </button>
       )}
 
-      {/* Stats */}
+
       <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
           { label: 'Trip', val: String(myTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
@@ -191,7 +186,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         ))}
       </div>
 
-      {/* Recent Trips */}
+
       <div>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-slate-800 text-[15px]">Daftar Trip</h3>

@@ -1,28 +1,20 @@
-import { applyUpdate, checkForUpdate, getCurrentVersion, type CheckResult, type UpdateState } from './ota'
+import { applyUpdate, checkForUpdate, getCurrentVersion, type CheckResult, type UpdateState, isLocalhostDev } from './ota'
 import { getNativeVersion, isNewerVersion, shouldForceUpdate, updateService } from './updateService'
 import { hardReloadToNewBundle } from './otaReload'
-import { isLocalhostDev } from './ota'
 
 
 
-// Disable update checks for localhost development.
-//
-// PENTING: guard ini hanya untuk BROWSER dev server. Aplikasi native
-// (Android/iOS) dimuat dari origin lokal `https://localhost` - kalau ikut
-// dianggap dev, tombol "Cek Update" di Profil mati total di perangkat
-// (selalu dijawab "Sudah Terbaru" tanpa menghubungi server).
-//
-// Nilainya dievaluasi saat runtime, bukan sekali saat import, supaya platform
-// native sudah terdeteksi kapan pun modul ini dimuat.
+// Disable update checks for localhost development. PENTING: guard ini hanya untuk BROWSER dev server.
 const updateDisabled = () => isLocalhostDev()
+
+
+
 if (updateDisabled()) {
   console.log('[Update] Localhost/DEV mode: Update notifications disabled')
 }
 
 
 
-// Dua kanal pembaruan (modul web + paket APK) dijalankan oleh satu alur:
-// tombol "Cek & Perbarui Aplikasi" tidak perlu tahu kanal mana yang aktif.
 export type AppUpdateKind = 'module' | 'apk'
 
 
@@ -52,6 +44,8 @@ export interface AppUpdateState {
 
 type Listener = (state: AppUpdateState) => void
 
+
+
 const IDLE: AppUpdateState = {
   status: 'idle',
   kind: null,
@@ -65,10 +59,22 @@ const IDLE: AppUpdateState = {
 
 class AppUpdateController {
   private _state: AppUpdateState = { ...IDLE }
-  private _listeners = new Set<Listener>()
-  private _currentModule: string | null = null
-  private _currentApp: string | null = null
-  private _checking: Promise<AppUpdateState> | null = null
+
+
+
+private _listeners = new Set<Listener>()
+
+
+
+private _currentModule: string | null = null
+
+
+
+private _currentApp: string | null = null
+
+
+
+private _checking: Promise<AppUpdateState> | null = null
 
 
 
@@ -111,16 +117,15 @@ class AppUpdateController {
 
 
   async refreshVersions(): Promise<{ module: string | null; app: string | null }> {
-    // Skip version refresh for localhost development
     if (updateDisabled()) {
       return { module: null, app: null }
     }
     try {
       this._currentModule = (await getCurrentVersion()) ?? this._currentModule
-    } catch { /* pakai nilai lama */ }
+    } catch {  }
     try {
       this._currentApp = (await getNativeVersion()) ?? updateService.currentVersion ?? this._currentApp
-    } catch { /* pakai nilai lama */ }
+    } catch {  }
     this.set({})
     return { module: this._currentModule, app: this._currentApp }
   }
@@ -129,7 +134,6 @@ class AppUpdateController {
 
   // Pemeriksaan ganda; hasil lama tidak ditumpuk agar tombol tidak dobel proses.
   check(): Promise<AppUpdateState> {
-    // Skip update checks for localhost development
     if (updateDisabled()) {
       console.log('[Update] Localhost mode - skipping update check')
       return Promise.resolve({ ...IDLE, status: 'up-to-date' })
@@ -146,7 +150,6 @@ class AppUpdateController {
     this.set({ status: 'checking', error: null })
     const { module: moduleVersion } = await this.refreshVersions()
 
-    // Paket APK diperiksa lebih dulu: kalau ada versi native baru, itu yang dipasang.
     const apkInfo = await updateService.checkForUpdate().catch(() => null)
     if (apkInfo?.updateAvailable && updateService.state === 'ready') {
       const currentApp = this._currentApp ?? '0.0.0'
@@ -235,7 +238,6 @@ class AppUpdateController {
 
 
 
-  // Dipanggil saat aplikasi aktif lagi: versi native dibaca ulang dari sistem.
   async syncInstalledVersion(): Promise<string | null> {
     const applied = await updateService.refreshInstalledVersion()
     this._currentApp = applied

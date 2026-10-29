@@ -1,8 +1,9 @@
 
 
 
-
 import { Capacitor } from '@capacitor/core'
+
+
 
 export function isDevMode(): boolean {
   const env = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env
@@ -11,18 +12,7 @@ export function isDevMode(): boolean {
   return true
 }
 
-/**
- * Cek apakah aplikasi berjalan di browser pengembangan (localhost/port dev).
- *
- * PENTING — aplikasi NATIVE (Android/iOS) dimuat dari origin LOKAL
- * `https://localhost`. Origin itu BUKAN mode pengembangan. Kalau native
- * dianggap dev, seluruh alur pembaruan mati di perangkat: tombol
- * "Cek Update" selalu dijawab "Sudah Terbaru" tanpa pernah menghubungi
- * server, dan baris versi di Profil tampil sebagai "—".
- *
- * Karena itu native platform selalu keluar dari pemeriksaan ini, apa pun
- * hostname/port-nya.
- */
+// Cek apakah aplikasi berjalan di browser pengembangan (localhost/port dev). PENTING
 export function isLocalhostDev(): boolean {
   if (typeof window === 'undefined') return false
 
@@ -40,10 +30,8 @@ export function isLocalhostDev(): boolean {
   return isLocalhost || isDevPort
 }
 
-/**
- * Cek apakah aplikasi berjalan di localhost (development web)
- * Tidak ada notifikasi update yang muncul di localhost
- */
+
+
 export function isLocalhost(): boolean {
   if (typeof window === 'undefined') return false
   try {

@@ -1,8 +1,10 @@
-// Routes handlers (port of backend/src/routes/routes.js).
 import { db, json, auth, requireAdmin, dbDetail, type OfficerClaims } from "../_shared.ts";
 
-/** Id dermaga bertipe uuid di database. */
+
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+
 
 export async function getOfficerRoutes(req: Request): Promise<Response> {
   try {
@@ -41,6 +43,8 @@ export async function getOfficerRoutes(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function getAllRoutes(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -64,6 +68,8 @@ export async function getAllRoutes(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function createRoute(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -78,11 +84,7 @@ export async function createRoute(req: Request): Promise<Response> {
     if (!cleanFrom) return json({ error: "Rute asal wajib diisi" }, 400);
     if (!cleanTo) return json({ error: "Rute tujuan wajib diisi" }, 400);
 
-    // Dermaga WAJIB diisi dan harus uuid. Rute tanpa dermaga tersimpan dengan
-    // dermaga_id NULL - administrasi melihatnya di dashboard, tapi petugas
-    // TIDAK PERNAH melihatnya (rute ditarik lewat
-    // officer_dermagas -> dermagas -> routes). Dulu tidak ada validasi,
-    // jadi route bisa "berhasil ditambahkan" tapi tidak muncul di aplikasi.
+    // Dermaga WAJIB diisi dan harus uuid. Rute tanpa dermaga tersimpan dengan dermaga_id NULL - administrasi melihatnya di dashboard, tapi petugas TIDAK…
     if (!dermaga_id) return json({ error: "Dermaga wajib dipilih" }, 400);
     if (!UUID_RE.test(String(dermaga_id))) return json({ error: "Dermaga tidak valid" }, 400);
 
@@ -109,6 +111,8 @@ export async function createRoute(req: Request): Promise<Response> {
   }
 }
 
+
+
 export async function updateRoute(req: Request, id: string): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -125,6 +129,8 @@ export async function updateRoute(req: Request, id: string): Promise<Response> {
     return json({ error: `Rute gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
+
+
 
 export async function deleteRoute(req: Request, id: string): Promise<Response> {
   try {

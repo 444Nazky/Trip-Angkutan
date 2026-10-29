@@ -13,10 +13,11 @@ import { autoDetectApiBaseUrl, api } from "./services/api"
 import { ensureAdminSession, setAdminCredentials } from "./services/auth"
 import { appUpdate } from "./services/appUpdate"
 
+
+
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
 
-  // Check if this is admin mode (from URL query param ?admin=true)
   const isAdminMode = typeof window !== 'undefined' && window.location.search.includes('admin=true')
 
   useEffect(() => {
@@ -24,30 +25,22 @@ function Shell() {
       initializeSync()
       void initOfflineDb()
       void checkAndRequestLocationOnStartup()
-      // ponytail: SATU prefetch (rute + geofence + tarif + akses dermaga),
-      // bukan beberapa request terpisah. Prefetch punya TTL + single-flight
-      // sehingga tidak mengulang request yang sama.
+      // ponytail: SATU prefetch (rute + geofence + tarif + akses dermaga), bukan beberapa request terpisah.
       void autoDetectApiBaseUrl()
         .then(() => prefetchAllCriticalData({ force: true }))
         .catch(() => prefetchAllCriticalData({ force: true }))
-      // GPS watch: fix GPS selalu hangat -> layar "Pilih Rute" tidak nunggu
-      // cold start GPS (detik-detik) setiap kali dibuka.
       startGpsWatch()
     }
   }, [isAdminMode])
 
-  // Only use CapacitorApp if available (native mobile context)
   useEffect(() => {
-    if (isAdminMode) return // Skip in admin mode
+    if (isAdminMode) return
 
-    // Dynamic import to avoid breaking admin dashboard
     import('@capacitor/app').then(({ App: CapacitorApp }) => {
       let sub: { remove?: () => void } | undefined
       CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
           syncOnResume()
-          // Tarik master data (PIN/petugas/akses/rute/geofence/tarif) dari
-          // dashboard admin begitu aplikasi aktif kembali.
           void prefetchAllCriticalData({ force: true })
           startMasterDataAutoSync()
           void appUpdate.syncInstalledVersion()
@@ -59,12 +52,10 @@ function Shell() {
       }).then(s => { sub = s })
       return () => { sub?.remove?.() }
     }).catch(() => {
-      // Capacitor not available (web/admin context) - skip
       console.log('[App] Capacitor not available, skipping app state listener')
     })
   }, [isAdminMode])
 
-  // In admin mode, always show AdminDashboard (skip login page)
   if (isAdminMode) {
     return (
       <div className="app-root bg-slate-50">
@@ -81,7 +72,6 @@ function Shell() {
     )
   }
 
-  // Mobile officer mode - show login page
   return (
     <div className="app-root bg-slate-50">
       {!loggedIn ? (
@@ -93,13 +83,7 @@ function Shell() {
   )
 }
 
-// Auto-login component for admin mode.
-//
-// PENTING: dashboard admin HANYA boleh dirender setelah token admin benar-benar
-// ada. Dulu dashboard dirender lebih dulu (login('admin') dipanggil tanpa
-// token), sehingga tab "Laporan" langsung menembak /reports/trips tanpa
-// Authorization -> 403 -> layar "Offline" dan trip yang SUDAH ada di server
-// terlihat hilang. Sekarang sesi disiapkan dulu, baru dashboard dirender.
+// Auto-login component for admin mode. PENTING: dashboard admin HANYA boleh dirender setelah token admin benar-benar ada.
 function AdminAutoLogin({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -173,6 +157,8 @@ function AdminAutoLogin({ onLogin }: { onLogin: () => void }) {
     </div>
   )
 }
+
+
 
 export default function App() {
   return <AppProvider><Shell /></AppProvider>

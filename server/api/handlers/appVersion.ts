@@ -1,22 +1,20 @@
-// Handler update aplikasi/OTA: metadata rilis di tabel `app_versions`, manifest
-// OTA di `ota_bundles`, berkas di direktori lokal `apks` dan `ota`.
 import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
+
+
 const APK_BUCKET = "apks";
+
+
+
 const OTA_BUCKET = "ota";
+
+
+
 function storagePublicUrl(bucket: string, path: string): string {
   return db.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
-/**
- * Jadikan path berkas menjadi URL absolut sesuai origin server yang sedang
- * melayani request.
- *
- * Path di database disimpan relatif (`/files/<bucket>/<path>`) supaya tetap
- * valid saat alamat IP PC kantor berubah. Untuk pengunduhan APK, klien butuh
- * URL absolut, jadi path relatif resolving-nya dilakukan di sini - bukan
- * disimpan ke database.
- */
+// Jadikan path berkas menjadi URL absolut sesuai origin server yang sedang melayani request.
 function absoluteUrl(req: Request, path: string): string {
   const value = String(path ?? "").trim();
   if (!value) return value;
@@ -25,11 +23,15 @@ function absoluteUrl(req: Request, path: string): string {
   return `${origin}${value.startsWith("/") ? "" : "/"}${value}`;
 }
 
+
+
 function parse(v: string): [number, number, number, number] {
   const [core = "", stamp = "0"] = String(v ?? "").split("+");
   const [a = 0, b = 0, c = 0] = String(core).split(".").map((n) => Number(n) || 0);
   return [a, b, c, Number(stamp) || 0];
 }
+
+
 
 function compareVersions(a: string, b: string): number {
   const pa = parse(a);
@@ -38,24 +40,33 @@ function compareVersions(a: string, b: string): number {
   return String(a).localeCompare(String(b));
 }
 
+
+
 function compareVersionFilter(current: string, latest: string): number {
-  // update available when latest > current
   return compareVersions(latest, current) > 0 ? 1 : 0;
 }
+
+
+
 function compareVersionsNoStamp(v: string): string {
   return String(v ?? "").split("+")[0];
 }
 
+
+
 function isForce(row: any): boolean {
   return Boolean(row?.is_force_update);
 }
+
+
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// GET /app-version?current=1.0.0
+
+
 export async function getAppVersion(req: Request, url: URL): Promise<Response> {
   try {
     const current = String(url.searchParams.get("current") ?? "0.0.0").trim() || "0.0.0";
@@ -95,7 +106,8 @@ export async function getAppVersion(req: Request, url: URL): Promise<Response> {
   }
 }
 
-// GET /release-notes/:version
+
+
 export async function releaseNotes(_req: Request, version: string): Promise<Response> {
   try {
     const { data } = await db.from("app_versions").select("*").eq("version", version).limit(1).single();
@@ -120,7 +132,8 @@ export async function releaseNotes(_req: Request, version: string): Promise<Resp
   }
 }
 
-// GET /apk-list
+
+
 export async function apkList(_req: Request): Promise<Response> {
   try {
     const { data, error } = await db.from("app_versions").select("version").order("created_at", { ascending: true });
@@ -134,7 +147,8 @@ export async function apkList(_req: Request): Promise<Response> {
   }
 }
 
-// POST /publish-version  (x-publish-secret)
+
+
 export async function publishVersion(req: Request): Promise<Response> {
   const secret = req.headers.get("x-publish-secret");
   const expected = Deno.env.get("PUBLISH_SECRET") || "trip-angkut-secret";
@@ -147,11 +161,7 @@ export async function publishVersion(req: Request): Promise<Response> {
   if (downloadUrl && !/^https?:\/\//i.test(downloadUrl)) {
     return json({ error: "INVALID_DOWNLOAD_URL", message: "downloadUrl harus absolut (http/https). Untuk berkas lokal, pakai apkBase64." }, 400);
   }
-  // Berkas APK wajib tinggal di server ini. URL yang menunjuk ke host lain
-  // (server daring atau CDN di luar jaringan kantor) ditolak: begitu perangkat
-  // petugas kehilangan koneksi internet, unduhan update tidak akan pernah
-  // selesai. Cara yang benar adalah mengirim isi APK (apkBase64) supaya
-  // server menyimpannya di penyimpanan lokal.
+  // Berkas APK wajib tinggal di server ini. URL yang menunjuk ke host lain (server daring atau CDN di luar jaringan kantor) ditolak: begitu perangkat…
   if (downloadUrl) {
     const target = new URL(downloadUrl);
     const self = new URL(req.url);
@@ -177,7 +187,6 @@ export async function publishVersion(req: Request): Promise<Response> {
     try {
       apkSize = apkBytes.length;
       apkHash = await sha256Hex(apkBytes);
-      // ponytail: capak default path app-<versi>.apk; migrasi ke multipart storage kalau body limit kena
       const { error } = await db.storage.from(APK_BUCKET).upload(`app-${version}.apk`, apkBytes.buffer as ArrayBuffer, {
         contentType: "application/vnd.android.package-archive",
         upsert: true,
@@ -189,8 +198,6 @@ export async function publishVersion(req: Request): Promise<Response> {
     }
   }
 
-  // Yang disimpan ke database selalu path RELATIF. Kalau nanti alamat IP PC
-  // kantor berubah, URL yang sudah tersimpan tidak ikut rusak.
   const download_url = downloadUrl
     ? new URL(downloadUrl).pathname
     : storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
@@ -220,7 +227,8 @@ export async function publishVersion(req: Request): Promise<Response> {
   });
 }
 
-// GET /app-download/:version → redirect ke berkas APK di penyimpanan lokal
+
+
 export async function appDownload(req: Request, version: string): Promise<Response> {
   try {
     const { data } = await db.from("app_versions").select("download_url").eq("version", version).limit(1).single();
@@ -232,7 +240,8 @@ export async function appDownload(req: Request, version: string): Promise<Respon
   }
 }
 
-// GET /ota-manifest
+
+
 export async function otaManifest(_req: Request): Promise<Response> {
   try {
     const { data, error } = await db.from("ota_bundles").select("manifest, published_at");
@@ -264,7 +273,8 @@ export async function otaManifest(_req: Request): Promise<Response> {
   }
 }
 
-// GET /ota-versions
+
+
 export async function otaVersions(_req: Request): Promise<Response> {
   try {
     const { data } = await db.from("ota_bundles").select("manifest, published_at");
@@ -277,7 +287,8 @@ export async function otaVersions(_req: Request): Promise<Response> {
   }
 }
 
-// POST /publish-ota  (x-publish-secret) — files: { assetPath: base64 }
+
+
 export async function publishOta(req: Request): Promise<Response> {
   const secret = req.headers.get("x-publish-secret");
   const expected = Deno.env.get("PUBLISH_SECRET") || "trip-angkut-secret";
@@ -355,7 +366,8 @@ export async function publishOta(req: Request): Promise<Response> {
   });
 }
 
-// POST /report-version (upsert device)
+
+
 export async function reportDeviceVersion(req: Request): Promise<Response> {
   try {
     const body = await req.json().catch(() => ({})) as any;
@@ -381,7 +393,8 @@ export async function reportDeviceVersion(req: Request): Promise<Response> {
   }
 }
 
-// GET /device-versions (admin)
+
+
 export async function deviceVersions(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);

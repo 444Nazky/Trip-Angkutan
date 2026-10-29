@@ -2,15 +2,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 
 
 
-// Plugin native milik aplikasi ini (bukan plugin pihak ketiga):
-// android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java,
-// didaftarkan di MainActivity SEBELUM super.onCreate().
-//
-// Kenapa dibuat: alur update aplikasi mengunduh APK lalu harus memasangnya
-// sendiri (tanpa Play Store). Kode lama memanggil
-// `window.cordova.plugins.fileOpener2`, padahal plugin Cordova itu tidak pernah
-// terpasang (tidak ada di node_modules, tidak ada di capacitor.plugins.json) —
-// jadi pemanggilan itu SELALU gagal dan tombol update berakhir tanpa pemasangan.
+// Plugin native milik aplikasi ini (bukan plugin pihak ketiga): android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java,…
 interface ApkInstallerPlugin {
   install(options: { path: string }): Promise<{ opened: boolean }>
 }
@@ -31,7 +23,6 @@ export function isNativeAndroid(): boolean {
 
 
 
-/** `file:///data/...` → `/data/...`. Plugin menerima keduanya. */
 export function normalizeAbsolutePath(uri: string): string {
   const raw = String(uri ?? '').trim()
   if (!raw) return ''
@@ -46,11 +37,12 @@ export function normalizeAbsolutePath(uri: string): string {
 
 
 
-// Peluncur APK versi lama (plugin Cordova). Disimpan hanya sebagai jaring
-// pengaman untuk build yang masih membundelnya; bukan jalur utama lagi.
+// Peluncur APK versi lama (plugin Cordova). Disimpan hanya sebagai jaring pengaman untuk build yang masih membundelnya; bukan jalur utama lagi.
 type LegacyFileOpener = {
   open: (path: string, mime: string, opt: { success: () => void; error: (e: unknown) => void }) => void
 }
+
+
 
 function legacyFileOpener(): LegacyFileOpener | null {
   try {
@@ -60,6 +52,8 @@ function legacyFileOpener(): LegacyFileOpener | null {
     return null
   }
 }
+
+
 
 function legacyOpen(opener: LegacyFileOpener, path: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -76,13 +70,7 @@ export type OpenInstallerResult = { ok: true } | { ok: false; message: string }
 
 
 
-/**
- * Buka installer paket Android untuk berkas APK di `absolutePath`.
- *
- * WebView tidak bisa memasang paket sendiri, jadi di luar Android hasilnya
- * eksplisit gagal — bukan "berhasil" palsu yang membuat tombol tampak memasang
- * padahal tidak terjadi apa-apa.
- */
+// Buka installer paket Android untuk berkas APK di `absolutePath`.
 export async function openApkInstaller(absolutePath: string): Promise<OpenInstallerResult> {
   const path = normalizeAbsolutePath(absolutePath)
   if (!path) {
@@ -106,7 +94,7 @@ export async function openApkInstaller(absolutePath: string): Promise<OpenInstal
       try {
         await legacyOpen(legacy, path)
         return { ok: true }
-      } catch { /* pakai pesan dari plugin utama */ }
+      } catch {  }
     }
 
     return { ok: false, message: `Gagal membuka installer APK: ${pesan}` }

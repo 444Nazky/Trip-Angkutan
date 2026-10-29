@@ -2,18 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { onSyncFailure, type SyncFailureDetail } from '../services/sync'
 
-/**
- * Notifikasi "Gagal terkirim" untuk aplikasi mobile.
- *
- * Tujuan: setiap kegagalan sinkronisasi memunculkan kartu merah berisi
- * alasannya. Sebelumnya kegagalan hanya tersembunyi di state antrean, jadi
- * petugas bisa saja melihat tampilan hijau "Terkirim" di tempat lain dan
- * mengira datanya sudah masuk ke dashboard admin.
- *
- * Notifikasi yang sama untuk trip yang sama tidak diulang dalam 30 detik
- * (percobaan ulang otomatis bisa memunculkan belasan error beruntun).
- */
+// Notifikasi "Gagal terkirim" untuk aplikasi mobile. Tujuan: setiap kegagalan sinkronisasi memunculkan kartu merah berisi alasannya.
 const REPEAT_SUPPRESS_MS = 30_000
+
+
 
 export default function SyncFailureToast() {
   const [detail, setDetail] = useState<SyncFailureDetail | null>(null)

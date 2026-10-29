@@ -6,7 +6,6 @@ import { isNativeAndroid, openApkInstaller } from './apkInstaller';
 
 
 
-
 export interface UpdateInfo {
   latestVersion: string;
   updateAvailable: boolean;
@@ -19,19 +18,16 @@ export interface UpdateInfo {
   releaseDate: string | null;
 }
 
-// Device ID cache untuk menghindari pemanggilan berulang
+
+
 let _cachedDeviceId: string | null = null;
 
-/**
- * Ambil device ID unik untuk pelaporan versi.
- * Cache hasilnya agar tidak perlu fetch berkali-kali.
- */
+// Ambil device ID unik untuk pelaporan versi. Cache hasilnya agar tidak perlu fetch berkali-kali.
 async function getDeviceId(): Promise<string> {
   if (_cachedDeviceId) return _cachedDeviceId;
 
   try {
     const info = await Device.getId();
-    // Gunakan identifier yang tersedia
     const id = (info as { identifier?: string })?.identifier;
     if (id) {
       _cachedDeviceId = id;
@@ -47,15 +43,7 @@ async function getDeviceId(): Promise<string> {
   return _cachedDeviceId;
 }
 
-/**
- * LAPORKAN VERSI KE BACKEND
- *
- * PENTING: Mobile HARUS memanggil fungsi ini setiap:
- * 1. Setelah OTA update BERHASIL diinstall
- * 2. Saat startup aplikasi
- *
- * Ini memastikan server selalu tahu versi yang benar-benar terinstall
- */
+// LAPORKAN VERSI KE BACKEND PENTING: Mobile HARUS memanggil fungsi ini setiap: 1. Setelah OTA update BERHASIL diinstall 2.
 async function reportVersionToServer(version: string): Promise<boolean> {
   try {
     const deviceId = await getDeviceId();
@@ -89,7 +77,6 @@ async function reportVersionToServer(version: string): Promise<boolean> {
 
 
 
-
 export interface ReleaseNote {
   type: 'feature' | 'bugfix' | 'security' | 'improvement';
   title: string;
@@ -98,13 +85,11 @@ export interface ReleaseNote {
 
 
 
-
 export interface ReleaseNotes {
   version: string;
   releaseDate: string | null;
   notes: ReleaseNote[];
 }
-
 
 
 
@@ -119,11 +104,12 @@ export type UpdateState =
 
 
 
-
 export interface UpdateError {
   code: 'NETWORK_ERROR' | 'DOWNLOAD_FAILED' | 'HASH_MISMATCH' | 'INSTALL_FAILED' | 'STORAGE_FULL' | 'PERMISSION_DENIED' | 'UNKNOWN';
   message: string;
 }
+
+
 
 const STORAGE_KEYS = {
   CURRENT_VERSION: 'trip.update.currentVersion',
@@ -134,8 +120,6 @@ const STORAGE_KEYS = {
 
 
 
-
-/** SHA-256 heksadesimal dari byte; null bila WebCrypto tidak tersedia (uji/web lama). */
 async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
   try {
     const subtle = globalThis.crypto?.subtle;
@@ -149,8 +133,6 @@ async function sha256Hex(bytes: Uint8Array): Promise<string | null> {
 
 
 
-
-/** base64 → byte (hasil Filesystem.readFile). */
 function base64ToBytes(base64: string): Uint8Array | null {
   try {
     const clean = base64.includes(',') ? base64.slice(base64.indexOf(',') + 1) : base64
@@ -169,8 +151,6 @@ function base64ToBytes(base64: string): Uint8Array | null {
 
 
 
-
-// versi native (App Info Android) — biar UI tak beda dgn sistem
 export async function getNativeVersion(): Promise<string | null> {
   try {
     const { App } = await import('@capacitor/app')
@@ -183,7 +163,6 @@ export async function getNativeVersion(): Promise<string | null> {
 
 
 
-
 // baseUrl sudah berakhiran /api — jangan ditambah /api lagi
 export function getUpdateApiUrl(): string {
   return `${api.baseUrl}/app-version`
@@ -191,23 +170,14 @@ export function getUpdateApiUrl(): string {
 
 
 
-
 // downloadUrl dari server bisa absolute (Railway/CDN) atau relatif.
-// Path relatif harus ditempel ke ORIGIN, bukan ke api.baseUrl: baseUrl sudah
-// berakhir `/api`, sehingga '/releases/x.apk' dulu menjadi '/api/releases/x.apk'
-// (404 — static /releases dilayani di root) dan '/api/v1/...' menjadi
-// '/api/api/v1/...'. Keduanya membuat unduhan APK selalu gagal.
 export function resolveDownloadUrl(downloadUrl: string): string {
   const url = String(downloadUrl ?? '').trim();
   if (/^https?:\/\//i.test(url)) return url;
   if (!url) return url;
-  // Path relatif = route API (mis. /app-download/<versi>), jadi ditempel ke
-  // endpoint yang sedang aktif. Server intranet menjalankan router yang sama
-  // dengan cloud, jadi path relatif tetap bekerja di kedua endpoint.
   const base = api.baseUrl.replace(/\/?$/, '');
   return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 }
-
 
 
 
@@ -217,12 +187,10 @@ function sleep(ms: number): Promise<void> {
 
 
 
-
 function parseVersion(version: string): [number, number, number] {
   const parts = version.split('.').map(Number);
   return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
 }
-
 
 
 
@@ -238,7 +206,6 @@ export function isNewerVersion(current: string, latest: string): boolean {
 
 
 
-
 export function shouldForceUpdate(current: string, minVersion: string | null | undefined): boolean {
   if (!minVersion) return false;
   return isNewerVersion(current, minVersion);
@@ -246,26 +213,14 @@ export function shouldForceUpdate(current: string, minVersion: string | null | u
 
 
 
-
 const NO_CACHE_HEADERS = {
   'Accept': 'application/json',
 } as const
-// ponytail: hanya header CORS-safelisted (Accept) — dulu Cache-Control/Pragma/
-// Expires ikut dikirim dan header `expires` ditolak preflight CORS Edge
-// Function, membuat cek versi versi web gagal semua. fetch memakai
-// cache:'no-store', kapabilitas anti-cache tak berubah.;
+// ponytail: hanya header CORS-safelisted (Accept)
 
 
 
-
-/**
- * Ambil JSON dari server update.
- *
- * Jalur native memakai CapacitorHttp, tetapi plugin native bisa tidak aktif di
- * build tertentu (gagal dalam milidetik) — dulu itu membuat cek versi SELALU
- * gagal diam-diam dan update tak pernah terdeteksi. Sekarang ada fallback ke
- * fetch WebView (tanpa CORS di shell Capacitor).
- */
+// Ambil JSON dari server update. Jalur native memakai CapacitorHttp, tetapi plugin native bisa tidak aktif di build tertentu (gagal dalam milidetik)
 async function httpJson(url: string): Promise<{ status: number; data: unknown } | null> {
   if (Capacitor.isNativePlatform()) {
     try {
@@ -287,9 +242,7 @@ async function httpJson(url: string): Promise<{ status: number; data: unknown } 
 
 
 
-
 type VersionCheck = { ok: true; info: UpdateInfo } | { ok: false; reason: 'not-available' | 'network' }
-
 
 
 
@@ -317,14 +270,12 @@ async function checkVersionFromServer(currentVersion: string): Promise<VersionCh
 
 
 
-
 async function fetchReleaseNotes(version: string): Promise<ReleaseNotes | null> {
   const url = `${api.baseUrl}/release-notes/${encodeURIComponent(version)}?t=${Date.now()}`;
   const res = await httpJson(url)
   if (!res || res.status !== 200 || !res.data) return null
   return res.data as ReleaseNotes
 }
-
 
 
 
@@ -343,7 +294,6 @@ async function getApkPath(version: string): Promise<string> {
 
   return `updates/app-${version}.apk`;
 }
-
 
 
 
@@ -369,7 +319,6 @@ async function downloadApk(version: string, downloadUrl: string): Promise<string
     throw error;
   }
 }
-
 
 
 
@@ -399,7 +348,6 @@ async function cleanupOldApkFiles(keepVersion: string): Promise<void> {
 
 
 
-
 function getStoredVersion(): string | null {
   try {
     return localStorage.getItem(STORAGE_KEYS.CURRENT_VERSION);
@@ -410,7 +358,6 @@ function getStoredVersion(): string | null {
 
 
 
-
 function setStoredVersion(version: string): void {
   try {
     localStorage.setItem(STORAGE_KEYS.CURRENT_VERSION, version);
@@ -418,7 +365,6 @@ function setStoredVersion(version: string): void {
     console.warn('[Update] Failed to store version');
   }
 }
-
 
 
 
@@ -434,55 +380,76 @@ function clearStoredState(): void {
 
 
 
-
 class UpdateService {
   private _state: UpdateState = 'idle';
-  private _currentVersion: string = '0.0.0';
-  private _updateInfo: UpdateInfo | null = null;
-  private _pendingVersion: string | null = null;
-  private _error: UpdateError | null = null;
 
-  constructor() {
+
+
+private _currentVersion: string = '0.0.0';
+
+
+
+private _updateInfo: UpdateInfo | null = null;
+
+
+
+private _pendingVersion: string | null = null;
+
+
+
+private _error: UpdateError | null = null;
+
+
+
+constructor() {
     this.init();
   }
 
-  private async init(): Promise<void> {
-    // Versi NATIVE (App.getInfo) adalah sumber kebenaran; versi tersimpan hanya
-    // cadangan untuk web. Nilai lama yang sempat ditulis setelah unduh (padahal
-    // belum terpasang) tidak boleh dipercaya — itu akar klaim "sudah update" palsu.
+
+
+private async init(): Promise<void> {
+    // Versi NATIVE (App.getInfo) adalah sumber kebenaran; versi tersimpan hanya cadangan untuk web.
     const version = await this.refreshInstalledVersion()
     console.log('[Update] Versi terpasang:', version)
   }
 
-  get state(): UpdateState {
+
+
+get state(): UpdateState {
     return this._state;
   }
 
-  get currentVersion(): string {
+
+
+get currentVersion(): string {
     return this._currentVersion;
   }
 
-  get pendingVersion(): string | null {
+
+
+get pendingVersion(): string | null {
     return this._pendingVersion;
   }
 
-  get error(): UpdateError | null {
+
+
+get error(): UpdateError | null {
     return this._error;
   }
 
-  async checkForUpdate(): Promise<UpdateInfo | null> {
+
+
+async checkForUpdate(): Promise<UpdateInfo | null> {
     this._state = 'checking';
     this._error = null;
 
     try {
-      // Versi native selalu jadi acuan: build yang di-download belum tentu terpasang.
       await this.refreshInstalledVersion();
 
       const result = await checkVersionFromServer(this._currentVersion);
 
       if (!result.ok) {
-        // API update belum ada (404) → anggap tidak ada update; jaringan/server
-        // bermasalah → BERI TAHU, jangan diam-diam bilang "sudah terbaru".
+        // API update belum ada (404) → anggap tidak ada update; jaringan/server bermasalah → BERI TAHU, jangan diam-diam bilang "sudah terbaru".
         this._state = result.reason === 'not-available' ? 'up-to-date' : 'error';
         this._updateInfo = null;
         if (result.reason !== 'not-available') {
@@ -507,7 +474,6 @@ class UpdateService {
         localStorage.setItem(STORAGE_KEYS.UPDATE_INFO, JSON.stringify(info));
         localStorage.setItem(STORAGE_KEYS.LAST_CHECK, new Date().toISOString());
       } catch {
-        // Ignore storage errors
       }
 
       this._state = 'downloading';
@@ -516,8 +482,6 @@ class UpdateService {
       if (info.downloadUrl) {
         await this.downloadUpdate(info.latestVersion, info.downloadUrl, info.apkHash);
       } else {
-        // Server menyatakan ada update tetapi tidak memberi URL unduhan yang sah —
-        // laporkan apa adanya daripada menampilkan tombol "Pasang" yang pasti gagal.
         this._state = 'error';
         this._error = {
           code: 'DOWNLOAD_FAILED',
@@ -536,7 +500,9 @@ class UpdateService {
     }
   }
 
-  async downloadUpdate(version: string, downloadUrl: string, expectedHash?: string | null): Promise<boolean> {
+
+
+async downloadUpdate(version: string, downloadUrl: string, expectedHash?: string | null): Promise<boolean> {
     this._state = 'downloading';
     this._pendingVersion = version;
     this._error = null;
@@ -551,17 +517,13 @@ class UpdateService {
         // Verifikasi integritas SEBELUM menawarkan pemasangan.
         const verified = await this.verifyApkHash(path, version, expectedHash)
         if (!verified.ok) {
-          try { await Filesystem.deleteFile({ path, directory: Directory.Data }) } catch { /* sudah hilang */ }
+          try { await Filesystem.deleteFile({ path, directory: Directory.Data }) } catch {  }
           this._state = 'error';
           this._error = { code: 'HASH_MISMATCH', message: verified.message };
           return false;
         }
 
-        // CATATAN PENTING: versi aplikasi TIDAK diubah di sini. Berkas baru saja
-        // diunduh; instalasi bisa dibatalkan pengguna. Menulis versi di sini dulu
-        // membuat aplikasi (dan server) mengklaim sudah ter-update padahal masih
-        // versi lama. Versi resmi hanya berubah bila APK benar-benar terpasang
-        // (dibaca ulang dari App.getInfo() saat aplikasi hidup lagi).
+        // CATATAN PENTING: versi aplikasi TIDAK diubah di sini. Berkas baru saja diunduh; instalasi bisa dibatalkan pengguna.
         this._state = 'ready';
         return true;
 
@@ -586,7 +548,9 @@ class UpdateService {
     return false;
   }
 
-  async installUpdate(): Promise<boolean> {
+
+
+async installUpdate(): Promise<boolean> {
     if (!this._pendingVersion) {
       this._error = {
         code: 'UNKNOWN',
@@ -601,9 +565,6 @@ class UpdateService {
     try {
       const apkPath = await getApkPath(this._pendingVersion);
 
-      // WebView/browser tidak punya installer paket. Dulu jalur ini `return true`
-      // tanpa memasang apa pun → tombol tampak "Memasang…" lalu tidak terjadi
-      // apa-apa. Sekarang gagal secara eksplisit dengan langkah yang bisa diikuti.
       if (!isNativeAndroid()) {
         this._state = 'error';
         this._error = {
@@ -613,8 +574,7 @@ class UpdateService {
         return false;
       }
 
-      // Berkas wajib ada dan berukuran wajar. Dulu kegagalan unduhan (mis. respons
-      // 404 JSON beberapa ratus byte) tetap "berhasil" dibuka sebagai APK.
+      // Berkas wajib ada dan berukuran wajar. Dulu kegagalan unduhan (mis. respons 404 JSON beberapa ratus byte) tetap "berhasil" dibuka sebagai APK.
       const info = await Filesystem.stat({ path: apkPath, directory: Directory.Data }).catch(() => null)
       if (!info) {
         this._state = 'error';
@@ -635,7 +595,6 @@ class UpdateService {
 
       const { uri } = await Filesystem.getUri({ path: apkPath, directory: Directory.Data })
 
-      // buka installer sistem (ACTION_VIEW via FileProvider)
       const instal = await openApkInstaller(uri)
       if (!instal.ok) {
         this._state = 'error';
@@ -643,9 +602,6 @@ class UpdateService {
         return false;
       }
 
-      // Installer sistem yang berjalan TIDAK berarti sudah terpasang (pengguna bisa
-      // membatalkan). Status tetap di keputusan pengguna sampai versi native benar-
-      // benar berubah — diperiksa `refreshInstalledVersion()` saat aplikasi aktif lagi.
       return true
     } catch (error) {
       console.error('[Update] Install failed:', error);
@@ -660,21 +616,14 @@ class UpdateService {
 
 
 
-
-  /**
-   * Sinkronkan versi terpasang dengan kenyataan (App.getInfo).
-   *
-   * Dipanggil saat cek update dan saat aplikasi kembali aktif: kalau APK baru
-   * benar-benar terpasang, versi native naik → laporkan ke server & bersihkan
-   * tawaran update. Kalau masih versi lama, jangan pernah mengklaim berhasil.
-   */
+  // Sinkronkan versi terpasang dengan kenyataan (App.getInfo).
   async refreshInstalledVersion(): Promise<string> {
     let native: string | null = null
     try {
       const { App } = await import('@capacitor/app')
       const info = await App.getInfo()
       native = info?.version || null
-    } catch { /* non-native */ }
+    } catch {  }
 
     if (native) {
       const berubah = native !== this._currentVersion
@@ -686,7 +635,6 @@ class UpdateService {
       }
       const pending = this._pendingVersion
       if (pending) {
-        // `pending` sudah terpasang kalau versi native tidak lebih lama darinya.
         const sudahTerpasang = !isNewerVersion(native, pending)
         if (sudahTerpasang) {
           this._pendingVersion = null
@@ -712,8 +660,7 @@ class UpdateService {
 
 
 
-
-  private async verifyApkHash(
+private async verifyApkHash(
     path: string,
     version: string,
     expectedHash?: string | null,
@@ -724,13 +671,12 @@ class UpdateService {
       return { ok: true }
     }
 
-    // skip hash kalo di web — berkas APK tidak bisa dibaca via FilesystemWeb
     try {
       if (Capacitor.getPlatform() === 'web') {
         console.warn(`[Update] Skip verifikasi hash di web untuk ${version}`)
         return { ok: true }
       }
-    } catch { /* Capacitor belum siap */ }
+    } catch {  }
 
     try {
       const file = await Filesystem.readFile({ path, directory: Directory.Data })
@@ -756,7 +702,9 @@ class UpdateService {
     }
   }
 
-  async reset(): Promise<void> {
+
+
+async reset(): Promise<void> {
     this._state = 'idle';
     this._error = null;
     this._updateInfo = null;
@@ -777,18 +725,24 @@ class UpdateService {
         }
       }
     } catch {
-      // Ignore cleanup errors
     }
 
     clearStoredState();
   }
 
-  async getReleaseNotes(version?: string): Promise<ReleaseNotes | null> {
+
+
+async getReleaseNotes(version?: string): Promise<ReleaseNotes | null> {
     const ver = version || this._updateInfo?.latestVersion;
     if (!ver) return null;
     return fetchReleaseNotes(ver);
   }
 }
 
+
+
 export const updateService = new UpdateService();
+
+
+
 export { UpdateService };

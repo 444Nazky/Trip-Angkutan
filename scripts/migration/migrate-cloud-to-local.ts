@@ -1,51 +1,28 @@
-/**
- * Migrasi data sekali jalan: server daring -> server intranet lokal.
- *
- * Menyalin SELURUH baris tabel operasional beserta berkas di bucket
- * trip-photos/ apks/ ota/ ke PostgreSQL lokal (lewat PostgREST) dan ke
- * STORAGE_DIR di PC kantor. Jalankan SEKALI di PC kantor, di jaringan yang
- * masih punya akses ke server lama, sebelum aplikasi dipakai penuh di
- * jaringan lokal.
- *
- * Yang dipindahkan:
- *   - Tabel master : regions, dermagas, routes, geofences, officers,
- *     officer_regions, officer_dermagas, vehicles, tariffs, vehicle_plates,
- *     region_tariffs.
- *   - Tabel transaksi : trips, trip_vehicles, plate_scans.
- *   - Tabel rilis : app_versions, device_versions, ota_bundles,
- *     admin_credentials.
- *   - Berkas : seluruh isi bucket trip-photos/, apks/, dan ota/.
- *
- * URL berkas di dalam database ditulis ulang menjadi path lokal relatif
- * (`/files/<bucket>/<path>`). Tanpa langkah ini, data hasil migrasi masih
- * menunjuk ke server lama dan seluruh foto trip, APK, serta bundel modul akan
- * gagal dimuat begitu server lama tidak bisa dijangkau.
- *
- * Prasyarat (harus sudah berjalan):
- *   docker compose up -d db rest    (PostgreSQL + PostgREST lokal)
- *   Skema sudah dimuat otomatis oleh container db (server/db/schema.sql).
- *
- * Jalankan:
- *   CLOUD_SUPABASE_URL=https://xxxx.supabase.co \
- *   CLOUD_SERVICE_ROLE_KEY=eyJ... \
- *   STORAGE_DIR=./data/storage \
- *   deno run -A scripts/migration/migrate-cloud-to-local.ts
- *
- * Opsi:
- *   DRY_RUN=1       hanya menampilkan jumlah baris dan berkas, tidak menulis
- *   TABLES=a,b      batasi tabel yang disalin (default: semua)
- *   SKIP_STORAGE=1  lewati penyalinan berkas
- *
- * Kredensial server lama HANYA dibaca dari environment, tidak pernah ditulis
- * ke repo. UUID dipertahankan supaya relasi antar tabel tetap sah.
- */
 
 const CLOUD_URL = (Deno.env.get("CLOUD_SUPABASE_URL") ?? "").replace(/\/+$/, "");
+
+
+
 const CLOUD_KEY = Deno.env.get("CLOUD_SERVICE_ROLE_KEY") ?? "";
+
+
+
 const LOCAL_REST = (Deno.env.get("POSTGREST_URL") ?? "http://127.0.0.1:3001").replace(/\/+$/, "");
+
+
+
 const STORAGE_DIR = Deno.env.get("STORAGE_DIR") ?? "./data/storage";
+
+
+
 const DRY_RUN = Deno.env.get("DRY_RUN") === "1";
+
+
+
 const SKIP_STORAGE = Deno.env.get("SKIP_STORAGE") === "1";
+
+
+
 const PAGE = 1000;
 
 /** Urutan aman terhadap foreign key: induk dulu, anak kemudian. */
@@ -70,29 +47,35 @@ const TABLES = [
   "admin_credentials",
 ];
 
+
+
 const BUCKETS = ["trip-photos", "apks", "ota"];
 
-/**
- * Kolom yang menyimpan path berkas, per tabel.
- *
- * Nilai kolom ini diubah dari URL server lama menjadi path lokal relatif
- * (`/files/<bucket>/<path>`).
- */
+
+
 const FILE_COLUMNS: Record<string, string[]> = {
   trips: ["foto_kosong_path", "selfie_path"],
   trip_vehicles: ["foto_path"],
   app_versions: ["download_url"],
 };
 
-/** Kolom pengurut untuk paginasi; tabel tanpa `id` memakai kolom PK pertamanya. */
+
+
 const ORDER: Record<string, string> = {
   officer_regions: "officer_id",
   officer_dermagas: "officer_id",
   device_versions: "device_id",
 };
 
+
+
 const only = Deno.env.get("TABLES")?.split(",").map((t) => t.trim()).filter(Boolean);
+
+
+
 const tables = only?.length ? TABLES.filter((t) => only.includes(t)) : TABLES;
+
+
 
 function cloudHeaders(extra: Record<string, string> = {}): HeadersInit {
   return {
@@ -102,23 +85,16 @@ function cloudHeaders(extra: Record<string, string> = {}): HeadersInit {
   };
 }
 
+
+
 async function cloudGet<T>(path: string): Promise<T> {
   const res = await fetch(`${CLOUD_URL}${path}`, { headers: cloudHeaders() });
   if (!res.ok) throw new Error(`GET ${path} -> HTTP ${res.status}: ${await res.text()}`);
   return await res.json() as T;
 }
 
-/**
- * Ubah URL berkas server lama menjadi path lokal relatif.
- *
- * Pola yang ditangani:
- *   https://<host>/storage/v1/object/public/<bucket>/<path>
- *   https://<host>/storage/v1/object/sign/<bucket>/<path>
- *   /storage/v1/object/public/<bucket>/<path>
- *
- * Nilai yang tidak recognised dikembalikan apa adanya supaya tidak ada data
- * yang hilang diam-diam.
- */
+
+
 export function toLocalFilePath(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const raw = value.trim();
@@ -128,6 +104,8 @@ export function toLocalFilePath(value: unknown): string | null {
   const [, bucket, object] = match;
   return `/files/${bucket}/${object}`;
 }
+
+
 
 async function pullTable(table: string): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
@@ -141,7 +119,8 @@ async function pullTable(table: string): Promise<Record<string, unknown>[]> {
   }
 }
 
-/** Terapkan penulisan ulang path berkas pada satu kumpulan baris. */
+
+
 function rewriteFilePaths(table: string, rows: Record<string, unknown>[]): number {
   const columns = FILE_COLUMNS[table];
   if (!columns) return 0;
@@ -158,7 +137,8 @@ function rewriteFilePaths(table: string, rows: Record<string, unknown>[]): numbe
   return changed;
 }
 
-/** Upsert ke PostgREST lokal; target konflik = primary key tabel. */
+
+
 async function pushTable(table: string, rows: Record<string, unknown>[]): Promise<void> {
   if (rows.length === 0) return;
   for (let i = 0; i < rows.length; i += PAGE) {
@@ -175,13 +155,16 @@ async function pushTable(table: string, rows: Record<string, unknown>[]): Promis
   }
 }
 
+
+
 interface StorageEntry {
   name: string;
   id: string | null;
   metadata: { size?: number } | null;
 }
 
-/** Daftar isi bucket (rekursif ke subfolder). */
+
+
 async function listObjects(bucket: string, prefix = ""): Promise<string[]> {
   const res = await fetch(`${CLOUD_URL}/storage/v1/object/list/${bucket}`, {
     method: "POST",
@@ -198,6 +181,8 @@ async function listObjects(bucket: string, prefix = ""): Promise<string[]> {
   }
   return files;
 }
+
+
 
 async function copyObject(bucket: string, path: string): Promise<void> {
   const res = await fetch(`${CLOUD_URL}/storage/v1/object/${bucket}/${path}`, {
@@ -224,6 +209,8 @@ async function checkLocalRest(): Promise<void> {
     );
   }
 }
+
+
 
 async function main(): Promise<void> {
   if (!CLOUD_URL || !CLOUD_KEY) {
@@ -260,6 +247,8 @@ async function main(): Promise<void> {
   console.log(`Total: ${totalRows} baris, ${totalRewritten} path berkas ditulis ulang.`);
   console.log(DRY_RUN ? "Selesai (tidak ada yang ditulis)." : "Migrasi selesai.");
 }
+
+
 
 if (import.meta.main) {
   await main().catch((err) => {

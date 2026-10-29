@@ -1,15 +1,7 @@
-/**
- * Regresi keluhan lapangan (SESI geofence):
- *
- *   1. “geofence.ts: Sync: not authenticated, trying to renew session” →
- *      “session renewal failed”. Dulu renew MUSTAHIL karena hanya dipanggil saat
- *      token kosong sementara ensureBackendSession mensyaratkan token valid.
- *      Sekarang ada jalur “login diam-diam” dari kredensial lokal.
- *   2. Login ulang petugas yang SAMA tidak boleh menghapus cache geofence —
- *      dulu purge di tiap login + sync yang gagal = perangkat kosong permanen.
- *   3. Login offline tidak boleh menghapus token/dermaga petugas yang sama.
- */
+// Regresi keluhan lapangan (SESI geofence): 1. “geofence.ts: Sync: not authenticated, trying to renew session” → “session renewal failed”.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+
 
 const h = vi.hoisted(() => ({
   token: null as string | null,
@@ -17,6 +9,8 @@ const h = vi.hoisted(() => ({
   respond: {} as Record<string, { ok: boolean; data?: unknown; error?: { code?: string; message?: string } }>,
   purgeCalls: 0,
 }))
+
+
 
 vi.mock('./api', () => ({
   saveOfficer: () => {},
@@ -43,9 +37,13 @@ vi.mock('./api', () => ({
   },
 }))
 
+
+
 vi.mock('./geofence', () => ({
   purgeGeofenceCache: () => { h.purgeCalls += 1 },
 }))
+
+
 
 vi.mock('./offlineDb', () => ({
   findOfficer: async () => null,
@@ -55,21 +53,36 @@ vi.mock('./offlineDb', () => ({
   verifyPin: async () => false,
 }))
 
+
+
 import { renewSessionIfNeeded, isSessionReady, loginWithPin } from './auth'
 
+
+
 const CRED_KEY = 'trip.auth.lastCredential.v1'
+
+
+
 const OFFICER_KEY = 'trip.auth.officer.v1'
+
+
+
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 
-/** Token yang bisa dibaca jwtPayload() (payload base64, officerId cocok). */
+
+
 function fakeJwt(officerId: string): string {
   const payload = btoa(JSON.stringify({ officerId, role: 'officer' }))
   return `header.${payload}.signature`
 }
 
+
+
 function officer(id: string) {
   return { id, name: 'Petugas Uji', regionId: 'r-1', regionName: 'Badau', regionCode: 'BADAU' }
 }
+
+
 
 beforeEach(() => {
   localStorage.clear()
@@ -78,6 +91,8 @@ beforeEach(() => {
   h.respond = {}
   h.purgeCalls = 0
 })
+
+
 
 describe('pemulihan sesi (login diam-diam)', () => {
   it('token kosong + kredensial tersimpan → mengambil token baru tanpa minta PIN', async () => {
@@ -122,6 +137,8 @@ describe('pemulihan sesi (login diam-diam)', () => {
   })
 })
 
+
+
 describe('cache geofence tidak dibuang saat petugas yang sama login ulang', () => {
   it('petugas sama → cache geofence DIPERTAHANKAN', async () => {
     localStorage.setItem(OFFICER_KEY, JSON.stringify(officer('o-1')))
@@ -157,7 +174,6 @@ describe('cache geofence tidak dibuang saat petugas yang sama login ulang', () =
 
     const stored = JSON.parse(localStorage.getItem(OFFICER_KEY) ?? '{}')
     expect(stored.dermagaAccess.map((d: { id: string }) => d.id)).toEqual(['d-1', 'd-2'])
-    // dermaga tunggal otomatis aktif; dua dermaga → petugas memilih sendiri
     expect(localStorage.getItem(DERMAGA_KEY)).toBeNull()
   })
 })

@@ -1,22 +1,4 @@
-/**
- * Regresi: FOTO HILANG DARI RIWAYAT SETELAH APLIKASI DIBUKA ULANG.
- *
- * Alur penyimpanan yang benar:
- *   - IndexedDB store `trips` = sumber kebenaran, memuat foto (data URL).
- *   - localStorage `trip.trips.v1` = cache metadata saja (foto dibuang, karena
- *     kuota localStorage hanya ~5 MB).
- *
- * Saat aplikasi dibuka ulang, state `trips` awalnya diisi dari cache metadata
- * (tanpa foto). Bila state itu sempat ditulis balik ke IndexedDB SEBELUM
- * hidrasi selesai, seluruh foto yang tersimpan terhapus permanen — dan petugas
- * melihat "Foto Dokumentasi (0)" di halaman Riwayat.
- *
- * Test ini merender `AppProvider` sungguhan (react-dom/client) dengan
- * IndexedDB nyata (fake-indexeddb), lalu memastikan foto masih ada setelah
- * mount. Sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
- *
- * Jalankan: npm run test:unit
- */
+// Regresi: FOTO HILANG DARI RIWAYAT SETELAH APLIKASI DIBUKA ULANG.
 
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +14,9 @@ import { dbAll, dbClear, dbPut, initLocalDb } from '../services/localDb'
 vi.mock('../services/api', () => ({
   api: { isAuthenticated: false, ping: async () => false },
 }))
+
+
+
 vi.mock('../services/auth', () => ({
   ensureBackendSession: async () => true,
   getStoredOfficer: () => null,
@@ -39,29 +24,50 @@ vi.mock('../services/auth', () => ({
   refreshBackendSession: async () => true,
   SESSION_READY_EVENT: 'session:ready',
 }))
+
+
+
 vi.mock('../services/officers', () => ({
   syncOfficersToLocal: async () => [],
   OFFICERS_UPDATED_EVENT: 'officers:updated',
-  // Roster di perangkat = roster dari server (tidak ada roster seed lagi).
   getStoredOfficers: () => [],
 }))
+
+
+
 vi.mock('../services/prefetch', () => ({
   prefetchAllCriticalData: async () => ({}),
 }))
+
+
+
 vi.mock('../services/sync', () => ({
   addToSyncQueue: async () => {},
   onTripSynced: () => () => {},
   retrySyncItem: async () => {},
   notifyQueueListeners: () => {},
 }))
+
+
+
 vi.mock('../services/masterTariffs', () => ({ TARIFF_UPDATED_EVENT: 'tariffs:updated' }))
+
+
 
 const LS_TRIPS = 'trip.trips.v1'
 
 /** Data URL kecil — isinya tidak penting, hanya keberadaannya yang diuji. */
 const TRIP_PHOTO = 'data:image/jpeg;base64,AAAA'
+
+
+
 const VEHICLE_PHOTO = 'data:image/jpeg;base64,BBBB'
+
+
+
 const SELFIE = 'data:image/jpeg;base64,CCCC'
+
+
 
 const fullTrip = (): Trip => ({
   id: 'TRP-2026-0001',
@@ -90,11 +96,19 @@ const fullTrip = (): Trip => ({
   synced: false,
 })
 
+
+
 const readStored = () => dbAll<Trip>('trips')
 
-/** State trips terakhir yang dilihat UI (setara yang dibaca HistoryScreen). */
+
+
 const seen = { trips: [] as Trip[], loaded: false }
+
+
+
 let app: ReturnType<typeof useApp> | null = null
+
+
 
 function Probe() {
   const ctx = useApp()
@@ -104,13 +118,16 @@ function Probe() {
   return null
 }
 
+
+
 async function flush(ms = 30): Promise<void> {
   await act(async () => {
     await new Promise(resolve => setTimeout(resolve, ms))
   })
 }
 
-/** Siapkan kondisi "buka ulang aplikasi": IndexedDB penuh foto, cache metadata tanpa foto. */
+
+
 async function prepareColdStart(): Promise<void> {
   await initLocalDb()
   await dbClear('trips')
@@ -122,8 +139,15 @@ async function prepareColdStart(): Promise<void> {
   seen.loaded = false
 }
 
+
+
 let root: Root | null = null
+
+
+
 let container: HTMLDivElement | null = null
+
+
 
 async function mountApp(): Promise<void> {
   container = document.createElement('div')
@@ -134,12 +158,16 @@ async function mountApp(): Promise<void> {
   })
 }
 
+
+
 beforeEach(() => {
   localStorage.clear()
   root = null
   container = null
   app = null
 })
+
+
 
 describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka ulang', () => {
   it('foto di IndexedDB tetap utuh setelah AppProvider mount', async () => {

@@ -4,12 +4,10 @@ import type { ElementType } from 'react'
 
 
 
-
 export interface FloatingBottomNavProps {
   activeScreen: string
   onNavigate: (screen: string) => void
 }
-
 
 
 
@@ -18,6 +16,8 @@ interface NavItem {
   label: string
   icon: ElementType
 }
+
+
 
 const navItems: NavItem[] = [
   { id: 'home', label: 'Beranda', icon: Home },
@@ -28,14 +28,12 @@ const navItems: NavItem[] = [
 
 
 
-
 interface NavConfirmDialog {
   isOpen: boolean
   message: string
   pendingAction: (() => void) | null
   countdown: number
 }
-
 
 
 
@@ -60,8 +58,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
     setConfirmDialog({ isOpen: false, message: '', pendingAction: null, countdown: 0 })
   }, [])
 
-  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh
-  // objek `confirmDialog` yang berubah setiap detik saat hitungan mundur jalan.
+  // Destruktur di luar callback: dependency cukup `pendingAction`, bukan seluruh objek `confirmDialog` yang berubah setiap detik saat hitungan mundur…
   const pendingAction = confirmDialog.pendingAction
   const executeConfirm = useCallback(() => {
     if (pendingAction) {
@@ -115,7 +112,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
         </nav>
       </div>
 
-      {/* Navigation Confirmation Dialog */}
+
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">

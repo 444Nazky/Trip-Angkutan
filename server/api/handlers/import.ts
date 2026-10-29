@@ -1,26 +1,8 @@
-// Impor massal data dari server lama (Supabase/railway) ke database lokal.
-//
-// Endpoint ini dibuat khusus untuk migrasi SEKALI jalan. Endpoint CRUD biasa
-// (/regions, /routes, dan seterusnya) tidak bisa dipakai untuk itu karena:
-//   - kolom id dibuat oleh server, jadi relasi antar tabel (rute ke dermaga,
-//     petugas ke region, trip ke kendaraan) tidak bisa dipertahankan;
-//   - tabel master dan transaksi seperti vehicles, vehicle_plates,
-//     plate_scans, dan trip_vehicles tidak punya endpoint tulis sama sekali.
-//
-// Yang dikirim: JSON berisi tabel (baris lengkap, id ikut disertakan) dan
-// berkas (base64 per objek di bucket penyimpanan lokal).
-//
-// Urutan adalah urutan aman terhadap foreign key: induk lebih dulu, anak
-// kemudian. Penghapusan memakai urutan terbalik.
+// Impor massal data dari server lama (Supabase/railway) ke database lokal. Endpoint ini dibuat khusus untuk migrasi SEKALI jalan.
 
 import { db, json, requireAdmin } from "../_shared.ts";
 
-/**
- * Tabel yang boleh diimpor, urut dari induk ke anak.
- *
- * Urutan WAJIB dipertahankan: baris pada tabel yang lebih dulu tidak boleh
- * disobuhi sebelum tabel yang merujuk padanya.
- */
+// Tabel yang boleh diimpor, urut dari induk ke anak.
 const IMPORT_TABLES = [
   "regions",
   "dermagas",
@@ -42,11 +24,15 @@ const IMPORT_TABLES = [
   "admin_credentials",
 ] as const;
 
-/** Bucket penyimpanan yang boleh diisi lewat impor. */
+
+
 const IMPORT_BUCKETS = ["trip-photos", "apks", "ota"] as const;
 
-/** Jumlah baris per permintaan INSERT. */
+
+
 const CHUNK = 200;
+
+
 
 function chunks<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -54,21 +40,7 @@ function chunks<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-/**
- * POST /admin/import
- *
- * Body:
- *   {
- *     "mode": "upsert" | "replace",
- *     "tables": { "<nama_tabel>": [ { ...baris } ] },
- *     "files":  { "<bucket>": { "<path>": "<base64>" } }
- *   }
- *
- * `mode`:
- *   upsert  (bawaan) - baris dengan id sama diperbarui, id baru ditambahkan.
- *   replace - isi tabel target dihapus dulu, lalu diisi ulang. Dipakai saat
- *             database lokal masih sisa migrasi sebelumnya.
- */
+// POST /admin/import Body: { "mode": "upsert" | "replace", "tables": { "<nama_tabel>": [ { ...baris } ] }, "files": { "<bucket>": { "<path>":…
 export async function importData(req: Request): Promise<Response> {
   try {
     const ctx = await requireAdmin(req);
@@ -95,11 +67,7 @@ export async function importData(req: Request): Promise<Response> {
     const tableSummary: Record<string, number> = {};
     const fileSummary: Record<string, number> = {};
 
-    // ── Tabel ────────────────────────────────────────────────────────────────
-    //
-    // Penghapusan didahulukan untuk mode replace. Urutan pembatalan adalah
-    // kebalikan urutan impor, supaya anak dihapus lebih dulu dan tidak
-    // melanggar foreign key.
+    // ── Tabel ──────────────────────────────────────────────────────────────── Penghapusan didahulukan untuk mode replace.
     if (mode === "replace") {
       for (const table of [...IMPORT_TABLES].reverse()) {
         if (!Array.isArray(tables[table])) continue;
@@ -126,7 +94,6 @@ export async function importData(req: Request): Promise<Response> {
       tableSummary[table] = rows.length;
     }
 
-    // ── Berkas ──────────────────────────────────────────────────────────────
     for (const bucket of IMPORT_BUCKETS) {
       const objects = files[bucket];
       if (!objects || typeof objects !== "object") continue;

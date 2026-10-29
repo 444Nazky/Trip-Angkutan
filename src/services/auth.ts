@@ -1,27 +1,7 @@
-/**
- * Session management - tidak ada sesi expired, auto-renew dari token.
- * Debug logging ditambahkan untuk troubleshooting auth flow.
- */
+// Session management - tidak ada sesi expired, auto-renew dari token. Debug logging ditambahkan untuk troubleshooting auth flow.
 
-import { api } from './api'
-import {
-  getStoredOfficer as getStoredOfficerApi,
-  saveOfficer as saveOfficerApi,
-  getStoredRoutes as getStoredRoutesMap,
-  saveRoutes as saveRoutesApi,
-  getCredentials,
-  storeCredentials,
-  clearCredentials,
-  type Officer as StoredOfficer,
-  type Route,
-  type Dermaga,
-} from './api'
-import {
-  findOfficer as findOfflineOfficer,
-  hashPin,
-  setPinHash,
-  verifyPin as verifyStoredPin,
-} from './offlineDb'
+import { api, getStoredOfficer as getStoredOfficerApi, saveOfficer as saveOfficerApi, getStoredRoutes as getStoredRoutesMap, saveRoutes as saveRoutesApi, getCredentials, storeCredentials, clearCredentials, type Officer as StoredOfficer, type Route, type Dermaga } from './api'
+import { findOfficer as findOfflineOfficer, hashPin, setPinHash, verifyPin as verifyStoredPin, } from './offlineDb'
 import { findSeedOfficer } from './seedData'
 
 // ─── Debug helpers ───────────────────────────────────────────────────────────────
@@ -32,23 +12,22 @@ function debugAuth(label: string, data?: Record<string, unknown>): void {
   }
 }
 
-// ─── Events ───────────────────────────────────────────────────────────────────
+
 
 export const SESSION_READY_EVENT = 'trip:session-ready'
 
-/**
- * Check if routes are scoped to a specific dock.
- */
+
+
 export function hasDockScopedRoutes(): boolean {
   const routes = getStoredRoutes()
   return routes.some(r => r.dermagaId)
 }
 
-// ─── Re-export ────────────────────────────────────────────────────────────────
 
-// Didefinisikan lokal (bukan dari api.ts): test-suite mem-mock './api'
-// menyeluruh, dan artifact ini harus tetap hidup offline di localStorage.
+// Didefinisikan lokal (bukan dari api.ts): test-suite mem-mock './api' menyeluruh, dan artifact ini harus tetap hidup offline di localStorage.
 const DERMAGA_STORAGE_KEY = 'trip.auth.dermaga.v1'
+
+
 
 export function getStoredDermaga(): Dermaga | null {
   try {
@@ -59,13 +38,14 @@ export function getStoredDermaga(): Dermaga | null {
   }
 }
 
+
+
 export function storeDermaga(d: Dermaga): void {
-  try { localStorage.setItem(DERMAGA_STORAGE_KEY, JSON.stringify(d)) } catch { /* quota */ }
+  try { localStorage.setItem(DERMAGA_STORAGE_KEY, JSON.stringify(d)) } catch {  }
 }
 
 // getStoredOfficer is defined locally below (with fallback to legacy storage)
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface UiRoute {
   code: string
@@ -77,10 +57,15 @@ export interface UiRoute {
   dermagaId?: string
 }
 
+
+
 export type Officer = StoredOfficer
+
+
+
 export { type Route, type Dermaga }
 
-// ─── Officer / Dermaga / Routes storage ─────────────────────────────────────
+
 
 export function getStoredOfficerLocal(): StoredOfficer | null {
   try {
@@ -89,7 +74,8 @@ export function getStoredOfficerLocal(): StoredOfficer | null {
   } catch { return null }
 }
 
-/** Simpan sesi officer ke storage + legacy key untuk perangkat lama. */
+
+
 function saveOfficerSession(officer: StoredOfficer): void {
   saveOfficerApi(officer)
   try { localStorage.setItem('trip.officer', JSON.stringify(officer)) } catch {}
@@ -105,6 +91,8 @@ export function getStoredOfficer(): StoredOfficer | null {
   return getStoredOfficerLocal()
 }
 
+
+
 export function clearAuth(): void {
   api.setToken(null)
   clearCredentials()
@@ -115,9 +103,8 @@ export function clearAuth(): void {
   } catch {}
 }
 
-/**
- * Semua rute yang tersimpan, dikonversi ke bentuk UI.
- */
+
+
 export function getStoredRoutes(): UiRoute[] {
   const map = getStoredRoutesMap()
   const result: UiRoute[] = []
@@ -138,11 +125,8 @@ export function getStoredRoutes(): UiRoute[] {
   return result
 }
 
-// ─── Pin-based offline login ──────────────────────────────────────────────────
 
-// ponytail: officer WAJIB memuat dermagaAccess — beberapa endpoint login
-// mengirim `dermagas` terpisah (bukan di dalam officer), sehingga sesi
-// tersimpan kehilangan akses dermaga dan filter geofence per-dermaga mati.
+// ponytail: officer WAJIB memuat dermagaAccess
 function enrichOfficerWithDermagaAccess(
   officer: StoredOfficer,
   dermagas?: Array<{ id: string; name?: string; code?: string; region_id?: string }>,
@@ -160,6 +144,8 @@ function purgeGeofenceOnlyIfOfficerChanged(prevOfficerId?: string | null, nextOf
   if (nextOfficerId && String(prevOfficerId) === String(nextOfficerId)) return
   void import('./geofence').then(m => m.purgeGeofenceCache()).catch(() => {})
 }
+
+
 
 export async function loginWithPin(officerId: string, pin: string): Promise<{ success: boolean; error?: string }> {
   debugAuth('loginWithPin mulai', { officerId, hasPin: !!pin })
@@ -179,20 +165,15 @@ export async function loginWithPin(officerId: string, pin: string): Promise<{ su
     api.setToken(res.data.token)
     debugAuth('Token disimpan', { tokenLength: res.data.token.length })
 
-    // Officer + dermagaAccess + legacy keys (backward compatibility)
     saveOfficerSession(enrichOfficerWithDermagaAccess(res.data.officer, res.data.dermagas))
     debugAuth('Officer disimpan', { id: res.data.officer.id, name: res.data.officer.name })
 
-    // Store credentials untuk session renewal
     storeCredentials({ officerId, pin })
-    try { storeLoginCredential({ kind: 'pin', officerId, pin }) } catch { /* quota */ }
+    try { storeLoginCredential({ kind: 'pin', officerId, pin }) } catch {  }
     debugAuth('Credentials disimpan', { officerId })
 
-    // Ganti petugas = mulai bersih; login ulang petugas yang sama TIDAK menghapus
-    // titik geofence (dulu terhapus lalu sync gagal → perangkat kosong permanen).
     purgeGeofenceOnlyIfOfficerChanged(prevOfficerId, res.data.officer.id)
 
-    // Store routes - INI KRUSIAL UNTUK GEOFENCE FILTERING
     if (res.data.routes) {
       saveRoutesApi(res.data.routes)
       try { localStorage.setItem('trip.routes', JSON.stringify(res.data.routes)) } catch {}
@@ -201,7 +182,6 @@ export async function loginWithPin(officerId: string, pin: string): Promise<{ su
       debugAuth('Routes disimpan', { routeCount, keys: Object.keys(res.data.routes) })
     }
 
-    // ponytail: dermaga tunggal → langsung aktif; dermaga ganda → biarkan petugas memilih.
     if (res.data.dermagas?.length === 1) {
       storeDermaga(res.data.dermagas[0])
       try { localStorage.setItem('trip.dermaga', JSON.stringify(res.data.dermagas[0])) } catch {}
@@ -219,17 +199,18 @@ export async function loginWithPin(officerId: string, pin: string): Promise<{ su
   }
 }
 
-/**
- * Login offline: verifikasi PIN lokal (credential hasil sinkron server),
- * lalu buka sesi petugas tanpa jaringan. Sesi dipertahankan bila petugasnya
- * sama; dibersihkan saat GANTI petugas.
- */
+
+
 export const LEGACY_PIN_KEY = 'trip.auth.pin.v1'
+
+
 
 function loadLegacyPinMap(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(LEGACY_PIN_KEY) ?? '{}') }
   catch { return {} }
 }
+
+
 
 async function cachePin(officerId: string, pin: string): Promise<void> {
   if (!officerId || !pin) return
@@ -242,8 +223,10 @@ async function cachePin(officerId: string, pin: string): Promise<void> {
       if (keys.length) localStorage.setItem(LEGACY_PIN_KEY, JSON.stringify(legacy))
       else localStorage.removeItem(LEGACY_PIN_KEY)
     }
-  } catch { /* quota */ }
+  } catch {  }
 }
+
+
 
 export interface OfflineOfficerRecord {
   id: string
@@ -258,6 +241,8 @@ export interface OfflineOfficerRecord {
   pin?: string
   dermagaAccess?: Array<{ id: string; name: string; code: string; region_id?: string }>
 }
+
+
 
 function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | null {
   const key = String(identifier).toLowerCase()
@@ -275,7 +260,7 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
       const k = localStorage.key(i)
       if (k && k.startsWith('trip.dermaga.officers.')) pools.push(read(k))
     }
-  } catch { /* ignore */ }
+  } catch {  }
 
   for (const pool of pools) {
     const hit = pool.find(o =>
@@ -287,6 +272,8 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
   }
   return null
 }
+
+
 
 function seedToRecord(identifier: string): OfflineOfficerRecord | null {
   const s = findSeedOfficer(identifier)
@@ -303,6 +290,8 @@ function seedToRecord(identifier: string): OfflineOfficerRecord | null {
     dermagaAccess: s.dermagaAccess,
   }
 }
+
+
 
 async function buildOfflineSession(identifier: string): Promise<StoredOfficer | null> {
   let row: OfflineOfficerRecord | null = null
@@ -323,31 +312,29 @@ async function buildOfflineSession(identifier: string): Promise<StoredOfficer | 
     regionCode: String(row.regionCode ?? region),
     dermagaAccess: access ?? [],
   }
-  // ponytail: dulu di sini token DIHAPUS dan dermaga aktif DIHAPUS — akibatnya
-  // setelah login offline aplikasi mengira "belum login": sync geofence selalu
-  // `session renewal failed` dan filter per-dermaga ikut hilang. Sekarang sesi
-  // dipertahankan bila petugasnya sama; hanya dibersihkan saat GANTI petugas.
+  // ponytail: dulu di sini token DIHAPUS dan dermaga aktif DIHAPUS
   const prev = getStoredOfficer()
   const sameOfficer = !!prev?.id && String(prev.id) === String(officer.id)
   saveOfficerSession(officer)
   if (!sameOfficer) {
     api.setToken(null)
-    try { localStorage.removeItem('trip.auth.dermaga.v1') } catch { /* quota */ }
+    try { localStorage.removeItem('trip.auth.dermaga.v1') } catch {  }
   }
   const accessIds = new Set((access ?? []).map(d => String(d.id)))
   const storedDock = getStoredDermaga()
   if (storedDock && !accessIds.has(String(storedDock.id))) {
-    try { localStorage.removeItem('trip.auth.dermaga.v1') } catch { /* quota */ }
+    try { localStorage.removeItem('trip.auth.dermaga.v1') } catch {  }
   }
   return officer
 }
+
+
 
 export async function loginOffline(
   identifier?: string,
   pin?: string,
 ): Promise<{ success: boolean; officer?: StoredOfficer; error?: string }> {
   if (!identifier || !pin) {
-    // Tanpa argumen: cukup cek sesi tersimpan (dipakai startup / PinVerify).
     if (api.isAuthenticated || getStoredOfficer()) {
       const officer = getStoredOfficer()
       if (officer) return { success: true, officer }
@@ -363,7 +350,7 @@ export async function loginOffline(
   try {
     const row = await findOfflineOfficer<OfflineOfficerRecord>(identifier)
     if (row?.id) resolvedId = String(row.id)
-  } catch { /* database offline belum siap */ }
+  } catch {  }
   storeLoginCredential({ kind: 'pin', officerId: resolvedId, pin })
 
   const officer = await buildOfflineSession(resolvedId)
@@ -379,9 +366,11 @@ export async function loginOffline(
   return { success: true, officer }
 }
 
-// ─── Session management ────────────────────────────────────────────────────────
+
 
 let _sessionReady = false
+
+
 
 export async function isSessionReady(): Promise<boolean> {
   if (api.isAuthenticated) {
@@ -391,22 +380,19 @@ export async function isSessionReady(): Promise<boolean> {
   return renewSessionIfNeeded()
 }
 
+
+
 function setSessionReady(ready: boolean) {
-  // ponytail: guard re-entrancy — ponsel yang sudah siap mengundang
-  // ensureBackendSession→fetch→setSessionReady melingkar tanpa batas
   if (_sessionReady === ready) return
   _sessionReady = ready
   if (ready) {
-    try { window.dispatchEvent(new Event(SESSION_READY_EVENT)) } catch { /* ignore */ }
+    try { window.dispatchEvent(new Event(SESSION_READY_EVENT)) } catch {  }
   }
 }
 
-/**
- * Pastikan ada sesi backend yang valid.
- * Kalau belum ada token → coba renew dari kredensial PIN tersimpan.
- */
+
+
 export async function ensureBackendSession(officerId?: string): Promise<boolean> {
-  // Check token first
   if (api.isAuthenticated) {
     debugAuth('ensureBackendSession: token sudah ada, session ready')
     setSessionReady(true)
@@ -418,7 +404,6 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   const cred = getCredentials()
   debugAuth('Credentials ditemukan', { hasOfficerId: !!cred.officerId, hasPin: !!cred.pin, username: cred.username })
 
-  // Case 1: Ada officerId + PIN → gunakan loginWithPin
   if (cred.officerId && cred.pin) {
     const id = officerId || cred.officerId
     const pin = cred.pin
@@ -434,12 +419,9 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
     }
   }
 
-  // Case 2: Hanya ada username (tanpa PIN) → coba memberLogin ulang
-  // Ini terjadi jika login pertama kali pakai username/password
+  // Case 2: Hanya ada username (tanpa PIN) → coba memberLogin ulang Ini terjadi jika login pertama kali pakai username/password
   if (cred.username) {
     debugAuth('Tidak ada PIN, coba memberLogin dengan username saja')
-    // Tapi kita tidak punya password di credentials...
-    // Dalam kasus ini, kita tidak bisa renew - petugas perlu login ulang
     debugAuth('Tidak bisa renew tanpa PIN/password - petugas perlu login ulang')
   }
 
@@ -449,9 +431,8 @@ export async function ensureBackendSession(officerId?: string): Promise<boolean>
   return false
 }
 
-/**
- * Perbarui sesi dari server (paksa login ulang dengan PIN tersimpan).
- */
+
+
 export async function refreshBackendSession(officerId?: string): Promise<boolean> {
   debugAuth('refreshBackendSession mulai')
   const cred = getCredentials()
@@ -474,13 +455,11 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
   return false
 }
 
-/**
- * Renew sesi jika token sudah ada tapi perlu di-refresh.
- * Tanpa mengganggu petugas jika gagal.
- */
-// ponytail: „login diam-diam" — pakai kredensial login terakhir yang tersimpan di
-// localStorage untuk mengambil token baru TANPA meminta petugas mengetik ulang PIN.
+
+
 const LOGIN_CRED_KEY = 'trip.auth.lastCredential.v1'
+
+
 
 interface LoginCred {
   kind: 'pin' | 'member'
@@ -489,6 +468,8 @@ interface LoginCred {
   username?: string
   password?: string
 }
+
+
 
 function getLoginCredential(): LoginCred | null {
   try {
@@ -503,12 +484,16 @@ function getLoginCredential(): LoginCred | null {
   }
 }
 
+
+
 export function storeLoginCredential(cred: LoginCred | null): void {
   try {
     if (cred) localStorage.setItem(LOGIN_CRED_KEY, JSON.stringify(cred))
     else localStorage.removeItem(LOGIN_CRED_KEY)
-  } catch { /* quota */ }
+  } catch {  }
 }
+
+
 
 async function silentReLogin(): Promise<boolean> {
   const cred = getLoginCredential()
@@ -531,10 +516,12 @@ async function silentReLogin(): Promise<boolean> {
   }
 }
 
+
+
 export async function renewSessionIfNeeded(): Promise<boolean> {
   debugAuth('renewSessionIfNeeded mulai', { hasToken: api.isAuthenticated })
   if (!api.isAuthenticated) {
-    try { await silentReLogin() } catch { /* offline: lanjut dengan rapi */ }
+    try { await silentReLogin() } catch {  }
   }
   if (api.isAuthenticated) {
     debugAuth('renewSessionIfNeeded: sudah authenticated')
@@ -545,7 +532,7 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
   return ensureBackendSession()
 }
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
+
 
 export function logout(): void {
   api.setToken(null)
@@ -553,7 +540,7 @@ export function logout(): void {
   setSessionReady(false)
 }
 
-// ─── Dock/Officer helpers ──────────────────────────────────────────────────────
+
 
 export async function cacheDockOfficers(officerId?: string): Promise<void> {
   try {
@@ -568,8 +555,10 @@ export async function cacheDockOfficers(officerId?: string): Promise<void> {
         try { localStorage.setItem('trip.officer', JSON.stringify(updated)) } catch {}
       }
     }
-  } catch { /* offline: abaikan */ }
+  } catch {  }
 }
+
+
 
 export async function syncDermagaOfficersToDb(dermagaId: string): Promise<void> {
   try {
@@ -577,20 +566,18 @@ export async function syncDermagaOfficersToDb(dermagaId: string): Promise<void> 
     if (res.ok && Array.isArray(res.data)) {
       localStorage.setItem(`trip.dermaga.officers.${dermagaId}`, JSON.stringify(res.data))
     }
-  } catch { /* offline: abaikan */ }
+  } catch {  }
 }
 
-// ─── Route helpers ─────────────────────────────────────────────────────────────
+
 
 const ROUTES_SYNC_KEY = 'trip.routes.lastSync'
+
+
+
 const ROUTES_SYNC_TTL_MS = 60_000
 
-/**
- * Perbarui rute dari server.
- * Default: skip network bila baru di-sync < 1 menit lalu (TTL) — supaya
- * membuka layar "Pilih Rute" tidak memicu request berulang tiap kali.
- * Cache lokal TETAP tersedia seketika — layar tidak perlu menunggu jaringan.
- */
+// Perbarui rute dari server. Default: skip network bila baru di-sync < 1 menit lalu (TTL)
 export async function refreshStoredRoutes(
   opts?: { force?: boolean },
 ): Promise<UiRoute[] | null> {
@@ -606,8 +593,6 @@ export async function refreshStoredRoutes(
     if (!res.ok || !Array.isArray(res.data)) return null
     const map: Record<string, Route[]> = {}
     for (const r of res.data) {
-      // ponytail: server mengirim `dermaga_id` (snake_case) — dulu key selalu
-      // jatuh ke 'default' sehingga rute per dermaga hilang dari layar pilih rute.
       const key = ((r as any).dermagaId || (r as any).dermaga_id) || 'default'
       if (!map[key]) map[key] = []
       map[key].push(r)
@@ -621,7 +606,7 @@ export async function refreshStoredRoutes(
   }
 }
 
-// ─── Select Dermaga (local + remote) ─────────────────────────────────────────
+
 
 export async function selectDermagaLocal(
   dockId: string,
@@ -643,19 +628,14 @@ export async function selectDermagaLocal(
   }
 }
 
-// ─── Select Dermaga (remote) ─────────────────────────────────────────────────
 
-/**
- * Pilih dermaga dan simpan rute terkait.
- * Can be called with just dockId (will use stored data) or full params.
- */
+
 export async function selectDermaga(
   dockId: string,
   dock?: Dermaga,
   routes?: Route[],
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // If dock and routes not provided, try to get from stored data
     const dermaga = dock || getStoredDermaga()
     const storedRoutes = routes || []
 
@@ -677,18 +657,13 @@ export async function selectDermaga(
   }
 }
 
-// ─── Member login ─────────────────────────────────────────────────────────────
 
-/**
- * Login sebagai member (petugas).
- * Response dari backend sekarang sudah menyertakan dermagas dan routes.
- */
+
 export async function memberLogin(
   username: string,
   password: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Endpoint /auth/member-login sekarang mengembalikan dermagas dan routes
     const res = await api.post<{
       token: string
       officer: StoredOfficer
@@ -713,12 +688,9 @@ export async function memberLogin(
     saveOfficerApi(res.data.officer)
     try { localStorage.setItem('trip.officer', JSON.stringify(res.data.officer)) } catch {}
 
-    // Simpan credentials untuk session renewal - butuh officerId dan PIN
-    // PIN tidak ada di response, jadi simpan username saja
     const officerId = res.data.officer?.id
     storeCredentials({ username, officerId: officerId || username })
 
-    // Store ALL dermagas
     if (res.data.dermagas && res.data.dermagas.length > 0) {
       try {
         localStorage.setItem('trip.dermaga.all', JSON.stringify(res.data.dermagas))
@@ -728,7 +700,6 @@ export async function memberLogin(
       debugAuth('Dermagas disimpan', { count: res.data.dermagas.length })
     }
 
-    // Store routes - INI KRUSIAL UNTUK GEOFENCE FILTERING
     if (res.data.routes) {
       saveRoutesApi(res.data.routes)
       try { localStorage.setItem('trip.routes', JSON.stringify(res.data.routes)) } catch {}
@@ -746,9 +717,8 @@ export async function memberLogin(
   }
 }
 
-/**
- * Verifikasi PIN offline (dari credentials tersimpan).
- */
+
+
 export async function verifyPinOffline(
   identifier: string,
   pin?: string,
@@ -770,7 +740,7 @@ export async function verifyPinOffline(
     const status = row?.status ?? row?.payload?.status
     if (status && /^(nonaktif|non-aktif|inactive)$/i.test(String(status))) inactive = true
     if (row?.isActive === false || row?.is_active === 0) inactive = true
-  } catch { /* database offline belum siap */ }
+  } catch {  }
 
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
@@ -790,14 +760,11 @@ export async function verifyPinOffline(
     return true
   }
 
-  // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah
-  // temuan F001 (login offline "123456" tanpa server). Verifikasi hanya lewat
-  // credential hasil sinkron server (verifyStoredPin di atas) atau server online.
+  // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah temuan F001 (login offline "123456" tanpa server).
   return false
 }
 
 
-// ─── Admin session ────────────────────────────────────────────────────────────
 
 export interface AdminSessionResult {
   ok: boolean
@@ -806,19 +773,25 @@ export interface AdminSessionResult {
   error?: string
 }
 
-// Kredensial admin. Default tetap dipakai supaya dashboard tetap bisa
-// terbuka di komputer yang belum pernah menyimpan kredensial, TAPI begitu
-// admin mengganti password lewat dashboard, kredensial baru bisa disimpan
-// di sini — tanpa itu, auto-login selalu gagal dan dashboard terlihat
-// "Offline" padahal server sehat.
+// Kredensial admin. Default tetap dipakai supaya dashboard tetap bisa terbuka di komputer yang belum pernah menyimpan kredensial, TAPI begitu admin…
 const ADMIN_CREDENTIALS_KEY = 'trip.admin.credentials.v1'
+
+
+
 const DEFAULT_ADMIN_USERNAME = 'admin'
+
+
+
 const DEFAULT_ADMIN_PASSWORD = 'admin123456'
+
+
 
 export interface AdminCredentials {
   username: string
   password: string
 }
+
+
 
 export function getAdminCredentials(): AdminCredentials {
   try {
@@ -829,9 +802,11 @@ export function getAdminCredentials(): AdminCredentials {
         return { username: String(parsed.username), password: String(parsed.password) }
       }
     }
-  } catch { /* storage tidak tersedia */ }
+  } catch {  }
   return { username: DEFAULT_ADMIN_USERNAME, password: DEFAULT_ADMIN_PASSWORD }
 }
+
+
 
 export function setAdminCredentials(cred: AdminCredentials | null): void {
   try {
@@ -840,8 +815,10 @@ export function setAdminCredentials(cred: AdminCredentials | null): void {
     } else {
       localStorage.removeItem(ADMIN_CREDENTIALS_KEY)
     }
-  } catch { /* storage penuh */ }
+  } catch {  }
 }
+
+
 
 async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
   const cred = getAdminCredentials()
@@ -854,7 +831,7 @@ async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
     const data = await res.json().catch(() => null)
     if (res.ok && data?.token) {
       api.setToken(String(data.token))
-      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: cred.username, role: 'admin' })) } catch { /* quota */ }
+      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: cred.username, role: 'admin' })) } catch {  }
       return { ok: true }
     }
     return { ok: false, error: data?.error ? String(data.error) : `Login admin ditolak (HTTP ${res.status})` }
@@ -862,6 +839,8 @@ async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
     return { ok: false, error: err instanceof Error ? err.message : 'Server tidak bisa dihubungi' }
   }
 }
+
+
 
 export async function ensureAdminSession(): Promise<AdminSessionResult> {
   const probeWith = async (): Promise<AdminSessionResult | null> => {

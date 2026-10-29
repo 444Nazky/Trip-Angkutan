@@ -1,23 +1,4 @@
-/**
- * Render harness — tab "Master Dermaga" (RegionTab).
- *
- * Tab ini menulis langsung ke database lewat endpoint master
- * (`POST/DELETE /regions`, `POST/DELETE /dermagas`) dan selalu memuat ulang
- * data dari server. Test ini merender komponen sungguhan di jsdom dengan
- * services yang dimock, lalu memeriksa DOM + panggilan service:
- *
- *   1. tabel menampilkan wilayah & dermaga persis seperti data server,
- *   2. tambah wilayah / dermaga benar-benar memanggil server, dan barisnya
- *      muncul dari hasil muat ulang — bukan ditambahkan sendiri di dashboard,
- *   3. simpan gagal TIDAK menambah baris palsu,
- *   4. wilayah yang masih punya dermaga / petugas tidak dihapus,
- *   5. hapus dermaga memanggil server lalu tabel dimuat ulang,
- *   6. server tidak merespons → tidak ada baris palsu,
- *   7.Improvisasi UI: ringkasan, pencarian tabel, dan pesan error di form
- *      bekerja tanpa mengubah sumber data.
- *
- * Tidak ada panggilan jaringan sungguhan di sini.
- */
+// Render harness — tab "Master Dermaga" (RegionTab).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React, { act } from 'react'
@@ -27,11 +8,15 @@ import { fetchAdminRegions } from '../../../services/tariffs'
 import { createDermaga, deleteDermaga, fetchDermagas, fetchRoutes, updateDermaga } from '../../../services/dermagas'
 import { api } from '../../../services/api'
 
+
+
 interface RowRegion {
   id: string
   name: string
   code: string
 }
+
+
 
 interface RowDermaga {
   id: string
@@ -40,10 +25,14 @@ interface RowDermaga {
   code: string
 }
 
+
+
 interface RowRoute {
   id: string
   dermaga_id: string
 }
+
+
 
 interface RowOfficer {
   id: string
@@ -55,10 +44,7 @@ interface RowOfficer {
   dermagas: { id: string; name: string; code: string }[]
 }
 
-/**
- * "Database" tiruan: mock service membaca/menulis array ini, sehingga
- * perilaku server (baris muncul setelah tersimpan) tetap terwakili.
- */
+// "Database" tiruan: mock service membaca/menulis array ini, sehingga perilaku server (baris muncul setelah tersimpan) tetap terwakili.
 const db = vi.hoisted(() => ({
   regions: [] as unknown[],
   dermagas: [] as unknown[],
@@ -66,6 +52,8 @@ const db = vi.hoisted(() => ({
   officers: [] as unknown[],
   nextId: 1,
 }))
+
+
 
 vi.mock('../../../services/tariffs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/tariffs')>()
@@ -86,6 +74,8 @@ vi.mock('../../../services/tariffs', async (importOriginal) => {
     }),
   }
 })
+
+
 
 vi.mock('../../../services/dermagas', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/dermagas')>()
@@ -119,6 +109,8 @@ vi.mock('../../../services/dermagas', async (importOriginal) => {
   }
 })
 
+
+
 vi.mock('../../../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/api')>()
   return {
@@ -135,9 +127,19 @@ vi.mock('../../../services/api', async (importOriginal) => {
 // React 19 butuh penanda ini agar act() boleh dipakai di luar test renderer.
 ;(globalThis as unknown as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+
+
 const REGION_MASTER: RowRegion = { id: 'r-master', name: 'Wilayah Badau', code: 'BADAU' }
+
+
+
 const REGION_SBDZ: RowRegion = { id: 'r-sbdz', name: 'Wilayah Sindang', code: 'SBDZ' }
+
+
+
 const DERMAGA_SINDANG: RowDermaga = { id: 'd-1', region_id: 'r-sbdz', name: 'Dermaga Sindang', code: 'SBD1' }
+
+
 
 function seedDb() {
   db.regions = [{ ...REGION_MASTER }, { ...REGION_SBDZ }]
@@ -156,6 +158,8 @@ function seedDb() {
   ]
   db.nextId = 100
 }
+
+
 
 describe('RegionTab (render harness)', () => {
   let container: HTMLDivElement
@@ -234,7 +238,6 @@ describe('RegionTab (render harness)', () => {
     expect(body).toContain('SBD1')
     // Ringkasan jumlah diambil dari server, bukan angka tetap.
     expect(body).toContain('2 wilayah · 1 dermaga')
-    // Dermaga Sindang punya 1 rute dan dipakai 1 petugas.
     expect(rowByText('Dermaga Sindang')?.textContent).toContain('1 rute')
     expect(rowByText('Dermaga Sindang')?.textContent).toContain('1 petugas')
     expect(fetchDermagas).toHaveBeenCalled()
@@ -269,7 +272,6 @@ describe('RegionTab (render harness)', () => {
   it('mengizinkan kode dermaga yang sama di wilayah BERBEDA (pola database kantor: D1, D2 per wilayah)', async () => {
     await renderTab()
 
-    // Kode SBD1 sudah dipakai Dermaga Sindang, tetapi di wilayah lain tetap boleh.
     await setValue(container.querySelector('select') as HTMLSelectElement, 'r-master')
     await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Badau Satu')
     await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
@@ -363,7 +365,6 @@ describe('RegionTab (render harness)', () => {
 
     const body = container.textContent ?? ''
     expect(body).toContain('2 wilayah · 1 dermaga')
-    // Kartu ringkasan: wilayah, dermaga, rute, petugas.
     expect(body).toContain('Rute')
     expect(body).toContain('Petugas')
     expect(body).toContain('Server: Tersambung')

@@ -1,23 +1,24 @@
-/**
- * Uji: perubahan tarif di admin HANYA berlaku untuk trip selanjutnya.
- *
- * Aturan yang dikunci di sini:
- *   - Trip yang SUDAH terkirim memakai harga yang tercatat saat dikirim.
- *   - Admin mengubah tarif (mis. 50.000 -> 75.000) => trip lama tetap 50.000,
- *     trip yang dikirim sesudahnya 75.000.
- *
- * Jalankan:
- *   deno test --allow-env --allow-net server/api/handlers/reports.tariff.test.ts
- */
+// Uji: perubahan tarif di admin HANYA berlaku untuk trip selanjutnya.
 
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
+
+
 const REGION_ID = "11111111-1111-4111-8111-111111111111";
+
+
+
 const TRIP_LAMA = "22222222-2222-4222-8222-222222222222";
+
+
+
 const TRIP_BARU = "33333333-3333-4333-8333-333333333333";
 
-// Harga tarif region untuk jenis "motor". Diubah admin dari 50.000 ke 75.000.
+
+
 let tarifMotor = 50_000;
+
+
 
 const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }, (req) => {
   const url = new URL(req.url);
@@ -57,7 +58,6 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
           golongan: "",
           kategori: "Eksternal",
           has_load: 1,
-          // Harga saat trip dikirim (1 Januari).
           tariff_amount: 50_000,
           tarif_source: "region-row",
           trip_id: TRIP_LAMA,
@@ -81,7 +81,6 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
     ]);
   }
 
-  // Probe ketersediaan kolom (hasColumn).
   if (table === "vehicles") {
     return Response.json([{ id: "v-lama", kategori: "Eksternal" }]);
   }
@@ -106,12 +105,27 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
   return Response.json({ message: `unexpected ${table}` }, { status: 400 });
 });
 
+
+
 Deno.env.set("POSTGREST_URL", `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`);
+
+
+
 Deno.env.set("JWT_SECRET", "secret-untuk-uji-tarif");
 
+
+
 const { signToken } = await import("../_shared.ts");
+
+
+
 const { tripsReport } = await import("./reports.ts");
+
+
+
 const token = await signToken({ officerId: REGION_ID, role: "admin", username: "admin" });
+
+
 
 function report(): Request {
   return new Request("http://127.0.0.1:3000/api/reports/trips", {
@@ -119,8 +133,9 @@ function report(): Request {
   });
 }
 
+
+
 Deno.test("trip lama tetap memakai harga saat dikirim setelah tarif diubah", async () => {
-  // Admin mengubah tarif: 50.000 -> 75.000 (berlaku untuk trip selanjutnya).
   tarifMotor = 75_000;
 
   const res = await tripsReport(report(), new URL("http://127.0.0.1:3000/api/reports/trips"));
@@ -135,5 +150,7 @@ Deno.test("trip lama tetap memakai harga saat dikirim setelah tarif diubah", asy
   // Trip baru: harga SETELAH perubahan (75.000).
   assertEquals(baru?.vehicles?.[0]?.tariff_amount, 75_000);
 });
+
+
 
 Deno.test("cleanup", () => server.shutdown());
