@@ -5,9 +5,17 @@ import { isLocalhostDev } from './ota'
 
 
 
-// Disable update checks for localhost development
-const LOCALHOST_UPDATE_DISABLED = isLocalhostDev()
-if (LOCALHOST_UPDATE_DISABLED) {
+// Disable update checks for localhost development.
+//
+// PENTING: guard ini hanya untuk BROWSER dev server. Aplikasi native
+// (Android/iOS) dimuat dari origin lokal `https://localhost` - kalau ikut
+// dianggap dev, tombol "Cek Update" di Profil mati total di perangkat
+// (selalu dijawab "Sudah Terbaru" tanpa menghubungi server).
+//
+// Nilainya dievaluasi saat runtime, bukan sekali saat import, supaya platform
+// native sudah terdeteksi kapan pun modul ini dimuat.
+const updateDisabled = () => isLocalhostDev()
+if (updateDisabled()) {
   console.log('[Update] Localhost/DEV mode: Update notifications disabled')
 }
 
@@ -104,7 +112,7 @@ class AppUpdateController {
 
   async refreshVersions(): Promise<{ module: string | null; app: string | null }> {
     // Skip version refresh for localhost development
-    if (LOCALHOST_UPDATE_DISABLED) {
+    if (updateDisabled()) {
       return { module: null, app: null }
     }
     try {
@@ -122,7 +130,7 @@ class AppUpdateController {
   // Pemeriksaan ganda; hasil lama tidak ditumpuk agar tombol tidak dobel proses.
   check(): Promise<AppUpdateState> {
     // Skip update checks for localhost development
-    if (LOCALHOST_UPDATE_DISABLED) {
+    if (updateDisabled()) {
       console.log('[Update] Localhost mode - skipping update check')
       return Promise.resolve({ ...IDLE, status: 'up-to-date' })
     }

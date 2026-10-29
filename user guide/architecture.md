@@ -1,19 +1,22 @@
-# Arsitektur Sistem Update Aplikasi — Trip Angkutan v1.0.3
+# Arsitektur Sistem Update Aplikasi — Trip Angkutan
 
-> **Status:** PRODUKSI — Full-Package APK Distribution via Supabase
+> **Status:** PRODUKSI — Full-Package APK Distribution via **server API intranet**
 > **Rilis aktif:** `1.0.3` (menggantikan `1.0.2`)
-> **Tanggal:** 2026-10-22
-> **Deprecasi:** Over-The-Air (OTA) **deprecated** — pembaruan kini didistribusikan sebagai **paket APK penuh** (full package), bukan patch/delta.
+> **Tanggal:** 2026-10-29
+> **Model:** paket APK penuh (bukan patch/delta), distribution sendiri — tanpa Play Store.
+> **Server rilis (LAN kantor):** `http://192.168.1.123:3000` (`ubuntu.local`)
 
 ---
 
 ## 1. Ringkasan Arsitektur
 
-Sistem pembaruan aplikasi mobile "Trip Angkutan" memakai model **self-hosted API update** yang sepenuhnya berjalan di atas Supabase. Tidak ada Play Store, tidak ada plugin OTA pihak ketiga, tidak ada patch delta.
+Sistem pembaruan aplikasi mobile "Trip Angkutan" memakai model **self-hosted API
+update**: aplikasi menanyakan versinya ke server, lalu menarik paket APK penuh
+(±16 MB) dan memasangkannya lewat installer sistem Android.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                    MOBILE CLIENT (Ionic/React + Capacitor)                │
+│                    MOBILE CLIENT (Angular + Capacitor)                   │
 │                                                                          │
 │  ┌────────────────┐   ┌──────────────────┐   ┌────────────────────────┐  │
 │  │ @capacitor/app │   │ @capacitor/      │   │ ApkInstallerPlugin     │  │
@@ -22,35 +25,62 @@ Sistem pembaruan aplikasi mobile "Trip Angkutan" memakai model **self-hosted API
 │  └───────┬────────┘   └────────┬─────────┘   └───────────┬────────────┘  │
 │          │                     │                         │               │
 └──────────┼─────────────────────┼─────────────────────────┼───────────────┘
-           │ GET /app-version     │ GET storage (binary)  │ content:// URI
-           │ ?current=1.0.2       │ app-1.0.3.apk         │ + FileProvider
+           │ GET /app-version     │ GET /files/apks/…      │ content:// URI
+           │ ?current=1.0.2       │ app-1.0.3.apk          │ + FileProvider
            ▼                     ▼                         ▼
-┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
-│ SUPABASE EDGE FN     │  │ SUPABASE STORAGE     │  │ ANDROID PACKAGE      │
-│ /functions/v1/api    │  │ bucket `apks` (public)│ │ MANAGER (system UI)  │
-│                      │  │                      │  │                      │
-│ • app-version (GET)  │  │ app-1.0.3.apk        │  │ dialog "Pasang"      │
-│ • app-download (GET) │  │  (≈16 MB)            │  │ PackageInstaller     │
-│ • report-version(POST)│  │                      │  │                      │
-│ • publish-version    │  └──────────────────────┘  └──────────────────────┘
-│   (POST)             │
-│                      │
-│ ┌──────────────────┐ │
-│ │  TABEL DATABASE  │ │
-│ │  app_versions    │ │
-│ │  (metadata)      │ │
-│ │  device_versions │ │
-│ └──────────────────┘ │
-└──────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  SERVER INTRANET (ubuntu.local — Deno, port 3000)                       │
+│                                                                          │
+│  ROUTER  server/api/index.ts                                           │
+│    • app-version (GET)        → metadata rilis dari tabel app_versions  │
+│    • app-download/:version(GET)→ redirect ke berkas lokal                │
+│    • release-notes/:version(GET)                                       │
+│    • apk-list (GET)                                                 │
+│    • report-version (POST)     → device_versions (upsert)               │
+│    • publish-version (POST)    → unggah APK + INSERT app_versions       │
+│    • admin/import (POST)       → impor massal (Appel untuk republish)   │
+│                                                                          │
+│  BERKAS   STORAGE_DIR/apks/app-<versi>.apk      ← bind-mount ./data/storage
+│  DISERAHKAN /files/<bucket>/<path>              (server/api/_db.ts)     │
+│                                                                          │
+│  DATABASE  PostgreSQL lokal ← PostgREST (POSTGREST_URL)                 │
+│    • app_versions   (metadata rilis: versi, hash, ukuran, catatan)      │
+│    • device_versions(versi terpasang per perangkat)                      │
+└──────────────────────────────────────────────────────────────────────────┘
+           │                                            ▼
+           │                              ┌───────────────────────────────┐
+           │                              │ ANDROID PACKAGE MANAGER       │
+           │                              │ dialog "Pasang aplikasi ini?" │
+           │                              │ → terpasang, versi naik       │
+           │                              └───────────────────────────────┘
 ```
 
 Tiga komponen server yang terpisah secara sengaja:
 
 | Komponen | Peran | Milik |
 |---|---|---|
-| **Edge Function `api`** | Orkestrasi: bandingkan versi, susun metadata rilis, catat versi perangkat | `supabase/functions/api/handlers/appVersion.ts` |
-| **Supabase Storage** | Menyimpan *binary* APK (berkas besar, tidak cocok untuk baris DB) | bucket `apks` (public read) |
-| **PostgreSQL (Supabase)** | Menyimpan *metadata* rilis (versi, hash, ukuran, catatan) | tabel `app_versions`, `device_versions` |
+| **Router API (Deno)** | Orkestrasi: bandingkan versi, susun metadata rilis, catat versi perangkat | `server/api/index.ts`, `server/api/handlers/appVersion.ts` |
+| **Penyimpanan lokal (disk)** | Menyimpan *binary* APK (16 MB tidak cocok untuk baris DB) | direktori `STORAGE_DIR` → bucket `apks` |
+| **PostgreSQL (via PostgREST)** | Menyimpan *metadata* rilis | tabel `app_versions`, `device_versions` |
+
+### 1.1 Dua endpoint, satu kode
+
+Aplikasi mobile punya dua pilihan server yang dipilih petugas di
+**Profil → Server / Endpoint**:
+
+| Endpoint | URL | Kapan dipakai |
+|---|---|---|
+| Supabase (cloud) | `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api` | Default, butuh internet |
+| **Intranet kantor (LAN)** | `http://192.168.1.123:3000/api` | Di kantor, tanpa internet |
+
+Kode API-nya sama persis; yang membedakan hanya lokasi server dan tempat
+berkasnya disimpan. Rilis untuk uji lapangan dipakai **server intranet**,
+karena berkas APK-nya berada di disk kantor — petugas tetap bisa menarik
+pembaruan saat internet mati.
+
+> Berkas APK **tidak pernah** diambil dari host lain. `publish-version` menolak
+> `downloadUrl` yang menunjuk origin lain; berkas wajib dikirim sebagai isi
+> (`apkBase64`) supaya tersimpan di disk server.
 
 ---
 
@@ -58,11 +88,12 @@ Tiga komponen server yang terpisah secara sengaja:
 
 | File | Tanggung jawab |
 |---|---|
-| `src/services/updateService.ts` | State machine update APK: cek versi → unduh → verifikasi hash → install. Sumber kebenaran versi lokal = `App.getInfo()` (Android App Info), bukan localStorage. |
+| `src/services/updateService.ts` | State machine update APK: cek versi → unduh → verifikasi hash → install. Sumber kebenaran versi lokal = `App.getInfo()` (App Info Android), bukan localStorage. |
 | `src/services/apkInstaller.ts` | Adapter ke plugin native. Menormalisasi `file://` → path absolut, memanggil `ApkInstaller.install()`, guarded `isNativeAndroid()`. |
-| `src/services/appUpdate.ts` | Controller Above UI: menggabungkan kanal APK & modul, menyimpan `AppUpdateState`, men-subscribe listener, mencegah proses ganda (`_checking` promise). |
+| `src/services/appUpdate.ts` | Controller Above UI: menggabungkan kanal APK & modul, menyimpan `AppUpdateState`, mencegah proses ganda (promise `_checking`). |
+| `src/services/ota.ts` | Kanal **modul web** (cadangan). Dipakai hanya bila kanal APK tidak menyediakan paket baru. |
 | `src/components/UpdateNotifier.tsx` | Hook `useAppUpdate()` untuk UI status. Komponen notifier *default export* **tidak di-mount** di mana pun → **tidak ada auto-check** (lihat §6). |
-| `src/pages/mobile/ProfileScreen.tsx` | Halaman Profil — **satu-satunya** pemicu manual: tombol "Cek Update" / "Update Sekarang". |
+| `src/pages/mobile/ProfileScreen.tsx` | Halaman Profil — **satu-satunya** pemicu manual: tombol "Cek & Perbarui Aplikasi" / "Perbarui Sekarang". |
 | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` | Plugin Capacitor native: membuat `content://` URI via `FileProvider`, memanggil installer paket sistem. |
 | `android/app/src/main/res/xml/file_paths.xml` | Deklarasi `files-path` agar `FileProvider` boleh membaca berkas di `getFilesDir()`. |
 | `android/app/src/main/AndroidManifest.xml` | Izin `INTERNET` & `REQUEST_INSTALL_PACKAGES`; registrasi `FileProvider` ber-otoritas `${applicationId}.fileprovider`. |
@@ -74,14 +105,13 @@ Tiga komponen server yang terpisah secara sengaja:
 ### 3.1 Cek Versi (version check)
 
 ```
-GET https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/app-version
-      ?current=1.0.2&t=1758540000000
+GET http://192.168.1.123:3000/api/app-version?current=1.0.2&t=1758540000000
 Accept: application/json
 ```
 
 * `current` = versi native terpasang (dari `App.getInfo().version`, mis. `1.0.2`).
 * `t` = timestamp anti-cache.
-* **Header anti-cache sengaja hanya `Accept`.** Header `Cache-Control`/`Pragma`/`Expires` memicu preflight CORS pada Edge Function dan membuat seluruh cek versi gagal diam-diam. Anti-cache diwujudkan lewat `cache: 'no-store'` + query `t=`.
+* **Header anti-cache sengaja hanya `Accept`.** Header `Cache-Control`/`Pragma`/`Expires` memicu preflight CORS dan membuat seluruh cek versi gagal diam-diam. Anti-cache diwujudkan lewat `cache: 'no-store'` + query `t=`.
 
 Respons `200 OK`:
 
@@ -90,23 +120,28 @@ Respons `200 OK`:
   "latestVersion": "1.0.3",
   "updateAvailable": true,
   "isForceUpdate": false,
-  "downloadUrl": "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk",
-  "releaseNotes": "Rilis full package 1.0.3 ...",
-  "apkSize": 16345176,
-  "apkHash": "ea51998095b8da0cbc6d11c686573274fbd311dd54b4cca13e578cccc47b51fc",
-  "minVersion": null,
-  "releaseDate": "2026-10-22T08:00:00+00:00",
+  "downloadUrl": "http://192.168.1.123:3000/files/apks/app-1.0.3.apk",
+  "releaseNotes": "Uji pembaruan: install full package (APK) …",
+  "apkSize": 16361480,
+  "apkHash": "0ffac76a703e2372ef643a31767e4c96f4b47093bfada49fb3cf879f84aea77e",
+  "minVersion": "1.0.2",
+  "releaseDate": "2026-10-29T02:53:27.409+00:00",
   "apkAvailable": true
 }
 ```
 
-> **Catatan penamaan field.** API produksi memakai nama field `latestVersion` / `downloadUrl` / `apkSize` / `apkHash` (camelCase). Konsep `version_code` / `version_name` / `apk_url` pada spesifikasi Clima adalah padanan logisnya:
+> **Catatan penamaan field.** Field produksi: `latestVersion` / `downloadUrl` /
+> `apkSize` / `apkHash` (camelCase). Padanan logisnya:
 >
-> | Konsep spesifikasi | Field API produksi | Sumber |
+> | Konsep | Field API produksi | Sumber |
 > |---|---|---|
 > | `version_code` | `apkVersionCode` (kolom DB) | `versionCode` di AndroidManifest |
 > | `version_name` | `latestVersion` / `apkVersionName` (kolom DB) | `versionName` di AndroidManifest |
-> | `apk_url` | `downloadUrl` | `download_url` di `app_versions`, default `storagePublicUrl('apks', 'app-<version>.apk')` |
+> | `apk_url` | `downloadUrl` | `app_versions.download_url` (disimpan **relatif**: `/files/apks/app-<versi>.apk`) |
+
+Path disimpan relatif supaya tetap valid saat alamat IP PC kantor berubah;
+server menyelesaikan path relatif terhadap origin request yang sedang melayani
+klien.
 
 Kode status yang ditangani klien:
 
@@ -120,21 +155,26 @@ Kode status yang ditangani klien:
 ### 3.2 Unduh APK (binary)
 
 ```
-GET https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk?t=...
-→ 200 application/vnd.android.package-archive   (≈16 MB, streaming)
+GET http://192.168.1.123:3000/files/apks/app-1.0.3.apk?t=...
+→ 200 application/vnd.android.package-archive   (≈16 MB)
 ```
 
-Bucket `apks` ber-izin **public read**; tidak perlu signed URL. URL absolut dari server langsung dipakai apa adanya. (Bila `downloadUrl` relatif, `resolveDownloadUrl()` menempelkannya ke `api.baseUrl` — bukan ke origin — agar path `/api/...` tidak jadi `/api/api/...`.)
+Disajikan langsung dari disk server oleh `serveStoredFile()`
+(`server/api/_db.ts`), tanpa lewat database. Path `/api/files/...` juga
+diterima karena sebagian klien menyusun URL dari base URL API.
 
 ### 3.3 Laporkan Versi Perangkat (telemetry)
 
 ```
-POST /functions/v1/api/report-version
+POST /api/report-version
 Content-Type: application/json
 { "deviceId": "<uuid>", "version": "1.0.3", "platform": "android" }
 ```
 
-Dipanggil otomatis oleh `refreshInstalledVersion()` **hanya ketika versi native benar-benar berubah** — yaitu setelah APK baru benar-benar terpasang, bukan setelah paket selesai diunduh. Ini yang mencegah klaim "sudah update" yang palsu.
+Dipanggil otomatis oleh `refreshInstalledVersion()` **hanya ketika versi native
+benar-benar berubah** — yaitu setelah APK baru benar-benar terpasang, bukan
+setelah paket selesai diunduh. Ini yang mencegah klaim "sudah update" yang
+palsu.
 
 ---
 
@@ -148,7 +188,9 @@ Dipanggil otomatis oleh `refreshInstalledVersion()` **hanya ketika versi native 
 * **INTERNET** — wajib untuk cek versi & unduh APK.
 * **REQUEST_INSTALL_PACKAGES** — wajib agar sistem mengizinkan instalasi APK dari luar Play Store. Tanpa ini, `Intent ACTION_VIEW` ke installer ditolak.
 
-`WRITE_EXTERNAL_STORAGE` **tidak ada** dan **tidak diperlukan**: APK diunduh ke `Directory.Data` = `getFilesDir()` (storage privat aplikasi), yang tidak butuh izin storage pada Android modern. Menambahkan izin tersebut justru memperbesar permintaan izin tanpa ada gunanya.
+`WRITE_EXTERNAL_STORAGE` **tidak ada** dan **tidak diperlukan**: APK diunduh
+ke `Directory.Data` = `getFilesDir()` (storage privat aplikasi), yang tidak
+butuh izin storage pada Android modern.
 
 ### 4.1 Registrasi FileProvider
 
@@ -168,12 +210,14 @@ Dipanggil otomatis oleh `refreshInstalledVersion()` **hanya ketika versi native 
 ```xml
 <paths>
     <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <cache-path name="my_cache" path="." />
     <files-path name="app_files" path="." />   <!-- ← Directory.Data -->
 </paths>
 ```
 
-Tanpa entri `files-path`, `FileProvider` melempar `IllegalArgumentException: Failed to find configured root` dan installer tidak pernah terbuka.
+Tanpa entri `files-path`, `FileProvider` melempar
+`IllegalArgumentException: Failed to find configured root` dan installer tidak
+pernah terbuka.
 
 ---
 
@@ -195,11 +239,17 @@ src/services/updateService.ts  → installUpdate()
 ```
 
 **Mengapa `ACTION_VIEW` + `FileProvider` (bukan `file://` langsung):**
-Android 7+ (`FileUriExposedException`) melarang intent ke `file://`. `FileProvider` menerjemahkan path absolut di `getFilesDir()` menjadi `content://com.plantation.tripangkut.fileprovider/...` yang aman & complies.
-`FLAG_GRANT_READ_URI_PERMISSION` wajib — installer berjalan di proses berbeda sehingga harus diberi izin baca eksplisit.
-`FLAG_ACTIVITY_NEW_TASK` wajib karena `startActivity` dipanggil dari `Plugin` yang tidak berganti Activity.
+Android 7+ (`FileUriExposedException`) melarang intent ke `file://`.
+`FileProvider` menerjemahkan path absolut di `getFilesDir()` menjadi
+`content://com.plantation.tripangkut.fileprovider/...` yang aman.
+`FLAG_GRANT_READ_URI_PERMISSION` wajib — installer berjalan di proses berbeda.
+`FLAG_ACTIVITY_NEW_TASK` wajib karena `startActivity` dipanggil dari `Plugin`
+yang tidak berganti Activity.
 
-**Konsekuensi penting:** installer yang terbuka **bukan** berarti versi terpasang. Pengguna bisa membatalkan. `installUpdate()` karena itu **tidak** menulis versi baru; versi hanya dianggap sah setelah `App.getInfo()` mengembalikan `1.0.3` saat aplikasi hidup lagi.
+**Konsekuensi penting:** installer yang terbuka **bukan** berarti versi
+terpasang. Pengguna bisa membatalkan. `installUpdate()` karena itu **tidak**
+menulis versi baru; versi hanya dianggap sah setelah `App.getInfo()`
+mengembalikan `1.0.3` saat aplikasi hidup lagi.
 
 ---
 
@@ -207,12 +257,24 @@ Android 7+ (`FileUriExposedException`) melarang intent ke `file://`. `FileProvid
 
 Tidak ada pembaruan otomatis. Invarian yang dijaga kode:
 
-1. `appUpdate.check()` **hanya** dipanggil dari `ProfileScreen.checkNow()` (tombol "Cek Update"). Komponen `UpdateNotifier` default-export tidak di-mount di mana pun → tidak ada polling, tidak ada cek saat startup.
-2. `App.tsx` pada `appStateChange(isActive)` hanya memanggil `appUpdate.syncInstalledVersion()` — membaca versi native lokal, **tidak** melakukan request jaringan.
-3. `AppUpdateController.check()` memakai guard `_checking` sehingga klik ganda tidak memicu dua proses unduh.
-4. `LOCALHOST_UPDATE_DISABLED` mematikan seluruh alur update ketika dijalankan di `localhost`/port dev, agar build lokal tidak memicu unduhan APK.
+1. `appUpdate.check()` **hanya** dipanggil dari `ProfileScreen.checkNow()`
+   (tombol di halaman Profil). Komponen `UpdateNotifier` default-export tidak
+   di-mount di mana pun → tidak ada polling, tidak ada cek saat startup.
+2. `App.tsx` pada `appStateChange(isActive)` hanya memanggil
+   `appUpdate.syncInstalledVersion()` — membaca versi native lokal, **tidak**
+   melakukan request jaringan.
+3. `AppUpdateController.check()` memakai guard `_checking` sehingga klik ganda
+   tidak memicu dua proses unduh.
+4. `LOCALHOST_UPDATE_DISABLED` mematikan seluruh alur update ketika dijalankan
+   di `localhost`/port dev, agar build lokal tidak memicu unduhan APK.
 
-Dengan invarian ini, satu-satunya jalan menuju instalasi baru adalah: **petugas membuka Profil → menekan tombol**.
+Dengan invarian ini, satu-satunya jalan menuju instalasi baru adalah:
+**petugas membuka Profil → menekan tombol**.
+
+> Catatan: **unduhan** dan **pemasangan** itu dua hal berbeda. Unduhan terjadi
+> sebagai bagian dari "Cek & Perbarui" (tombol yang sama). **Pemasangan**
+> (installer Android) hanya terjadi setelah petugas menekan tombol
+> "Perbarui Sekarang" — tidak pernah otomatis.
 
 ---
 
@@ -227,21 +289,23 @@ Dengan invarian ini, satu-satunya jalan menuju instalasi baru adalah: **petugas 
    ┌───────────────────────────────────────────────────────────┐
    │  state.status      │ kind  │ version │  label tombol     │
    ├────────────────────┼───────┼─────────┼───────────────────┤
-   │ idle / offline     │  –    │   –     │ "Cek Update"      │
+   │ idle / offline     │  –    │   –     │ "Cek & Perbarui"  │
    │ checking           │  –    │   –     │ "Memeriksa…"      │
    │ downloading        │ apk   │ 1.0.3   │ "Mengunduh…"       │
-   │ ready              │ apk   │ 1.0.3   │ "Update Sekarang"  │ ← hijau
+   │ ready              │ apk   │ 1.0.3   │ "Perbarui Sekarang"│ ← hijau
    │ installing         │ apk   │ 1.0.3   │ "Memasang…"        │
    │ up-to-date         │  –    │   –     │ "Sudah Terbaru"    │ (disabled)
    │ error              │ apk   │   –     │ "Coba Lagi"        │
    └────────────────────┴───────┴─────────┴───────────────────┘
 ```
 
-Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal modul web tidak dievaluasi. Badge hijau "Paket APK 1.0.3 siap dipasang" muncul di bawah tombol, memberi instraksi eksplisit — satu tombol, tanpa menebak.
+Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal
+modul web tidak dievaluasi. Badge hijau "Paket APK 1.0.3 siap dipasang" muncul
+di bawah tombol, memberi instruksi eksplisit — satu tombol, tanpa menebak.
 
 ---
 
-## 8. Model Data (Supabase PostgreSQL)
+## 8. Model Data (PostgreSQL lokal)
 
 ### 8.1 `app_versions` — metadata rilis
 
@@ -249,16 +313,20 @@ Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal mo
 |---|---|---|
 | `id` | `uuid` | PK |
 | `version` | `text` UNIQUE | `1.0.3` (harus cocok `^\d+\.\d+\.\d+$`) |
-| `download_url` | `text` | URL Storage publik `…/apks/app-1.0.3.apk` |
+| `download_url` | `text` | `/files/apks/app-1.0.3.apk` (relatif) |
 | `release_date` | `timestamptz` | timestamp publikasi |
 | `release_notes` | `text` | catatan rilis |
 | `is_force_update` | `boolean` | `false` (manual, tidak dipaksa) |
-| `min_version` | `text` | `null` |
-| `apk_size` | `bigint` | `16345176` |
-| `apk_hash` | `text` | SHA-256 hex `ea519980…` |
+| `min_version` | `text` | `1.0.2` |
+| `apk_size` | `bigint` | `16361480` |
+| `apk_hash` | `text` | SHA-256 hex `0ffac76a…` |
 | `apk_version_name` | `text` | `1.0.3` (nama versi **di dalam** APK) |
-| `apk_version_code` | `integer` | `6` (kode versi **di dalam** APK) |
+| `apk_version_code` | `integer` | `12` (kode versi **di dalam** APK) |
 | `created_at` / `updated_at` | `timestamptz` | default `now()` |
+
+> **`version` itu UNIQUE.** consequence: satu versi hanya boleh terbit satu
+> kali. Publish kedua untuk versi yang sama ditolak `500` — lihat
+> `cheatsheet.md` §4.
 
 ### 8.2 `device_versions` — versi terpasang per perangkat
 
@@ -274,57 +342,63 @@ Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal mo
 ## 9. Ringkasan Alur End-to-End (v1.0.2 → v1.0.3)
 
 ```
- PETUGAS                EDGE FUNCTION            STORAGE            DB            ANDROID
-   │                        │                     │                 │              │
-   │── buka Profil ─────────┤                     │                 │              │
-   │── tekan "Cek Update" ──▶│                     │                 │              │
-   │                        │── SELECT app_versions (latest) ────────▶│              │
-   │                        │◀─ 1.0.3, hash, url ────────────────────│              │
-   │◀─ 200 metadata ────────│                     │                 │              │
-   │                        │                     │                 │              │
-   │── GET app-1.0.3.apk ─────────────────────────▶│                 │              │
-   │◀─ binary 16 MB ──────────────────────────────│                 │              │
-   │                        │                     │                 │              │
-   │  [verifikasi SHA-256 vs apkHash]              │                 │              │
-   │  simpan → getFilesDir()/updates/app-1.0.3.apk │                 │              │
-   │                        │                     │                 │              │
-   │── tekan "Update Sekarang" ──────────────────────────────────────────────▶│
-   │                        │                     │                 │   ACTION_VIEW│
-   │                        │                     │                 │   FileProvider
-   │                        │                     │                 │   → dialog   │
-   │── setujui dialog ─────────────────────────────────────────────────────▶│
-   │                        │                     │                 │   terpasang  │
-   │                        │                     │                 │              │
-   │── app dibuka lagi → App.getInfo() = 1.0.3 ─────────────────────────────▶│
-   │                        │                     │                 │              │
-   │                        │◀─ POST /report-version {1.0.3} ────────│              │
-   │   "Aplikasi sudah versi terbaru"            │                 │              │
+ PETUGAS               SERVER INTRANET            DISK            ANDROID
+   │                        │                     │                 │
+   │── buka Profil ─────────┤                     │                 │
+   │── tekan "Cek & Perbarui" ▶│                  │                 │
+   │                        │── SELECT app_versions (latest) ─▶ DB    │
+   │                        │◀─ 1.0.3, hash, url ──────────────│      │
+   │◀─ 200 metadata ────────│                     │                 │
+   │                        │                     │                 │
+   │── GET /files/apks/app-1.0.3.apk ────────────▶│                 │
+   │◀─ binary 16 MB ─────────────────────────────│                 │
+   │  [verifikasi SHA-256 vs apkHash]             │                 │
+   │  simpan → getFilesDir()/updates/app-1.0.3.apk                  │
+   │                        │                     │                 │
+   │── tekan "Perbarui Sekarang" ─────────────────────────────────────▶│
+   │                        │                     │   ACTION_VIEW   │
+   │                        │                     │   FileProvider   │
+   │── setujui dialog ──────────────────────────────────────────────▶│
+   │                        │                     │   terpasang      │
+   │── app dibuka lagi → App.getInfo() = 1.0.3 ─────────────────────▶│
+   │                        │◀─ POST /report-version {1.0.3} ──│      │
+   │   "Aplikasi sudah versi terbaru"                                  │
 ```
 
 ---
 
-## 10. Kenapa Arsitektur Ini (dan Kenapa OTA Lama Dihapus)
+## 10. Kenapa Arsitektur Ini
 
-**Kegagalan OTA lama (dokumentasi di `OTA-UPDATE-SYSTEM.md`):** manifest & aset pernah tidak ikut ter-*stage* ke repo publish (`.gitignore` memblokir `version.json`), sehingga klien menerima `404` → update selalu tampil "tidak ada pembaruan" berapa kali pun rilis dibuat. Ditambah patching binary di WebView Android selalu menyisakan cache & state lawas sehingga "update kedua" selalu gagal dan menuntut "Clear Data" manual.
-
-**Arsitektur sekarang menjamin:**
-* Satu endpoint, satu sumber kebenaran (tabel `app_versions`), tanpa risiko manifest yang hilang.
-* Full package (bukan delta) → tidak ada state patch parsial yang bisa rusak.
-* SHA-256 diverifikasi **sebelum** installer ditawarkan → paket rusak atau terpotong terdeteksi, bukan dipasang.
-* Metadata & biner dipisah → query versi tetap ringan walau APK 16 MB.
-* Pemicu manual → petugas tidak pernah dipaksa mengunduh 16 MB di jaringan seluler tanpa ia tahu.
+* **Satu endpoint, satu sumber kebenaran** (tabel `app_versions`), tanpa
+  risiko manifest modul yang hilang seperti pada OTA lawas.
+* **Full package (bukan delta)** → tidak ada state patch parsial yang bisa
+  rusak, dan tidak ada cache lawas di WebView yang menuntut "Clear Data".
+* **SHA-256 diverifikasi sebelum installer ditawarkan** → paket rusak atau
+  terpotong terdeteksi, bukan dipasang.
+* **Metadata & biner dipisah** → query versi tetap ringan walau APK 16 MB.
+* **Berkas di disk kantor** → pembaruan tetap bisa ditarik saat internet mati.
+* **Pemicu manual** → petugas tidak pernah dipaksa mengunduh 16 MB tanpa ia
+  tahu.
 
 ---
 
 ## 11. Catatan & Kendala Aktual
 
-> **Penting untuk pembaca dokumen ini.** Kanal modul web yang masih ada di repository (`src/services/ota.ts`, `/ota-manifest`, `/publish-ota`, tabel `ota_bundles`, berkas `version.json` versi `1.0.4+…`) **belum dihapus secara fisik** pada rilis `1.0.3`. Rilis ini berfokus pada jalur **full package APK**; jalur modul web masih hidup sebagai kanal cadangan dan dipanggil *hanya* bila kanal APK tidak menyediakan paket baru (`appUpdate.runCheck()` → `apkInfo?.updateAvailable && updateService.state === 'ready'`).
-
-* Kontrak "OTA dihapus permanen" berarti penghapusan total kode modul (`ota.ts`, `sw.js`, `publish-ota`, `ota_bundles`) pada rilis berikutnya — **belum** dilakukan pada `1.0.3`.
-* Rilis `1.0.3` tidak mengubah logika fungsional apa pun; hanya menaikkan versi dan memverifikasi paket penuh.
-* Metadata rilis pada server saat dokumen ini dibuat masih menunjuk `1.0.1`, dan objek `apks/app-1.0.1.apk` **tidak ada** di bucket Storage (404 `NoSuchKey`). Upload `app-1.0.3.apk` + insert baris `app_versions` adalah langkah yang wajib dijalankan sebelum uji lapangan (perintah ada di `cheatsheet.md` §2).
-* Bucket `apks` **wajib** public read; tanpa itu `downloadUrl` menghasilkan 400/403 dan unduhan selalu gagal.
-* `app_versions.version` **wajib** semver murni (`1.0.3`, tanpa `+timestamp`) karena `publish-version` menolak format lain, dan `compareVersionsNoStamp()` membuang stempel sebelum perbandingan.
+* Kanal modul web (`src/services/ota.ts`, `/ota-manifest`, `/publish-ota`,
+  tabel `ota_bundles`, berkas `version.json` versi `1.0.5+…`) **masih hidup**
+  sebagai kanal cadangan dan hanya dipanggil bila kanal APK tidak
+  menyediakan paket baru. **Jangan** menaikkan versi APK ke nilai `version.json`
+  — keduanya dua garis versi yang terpisah.
+* `app_versions.version` **wajib** semver murni (`1.0.3`, tanpa `+timestamp`)
+  karena `publish-version` menolak format lain.
+* APK harus ditandatangani **keystore yang sama** dengan versi yang terpasang
+  di HP, dan `versionCode` harus naik. Keduanya dicek sebelum rilis (lihat
+  `cheatsheet.md` §3).
+* Endpoint `publish-version` **menyimpan berkas ke disk lebih dulu, baru
+  menulis baris database**. Bila baris gagal ditulis (versi sudah ada),
+  berkas baru sudah ada di disk sementara hash di database masih yang lama →
+  perangkat reporting "Hash APK tidak cocok". Pakai `publish-apk-republish.mjs`
+  untuk|Publication ulang versi yang sama.
 
 ---
 
@@ -332,8 +406,10 @@ Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal mo
 
 | Topik | Lokasi |
 |---|---|
-| Handler versi | `supabase/functions/api/handlers/appVersion.ts` |
-| Routing endpoint | `supabase/functions/api/index.ts` (bagian "app update / OTA", baris ~248–259) |
+| Handler versi | `server/api/handlers/appVersion.ts` |
+| Routing endpoint | `server/api/index.ts` (bagian "app update / OTA") |
+| Penyimpanan berkas lokal | `server/api/_db.ts` (`serveStoredFile`, `db.storage`) |
+| Server intranet (Deno) | `server/api/local_server.ts` |
 | State machine update | `src/services/updateService.ts` |
 | Adapter installer | `src/services/apkInstaller.ts` |
 | Controller Above UI | `src/services/appUpdate.ts` |
@@ -341,4 +417,5 @@ Kanal APK diperiksa **lebih dulu**; bila server menyediakan paket baru, kanal mo
 | Plugin native | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` |
 | Manifest & FileProvider | `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/res/xml/file_paths.xml` |
 | Versi build | `android/app/build.gradle` (`versionCode` / `versionName`), `package.json` |
-| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/verify-apks.mjs`, `scripts/sync-version.mjs` |
+| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/publish-apk-republish.mjs`, `scripts/sync-version.mjs`, `scripts/publish-ota-server.mjs` |
+| Dokumen lain | `user guide/workflow.md`, `user guide/cheatsheet.md` |

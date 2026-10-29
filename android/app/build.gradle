@@ -27,12 +27,12 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.0.2 (versionCode 11). Entri 1.0.3 sudah dihapus dari
-        // app_versions, jadi 1.0.2 adalah versi terbaru di server. Code 11
-        // tetap lebih besar dari code rilis sebelumnya, jadi Android menerima
-        // upgrade-nya.
-        versionCode 11
-        versionName "1.0.2"
+        // Rilis 1.0.3 (versionCode 12) - paket pembaruan, diterbitkan ke server API.
+        // intranet sebagai versi pembaruan (install full package / APK),
+        // sehingga perangkat yang masih di 1.0.2 bisa menariknya lewat
+        // tombol "Perbarui Aplikasi" di halaman Profil.
+        versionCode 12
+        versionName "1.0.3"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

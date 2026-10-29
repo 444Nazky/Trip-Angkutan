@@ -1,136 +1,217 @@
-# Cheatsheet & Referensi API — Update Aplikasi Trip Angkutan v1.0.3
+# Cheatsheet & Referensi API — Update Aplikasi Trip Angkutan
 
 > **Rujukan cepat** untuk rilis full-package `1.0.3` (dari `1.0.2`).
-> Semua perintah dijalankan dari root repo: `/home/nazky/RPL/Intern/Aplikasi-Trip-Main Branch`
+> Semua perintah dijalankan dari root repo: `/home/nazky/RPL/Intern/Trip-Angkutan`
+> Server rilis (LAN kantor): `http://192.168.1.123:3000/api`
 
 ---
 
 ## 1. Ringkasan dalam Satu Baris
 
 ```bash
-# naikkan versi (package.json + build.gradle; JANGAN sentuh version.json — lihat catatan §5.1)
-node -e "const f='package.json',fs=require('fs');const j=JSON.parse(fs.readFileSync(f));j.version='1.0.3';fs.writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
-sed -i 's/versionCode 5/versionCode 6/; s/versionName "1.0.2"/versionName "1.0.3"/' android/app/build.gradle
+# 1) naikkan versi paket APK (package.json + android/app/build.gradle)
+node scripts/sync-version.mjs 1.0.3 --code=12
 
-# build APK penuh
-npm run build && (cd android && ./gradlew assembleRelease)
+# 2) build APK penuh
+npm run build && npx cap sync android && (cd android && ./gradlew assembleRelease)
 
-# verifikasi isi APK
-~/android-sdk/build-tools/35.0.0/aapt dump badging "android/app/build/outputs/apk/release/Aplikasi Trip-release.apk" | head -1
+# 3) verifikasi isi APK (versi, sertifikat, hash)
+APK="android/app/build/outputs/apk/release/Aplikasi Trip-release.apk"
+~/android-sdk/build-tools/34.0.0/aapt2 dump badging "$APK" | head -1
+~/android-sdk/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -3
+sha256sum "$APK"; stat -c%s "$APK"
 
-# upload ke Supabase Storage (bucket `apks`)
-supabase storage cp "android/app/build/outputs/apk/release/Aplikasi Trip-release.apk" \
-  ss:///apks/app-1.0.3.apk --linked --experimental \
-  --content-type "application/vnd.android.package-archive"
+# 4) terbitkan ke server API intranet
+node scripts/publish-apk.mjs --apk="$APK" --version=1.0.3 --notes="Rilis 1.0.3"
 
-# daftarkan metadata rilis (SQL Editor — CARA INI DISARANKAN untuk APK > 15 MB)
-#   lihat §2.4 untuk query INSERT lengkap
-#   (publish-apk.mjs mengirim base64 dan kena batas body Edge Function 20 MiB)
+# 5) pastikan perangkat mendeteksi
+curl -s "http://192.168.1.123:3000/api/app-version?current=1.0.2"
+#    → latestVersion: "1.0.3", updateAvailable: true
 ```
 
-> Untuk APK berukuran besar seperti `1.0.3` (15,6 MiB → base64 20,8 MiB), **jangan** mengandalkan `publish-apk.mjs`: payload base64 melewati batas 20 MiB body Edge Function dan request ditolak. Gunakan **upload Storage terpisah** (bagian 2.1) + **INSERT metadata via SQL Editor** (bagian 2.4). `publish-apk.mjs` tetap berguna untuk APK kecil.
+> **Penting — `version.json` JANGAN diubah untuk rilis paket APK.**
+> `version.json` adalah manifest **kanal modul web** (OTS), bukan versi APK.
+> Nilainya dikelola `scripts/publish-ota-server.mjs`. Mengubahnya ke versi APK
+> akan **menurunkan** versi modul dan membuat kanal cadangan tidak pernah
+> menawarkan pembaruan. `sync-version.mjs` sekarang tidak menyentuh berkas itu
+> (kecuali bila dipanggil dengan `--module`).
 
 ---
 
-## 2. Upload APK v1.0.3 ke Supabase Storage
-
-### 2.1 Opsi A — CLI (disarankan)
+## 2. Naikkan Versi
 
 ```bash
-# Pastikan CLI ter-login & project ter-link
-supabase login
-supabase link --project-ref bmiruktfruunegtbydyw
-
-# Pastikan bucket `apks` ada
-supabase storage ls --linked --experimental
-# → {"paths":["trip-photos/","apks/","ota/"], ...}
-
-# Upload (nama objek WAJIB app-<versi>.apk)
-supabase storage cp "android/app/build/outputs/apk/release/Aplikasi Trip-release.apk" \
-  ss:///apks/app-1.0.3.apk \
-  --linked --experimental \
-  --content-type "application/vnd.android.package-archive"
-
-# Verifikasi objek ada
-supabase storage ls ss:///apks --linked --experimental
-curl -I "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk"
-# → HTTP/2 200
+# Otomatis: package.json + android/app/build.gradle
+node scripts/sync-version.mjs 1.0.3 --code=12
 ```
 
-### 2.2 Opsi B — Supabase Dashboard
+| Argumen | Arti |
+|---|---|
+| `1.0.3` | versi paket (harus `X.Y.Z` murni) |
+| `--code=12` | `versionCode` baru (harus **naik**; tanpa flag = +1 dari yang ada) |
+| `--module` | ikut menulis `version.json` (hanya untuk rilis kanal modul) |
+| `--root=DIR` | root repo lain |
 
-1. Buka <https://supabase.com/dashboard> → project **444Nazky's Project**.
-2. Menu **Storage** → bucket **apks** → **Upload file**.
-3. Unggah `Aplikasi Trip-release.apk`.
-4. **Ganti nama** berkas menjadi `app-1.0.3.apk` (nama lain tidak akan ditemukan klien).
-5. Pastikan bucket **Public bucket = ON**.
+Skrip menolak bila `versionCode` tidak naik. Yang ditulis:
 
-> Nama objek harus persis `app-<versi>.apk`. `getAppVersion()` membangun default URL sebagai `storagePublicUrl('apks', 'app-' + latest.version + '.apk')`.
+| Berkas | Field |
+|---|---|
+| `android/app/build.gradle` | `versionCode 12`, `versionName "1.0.3"` |
+| `package.json` | `"version": "1.0.3"` |
 
-### 2.3 Opsi C — skrip publish (upload + metadata sekaligus)
+> **Perbaikan (2026-10-29):** `sync-version.mjs` dulu memakai regex polos
+> (`/versionCode\s+\d+/`) yang lebih dulu mengenai **baris komentar** di
+> `build.gradle` — Akibatnya `versionCode` asli tidak pernah naik (tetap 11)
+> dan Android menolak upgrade dengan `INSTALL_FAILED_VERSION_DOWNGRADE`.
+> Sekarang regex-nya hanya menyentuh baris deklarasi. **Selalu cek hasilnya:**
+> `grep -n "versionCode\|versionName" android/app/build.gradle`.
 
-> Perhatian **Hanya untuk APK kecil.** Skrip ini mengirim APK sebagai base64 di body JSON. Untuk `1.0.3` (15,6 MiB → base64 20,8 MiB) payload **melewati batas body Edge Function 20 MiB** dan request ditolak. Untuk `1.0.3` gunakan Opsi A + Opsi D (2.4). Opsi C tetap berguna untuk paket di bawah ~14 MiB.
+Manual (kalau lebih suka):
+
+```bash
+# android/app/build.gradle
+#   versionCode 12
+#   versionName "1.0.3"
+```
+
+---
+
+## 3. Build & Verifikasi Paket
+
+### 3.1 Build
+
+```bash
+npm run build                  # build web app → www/
+npx cap sync android           # salin www/ → android/app/src/main/assets/public
+cd android && ./gradlew assembleRelease
+# output: android/app/build/outputs/apk/release/Aplikasi Trip-release.apk
+```
+
+Folder keluaran rilis (arsip) — **dalam repo ini**:
+`/home/nazky/RPL/Intern/Trip-Angkutan/android/app/build/outputs/apk/release/`
+
+| Berkas | Isi |
+|---|---|
+| `Aplikasi Trip-release.apk` | hasil build Gradle terakhir (raw) |
+| `Aplikasi-Trip-v1.0.2-release.apk` | paket dasar yang dipasang ke HP petugas (code 11) |
+| `Aplikasi-Trip-v1.0.3-release.apk` | paket pembaruan yang diterbitkan ke server (code 12) |
+
+### 3.2 Verifikasi paket
+
+```bash
+APK="android/app/build/outputs/apk/release/Aplikasi Trip-release.apk"
+
+# 1) Versi di dalam APK (harus = versi yang dipublikasikan)
+~/android-sdk/build-tools/34.0.0/aapt2 dump badging "$APK" | head -1
+
+# 2) Sertifikat tanda tangan (HARUS sama dengan versi terpasang di HP)
+~/android-sdk/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -3
+
+# 3) Hash & ukuran (isi untuk tabel app_versions)
+sha256sum "$APK"
+stat -c%s "$APK"
+
+# 4) Isi web bundle di dalam APK cocok dengan build lokal
+unzip -p "$APK" assets/public/index.html | sha256sum
+sha256sum www/index.html
+```
+
+**Nilai yang harus keluar untuk rilis 1.0.3:**
+
+```
+package: name='com.plantation.tripangkut' versionCode='12' versionName='1.0.3' …
+Signer #1 certificate DN: CN=Trip Angkutan, OU=Mobile, O=444Nazky, L=Pontianak, C=ID
+Signer #1 certificate SHA-256 digest: 09f181c1c6fba02473345cfd515e49d0cc360c1dc6462eba7ddd3f72d4d3bce9
+```
+
+---
+
+## 4. Terbitkan ke Server API
+
+### 4.1 Versi BARU (belum pernah terbit)
 
 ```bash
 node scripts/publish-apk.mjs \
   --apk="android/app/build/outputs/apk/release/Aplikasi Trip-release.apk" \
   --version=1.0.3 \
-  --notes="Rilis full package 1.0.3 - verifikasi alur update manual (v1.0.2 ke v1.0.3)" \
+  --notes="Rilis full package 1.0.3" \
   --min-version=1.0.2
 ```
 
-Skrip ini: membaca APK → base64 → `POST /publish-version` → Edge Function menghitung SHA-256 & ukuran → mengunggah ke bucket `apks` sebagai `app-1.0.3.apk` → insert baris `app_versions`.
+Yang terjadi di server (`server/api/handlers/appVersion.ts` → `publishVersion()`):
 
-**Sekret:** header `x-publish-secret`, nilai dari env `PUBLISH_SECRET` (default repo: `trip-angkut-secret`).
+1. Header `x-publish-secret` diperiksa (bawaan `trip-angkut-secret`).
+2. `apkBase64` di-decode → SHA-256 + ukuran dihitung.
+3. Berkas diunggah ke bucket `apks` sebagai **`app-<versi>.apk`** (lokasi disk
+   server: `STORAGE_DIR/apks/app-<versi>.apk`).
+4. Baris `app_versions` di-INSERT.
 
-Skrip juga memverifikasi bahwa `versionName` di dalam APK cocok dengan `--version` dan **menolak** bila beda — proteksi terhadap penerbitan paket salah label (bug yang pernah membuat versi di HP tidak pernah naik).
+Skrip juga **menolak** bila `versionName` di dalam APK ≠ `--version` — proteksi
+terhadap penerbitan paket salah label (bug yang pernah membuat versi di HP
+tidak pernah naik).
 
-### 2.4 Insert metadata `app_versions` manual (via SQL Editor) — **disarankan untuk 1.0.3**
-
-```sql
-INSERT INTO app_versions (
-  version, download_url, release_date, release_notes,
-  is_force_update, min_version, apk_size, apk_hash,
-  apk_version_name, apk_version_code
-) VALUES (
-  '1.0.3',
-  'https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk',
-  now(),
-  'Rilis full package 1.0.3 - verifikasi alur update manual (v1.0.2 ke v1.0.3)',
-  false,
-  '1.0.2',
-  16345176,
-  'ea51998095b8da0cbc6d11c686573274fbd311dd54b4cca13e578cccc47b51fc',
-  '1.0.3',
-  6
-)
-ON CONFLICT (version) DO UPDATE SET
-  download_url = EXCLUDED.download_url,
-  release_notes = EXCLUDED.release_notes,
-  apk_size = EXCLUDED.apk_size,
-  apk_hash = EXCLUDED.apk_hash,
-  apk_version_name = EXCLUDED.apk_version_name,
-  apk_version_code = EXCLUDED.apk_version_code,
-  updated_at = now();
-```
-
-Isi `apk_hash` **wajib** diambil dari berkas yang benar-benar di-upload:
+### 4.2 Versi yang SUDAH pernah terbit (terbit ulang)
 
 ```bash
-sha256sum "android/app/build/outputs/apk/release/Aplikasi Trip-release.apk"
-stat -c%s "android/app/build/outputs/apk/release/Aplikasi Trip-release.apk"
+node scripts/publish-apk-republish.mjs \
+  --apk="android/app/build/outputs/apk/release/Aplikasi Trip-release.apk" \
+  --version=1.0.3 \
+  --notes="Uji pembaruan: install full package (APK) lewat tombol Perbarui Aplikasi di halaman Profil."
 ```
+
+**Kenapa skrip ini perlu ada.** `app_versions.version` bertipe `UNIQUE`.
+Publish kedua untuk versi yang sama ditolak `500` — padahal **berkas APK-nya
+sudah tersimpan** di disk (upload terjadi sebelum insert). Akibatnya berkas di
+server versi baru, sementara `apk_hash` di database masih hash versi lama →
+perangkat reporting **"Hash APK tidak cocok"** dan tombol update tidak pernah
+berhasil.
+
+Skrip `publish-apk-republish.mjs` memakai endpoint `POST /api/admin/import`
+(mode `replace`, khusus tabel `app_versions`):
+
+1. Metadata versi lain di server dikumpulkan ulang (tanggal, catatan, hash
+   & ukuran dihitung dari berkas yang benar-benar tersimpan di disk server).
+2. Baris versi target ditulis ulang dengan hash/ukuran/`versionName`/
+   `versionCode` yang benar.
+3. Berkas APK dikirim ulang ke bucket `apks`.
+4. Hasil diverifikasi: unduh ulang berkasnya dari server, bandingkan hash-nya
+   dengan hash di database.
+
+Opsi:
+
+| Argumen | Arti |
+|---|---|
+| `--dry-run` | tampilkan rencana (baris yang akan ditulis) tanpa menulis |
+| `--notes="…"` | catatan rilis |
+| `--min-version=1.0.2` | versi minimum yang didukung (dipaksa untuk update wajib) |
+| `--force-update` | tandai sebagai pembaruan wajib (modal penuh, tidak bisa ditutup) |
+| `--server=URL` | alamat server lain |
+| `--token=…` | token admin, bila server tidak memakai `ADMIN_AUTH_DISABLED=1` |
+
+> Server intranet biasanya berjalan dengan `ADMIN_AUTH_DISABLED=1`, sehingga
+> request tanpa token tetap dianggap admin. Kalau tidak, pakai `--token`.
+
+### 4.3 Kanal modul web (opsional, bukan jalur rilis APK)
+
+```bash
+npm run ota:publish -- --notes="…"
+# atau
+node scripts/publish-ota-server.mjs --notes="…"
+```
+
+Kanal ini Publish bundel web (`www/`) dan **tidak berkaitan** dengan versi
+paket APK. Jangan dipakai untuk uji tombol update versi ini.
 
 ---
 
-## 3. Skema JSON — Endpoint Cek Versi
+## 5. Skema JSON — Endpoint Cek Versi
 
-### 3.1 `GET /app-version?current=1.0.2`
+### 5.1 `GET /app-version?current=1.0.2`
 
 **Request:**
 
 ```http
-GET /functions/v1/api/app-version?current=1.0.2&t=1758540000000
+GET /api/app-version?current=1.0.2&t=1758540000000
 Accept: application/json
 ```
 
@@ -141,36 +222,31 @@ Accept: application/json
   "latestVersion": "1.0.3",
   "updateAvailable": true,
   "isForceUpdate": false,
-  "downloadUrl": "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk",
-  "releaseNotes": "Rilis full package 1.0.3 - verifikasi alur update manual (v1.0.2 ke v1.0.3)",
-  "apkSize": 16345176,
-  "apkHash": "ea51998095b8da0cbc6d11c686573274fbd311dd54b4cca13e578cccc47b51fc",
+  "downloadUrl": "http://192.168.1.123:3000/files/apks/app-1.0.3.apk",
+  "releaseNotes": "Uji pembaruan: install full package (APK) …",
+  "apkSize": 16361480,
+  "apkHash": "0ffac76a703e2372ef643a31767e4c96f4b47093bfada49fb3cf879f84aea77e",
   "minVersion": "1.0.2",
-  "releaseDate": "2026-10-22T08:00:00+00:00",
+  "releaseDate": "2026-10-29T02:53:27.409+00:00",
   "apkAvailable": true
 }
 ```
 
-**Response `404`** — belum ada API versi / tidak ada baris rilis:
+**Response `404`** — belum ada baris rilis:
 
 ```json
-{
-  "latestVersion": "1.0.2",
-  "updateAvailable": false,
-  "downloadUrl": null,
-  "releaseNotes": null
-}
+{ "latestVersion": "1.0.2", "updateAvailable": false, "downloadUrl": null, "releaseNotes": null }
 ```
 
 **Response `500`:**
 
 ```json
-{ "error": "VERSION_CHECK_FAILED", "message": "Gagal memeriksa versi" }
+{ "error": "VERSION_CHECK_FAILED", "message": "Gagal membaca versi" }
 ```
 
-### 3.2 Padanan nama field (spesifikasi ↔ API produksi)
+### 5.2 Padanan nama field
 
-| Konsep spesifikasi | Field API produksi | Tipe | Sumber nilai |
+| Konsep | Field API produksi | Tipe | Sumber nilai |
 |---|---|---|---|
 | `version_name` | `latestVersion` | `string` | `app_versions.version` |
 | `version_name` (di dalam APK) | `apkVersionName` | `string` | `versionName` di AndroidManifest |
@@ -185,18 +261,22 @@ Accept: application/json
 | — | `releaseDate` | `string` | `app_versions.release_date` (ISO-8601) |
 | — | `apkAvailable` | `boolean` | selalu `true` bila baris ada |
 
-### 3.3 Endpoint lain
+### 5.3 Endpoint lain
 
 | Endpoint | Method | Keterangan |
 |---|---|---|
 | `/app-version?current=<v>` | GET | Cek versi (dipakai klien) |
-| `/app-download/<versi>` | GET | `302` redirect ke URL Storage |
+| `/app-download/<versi>` | GET | `302` redirect ke berkas lokal |
 | `/release-notes/<versi>` | GET | Catatan rilis terstruktur (`notes[]` dengan `type`: feature/bugfix/security/improvement) |
 | `/apk-list` | GET | Daftar seluruh versi yang terdaftar |
 | `/report-version` | POST | Laporan versi terpasang per perangkat |
 | `/device-versions` | GET | Rekap versi perangkat (butuh admin) |
 | `/publish-version` | POST | Publikasi rilis (butuh `x-publish-secret`) |
-| `/ota-manifest`, `/ota-versions`, `/publish-ota` | GET/POST | Kanal modul web — kanal cadangan, bukan jalur rilis 1.0.3 |
+| `/admin/import` | POST | Impor massal (dipakai `publish-apk-republish.mjs`) |
+| `/ota-manifest`, `/ota-versions`, `/publish-ota` | GET/POST | Kanal modul web — kanal cadangan |
+
+Berkas APK disajikan di luar prefix `/api`:
+`GET http://192.168.1.123:3000/files/<bucket>/<path>` → `apks/app-<versi>.apk`.
 
 **Contoh `POST /report-version`:**
 
@@ -206,192 +286,50 @@ Accept: application/json
 
 ---
 
-## 4. Izin Android Manifest
-
-### 4.1 Izin yang wajib ada
-
-```xml
-<!-- Internet: cek versi + unduh APK -->
-<uses-permission android:name="android.permission.INTERNET" />
-
-<!-- Izin instalasi paket dari luar Play Store -->
-<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-```
-
-### 4.2 `WRITE_EXTERNAL_STORAGE`
-
-```xml
-<!-- TIDAK dipakai — jangan ditambahkan -->
-<!-- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> -->
-```
-
-| Izin | Status di repo | Alasan |
-|---|---|---|
-| `INTERNET` | OK ada | Wajib untuk request API & unduhan APK |
-| `REQUEST_INSTALL_PACKAGES` | OK ada | Wajib agar `Intent ACTION_VIEW` ke installer diizinkan |
-| `WRITE_EXTERNAL_STORAGE` | Tidak tidak ada, **dan tidak perlu** | APK diunduh ke `Directory.Data` = `getFilesDir()` (storage privat aplikasi). Tidak butuh izin storage pada Android modern. Menambahnya hanya memperbesar permintaan izin. |
-
-> Catatan: `WRITE_EXTERNAL_STORAGE` bahkan sudah deprecated sejak Android 10 (API 29). Pada Android 13+ (API 33+) digantikan `READ_MEDIA_*` yang juga tidak relevan di sini.
-
-### 4.3 Izin lain yang sudah ada di repo (tidak terkait update)
-
-`ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`, `CAMERA` — untuk fitur geofence & swafoto.
-
-### 4.4 Registrasi FileProvider (wajib)
-
-```xml
-<provider
-    android:name="androidx.core.content.FileProvider"
-    android:authorities="${applicationId}.fileprovider"
-    android:exported="false"
-    android:grantUriPermissions="true">
-    <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
-               android:resource="@xml/file_paths" />
-</provider>
-```
-
-### 4.5 Cleartext ke server LAN kantor (WAJIB untuk kirim data)
-
-Aplikasi native (Capacitor/Android WebView) memuat halaman dari origin lokal
-`https://localhost`. Dua hal WAJIB supaya request `http://192.168.1.123:3000`
-(server intranet) tidak diblokir:
-
-1. `capacitor.config.ts` → `android.allowMixedContent: true`
-2. salin juga ke `android/app/src/main/assets/capacitor.config.json` (file ini
-   yang dibaca runtime; `npx cap copy` menulis ulang isinya)
-
-Dikombinasikan dengan `res/xml/network_security_config.xml`
-(`cleartextTrafficPermitted="true"` untuk `192.168.1.123`).
-
-Tanpa ini: petugas tidak bisa kirim data ke server intranet saat seluler
-dimatikan, dan UI menampilkan "mixed content" walau Wi-Fi LAN sudah aktif.
-
----
-
-`res/xml/file_paths.xml` **wajib** memuat `files-path` (tempat `Directory.Data` berada):
-
-```xml
-<paths>
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
-    <files-path name="app_files" path="." />
-</paths>
-```
-
----
-
-## 5. Build & Verifikasi
-
-### 5.1 Naikkan versi
-
-```bash
-# Manual
-#   android/app/build.gradle : versionCode 6 / versionName "1.0.3"
-#   package.json             : "version": "1.0.3"
-
-# Otomatis (package.json + build.gradle + version.json)
-node scripts/sync-version.mjs 1.0.3 --code=6
-```
-
-> `sync-version.mjs` menaikkan `versionCode` **dengan syarat naik**; ia menolak nilai yang tidak naik. Opsi `--code=` memaksa nilai tertentu.
->
-> Perhatian **Perhatikan `version.json`.** Skrip ini juga menulis `version.json` menjadi `1.0.3+<timestamp>`. Berkas itu adalah manifest **kanal modul web** (saat ini `1.0.4+1792650248914`), bukan versi paket APK — menuliskannya dengan `1.0.3` akan **menurunkan** versi modul dan membuat kanal cadangan tidak pernah menawarkan pembaruan. Untuk rilis full-package, ubah `package.json` dan `android/app/build.gradle` **secara manual** (versi APK tidak bergantung pada `version.json`), atau kembalikan `version.json` ke nilainya semula setelah menjalankan skrip.
-
-### 5.2 Build
-
-```bash
-npm run build                 # build web app → www/
-cd android && ./gradlew assembleRelease
-# output: android/app/build/outputs/apk/release/Aplikasi Trip-release.apk
-```
-
-### 5.3 Verifikasi paket
-
-```bash
-APK="android/app/build/outputs/apk/release/Aplikasi Trip-release.apk"
-
-# 1) Versi & izin
-~/android-sdk/build-tools/35.0.0/aapt dump badging "$APK" | head -3
-
-# 2) Sertifikat tanda tangan (HARUS sama dengan versi terpasang)
-~/android-sdk/build-tools/35.0.0/apksigner verify --print-certs "$APK" | head -3
-
-# 3) Hash & ukuran (isi untuk tabel app_versions)
-sha256sum "$APK"
-stat -c%s "$APK"
-
-# 4) Isi web bundle di dalam APK cocok dengan build lokal
-unzip -p "$APK" assets/public/index.html | sha256sum
-sha256sum www/index.html
-```
-
-**Hasil yang diharapkan untuk 1.0.3:**
-
-```
-package: name='com.plantation.tripangkut' versionCode='6' versionName='1.0.3' …
-Signer #1 certificate DN: CN=Trip Angkutan, OU=Mobile, O=444Nazky, L=Pontianak, C=ID
-Signer #1 certificate SHA-256 digest: 09f181c1c6fba02473345cfd515e49d0cc360c1dc6462eba7ddd3f72d4d3bce9
-```
-
-### 5.4 Audit konsistensi APK vs metadata
-
-```bash
-node scripts/verify-apks.mjs
-```
-
-Menghasilkan `SEMUA APK & METADATA KONSISTEN` bila nama berkas, `versionName` di dalam APK, dan metadata rilis saling cocok. Exit code 1 bila ada ketidakcocokan.
-
-> Perhatian **Keterbatasan skrip di repo ini.** `verify-apks.mjs` memindai direktori `backend/apks` dan `backend/metadata/versions.json` — keduanya **tidak ada** di repositori ini (metadata rilis kini berada di Supabase: tabel `app_versions` + bucket `apks`). Karena targetnya tidak ditemukan, skrip keluar dengan kode 0 tanpa memeriksa apa pun. Untuk rilis `1.0.3` lakukan verifikasi manual memakai perintah di bagian 5.3 (aapt badging + apksigner + sha256) dan cocokkan dengan baris `app_versions` di server.
-
----
-
 ## 6. Verifikasi Setelah Publish
 
 ```bash
-# 1) Versi terbaru yang dilaporkan server
-curl -s "https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/app-version?current=1.0.2" | python3 -m json.tool
+SRV=http://192.168.1.123:3000
+
+# 1) Perangkat 1.0.2 → harus detecting update
+curl -s "$SRV/api/app-version?current=1.0.2" | python3 -m json.tool
 #    → latestVersion: "1.0.3", updateAvailable: true
 
-# 2) Dari perangkat 1.0.3 → tidak ada update
-curl -s "https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/app-version?current=1.0.3" | python3 -m json.tool
+# 2) Perangkat 1.0.3 → tidak ada update
+curl -s "$SRV/api/app-version?current=1.0.3" | python3 -m json.tool
 #    → updateAvailable: false
 
 # 3) APK benar-benar bisa diunduh
-curl -sI "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk" | head -3
-#    → HTTP/2 200, content-type: application/vnd.android.package-archive
+curl -sI "$SRV/files/apks/app-1.0.3.apk" | head -3
+#    → HTTP/1.1 200, content-type: application/vnd.android.package-archive
 
-# 4) Ukuran unduhan cocok dengan apkSize di DB
-curl -sI "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk" | grep -i content-length
+# 4) Hash berkas yang bisa diunduh HARUS sama dengan apkHash di respons
+curl -s "$SRV/files/apks/app-1.0.3.apk" | sha256sum
 
 # 5) Daftar versi terdaftar
-curl -s "https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/apk-list" | python3 -m json.tool
-```
+curl -s "$SRV/api/apk-list" | python3 -m json.tool
 
-**Hash yang diunduh harus cocok dengan `apk_hash` di DB:**
-
-```bash
-curl -s "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/app-1.0.3.apk" \
-  | sha256sum
-# harus sama dengan apkHash di respons /app-version
+# 6) Versi di dalam APK yang terunduh = versi yang dipublikasikan
+curl -s -o /tmp/cek.apk "$SRV/files/apks/app-1.0.3.apk"
+~/android-sdk/build-tools/34.0.0/aapt2 dump badging /tmp/cek.apk | head -1
 ```
 
 ---
 
-## 7. Nilai Rilis v1.0.3
+## 7. Nilai Rilis (terkini)
 
-| Atribut | Nilai |
-|---|---|
-| `version` | `1.0.3` |
-| `versionCode` | `6` |
-| `versionName` | `1.0.3` |
-| `applicationId` | `com.plantation.tripangkut` |
-| `minSdkVersion` | `24` (Android 7.0) |
-| `targetSdkVersion` | `36` |
-| Ukuran APK | `16345176` byte (≈15,6 MiB) |
-| SHA-256 | `ea51998095b8da0cbc6d11c686573274fbd311dd54b4cca13e578cccc47b51fc` |
-| Sertifikat SHA-256 | `09f181c1c6fba02473345cfd515e49d0cc360c1dc6462eba7ddd3f72d4d3bce9` |
-| Object path (Storage) | `apks/app-1.0.3.apk` |
-| Versi sebelumnya (terpasang) | `1.0.2`, `versionCode` `4` |
+| Atribut | 1.0.2 (terpasang) | 1.0.3 (rilis baru) |
+|---|---|---|
+| `versionName` | `1.0.2` | `1.0.3` |
+| `versionCode` | `11` | `12` |
+| `applicationId` | `com.plantation.tripangkut` | sama |
+| `minSdkVersion` | `24` (Android 7.0) | sama |
+| `targetSdkVersion` | `36` | sama |
+| Ukuran APK | `16357720` byte | `16361480` byte |
+| SHA-256 | `c8cbac8926e938422db1d134dee0e00749e908fdcae3ff6e682edd8831ade22b` | `0ffac76a703e2372ef643a31767e4c96f4b47093bfada49fb3cf879f84aea77e` |
+| Sertifikat SHA-256 | `09f181c1…` | `09f181c1…` (sama — wajib) |
+| Lokasi berkas di server | `apks/app-1.0.2.apk` | `apks/app-1.0.3.apk` |
+| `min_version` | — | `1.0.2` |
 
 ---
 
@@ -401,17 +339,18 @@ curl -s "https://bmiruktfruunegtbydyw.supabase.co/storage/v1/object/public/apks/
 # Log aplikasi (Android)
 adb logcat | grep -Ei "Update|Version|ApkInstaller"
 
-# Log Android Studio / devices
+# Versi terpasang di perangkat uji
 adb shell dumpsys package com.plantation.tripangkut | grep -E "versionName|versionCode"
 
-# Cek izin unknown-apps
+# Izin instalasi paket
 adb shell appops get com.plantation.tripangkut REQUEST_INSTALL_PACKAGES
 
-# Izinkan instalasi untuk uji (opsional, hanya untuk perangkat uji)
+# Izinkan instalasi untuk uji (opsional, hanya perangkat uji)
 adb shell appops set com.plantation.tripangkut REQUEST_INSTALL_PACKAGES allow
 
-# Log server (Supabase)
-supabase functions logs api --project-ref bmiruktfruunegtbydyw
+# Health & statistik server intranet
+curl -s http://192.168.1.123:3000/api/health
+curl -s http://192.168.1.123:3000/api/server-stats | python3 -m json.tool | head -40
 ```
 
 ---
@@ -420,17 +359,21 @@ supabase functions logs api --project-ref bmiruktfruunegtbydyw
 
 | Jebakan | Gejala | Solusi |
 |---|---|---|
-| Nama objek APK tidak `app-<versi>.apk` | Unduhan 404 | Samakan dengan `app-1.0.3.apk` |
-| `versionCode` tidak naik | `INSTALL_FAILED_VERSION_DOWNGRADE` | Naikkan `versionCode` (1.0.3 = 6) |
+| Versi sudah ada di `app_versions` | Publish `500`, hash di DB tetap yang lama → `HASH_MISMATCH` di perangkat | Pakai `publish-apk-republish.mjs` (bukan `publish-apk.mjs`) |
+| `versionCode` tidak naik | `INSTALL_FAILED_VERSION_DOWNGRADE` | Naikkan `versionCode` (1.0.3 = 12 > 1.0.2 = 11) |
+| `sync-version.mjs` menyentuh baris komentar | `versionCode` tidak berubah | Sudah diperbaiki; verifikasi dengan `grep versionCode android/app/build.gradle` |
+| `version.json` ditulis dengan versi APK | Versi modul turun → kanal OTA tidak pernah menawarkan update | Jangan sentuh `version.json` untuk rilis APK |
+| Nama berkas APK tidak `app-<versi>.apk` | Unduhan 404 | Simpan sebagai `apks/app-<versi>.apk` di disk server |
+| `versionName` di dalam APK ≠ versi yang dipublikasikan | Versi di HP tidak pernah naik; popup update muncul selamanya | Cek dengan `aapt2 dump badging`; skrip publish menolak otomatis bila beda |
 | Sertifikat tanda tangan berbeda | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Pakai keystore `android/app/tripangkut.keystore` yang sama |
-| `versionName` di dalam APK ≠ versi yang dipublikasikan | Versi di HP tidak pernah naik; popup update muncul selamanya | Cek dengan `aapt dump badging`; `publish-apk.mjs` menolak otomatis bila beda |
+| Hash di DB ≠ hash berkas di server | `HASH_MISMATCH` | Terbitkan ulang dengan `publish-apk-republish.mjs` |
 | Header anti-cache (`Cache-Control` dsb) ikut dikirim | Cek versi gagal total, diam-diam | Hanya kirim header `Accept` |
 | `files-path` tidak ada di `file_paths.xml` | `Failed to find configured root` | Tambahkan `<files-path name="app_files" path="." />` |
 | Versi ditulis setelah unduhan | Aplikasi mengklaim "sudah update" padahal belum terpasang | Tulis versi hanya setelah `App.getInfo()` berubah |
 | `downloadUrl` relatif ditempel ke origin | 404 (`/api/api/...`) | Tempel ke `api.baseUrl` (lihat `resolveDownloadUrl()`) |
-| Bucket Storage tidak public | 400/403 saat unduhan | Set **Public bucket = ON** |
 | `app_versions.version` diberi stempel `1.0.3+123` | `publish-version` menolak format | Semver murni: `1.0.3` |
 | APK "cocok" tapi hanya beberapa ratus byte | Installer terbuka lalu gagal | Cek `apkSize`; ambang minimum 1.000.000 byte |
+| Server intranet mati / IP berubah | Perangkat tidak bisa cek versi | Cek `curl http://192.168.1.123:3000/api/health`; preset endpoint di aplikasi |
 
 ---
 
@@ -438,32 +381,34 @@ supabase functions logs api --project-ref bmiruktfruunegtbydyw
 
 **Sebelum build**
 
-- [ ] `android/app/build.gradle` → `versionCode 6`, `versionName "1.0.3"`
-- [ ] `package.json` → `"version": "1.0.3"`
-- [ ] `npx tsc --noEmit --skipLibCheck` → tanpa error
+- [ ] `node scripts/sync-version.mjs 1.0.3 --code=12`
+- [ ] `grep -n "versionCode\|versionName" android/app/build.gradle` → `12` / `"1.0.3"`
+- [ ] `version.json` **tidak** berubah (masih versi modul)
 - [ ] `npm run build` → sukses
+- [ ] `npx cap sync android` → sukses
 - [ ] `cd android && ./gradlew assembleRelease` → APK terbentuk
 
 **Verifikasi paket**
 
-- [ ] `aapt dump badging` → `versionName='1.0.3'`, `versionCode='6'`
+- [ ] `aapt2 dump badging` → `versionName='1.0.3'`, `versionCode='12'`
 - [ ] `apksigner verify` → sertifikat SHA-256 `09f181c1…`
 - [ ] `sha256sum` & `stat -c%s` dicatat
 - [ ] `unzip -p … assets/public/index.html` cocok dengan `www/index.html`
-- [ ] `node scripts/verify-apks.mjs` → konsisten
 
 **Publish**
 
-- [ ] Upload `app-1.0.3.apk` ke bucket `apks` (public read ON)
-- [ ] Baris `app_versions` untuk `1.0.3` ter-insert (dengan `apk_hash` & `apk_size` benar)
-- [ ] `GET /app-version?current=1.0.2` → `latestVersion: "1.0.3"`, `updateAvailable: true`
-- [ ] `curl -sI …/apks/app-1.0.3.apk` → `200`
+- [ ] `node scripts/publish-apk.mjs …` (versi baru) **atau**
+      `node scripts/publish-apk-republish.mjs …` (versi sudah ada)
+- [ ] Output skrip: `OK - versi 1.0.3 terbit dan bisa diunduh perangkat.`
+- [ ] `GET /api/app-version?current=1.0.2` → `latestVersion: "1.0.3"`, `updateAvailable: true`
+- [ ] `curl -sI /files/apks/app-1.0.3.apk` → `200`
+- [ ] Hash berkas yang diunduh = `apkHash` di respons
 
 **Uji lapangan**
 
-- [ ] Perangkat uji masih di 1.0.2
-- [ ] Tekan "Cek Update" → badge hijau "Paket APK 1.0.3 siap dipasang"
-- [ ] Tekan "Update Sekarang" → dialog installer Android muncul
+- [ ] Perangkat uji masih di 1.0.2 (install `Aplikasi-Trip-v1.0.2-release.apk`)
+- [ ] Profil → "Cek & Perbarui" → badge hijau "Paket APK 1.0.3 siap dipasang"
+- [ ] "Perbarui Sekarang" → dialog installer Android muncul
 - [ ] Setujui → versi jadi 1.0.3
 - [ ] Buka app lagi → "Aplikasi sudah versi terbaru"; `POST /report-version` terkirim
 
@@ -473,8 +418,10 @@ supabase functions logs api --project-ref bmiruktfruunegtbydyw
 
 | Topik | Lokasi |
 |---|---|
-| Handler versi server | `supabase/functions/api/handlers/appVersion.ts` |
-| Routing endpoint | `supabase/functions/api/index.ts` (≈ baris 248–259) |
+| Handler versi server | `server/api/handlers/appVersion.ts` |
+| Routing endpoint | `server/api/index.ts` (bagian "app update / OTA") |
+| Penyimpanan berkas lokal | `server/api/_db.ts` (`serveStoredFile`, `db.storage`) |
+| Server intranet (Deno) | `server/api/local_server.ts` |
 | State machine update | `src/services/updateService.ts` |
 | Adapter installer | `src/services/apkInstaller.ts` |
 | Controller di atas UI | `src/services/appUpdate.ts` |
@@ -482,6 +429,5 @@ supabase functions logs api --project-ref bmiruktfruunegtbydyw
 | Plugin native | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` |
 | Manifest | `android/app/src/main/AndroidManifest.xml` |
 | FileProvider paths | `android/app/src/main/res/xml/file_paths.xml` |
-| Tabel DB | `supabase/scripts/create_ota_tables.sql` |
-| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/verify-apks.mjs`, `scripts/sync-version.mjs` |
+| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/publish-apk-republish.mjs`, `scripts/sync-version.mjs` |
 | Dokumen lain | `user guide/architecture.md`, `user guide/workflow.md` |

@@ -1,29 +1,47 @@
-# Cara Kerja Update Aplikasi — Trip Angkutan v1.0.3
+# Cara Kerja Update Aplikasi — Trip Angkutan
 
 > **Ruang lingkup:** Alur **full-package APK** untuk transisi `1.0.2` → `1.0.3`.
 > **Pemicu:** 100% manual — petugas menekan tombol di halaman **Profil**.
+> **Server rilis:** `http://192.168.1.123:3000/api` (intranet kantor).
 > **Dokumen ini bukan panduan pengguna**; ini spesifikasi alur teknis yang dapat diuji.
 
 ---
 
 ## 0. Ringkasan Satu Paragraf
 
-Aplikasi selalu membaca versi native-nya sendiri (`App.getInfo()` → `1.0.2`) dan membandingkannya dengan versi terbaru yang dilaporkan server (`1.0.3`). Saat petugas menekan **"Cek Update"** di halaman Profil, aplikasi meminta metadata ke `GET /app-version`, melihat `updateAvailable: true`, mengunduh paket APK penuh (sekitar 16 MB) dari Supabase Storage, memverifikasi SHA-256-nya, lalu menampilkan tombol **"Update Sekarang"**. Baru setelah petugas menekan tombol itu, aplikasi membuka installer paket Android (`ACTION_VIEW` lewat `FileProvider`) dan Android meminta persetujuan pengguna. Setelah paket terpasang, versi native menjadi `1.0.3`, dilaporkan ke server, dan aplikasi menampilkan "Aplikasi sudah versi terbaru".
+Aplikasi selalu membaca versi native-nya sendiri (`App.getInfo()` → `1.0.2`)
+dan membandingkannya dengan versi terbaru yang dilaporkan server (`1.0.3`).
+Saat petugas menekan **"Cek & Perbarui"** di halaman Profil, aplikasi meminta
+metadata ke `GET /app-version`, melihat `updateAvailable: true`, mengunduh paket
+APK penuh (±16 MB) dari disk server intranet, memverifikasi SHA-256-nya, lalu
+menampilkan tombol **"Perbarui Sekarang"**. Baru setelah petugas menekan tombol
+itu, aplikasi membuka installer paket Android (`ACTION_VIEW` lewat
+`FileProvider`) dan Android meminta persetujuan pengguna. Setelah paket
+terpasang, versi native menjadi `1.0.3`, dilaporkan ke server, dan aplikasi
+menampilkan "Aplikasi sudah versi terbaru".
+
+Bagian A (tahap 1–9) menjelaskan apa yang terjadi **di dalam aplikasi**.
+Bagian B menjelaskan apa yang harus dilakukan **olehsj operator** supaya
+perangkat mendeteksi versi baru.
 
 ---
+
+# BAGIAN A — Yang Terjadi di Dalam Aplikasi
 
 ## 1. Prasyarat (harus terpenuhi sebelum uji)
 
 | # | Prasyarat | Cara verifikasi |
 |---|---|---|
-| 1 | Bucket Storage `apks` ada dan **public read** | `supabase storage ls ss:///apks --linked --experimental` |
-| 2 | Objek `apks/app-1.0.3.apk` sudah ter-upload | `curl -I https://…/storage/v1/object/public/apks/app-1.0.3.apk` → `200` |
-| 3 | Baris `app_versions` untuk `1.0.3` ada | `GET /app-version?current=1.0.2` → `latestVersion: "1.0.3"` |
-| 4 | `apk_hash` di DB cocok dengan SHA-256 berkas | bandingkan dengan `sha256sum` |
-| 5 | Ponsel petugas masih menjalankan **1.0.2** | `App.getInfo().version` = `1.0.2` |
-| 6 | `versionCode` APK 1.0.3 lebih besar dari APK 1.0.2 terpasang | `1.0.2` = code `4`; `1.0.3` = code `6` → OK |
+| 1 | Berkas `apks/app-1.0.3.apk` ada di disk server | `curl -sI http://192.168.1.123:3000/files/apks/app-1.0.3.apk` → `200` |
+| 2 | Baris `app_versions` untuk `1.0.3` ada | `GET /app-version?current=1.0.2` → `latestVersion: "1.0.3"` |
+| 3 | `apk_hash` di DB cocok dengan SHA-256 berkas | bandingkan dengan `sha256sum` berkas hasil unduhan |
+| 4 | `versionName` **di dalam** APK = `1.0.3` | `aapt2 dump badging` → `versionName='1.0.3'` |
+| 5 | `versionCode` APK 1.0.3 lebih besar dari APK 1.0.2 terpasang | 1.0.2 = code `11`; 1.0.3 = code `12` → OK |
+| 6 | Sertifikat tanda tangan sama dengan versi terpasang | `apksigner verify --print-certs` → SHA-256 `09f181c1…` |
+| 7 | Ponsel petugas masih menjalankan **1.0.2** | `App.getInfo().version` = `1.0.2` |
 
-> Prasyarat 2 dan 3 **belum** terpenuhi di server saat dokumen ini dibuat (metadata masih menunjuk `1.0.1`, dan `app-1.0.1.apk` mengembalikan 404). Jalankan langkah publish di `cheatsheet.md` bagian 2 lebih dulu.
+Prasyarat 4–6 adalah yang paling sering menggagalkan. Detail dan perintahnya
+ada di `cheatsheet.md`.
 
 ---
 
@@ -46,46 +64,53 @@ appUpdate.syncInstalledVersion()
                                               "Pemasangan belum selesai — aplikasi masih versi 1.0.2"
 ```
 
-**Penting:** versi **tidak pernah** diambil dari `localStorage` sebagai acuan di perangkat native. `localStorage` hanya cadangan untuk konteks web. Ini mencegah klaim "sudah update" yang palsu, karena nilai yang ditulis setelah unduhan (bukan setelah pemasangan) tidak dipercaya.
+**Penting:** versi **tidak pernah** diambil dari `localStorage` sebagai acuan di
+perangkat native. `localStorage` hanya cadangan untuk konteks web. Ini mencegah
+klaim "sudah update" yang palsu, karena nilai yang ditulis setelah unduhan
+(bukan setelah pemasangan) tidak dipercaya.
 
-**Tidak ada request jaringan** pada tahap ini. Yang dikirim hanya laporan versi (POST) bila versinya memang berubah.
+**Tidak ada request jaringan** pada tahap ini. Yang dikirim hanya laporan versi
+(POST) bila versinya memang berubah.
 
 ---
 
-### Tahap 2 — Petugas menekan "Cek Update" (Halaman Profil)
+### Tahap 2 — Petugas menekan "Cek & Perbarui" (Halaman Profil)
 
 **Lokasi:** `src/pages/mobile/ProfileScreen.tsx` → `checkNow()`.
 
 ```tsx
 const checkNow = async () => {
-  setBusy(true)
+  setBusy(true);
   try {
-    const result = await appUpdate.check()      // → AppUpdateController.check()
+    const result = await appUpdate.check();      // → AppUpdateController.check()
   } finally {
-    setBusy(false)
-    await appUpdate.refreshVersions()
+    setBusy(false);
+    await appUpdate.refreshVersions();
   }
 }
 ```
 
 `AppUpdateController.check()` menerapkan dua guard:
 
-* `LOCALHOST_UPDATE_DISABLED` — bila dijalankan di `localhost` atau port dev (`5173`, `5174`, `3000`, `4200`, `8080`), seluruh alur dilewati dan state = `up-to-date`. Build lokal tidak pernah memicu unduhan APK.
-* `_checking` — bila pemeriksaan sedang berjalan, promise yang sama dikembalikan. Klik ganda tidak memicu dua proses unduh.
+* `LOCALHOST_UPDATE_DISABLED` — bila dijalankan di `localhost` atau port dev
+  (`5173`, `5174`, `3000`, `4200`, `8080`), seluruh alur dilewati dan state =
+  `up-to-date`. Build lokal tidak pernah memicu unduhan APK.
+* `_checking` — bila pemeriksaan sedang berjalan, promise yang sama dikembalikan.
+  Klik ganda tidak memicu dua proses unduh.
 
-State UI setelah menekan: `checking` → tombol menjadi **"Memeriksa…"** dan nonaktif.
+State UI setelah menekan: `checking` → tombol menjadi **"Memeriksa…"** dan
+nonaktif.
 
 ---
 
 ### Tahap 3 — Permintaan metadata versi ke server
 
 ```
-GET https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api/app-version
-        ?current=1.0.2&t=<timestamp>
+GET http://192.168.1.123:3000/api/app-version?current=1.0.2&t=<timestamp>
 Accept: application/json
 ```
 
-**Sisi server** (`supabase/functions/api/handlers/appVersion.ts` → `getAppVersion()`):
+**Sisi server** (`server/api/handlers/appVersion.ts` → `getAppVersion()`):
 
 1. Baca tabel `app_versions`, ambil 50 baris terakhir.
 2. Urutkan dengan `compareVersions()` (semver + stempel numerik).
@@ -102,15 +127,21 @@ Accept: application/json
 | `404` | dianggap `up-to-date` — API versi belum tersedia, bukan error |
 | `500` / gagal jaringan | `NETWORK_ERROR` dengan pesan "Gagal menghubungi server update" |
 
-**Catatan teknis penting:** hanya header `Accept` yang dikirim. Header `Cache-Control`, `Pragma`, dan `Expires` memicu preflight CORS pada Edge Function sehingga seluruh cek versi gagal diam-diam. Anti-cache diwujudkan lewat `cache: 'no-store'` pada `fetch` dan parameter `t=` pada URL.
+**Catatan teknis penting:** hanya header `Accept` yang dikirim. Header
+`Cache-Control`, `Pragma`, dan `Expires` memicu preflight CORS sehingga
+seluruh cek versi gagal diam-diam. Anti-cache diwujudkan lewat
+`cache: 'no-store'` pada `fetch` dan parameter `t=` pada URL.
 
-Ada dua jalur HTTP di klien: `CapacitorHttp.request` (native) dengan fallback otomatis ke `fetch` WebView. Fallback ini penting — plugin native bisa gagal dalam milidetik pada build tertentu, dan tanpa fallback cek versi selalu gagal tanpa pesan.
+Ada dua jalur HTTP di klien: `CapacitorHttp.request` (native) dengan fallback
+otomatis ke `fetch` WebView. Fallback ini penting — plugin native bisa gagal
+dalam milidetik pada build tertentu, dan tanpa fallback cek versi selalu gagal
+tanpa pesan.
 
 ---
 
 ### Tahap 4 — Deteksi ketidakcocokan versi & unduhan APK
 
-`updateService.checkForUpdate()`evaluate hasil server:
+`updateService.checkForUpdate()` mengevaluasi hasil server:
 
 ```
 if (!info.updateAvailable)  → state = 'up-to-date', selesai
@@ -134,15 +165,21 @@ Filesystem.downloadFile({
 })
 ```
 
-Sebelum mengunduh, `cleanupOldApkFiles('1.0.3')` menghapus seluruh `app-*.apk` dengan versi lain, sehingga storage tidak menumpuk paket lama.
+Sebelum mengunduh, `cleanupOldApkFiles('1.0.3')` menghapus seluruh `app-*.apk`
+dengan versi lain, sehingga storage tidak menumpuk paket lama.
 
 **Kebijakan unduhan:**
 
-* `downloadUrl` absolut dipakai apa adanya. `downloadUrl` relatif ditempel ke `api.baseUrl` (bukan ke origin) agar path `/api/...` tidak menjadi `/api/api/...` — kesalahan ini membuat unduhan APK selalu gagal.
-* Maksimum **3 percobaan**, dengan jeda *exponential backoff* `2^n × 1000 ms` (2 detik, 4 detik).
-* Kegagalan setelah 3 percobaan → `DOWNLOAD_FAILED` dengan pesan "Gagal mengunduh setelah 3 percobaan".
+* `downloadUrl` absolut dipakai apa adanya. `downloadUrl` relatif ditempel ke
+  `api.baseUrl` (bukan ke origin) agar path `/api/...` tidak menjadi
+  `/api/api/...` — kesalahan ini membuat unduhan APK selalu gagal.
+* Maksimum **3 percobaan**, dengan jeda *exponential backoff* `2^n × 1000 ms`
+  (2 detik, 4 detik).
+* Kegagalan setelah 3 percobaan → `DOWNLOAD_FAILED` dengan pesan "Gagal
+  mengunduh setelah 3 percobaan".
 
-**Status UI selama tahap ini:** `downloading` → tombol **"Mengunduh…"** nonaktif, catatan "Mengunduh pembaruan…".
+**Status UI selama tahap ini:** `downloading` → tombol **"Mengunduh…"** nonaktif,
+catatan "Mengunduh pembaruan…".
 
 ---
 
@@ -166,20 +203,30 @@ Filesystem.readFile({ path: 'updates/app-1.0.3.apk', directory: Data })
 | Platform `web` | verifikasi dilewati (berkas APK tidak bisa dibaca via FilesystemWeb) |
 | WebCrypto tidak tersedia | verifikasi dilewati, log peringatan |
 
-Penting: pada tahap ini versi **belum** ditulis. Menulis versi setelah unduhan akan membuat aplikasi (dan server) mengklaim sudah ter-update padahal masih versi lama. Versi resmi hanya berubah bila APK benar-benar terpasang.
+Penting: pada tahap ini versi **belum** ditulis. Menulis versi setelah unduhan
+akan membuat aplikasi (dan server) mengklaim sudah ter-update padahal masih
+versi lama. Versi resmi hanya berubah bila APK benar-benar terpasang.
 
-**Status UI setelah tahap ini:** `ready`, `kind: 'apk'`, `version: '1.0.3'` → tombol berubah menjadi **"Update Sekarang"** (hijau) dan badge hijau muncul: *"Paket APK 1.0.3 siap dipasang — cukup satu tombol."*
+> **Pola tanda tangan server.** `apk_hash` di database harus persis sama dengan
+> SHA-256 berkas yang tersimpan di disk server. Kalau keduanya berbeda (mis.
+> karena berkas di server diganti tanpa baris database diperbarui), perangkat
+> **tidak akan pernah bisa memasang** update — errornya `HASH_MISMATCH`.
+> Inilah alasan skrip `publish-apk-republish.mjs` ada.
+
+**Status UI setelah tahap ini:** `ready`, `kind: 'apk'`, `version: '1.0.3'` →
+tombol berubah menjadi **"Perbarui Sekarang"** (hijau) dan badge hijau muncul:
+*"Paket APK 1.0.3 siap dipasang — tekan tombol untuk memulai."*
 
 ---
 
-### Tahap 6 — Petugas menekan "Update Sekarang"
+### Tahap 6 — Petugas menekan "Perbarui Sekarang"
 
 ```tsx
 const applyNow = async () => {
-  setBusy(true)
+  setBusy(true);
   try {
-    await appUpdate.apply()          // → applyApk()
-  } finally { setBusy(false) }
+    await appUpdate.apply();          // → applyApk()
+  } finally { setBusy(false); }
 }
 ```
 
@@ -197,16 +244,23 @@ appUpdate.applyApk()
        └─ openApkInstaller(uri)
 ```
 
-Pemeriksaan ukuran < 1 MB ada karena kegagalan unduhan (misalnya respons 404 berbentuk JSON beberapa ratus byte) pernah dianggap "berhasil" dan tetap dibuka sebagai APK.
+Pemeriksaan ukuran < 1 MB ada karena kegagalan unduhan (misalnya respons 404
+berbentuk JSON beberapa ratus byte) pernah dianggap "berhasil" dan tetap
+dibuka sebagai APK.
 
 `openApkInstaller()`:
 
 1. Normalisasi path: `file:///data/...` → `/data/...` (dilepas skemanya, di-decode).
-2. Guard `isNativeAndroid()` — di luar Android hasilnya **gagal eksplisit**, bukan "berhasil" palsu yang membuat tombol tampak memasang padahal tidak terjadi apa-apa.
+2. Guard `isNativeAndroid()` — di luar Android hasilnya **gagal eksplisit**,
+   bukan "berhasil" palsu yang membuat tombol tampak memasang padahal tidak
+   terjadi apa-apa.
 3. Panggil plugin native `ApkInstaller.install({ path })`.
-4. Bila plugin gagal, ada jaring pengaman `legacyOpen()` untuk `window.cordova.plugins.fileOpener2` (plugin Cordova lama) — hanya untuk build lama yang masih membundelkannya.
+4. Bila plugin gagal, ada jaring pengaman `legacyOpen()` untuk
+   `window.cordova.plugins.fileOpener2` (plugin Cordova lama) — hanya untuk
+   build lama yang masih membundelkannya.
 
-**Status UI selama tahap ini:** `installing` → tombol **"Memasang…"** nonaktif, catatan "Menunggu pemasangan APK…".
+**Status UI selama tahap ini:** `installing` → tombol **"Memasang…"** nonaktif,
+catatan "Menunggu pemasangan APK…".
 
 ---
 
@@ -231,12 +285,16 @@ intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 getContext().startActivity(intent);
 ```
 
-Android menampilkan dialog sistem "Pasang aplikasi ini?" milik Package Installer. **Pengguna yang memutuskan** — petugas bisa membatalkan.
+Android menampilkan dialog sistem "Pasang aplikasi ini?" milik Package
+Installer. **Pengguna yang memutuskan** — petugas bisa membatalkan.
 
 Yang perlu dipastikan agar langkah ini berhasil:
 
-* `FileProvider` terdaftar di `AndroidManifest.xml` dengan `android:authorities="${applicationId}.fileprovider"` dan `grantUriPermissions="true"`.
-* `res/xml/file_paths.xml` memuat `<files-path name="app_files" path="." />`. Tanpa ini: `IllegalArgumentException: Failed to find configured root`.
+* `FileProvider` terdaftar di `AndroidManifest.xml` dengan
+  `android:authorities="${applicationId}.fileprovider"` dan
+  `grantUriPermissions="true"`.
+* `res/xml/file_paths.xml` memuat `<files-path name="app_files" path="." />`.
+  Tanpa ini: `IllegalArgumentException: Failed to find configured root`.
 * Manifest memuat `REQUEST_INSTALL_PACKAGES`. Tanpa ini, intent ditolak sistem.
 * APK signed dengan sertifikat yang **sama** dengan versi terpasang (lihat §4).
 
@@ -244,17 +302,21 @@ Yang perlu dipastikan agar langkah ini berhasil:
 
 ### Tahap 8 — Pengguna menyetujui, paket terpasang
 
-Android mengganti paket lama dengan yang baru. Syarat: `versionCode` baru harus lebih besar dari yang terpasang.
+Android mengganti paket lama dengan yang baru. Syarat: `versionCode` baru harus
+lebih besar dari yang terpasang.
 
 | Dari | Ke | versionCode | Hasil |
 |---|---|---|---|
-| 1.0.2 (code 4) | 1.0.3 (code 6) | naik | OK terpasang |
-| 1.0.2 (code 4) | 1.0.3 (code 4) | sama | Tidak ditolak (`INSTALL_FAILED_VERSION_DOWNGRADE`) |
-| 1.0.3 (code 6) | 1.0.3 (code 6) | sama | Perhatian reinstall, `versionCode` tidak boleh turun |
+| 1.0.2 (code 11) | 1.0.3 (code 12) | naik | OK terpasang |
+| 1.0.2 (code 11) | 1.0.3 (code 11) | sama | Ditolak (`INSTALL_FAILED_VERSION_DOWNGRADE`) |
+| 1.0.3 (code 12) | 1.0.3 (code 12) | sama | reinstall, `versionCode` tidak boleh turun |
 
-Aplikasi tidak melakukan verifikasi ulang pada saat itu — status `installing` tetap menggantung di keputusan pengguna sampai aplikasi hidup lagi.
+Aplikasi tidak melakukan verifikasi ulang pada saat itu — status `installing`
+tetap menggantung di keputusan pengguna sampai aplikasi hidup lagi.
 
-`appUpdate.applyApk()` menjadwalkan `syncInstalledVersion()` 5 detik kemudian, tetapi itu hanya pembaruan tampilan; nilai yang sah tetap berasal dari `App.getInfo()`.
+`appUpdate.applyApk()` menjadwalkan `syncInstalledVersion()` 5 detik kemudian,
+tetapi itu hanya pembaruan tampilan; nilai yang sah tetap berasal dari
+`App.getInfo()`.
 
 ---
 
@@ -275,12 +337,13 @@ App.getInfo().version  →  "1.0.3"
 **Laporan ke server:**
 
 ```
-POST /functions/v1/api/report-version
+POST /api/report-version
 { "deviceId": "<uuid>", "version": "1.0.3", "platform": "android" }
 → upsert ke tabel device_versions (device_id, version, platform, last_seen)
 ```
 
-Tampilan akhir di halaman Profil: **"Aplikasi sudah versi terbaru"**, tombol "Sudah Terbaru" nonaktif, baris versi "Versi APK 1.0.3 · modul …".
+Tampilan akhir di halaman Profil: **"Aplikasi sudah versi terbaru"**, tombol
+"Sudah Terbaru" nonaktif, baris versi "Versi APK 1.0.3 · modul …".
 
 ---
 
@@ -290,7 +353,7 @@ Tampilan akhir di halaman Profil: **"Aplikasi sudah versi terbaru"**, tombol "Su
                     ┌─────────┐
                     │  idle   │◀──────────────────────────────┐
                     └────┬────┘                               │
-                         │ [tombol "Cek Update"]               │
+                         │ [tombol "Cek & Perbarui"]          │
                          ▼                                    │
                     ┌──────────┐   !updateAvailable           │
                     │ checking ├──────────────────────▶ ┌───────────┐
@@ -303,10 +366,10 @@ Tampilan akhir di halaman Profil: **"Aplikasi sudah versi terbaru"**, tombol "Su
                          │ hash cocok            └────────┘
                          ▼
                     ┌────────┐
-                    │ ready  │  [tombol "Update Sekarang"]
+                    │ ready  │  [tombol "Perbarui Sekarang"]
                     └───┬────┘
                         ▼
-                  ┌────────────┐
+                  ┌─────────────┐
                   │ installing │
                   └─────┬──────┘
                         │ pengguna menyetujui
@@ -320,7 +383,7 @@ Kode status error yang mungkin muncul di UI:
 
 | `error.code` | Pesan |
 |---|---|
-| `NETWORK_ERROR` | "Gagal menghubungi server update (https://…/api)" |
+| `NETWORK_ERROR` | "Gagal menghubungi server update (http://192.168.1.123:3000/api)" |
 | `DOWNLOAD_FAILED` | "Gagal mengunduh setelah 3 percobaan" / "Berkas APK tidak ditemukan di perangkat." / "Berkas APK cacat (N byte)…" |
 | `HASH_MISMATCH` | "Hash APK tidak cocok (file rusak/tidak lengkap). Unduh ulang pembaruan 1.0.3." |
 | `INSTALL_FAILED` | "Pemasangan APK hanya bisa dari aplikasi Android…" / "Gagal membuka installer APK: …" / "Pemasangan belum selesai — aplikasi masih versi 1.0.2…" |
@@ -332,11 +395,18 @@ Kode status error yang mungkin muncul di UI:
 
 ## 4. Syarat Upgrade di Android (yang sering bikin gagal)
 
-1. **Sertifikat tanda tangan harus sama.** APK 1.0.2 dan 1.0.3 keduanya ditandatangani `CN=Trip Angkutan, OU=Mobile, O=444Nazky, L=Pontianak, C=ID`, SHA-256 `09f181c1c6fba02473345cfd515e49d0cc360c1dc6462eba7ddd3f72d4d3bce9`. APK dengan sertifikat berbeda akan ditolak (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) meski `versionCode` lebih besar.
-2. **`versionCode` harus naik.** 1.0.2 = code 4, 1.0.3 = code 6.
+1. **Sertifikat tanda tangan harus sama.** APK 1.0.2 dan 1.0.3 keduanya
+   ditandatangani `CN=Trip Angkutan, OU=Mobile, O=444Nazky, L=Pontianak, C=ID`,
+   SHA-256 `09f181c1c6fba02473345cfd515e49d0cc360c1dc6462eba7ddd3f72d4d3bce9`.
+   APK dengan sertifikat berbeda ditolak
+   (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) meski `versionCode` lebih besar.
+2. **`versionCode` harus naik.** 1.0.2 = code `11`, 1.0.3 = code `12`.
 3. **`applicationId` harus sama.** `com.plantation.tripangkut` untuk keduanya.
 4. **Izin `REQUEST_INSTALL_PACKAGES` harus ada** di APK baru.
-5. **Android 8+** meminta persetujuan "install unknown apps" per aplikasi. Bila ditolak, installer gagal dibuka. Alur ini **tidak** memakai `ACTION_MANAGE_UNKNOWN_APP_SOURCES` secara otomatis — petugas harus mengaktifkan izin tersebut di Pengaturan.
+5. **Android 8+** meminta persetujuan "install unknown apps" per aplikasi. Bila
+   ditolak, installer gagal dibuka. Alur ini **tidak** memakai
+   `ACTION_MANAGE_UNKNOWN_APP_SOURCES` secara otomatis — petugas harus
+   mengaktifkan izin tersebut di Pengaturan.
 
 ---
 
@@ -344,17 +414,23 @@ Kode status error yang mungkin muncul di UI:
 
 | # | Skenario | Ekspektasi |
 |---|---|---|
-| TC-01 | Perangkat di 1.0.2, server 1.0.3, tekan "Cek Update" | Badge hijau "Paket APK 1.0.3 siap"; tombol "Update Sekarang" |
-| TC-02 | Tekan "Cek Update" dua kali cepat | Satu proses unduh saja (guard `_checking`) |
+| TC-01 | Perangkat di 1.0.2, server 1.0.3, tekan "Cek & Perbarui" | Badge hijau "Paket APK 1.0.3 siap"; tombol "Perbarui Sekarang" |
+| TC-02 | Tekan "Cek & Perbarui" dua kali cepat | Satu proses unduh saja (guard `_checking`) |
 | TC-03 | Server `apkHash` dis purposely salah | `HASH_MISMATCH`, berkas dihapus, tombol "Coba Lagi" |
 | TC-04 | `downloadUrl` null di server | `DOWNLOAD_FAILED` "paket APK-nya tidak tersedia" |
-| TC-05 | Mematikan data jaringan, tekan "Cek Update" | `NETWORK_ERROR`, **bukan** "Aplikasi sudah versi terbaru" |
+| TC-05 | Mematikan data jaringan, tekan "Cek & Perbarui" | `NETWORK_ERROR`, **bukan** "Aplikasi sudah versi terbaru" |
 | TC-06 | Server mengembalikan 404 | `up-to-date` (bukan error) |
-| TC-07 | Di web/browser, tekan "Update Sekarang" | `INSTALL_FAILED` "Pemasangan APK hanya bisa dari aplikasi Android" |
+| TC-07 | Di web/browser, tekan "Perbarui Sekarang" | `INSTALL_FAILED` "Pemasangan APK hanya bisa dari aplikasi Android" |
 | TC-08 | Pengguna membatalkan dialog installer | Installer tertutup; versi tetap 1.0.2; saat app hidup lagi state `ready` + pesan "Pemasangan belum selesai — aplikasi masih versi 1.0.2" |
 | TC-09 | APK terpasang, app dibuka lagi | `up-to-date`, `POST /report-version` terkirim dengan `1.0.3` |
 | TC-10 | Berjalan di `localhost:5173` | Cek update dilewati, tidak ada unduhan |
-| TC-11 | Klik "Cek Update" saat app tidak sedang foreground | Tetap manual — tidak ada polling background |
+| TC-11 | Klik "Cek & Perbarui" saat app tidak sedang foreground | Tetap manual — tidak ada polling background |
+| TC-12 | Publish ulang versi yang sama tanpa memperbarui `apk_hash` di database | `HASH_MISMATCH` — perangkat berhenti sebelum installer dibuka |
+| TC-13 | APK dilabeli 1.0.3, tetapi `versionName` di dalamnya 1.0.2 | Setelah dipasang versi tidak naik → "Pemasangan belum selesai" |
+
+> TC-12 dan TC-13 adalah dua jebakan yang paling sering muncul saat uji
+> lapangan; keduanya dicegah oleh `publish-apk-republish.mjs` (hash) dan
+> oleh `--version` + validasi `versionName` (label).
 
 ---
 
@@ -382,6 +458,34 @@ ApkInstaller: Installer APK dibuka: /data/user/0/…/files/updates/app-1.0.3.apk
 
 ---
 
+# BAGIAN B — Yang Harus Dilakukan Operator (Sisi Server)
+
+Alur ini yang membuat perangkat **mendeteksi** versi baru. Ringkasnya:
+
+```
+ubah versi  →  build APK  →  terbitkan ke server  →  perangkat mendeteksi  →  petugas menekan tombol
+```
+
+| Langkah | Perintah | Rinci |
+|---|---|---|
+| 1. Naikkan versi | `node scripts/sync-version.mjs 1.0.3 --code=12` | `cheatsheet.md` §2 |
+| 2. Build | `npm run build && npx cap sync android && (cd android && ./gradlew assembleRelease)` | `cheatsheet.md` §3 |
+| 3. Verifikasi paket | `aapt2 dump badging` + `apksigner verify` + `sha256sum` | `cheatsheet.md` §3 |
+| 4. Terbitkan | `node scripts/publish-apk.mjs …` (versi baru) atau `node scripts/publish-apk-republish.mjs …` (versi yang sudah ada) | `cheatsheet.md` §4 |
+| 5. Pastikan terdeteksi | `curl "http://192.168.1.123:3000/api/app-version?current=1.0.2"` → `updateAvailable: true` | `cheatsheet.md` §6 |
+
+Dua hal yang **wajib** benar agar perangkat benar-benar bisa memasang:
+
+1. **Hash di database = hash berkas di disk server.** Bila berbeda, perangkat
+   berhenti di `HASH_MISMATCH`.
+2. **`versionName` di dalam APK = versi yang dipublikasikan.** Bila berbeda,
+   versi di HP tidak pernah naik dan update terus muncul.
+
+Keduanya dijamin oleh skrip publish yang dipakai (masing-masing menolak
+penerbitan dengan label/isi yang tidak cocok).
+
+---
+
 ## 7. Rujukan File
 
 | Topik | Lokasi |
@@ -392,4 +496,7 @@ ApkInstaller: Installer APK dibuka: /data/user/0/…/files/updates/app-1.0.3.apk
 | Halaman Profil (tombol pemicu) | `src/pages/mobile/ProfileScreen.tsx` |
 | Plugin native installer | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` |
 | Manifest & FileProvider | `android/app/src/main/AndroidManifest.xml`, `res/xml/file_paths.xml` |
-| Handler versi server | `supabase/functions/api/handlers/appVersion.ts` |
+| Handler versi server | `server/api/handlers/appVersion.ts` |
+| Penyimpanan berkas | `server/api/_db.ts` (`serveStoredFile`) |
+| Skrip publish | `scripts/publish-apk.mjs`, `scripts/publish-apk-republish.mjs` |
+| Dokumen lain | `user guide/architecture.md`, `user guide/cheatsheet.md` |

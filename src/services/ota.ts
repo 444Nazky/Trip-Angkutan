@@ -2,24 +2,21 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Device } from '@capacitor/device'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { FORCE_ROSTER_SYNC_KEY } from './adminPull'
-import { isDevMode } from './runtimeEnv'
+import { isDevMode, isLocalhostDev } from './runtimeEnv'
 import { api } from './api'
+
 
 
 /**
  * Detect if running in localhost development environment (Chrome dev)
  * Disables update notifications and version reporting for local dev
+ *
+ * Catatan: helper-nya ada di `runtimeEnv.ts` karena WAJIB mengecualikan
+ * aplikasi native (origin `https://localhost`). Aplikasi native memuat halaman
+ * dari origin lokal, jadi bila dianggap dev, tombol "Cek Update" di Profil
+ * mati total di perangkat.
  */
-export function isLocalhostDev(): boolean {
-  if (typeof window === 'undefined') return false
-  const host = window.location.hostname || ''
-  const port = window.location.port || ''
-  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1'
-  const isDevPort = port === '5173' || port === '5174' || port === '3000' || port === '4200' || port === '8080'
-  return isLocalhost || isDevPort
-}
-
-
+export { isLocalhostDev }
 
 
 // Manifest & berkas modul dilayani server API intranet sendiri
