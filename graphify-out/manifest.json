@@ -10,12 +10,12 @@
     "semantic_hash": ""
   },
   "android/app/build.gradle": {
-    "mtime": 1793244181.325046,
-    "ast_hash": "343303d1815655d6e264815177d9eb72",
+    "mtime": 1793254206.0706522,
+    "ast_hash": "643f712853d40540b974f4e4a81ccf2f",
     "semantic_hash": ""
   },
   "android/app/capacitor.build.gradle": {
-    "mtime": 1793243905.0021968,
+    "mtime": 1793254213.0877855,
     "ast_hash": "99bf91e0d80f1fa29ad033820065c2b4",
     "semantic_hash": ""
   },
@@ -45,7 +45,7 @@
     "semantic_hash": ""
   },
   "android/capacitor.settings.gradle": {
-    "mtime": 1793243905.0012581,
+    "mtime": 1793254213.0877855,
     "ast_hash": "92ba87dd5c2d881d616a4f9915b99b61",
     "semantic_hash": ""
   },
@@ -125,8 +125,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793241575.8010283,
-    "ast_hash": "163f1c271753bff76b9dea8612fe7e24",
+    "mtime": 1793254206.069652,
+    "ast_hash": "2a8677079fd2ef0428d1a138489c0f2c",
     "semantic_hash": ""
   },
   "postcss.config.js": {
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RoutesTab.tsx": {
-    "mtime": 1793253895.1153617,
-    "ast_hash": "b2775d3e42381297634bb01f387e4658",
+    "mtime": 1793255336.6864476,
+    "ast_hash": "47de8937ab06063ecb71a1b950456252",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/SettingsTab.tsx": {
@@ -2030,37 +2030,37 @@
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-CmQo6LiH.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0526445,
     "ast_hash": "e5f53843d0adef21254df8a67c526a45",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-D706g1zh.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0526445,
     "ast_hash": "74ee9ab2252ec58a2f39e1fbd4d41d11",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DCH68MUC.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0526445,
     "ast_hash": "fbc490badb6b43e5e53fb71754db705b",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DLeADuY_.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0526445,
     "ast_hash": "fbc989489ed3581d6bda44384e05464a",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-DXbIOCYn.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0536447,
     "ast_hash": "a6ee6aced1ce16246dc9ce9211584ab1",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-Q8s093ay.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0536447,
     "ast_hash": "b5c4526d96f910f3179edf04544278f6",
     "semantic_hash": ""
   },
   "admin-www/assets/js/chunk-V1_x9wlm.js": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.054323,
     "ast_hash": "53901727a07760e009a6a8103e8f580f",
     "semantic_hash": ""
   },
@@ -2070,27 +2070,27 @@
     "semantic_hash": ""
   },
   "admin-www/index.html": {
-    "mtime": 1793164194.4366803,
-    "ast_hash": "a6bd49e654e547b7c98357bf098aa95b",
+    "mtime": 1793255412.0476446,
+    "ast_hash": "432ff0a766cb05041bc0f717a0dea66d",
     "semantic_hash": ""
   },
   "admin-www/assets/guest-profile.jpeg": {
-    "mtime": 1793164194.4386804,
+    "mtime": 1793255412.0499332,
     "ast_hash": "cbec492d4782f13b244c119b8fecaee1",
     "semantic_hash": ""
   },
   "admin-www/assets/icon/favicon.png": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.0502405,
     "ast_hash": "988be98f12b400c41a22b59b82cfeab6",
     "semantic_hash": ""
   },
   "admin-www/assets/karyamas_clean.png": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.054323,
     "ast_hash": "4bc4f3743c7e0b4a2435888ecd5a735e",
     "semantic_hash": ""
   },
   "admin-www/assets/karyamasv.svg": {
-    "mtime": 1793164194.440155,
+    "mtime": 1793255412.054323,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
     "semantic_hash": ""
   },
@@ -2257,7 +2257,7 @@
     "semantic_hash": ""
   },
   "admin-www/Assets/karyamasv.svg": {
-    "mtime": 1793164194.4416804,
+    "mtime": 1793255412.0556445,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
     "semantic_hash": ""
   },
@@ -2489,26 +2489,6 @@
   "src/pages/admin/tabs/TariffTab.render.test.tsx": {
     "mtime": 1793183020.1701393,
     "ast_hash": "57862823aa2d57f2b3adbfb7a5942e14",
-    "semantic_hash": ""
-  },
-  "admin-www/assets/js/chunk-Dcz5ckLz.js": {
-    "mtime": 1793164194.440155,
-    "ast_hash": "ca11caa8f73fb72762f887bffe0c8467",
-    "semantic_hash": ""
-  },
-  "admin-www/assets/js/chunk-DekF1D1h.js": {
-    "mtime": 1793164194.440155,
-    "ast_hash": "8c9c818734601765cb66fc21de00b1f7",
-    "semantic_hash": ""
-  },
-  "admin-www/assets/js/chunk-DnPqDswI.js": {
-    "mtime": 1793164194.440155,
-    "ast_hash": "dbf20c2448e4ad92460c37c326f021e1",
-    "semantic_hash": ""
-  },
-  "admin-www/assets/js/main-EYWHXVOC.js": {
-    "mtime": 1793164194.440155,
-    "ast_hash": "0fff4b61c97a01e3e9cd2f60d2d4a883",
     "semantic_hash": ""
   },
   "scripts/capture-screenshots.mjs": {
@@ -5739,6 +5719,36 @@
   "src/services/runtimeEnv.test.ts": {
     "mtime": 1793243825.4411244,
     "ast_hash": "b12347e2a49847d53715723c07a17841",
+    "semantic_hash": ""
+  },
+  "admin-www/assets/js/chunk-CBn8svch.js": {
+    "mtime": 1793255412.0526445,
+    "ast_hash": "bc4121c3ecf57a00b0483a14fb4bee25",
+    "semantic_hash": ""
+  },
+  "admin-www/assets/js/chunk-CXRD37XG.js": {
+    "mtime": 1793255412.0526445,
+    "ast_hash": "e774654d6de58cad451789654eeda800",
+    "semantic_hash": ""
+  },
+  "admin-www/assets/js/chunk-CzjJtUuq.js": {
+    "mtime": 1793255412.0526445,
+    "ast_hash": "2928f717cf640f210c8fc3203f354358",
+    "semantic_hash": ""
+  },
+  "admin-www/assets/js/main-OOYERQRN.js": {
+    "mtime": 1793255412.0526445,
+    "ast_hash": "a5b9ff847adef0a3ef6498cae2c980de",
+    "semantic_hash": ""
+  },
+  "admin-www/sw.js": {
+    "mtime": 1793255412.0554633,
+    "ast_hash": "8ee22ba00b83c7d4b4556a8ec7c56eff",
+    "semantic_hash": ""
+  },
+  "admin-www/3rdpartylicenses.txt": {
+    "mtime": 1793255412.0554633,
+    "ast_hash": "56bf14856321f4954f365a56c3e81af5",
     "semantic_hash": ""
   }
 }

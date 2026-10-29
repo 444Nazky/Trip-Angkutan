@@ -91,8 +91,8 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       name: r.name,
       route_from: r.route_from,
       route_to: r.route_to,
-      distance: r.distance ?? '',
-      duration: r.duration ?? '',
+      distance: '',
+      duration: '',
       geofencePoints: [],
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -102,13 +102,18 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     const f = routeForm
     if (!f.name.trim() || !f.route_from.trim() || !f.route_to.trim()) return showToast('Nama, asal, tujuan wajib!', 'error')
     if (!editRouteId && !f.dermaga_id) return showToast('Pilih dermaga!', 'error')
+    // Perkiraan jarak & durasi tidak lagi dikelola dari dashboard, tapi nilainya
+    // di server tidak boleh hilang saat rute diedit: handler server SELALU
+    // menulis `distance: distance || null`, jadi field yang tidak dikirim akan
+    // dihapus. Karena itu nilai lama ikut dikirimkan apa adanya.
+    const existing = editRouteId ? routeRows.find(r => r.id === editRouteId) : undefined
     const payload = {
       dermaga_id: f.dermaga_id,
       name: f.name.trim(),
       route_from: f.route_from.trim().toUpperCase(),
       route_to: f.route_to.trim().toUpperCase(),
-      distance: f.distance.trim() || undefined,
-      duration: f.duration.trim() || undefined,
+      distance: existing?.distance || undefined,
+      duration: existing?.duration || undefined,
     }
     const saved = editRouteId
       ? await updateRoute(editRouteId, payload)
@@ -388,14 +393,6 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             <input value={routeForm.route_to} onChange={e => setRouteForm({ ...routeForm, route_to: e.target.value.toUpperCase() })}
               placeholder="SBDZ" className="w-full border rounded-xl px-3 py-2 text-sm font-mono tracking-wide" />
           </div>
-        </div>
-        <div className="grid grid-cols-6 gap-4 mb-4">
-          <div><label className="text-[11px] text-slate-500 block mb-1">Jarak</label>
-            <input value={routeForm.distance} onChange={e => setRouteForm({ ...routeForm, distance: e.target.value })}
-              placeholder="42 km" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
-          <div><label className="text-[11px] text-slate-500 block mb-1">Durasi</label>
-            <input value={routeForm.duration} onChange={e => setRouteForm({ ...routeForm, duration: e.target.value })}
-              placeholder="1j 10m" className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
         </div>
         <div className="flex gap-3">
           {editRouteId && <button onClick={resetForm} className="flex-1 py-3 rounded-xl border text-slate-700 font-semibold">Batal</button>}
