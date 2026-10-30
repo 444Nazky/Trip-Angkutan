@@ -27,12 +27,11 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.0.3 (versionCode 12) - paket pembaruan, diterbitkan ke server API.
-        // intranet sebagai versi pembaruan (install full package / APK),
-        // sehingga perangkat yang masih di 1.0.2 bisa menariknya lewat
-        // tombol "Perbarui Aplikasi" di halaman Profil.
-        versionCode 13
-        versionName "1.0.4"
+        // Rilis 1.0.5 (versionCode 14) - paket pembaruan, diterbitkan ke server API
+        // intranet. Memuat perbaikan tombol "Cek Update" (deteksi mode dev salah
+        // pada port 5173 membuat alur pembaruan mati di mobile web produksi).
+        versionCode 14
+        versionName "1.0.5"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
