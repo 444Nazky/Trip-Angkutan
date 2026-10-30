@@ -455,7 +455,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
         const groupOfficers = localOfficers.filter(o => inRegionGroup(o, region))
         if (groupOfficers.length === 0) return null
         return (
-          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden admin-card stagger-item">
+          <div key={region} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-3 bg-slate-800 text-white font-bold flex items-center gap-2">
               <Lock size={14} className="text-slate-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
