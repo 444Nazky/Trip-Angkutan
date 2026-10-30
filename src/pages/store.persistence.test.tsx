@@ -22,8 +22,8 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { AppProvider, persistTrips, stripTripPhotos, useApp, type Trip } from './store'
-import { dbAll, dbClear, dbPut, initLocalDb } from '../services/localDb'
+import { AppProvider, persistTrips, stripTripPhotos, useApp, type Draft, type Trip } from './store'
+import { dbAll, dbClear, dbPut, initLocalDb, metaGet, metaSet } from '../services/localDb'
 
 // React 19 membutuhkan flag ini agar `act` benar-benar mem-flush efek.
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -93,7 +93,7 @@ const fullTrip = (): Trip => ({
 const readStored = () => dbAll<Trip>('trips')
 
 /** State trips terakhir yang dilihat UI (setara yang dibaca HistoryScreen). */
-const seen = { trips: [] as Trip[], loaded: false }
+const seen = { trips: [] as Trip[], loaded: false, draft: null as Draft | null }
 let app: ReturnType<typeof useApp> | null = null
 
 function Probe() {
@@ -101,6 +101,7 @@ function Probe() {
   app = ctx
   seen.trips = ctx.trips
   seen.loaded = ctx.tripsLoaded
+  seen.draft = ctx.draft
   return null
 }
 
@@ -197,5 +198,53 @@ describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka u
     const trip = stored.find(t => t.id === 'TRP-2026-0001')
     expect(trip?.photoUrl).toBe(TRIP_PHOTO)
     expect(trip?.vehicles?.[0]?.photoUrl).toBe(VEHICLE_PHOTO)
+  })
+})
+
+describe('draft trip — dipulihkan setelah aplikasi ditutup, kedaluwarsa 12 jam', () => {
+  const LS_DRAFT = 'trip.draft.v1'
+  const makeDraft = (): Draft => ({
+    routeCode: 'SBDZ-SJRE',
+    condition: 'muatan',
+    vehicles: [],
+    vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
+    photo: false,
+    vPhoto: false,
+    cameraFrom: 'trip-summary',
+    cameraMode: 'photo',
+    startedAt: Date.now(),
+  })
+
+  it('draft yang belum 12 jam dipulihkan apa adanya', async () => {
+    await prepareColdStart()
+    await metaSet(LS_DRAFT, { savedAt: Date.now() - 60_000, draft: makeDraft() })
+
+    await mountApp()
+    await flush()
+
+    expect(seen.draft?.condition, 'draft harus dipulihkan').toBe('muatan')
+    expect(seen.draft?.routeCode).toBe('SBDZ-SJRE')
+    expect(await metaGet(LS_DRAFT), 'draft masih tersimpan').toBeTruthy()
+  })
+
+  it('draft berumur lebih dari 12 jam dibuang dan dihapus dari penyimpanan', async () => {
+    await prepareColdStart()
+    await metaSet(LS_DRAFT, { savedAt: Date.now() - 13 * 60 * 60 * 1000, draft: makeDraft() })
+
+    await mountApp()
+    await flush()
+
+    expect(seen.draft?.condition, 'draft kedaluwarsa tidak boleh dipulihkan').toBeNull()
+    expect(await metaGet(LS_DRAFT), 'draft kedaluwarsa harus dihapus').toBeNull()
+  })
+
+  it('draft format lama (tanpa savedAt) tetap dipulihkan', async () => {
+    await prepareColdStart()
+    await metaSet(LS_DRAFT, makeDraft())
+
+    await mountApp()
+    await flush()
+
+    expect(seen.draft?.condition).toBe('muatan')
   })
 })

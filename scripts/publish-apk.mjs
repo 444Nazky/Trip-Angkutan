@@ -290,8 +290,13 @@ async function main() {
 
   // Penanda versi asli: server memakainya untuk MENOLAK paket salah label.
   const badging = detectApkBadging(args.apk);
-  const apkVersionName = args.apkVersionName || badging.versionName;
-  const apkVersionCode = Number(args.apkVersionCode) || badging.versionCode;
+  // CATATAN: nama opsi CLI memakai strip (`--apk-version-name`), sedangkan
+  // parser menyimpan apa adanya -> `args['apk-version-name']`. Kode lama
+  // hanya membaca `args.apkVersionName` (camelCase) yang SELALU undefined,
+  // jadi opsi ini diam-diam diabaikan dan kolom apk_version_name/
+  // apk_version_code tersimpan null/0 di server. Bacalah kedua bentuk.
+  const apkVersionName = (args.apkVersionName ?? args['apk-version-name']) || badging.versionName;
+  const apkVersionCode = Number(args.apkVersionCode ?? args['apk-version-code']) || badging.versionCode;
   console.log(`Isi APK    : versionName=${apkVersionName ?? '?(aapt2 tidak ada)'} versionCode=${apkVersionCode ?? '?'}`);
 
   if (!badging.aapt2) {

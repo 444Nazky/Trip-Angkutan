@@ -102,33 +102,53 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
         ))}
       </div>
 
-      {/* Lightbox - Portal to body for viewport-fixed positioning */}
+      {/*
+        Lightbox dokumentasi.
+
+        Dirender lewat portal ke <body> dan memakai z-index paling tinggi di
+        aplikasi. Ini penting: panel foto (ReportsTab) juga sebuah layer fixed
+        sendiri, jadi kalau lightbox memakai z-index yang sama, kartu putih
+        panel bisa ikut terangkat dan menutupi foto yang sedang diperbesar.
+        Portal juga memastikan lightbox tidak terperangkap di dalam kartu yang
+        punya overflow-hidden / transform.
+      */}
       {lightboxPhoto && createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightboxPhoto.caption || 'Pratinjau foto dokumentasi'}
+          className="fixed inset-0 z-[10000] overflow-y-auto bg-black/90 p-4 sm:p-6"
           onClick={() => setLightboxPhoto(null)}
         >
           {/* Close button */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setLightboxPhoto(null) }}
-            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+            aria-label="Tutup pratinjau foto"
+            className="fixed top-4 right-4 sm:top-6 sm:right-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
           >
             <X size={22} />
           </button>
 
-          {/* Image container */}
-          <div
-            className="max-w-[90vw] max-h-[85vh] flex flex-col items-center animate-scaleIn"
-            onClick={e => e.stopPropagation()}
-          >
+          {/*
+            Image container: flex center. `min-h-full` membuat gambar tetap di
+            tengah layar saat muat, tapi tetap bisa di-scroll (tidak terpotong)
+            ketika caption panjang / layar pendek.
+          */}
+          <div className="flex min-h-full w-full flex-col items-center justify-center gap-4">
             <img
               src={getSrc(lightboxPhoto.url)}
               alt={lightboxPhoto.caption || 'Foto'}
-              className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
+              onClick={e => e.stopPropagation()}
+              className="block h-auto w-auto max-w-full max-h-[80vh] rounded-xl object-contain shadow-2xl"
             />
             {lightboxPhoto.caption && (
-              <p className="text-white/90 text-sm text-center mt-4 max-w-[90vw]">{lightboxPhoto.caption}</p>
+              <p
+                onClick={e => e.stopPropagation()}
+                className="max-w-[90vw] text-center text-sm text-white/90"
+              >
+                {lightboxPhoto.caption}
+              </p>
             )}
           </div>
         </div>,

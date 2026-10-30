@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar, Download, ExternalLink, Image as ImageIcon, MapPin, RefreshCw, Search, Table2, X } from 'lucide-react'
 import { ensureAdminSession } from '../../services/auth'
 import {
@@ -63,9 +64,24 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
       >
         <ExternalLink size={12} />
       </a>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setOpen(false)}>
-          <div className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      {/*
+        Pratinjau foto HARUS lewat portal ke <body>. Kalau dirender di tempat,
+        modal ini berada di dalam <td> pada kartu tabel yang memakai
+        overflow-hidden + z-index rendah, sehingga foto bisa terpotong atau
+        tertutup kartu di sekitarnya (dan body scroll ikut bergeser).
+      */}
+      {open && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Dokumentasi ${label ?? 'Kendaraan'} ${no_trip}`}
+          className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-black/85 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white text-xs font-semibold">
               <span className="flex items-center gap-2">
                 <ImageIcon size={13} /> Dokumentasi {label ? ` - ${label}` : 'Kendaraan'}
@@ -73,7 +89,7 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
               <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded"><X size={14} /></button>
             </div>
             <div className="bg-slate-900 p-2 flex items-center justify-center">
-              <img src={url} alt="kendaraan" className="max-h-[65vh] w-auto object-contain rounded-lg" />
+              <img src={url} alt="kendaraan" className="block h-auto max-h-[65vh] w-auto max-w-full object-contain rounded-lg" />
             </div>
             <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
               <span className="font-mono">Trip: {no_trip}{label ? ` - ${label}` : ''}</span>
@@ -82,7 +98,8 @@ const ThumbnailCell = ({ foto_path, no_trip, label }: { foto_path: string | null
               </a>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   )

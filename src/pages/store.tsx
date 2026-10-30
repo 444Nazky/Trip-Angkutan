@@ -201,6 +201,14 @@ interface StoreValue {
 
 const DRAFT_STORAGE_KEY = 'trip.draft.v1'
 
+/** Draft yang tidak dikirim dihapus otomatis setelah 12 jam sejak perubahan terakhir. */
+const DRAFT_TTL_MS = 12 * 60 * 60 * 1000
+
+interface StoredDraft {
+  savedAt: number
+  draft: Draft
+}
+
 const emptyDraft: Draft = {
   routeCode: null,
   condition: null,
@@ -683,6 +691,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh /
   // aplikasi ditutup. Sebelumnya draft hanya di useState → semua foto hilang.
   const draftHydratedRef = useRef(false)
+  const draftSavedAtRef = useRef(0)
+  const hydratedDraftRef = useRef<Draft | null>(null)
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -691,8 +701,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const saved = await metaGet(DRAFT_STORAGE_KEY)
         if (!alive) return
         if (saved && typeof saved === 'object') {
+          // Format baru = { savedAt, draft }; draft lama (tanpa savedAt) tetap
+          // diterima dan diberi umur baru supaya tidak hilang saat upgrade.
+          const row = saved as Partial<StoredDraft>
+          const legacy = typeof row.savedAt !== 'number' || !row.draft
+          const data = (legacy ? saved : row.draft) as Draft
+          const savedAt = legacy ? Date.now() : (row.savedAt as number)
+          if (Date.now() - savedAt > DRAFT_TTL_MS) {
+            // Lewat 12 jam: draft tidak boleh dipulihkan lagi.
+            await metaSet(DRAFT_STORAGE_KEY, null)
+            return
+          }
+          draftSavedAtRef.current = savedAt
+          hydratedDraftRef.current = data
           // Jangan timpa draft yang sudah mulai diisi pengguna sebelum restore.
-          setDraft(cur => (cur === emptyDraft ? saved as Draft : cur))
+          setDraft(cur => (cur === emptyDraft ? data : cur))
         }
       } catch (err) {
         console.warn('[store] gagal memulihkan draft:', err)
@@ -707,9 +730,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // layar di-refresh atau aplikasi ditutup paksa.
   useEffect(() => {
     if (!draftHydratedRef.current) return
+    // Draft hasil restore bukan perubahan pengguna: pertahankan savedAt asli
+    // agar umur 12 jam tidak ter-reset hanya karena aplikasi dibuka ulang.
+    if (draft !== hydratedDraftRef.current) draftSavedAtRef.current = Date.now()
     const timer = setTimeout(() => {
-      void metaSet(DRAFT_STORAGE_KEY, draft === emptyDraft ? null : draft)
+      void metaSet(
+        DRAFT_STORAGE_KEY,
+        draft === emptyDraft ? null : { savedAt: draftSavedAtRef.current, draft } satisfies StoredDraft,
+      )
     }, 300)
+    return () => clearTimeout(timer)
+  }, [draft])
+
+  // Buang draft yang sudah 12 jam tidak berubah, termasuk saat aplikasi tetap terbuka.
+  useEffect(() => {
+    if (!draftHydratedRef.current || draft === emptyDraft) return
+    const remaining = DRAFT_TTL_MS - (Date.now() - draftSavedAtRef.current)
+    const timer = setTimeout(() => {
+      setDraft(emptyDraft)
+      void metaSet(DRAFT_STORAGE_KEY, null)
+    }, Math.max(0, remaining))
     return () => clearTimeout(timer)
   }, [draft])
   const tripsRef = useRef<Trip[]>(trips)

@@ -22,7 +22,7 @@ type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: b
 
 
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
-  const { officer, trips, resetDraft, setDetailTripId } = useApp()
+  const { officer, trips, draft, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [syncState, setSyncState] = useState<SyncState>(null)
@@ -94,6 +94,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   })()
 
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
+  // Draft yang dipulihkan setelah aplikasi ditutup tidak boleh dihapus oleh
+  // tombol mulai — petugas harus bisa melanjutkan isian yang sudah ada.
+  const hasDraft = !!draft.condition || !!draft.routeCode || draft.vehicles.length > 0 || !!draft.photoUrl
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -106,15 +109,29 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         <div className="absolute right-4 top-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
         <div className="relative">
-          <p className="text-blue-100 text-[13px] font-semibold mb-1">Siap bertugas?</p>
-          <h2 className="text-white font-black text-[22px] leading-tight mb-4">Mulai Trip<br />Baru Sekarang</h2>
+          <p className="text-blue-100 text-[13px] font-semibold mb-1">
+            {hasDraft ? 'Trip belum terkirim' : 'Siap bertugas?'}
+          </p>
+          <h2 className="text-white font-black text-[22px] leading-tight mb-4">
+            {hasDraft ? 'Lanjutkan Trip' : <>Mulai Trip<br />Baru Sekarang</>}
+          </h2>
           {hasDockAccess ? (
-            <button
-              onClick={() => { resetDraft(); onStartTrip() }}
-              className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
-            >
-              Mulai Trip <ArrowRight size={16} />
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => { if (!hasDraft) resetDraft(); onStartTrip() }}
+                className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
+              >
+                {hasDraft ? 'Lanjutkan Trip' : 'Mulai Trip'} <ArrowRight size={16} />
+              </button>
+              {hasDraft && (
+                <button
+                  onClick={() => { resetDraft(); onStartTrip() }}
+                  className="w-full text-blue-100 text-[12px] font-semibold py-1.5 active:opacity-70"
+                >
+                  Mulai trip baru (hapus draft)
+                </button>
+              )}
+            </div>
           ) : (
             <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">
               <p className="text-white font-black text-[13px]">Hubungi Admin</p>
