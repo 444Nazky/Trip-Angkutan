@@ -6,7 +6,7 @@
  * alur pembaruan mati di perangkat: tombol "Cek Update" di halaman Profil
  * selalu dijawab "Sudah Terbaru" tanpa pernah menghubungi server.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const cap = vi.hoisted(() => ({ native: false }))
 
@@ -22,6 +22,11 @@ const { isLocalhostDev, isLocalhost } = await import('./runtimeEnv')
 describe('isLocalhostDev', () => {
   beforeEach(() => {
     cap.native = false
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
 
   it('false di aplikasi native meski hostname-nya localhost', () => {
@@ -40,6 +45,17 @@ describe('isLocalhostDev', () => {
     // Regresi: ini yang membuat tombol "Cek Update" tidak berefek di HP.
     cap.native = true
     expect(window.location.hostname).toBe('localhost')
+    expect(isLocalhostDev()).toBe(false)
+  })
+
+  it('false di mobile web produksi yang disajikan di port 5173', () => {
+    // Regresi (2026-10-30): di deployment kantor, mobile web PRODUKSI
+    // disajikan nginx DI PORT 5173 (lihat nginx.conf). Dulu port dev ikut
+    // dianggap "dev" -> tombol "Cek Update" selalu dijawab "Sudah Terbaru"
+    // tanpa pernah menghubungi server update.
+    vi.stubEnv('DEV', false)
+    vi.stubGlobal('location', { hostname: '192.168.1.123', port: '5173' })
+    cap.native = false
     expect(isLocalhostDev()).toBe(false)
   })
 })

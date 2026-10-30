@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   applyCalls: 0,
   reloadCalls: 0,
   nativeVersion: '1.0.10',
+  nativeAndroid: true,
 }))
 
 
@@ -68,6 +69,13 @@ vi.mock('./otaReload', () => ({
 
 
 
+// Kanal APK hanya jalan di aplikasi native Android (lihat appUpdate.ts).
+vi.mock('./apkInstaller', () => ({
+  isNativeAndroid: () => h.nativeAndroid,
+}))
+
+
+
 import { appUpdate } from './appUpdate'
 
 
@@ -82,6 +90,7 @@ beforeEach(async () => {
   h.applyCalls = 0
   h.reloadCalls = 0
   h.nativeVersion = '1.0.10'
+  h.nativeAndroid = true
   await appUpdate.reset()
 })
 
@@ -181,5 +190,22 @@ describe('alur pembaruan tunggal', () => {
 
     expect(first).toBe(second)
     expect(first.status).toBe('ready')
+  })
+
+  it('di browser kanal APK dilewati, kanal modul yang dipakai', async () => {
+    // Di web/mobile web berkas APK tidak bisa dipasang. Kalau kanal APK tetap
+    // dijalankan, tombol"Unduh"ank APK 16 MB sia-sia dan kanal modul (OTA)
+    // yang channel yang benar untuk web ikut terblokir.
+    h.nativeAndroid = false
+    h.apkInfo = apkRelease
+    h.apkState = 'ready'
+    h.moduleAvailable = true
+    h.moduleState = 'ready'
+
+    const state = await appUpdate.check()
+
+    expect(state.status).toBe('ready')
+    expect(state.kind).toBe('module')
+    expect(h.installCalls).toBe(0)
   })
 })
