@@ -1,7 +1,13 @@
 FROM node:26-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund
+# Retry/timeout longgar: jaringan kantor sering memutus unduhan tarball
+# (ETIMEDOUT di tengah `npm ci`) sehingga build web gagal total.
+RUN npm ci --no-audit --no-fund \
+    --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 \
+    --fetch-retry-maxtimeout=120000 \
+    --fetch-timeout=600000
 COPY . .
 RUN npm run build
 
