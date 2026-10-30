@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+ import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { semverLabel } from '../../services/ota'

@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   state: {
     routeCode: null as string | null,
     inside: true,
+    lastFix: null as null | { lat: number; lng: number },
+    gpsHangs: false,
   },
 }))
 
@@ -37,7 +39,9 @@ vi.mock('../../services/geofence', () => ({
   GEOFENCE_UPDATED_EVENT: 'trip:geofence-updated',
   resetGpsFixCache: () => {},
   pointIsForOtherDermaga: () => false,
-  getCurrentPosition: async () => ({ lat: 0, lng: 0 }),
+  getCurrentPosition: () =>
+    mocks.state.gpsHangs ? new Promise(() => {}) : Promise.resolve({ lat: 0, lng: 0 }),
+  getLastKnownPosition: () => mocks.state.lastFix,
   getActiveGeofenceSnapshot: async () =>
     mocks.state.inside
       ? {
@@ -63,6 +67,8 @@ beforeEach(() => {
   mocks.patch.mockClear()
   mocks.state.routeCode = null
   mocks.state.inside = true
+  mocks.state.lastFix = null
+  mocks.state.gpsHangs = false
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -96,6 +102,15 @@ describe('layar pilih rute', () => {
     await render()
     expect(container.textContent).toContain('1 rute lain terkunci')
     expect(container.textContent).not.toContain('SJRE → TJPN')
+  })
+
+  it('menilai lokasi seketika dari fix GPS terakhir, tanpa menunggu GPS baru', async () => {
+    // GPS cold start bisa puluhan detik; fix terakhir harus langsung dipakai
+    // supaya layar tidak tertahan di "Memeriksa lokasi GPS...".
+    mocks.state.lastFix = { lat: 0, lng: 0 }
+    mocks.state.gpsHangs = true
+    await render()
+    expect(container.textContent).toContain('Sesuai lokasi Anda')
   })
 
   it('memakai pesan pendek saat di luar area bertugas', async () => {

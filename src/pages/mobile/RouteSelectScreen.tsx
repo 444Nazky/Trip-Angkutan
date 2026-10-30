@@ -105,10 +105,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik
       // dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2
       // yang radiusnya tumpang tindih.
-      const result = await getActiveGeofenceSnapshot(
-        known ? known : { latitude: position.lat, longitude: position.lng },
-        dockId ?? undefined,
-      )
+      const coords = 'lat' in position
+        ? { latitude: position.lat, longitude: position.lng }
+        : { latitude: position.latitude, longitude: position.longitude }
+      const result = await getActiveGeofenceSnapshot(coords, dockId ?? undefined)
       if (!alive) return null
 
       if (result.valid && result.activePoint) {

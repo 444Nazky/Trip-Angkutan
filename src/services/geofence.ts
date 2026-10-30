@@ -732,22 +732,24 @@ export function startGpsWatch(): void {
   if (_gpsWatchId) return
   try {
     void Geolocation.watchPosition(
-      { enableHighAccuracy: true, timeout: GPS_HIGH_ACCURACY_TIMEOUT_MS, maximumAge: 3000 },
-      (position: { coords?: { latitude: number; longitude: number; accuracy?: number } } | null) => {
+      { enableHighAccuracy: true, timeout: GPS_HIGH_ACCURACY_TIMEOUT_MS, maximumAge: 3000 },      // Capacitor mengirim error watch lewat parameter kedua callback ini
+      // (watchPosition hanya menerima options + satu callback).
+      (position: { coords?: { latitude: number; longitude: number; accuracy?: number } } | null, err?: unknown) => {
         const c = position?.coords
-        if (!c) return
-        cacheGpsFix({
-          latitude: c.latitude,
-          longitude: c.longitude,
-          accuracy: c.accuracy,
-          timestamp: Date.now(),
-        })
-      },
-      // Watch bisa berhenti sendiri (GPS di-restart OS, izin dicabut sementara,
-      // layar mati). Dulu `_gpsWatchId` tetap terisi sehingga start berikutnya
-      // dianggap "sudah jalan" — cache GPS membeku dan cek lokasi kembali
-      // menunggu cold start. Sekarang dijadwalkan satu percobaan ulang.
-      () => {
+        if (c) {
+          cacheGpsFix({
+            latitude: c.latitude,
+            longitude: c.longitude,
+            accuracy: c.accuracy,
+            timestamp: Date.now(),
+          })
+          return
+        }
+        if (!err) return
+        // Watch bisa berhenti sendiri (GPS di-restart OS, izin dicabut sementara,
+        // layar mati). Dulu `_gpsWatchId` tetap terisi sehingga start berikutnya
+        // dianggap "sudah jalan" — cache GPS membeku dan cek lokasi kembali
+        // menunggu cold start. Sekarang dijadwalkan satu percobaan ulang.
         _gpsWatchId = null
         if (!_gpsWatchWanted || _gpsWatchRetry) return
         _gpsWatchRetry = setTimeout(() => {
