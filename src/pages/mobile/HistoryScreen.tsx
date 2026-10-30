@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Truck, Wifi, WifiOff, Cloud, CloudOff, Trash2, AlertTriangle } from 'lucide-react'
-import { useApp } from '../store'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, FileText, Clock, ChevronRight, Trash2 } from 'lucide-react'
+import { fmtDate, fmtTime, useApp } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem, type TripSyncState } from '../../services/sync'
+import {
+  draftPhotoCount,
+  draftRemainingMs,
+  draftResumeTarget,
+  draftRouteLabel,
+  formatDraftRemaining,
+  hasDraftContent,
+} from '../../services/tripDraft'
 import type { MobileScreen } from '../types'
 
 
@@ -71,9 +79,8 @@ interface HistoryScreenProps {
 
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
-  const { trips, setDetailTripId, officer, clearAllTrips } = useApp()
+  const { trips, setDetailTripId, officer, draft, draftInfo, discardDraft } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
   // supaya trip yang ditolak server tampil "Gagal", bukan "Terkirim".
@@ -81,6 +88,23 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
   const stateOf = (id: string, synced: boolean | undefined) =>
     classifyTripSync(id, synced, queue).state
+
+  // Draft trip yang belum terkirim: tampil di Riwayat supaya petugas yang
+  // tidak sengaja menutup form bisa melanjutkannya, bukan mengulang dari nol.
+  const draftActive = hasDraftContent(draft)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!draftActive) {
+      setConfirmDiscard(false)
+      return
+    }
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 30000)
+    return () => window.clearInterval(timer)
+  }, [draftActive, draftInfo?.expiresAt])
+  const draftRemaining = draftRemainingMs(draftInfo, now)
+  const draftChangedAt = draftInfo ? new Date(draftInfo.savedAt) : null
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
@@ -124,16 +148,91 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           <CloudOff size={10} />
           <span>{localCount} lokal</span>
         </div>
-        {myTrips.length > 0 && (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold hover:bg-red-100 transition-colors"
-          >
-            <Trash2 size={10} />
-            <span>Hapus Semua</span>
-          </button>
-        )}
       </div>
+
+      {/* Draft trip yang belum terkirim — bisa dilanjutkan atau dibuang */}
+      {draftActive && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <FileText size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-700">Draft · belum terkirim</p>
+                <p className="truncate text-[14px] font-bold text-slate-900">{draftRouteLabel(draft)}</p>
+              </div>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+              <Clock size={10} />
+              {draftInfo ? `Sisa ${formatDraftRemaining(draftRemaining)}` : 'Sisa 12j'}
+            </span>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap gap-1.5 text-[10px] font-semibold">
+            <span className="rounded-full bg-white/80 px-2 py-1 text-slate-600 ring-1 ring-amber-100">
+              {draft.condition === 'kosong'
+                ? 'Kosong'
+                : draft.condition === 'muatan'
+                  ? 'Muatan'
+                  : 'Status muatan belum dipilih'}
+            </span>
+            <span className="rounded-full bg-white/80 px-2 py-1 text-slate-600 ring-1 ring-amber-100">
+              {draft.vehicles.length} kendaraan
+            </span>
+            <span className="rounded-full bg-white/80 px-2 py-1 text-slate-600 ring-1 ring-amber-100">
+              {draftPhotoCount(draft)} foto
+            </span>
+            {draftChangedAt && (
+              <span className="rounded-full bg-white/80 px-2 py-1 text-slate-500 ring-1 ring-amber-100">
+                Diubah {fmtDate(draftChangedAt)} · {fmtTime(draftChangedAt)}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-2 text-[10px] leading-relaxed text-amber-800/80">
+            Tersimpan di perangkat. Otomatis dihapus 12 jam setelah draft dibuat.
+          </p>
+
+          {confirmDiscard ? (
+            <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-amber-200">
+              <p className="text-[11px] text-slate-600">Hapus draft ini? Semua isian dan fotonya akan hilang.</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setConfirmDiscard(false)}
+                  className="flex-1 rounded-lg border border-slate-200 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    discardDraft()
+                    setConfirmDiscard(false)
+                  }}
+                  className="flex-1 rounded-lg bg-red-500 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
+                >
+                  Hapus draft
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => go(draftResumeTarget(draft))}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-[12px] font-semibold text-white hover:bg-slate-800 active:scale-[0.99]"
+              >
+                Lanjutkan <ChevronRight size={14} />
+              </button>
+              <button
+                onClick={() => setConfirmDiscard(true)}
+                className="flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-white px-3 py-2.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+              >
+                <Trash2 size={13} /> Hapus
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Filter */}
       <div className="flex gap-2">
@@ -185,34 +284,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         ))}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="text-base font-semibold text-slate-900 mb-2">Hapus Semua Trip?</h3>
-            <p className="text-sm text-slate-600 mb-5">
-              Semua {myTrips.length} trip akan dihapus dari perangkat. Data yang sudah terkirim ke server tidak akan terpengaruh.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 rounded-xl border border-slate-200 bg-transparent py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => {
-                  clearAllTrips()
-                  setShowDeleteConfirm(false)
-                }}
-                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
-              >
-                Hapus
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

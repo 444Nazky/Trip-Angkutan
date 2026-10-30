@@ -2,6 +2,7 @@ import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
+import { hasDraftContent } from '../../services/tripDraft'
 import { useState, useEffect } from 'react'
 import type { MobileScreen } from '../types'
 
@@ -96,7 +97,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   // Draft yang dipulihkan setelah aplikasi ditutup tidak boleh dihapus oleh
   // tombol mulai — petugas harus bisa melanjutkan isian yang sudah ada.
-  const hasDraft = !!draft.condition || !!draft.routeCode || draft.vehicles.length > 0 || !!draft.photoUrl
+  // Pakai helper yang sama dengan Riwayat supaya kedua layar tidak berbeda
+  // pendapat soal draft yang baru terisi separuh (mis. baru nomor polisi).
+  const hasDraft = hasDraftContent(draft)
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))

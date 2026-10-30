@@ -27,11 +27,13 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.0.6 (versionCode 15) - paket pembaruan, diterbitkan ke server API
-        // intranet. Memuat perbaikan tombol "Cek Update" (deteksi mode dev salah
-        // pada port 5173 membuat alur pembaruan mati di mobile web produksi).
-        versionCode 15
-        versionName "1.0.6"
+        // Rilis 1.0.8 (versionCode 17) - paket pembaruan, diterbitkan ke server API
+        // intranet. Memuat improvisasi halaman Pilih Rute: rute yang diizinkan
+        // geofence di atas + auto-select, rute terkunci dilipat, dan pesan
+        // "di luar area bertugas" yang lebih singkat. Termasuk fitur draft
+        // trip 12 jam yang tampil di Riwayat.
+        versionCode 17
+        versionName "1.0.8"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

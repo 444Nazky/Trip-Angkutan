@@ -19,6 +19,7 @@ import { dbAll, dbClear, dbGet, dbPutMany, initLocalDb, metaGet, metaSet } from 
 import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
+import { DRAFT_TTL_MS, hasDraftContent, type DraftInfo } from '../services/tripDraft'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
 
@@ -177,7 +178,10 @@ interface StoreValue {
   officers: Officer[]
   saveOfficers: (rows: Officer[]) => void
   draft: Draft
+  /** Umur draft (dasar batas 12 jam) — null kalau tidak ada draft berisi. */
+  draftInfo: DraftInfo | null
   resetDraft: () => void
+  discardDraft: () => void
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
@@ -201,11 +205,18 @@ interface StoreValue {
 
 const DRAFT_STORAGE_KEY = 'trip.draft.v1'
 
-/** Draft yang tidak dikirim dihapus otomatis setelah 12 jam sejak perubahan terakhir. */
-const DRAFT_TTL_MS = 12 * 60 * 60 * 1000
-
+/**
+ * Bentuk draft di penyimpanan lokal.
+ *
+ * `createdAt` adalah dasar batas umur 12 jam (lihat services/tripDraft.ts) dan
+ * TIDAK bergeser saat draft diubah; `savedAt` hanya untuk menampilkan
+ * "terakhir diubah". `officerId` mengikat draft ke petugas yang mengisinya,
+ * supaya perangkat yang dipakai bergantian tidak menampilkan draft orang lain.
+ */
 interface StoredDraft {
   savedAt: number
+  createdAt?: number
+  officerId?: string
   draft: Draft
 }
 
@@ -691,8 +702,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Draft (termasuk foto base64) dipulihkan dari IndexedDB setelah refresh /
   // aplikasi ditutup. Sebelumnya draft hanya di useState → semua foto hilang.
   const draftHydratedRef = useRef(false)
+  const draftCreatedAtRef = useRef(0)
   const draftSavedAtRef = useRef(0)
   const hydratedDraftRef = useRef<Draft | null>(null)
+  const [draftInfo, setDraftInfo] = useState<DraftInfo | null>(null)
+  const officerIdRef = useRef(officerId)
+  useEffect(() => { officerIdRef.current = officerId }, [officerId])
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -701,19 +716,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const saved = await metaGet(DRAFT_STORAGE_KEY)
         if (!alive) return
         if (saved && typeof saved === 'object') {
-          // Format baru = { savedAt, draft }; draft lama (tanpa savedAt) tetap
-          // diterima dan diberi umur baru supaya tidak hilang saat upgrade.
+          // Format baru = { savedAt, createdAt, officerId, draft }; draft lama
+          // (tanpa savedAt) tetap diterima dan umurnya mulai dihitung sekarang.
           const row = saved as Partial<StoredDraft>
           const legacy = typeof row.savedAt !== 'number' || !row.draft
           const data = (legacy ? saved : row.draft) as Draft
           const savedAt = legacy ? Date.now() : (row.savedAt as number)
-          if (Date.now() - savedAt > DRAFT_TTL_MS) {
-            // Lewat 12 jam: draft tidak boleh dipulihkan lagi.
+          // Draft milik petugas lain (perangkat dipakai bergantian) tidak
+          // dipulihkan, dan langsung dibuang dari penyimpanan.
+          if (row.officerId && officerIdRef.current && String(row.officerId) !== String(officerIdRef.current)) {
             await metaSet(DRAFT_STORAGE_KEY, null)
             return
           }
+          const createdAt = typeof row.createdAt === 'number' ? row.createdAt : savedAt
+          if (Date.now() >= createdAt + DRAFT_TTL_MS) {
+            // Lewat 12 jam sejak draft dibuat: tidak boleh dipulihkan lagi.
+            await metaSet(DRAFT_STORAGE_KEY, null)
+            return
+          }
+          draftCreatedAtRef.current = createdAt
           draftSavedAtRef.current = savedAt
           hydratedDraftRef.current = data
+          setDraftInfo({ createdAt, savedAt, expiresAt: createdAt + DRAFT_TTL_MS })
           // Jangan timpa draft yang sudah mulai diisi pengguna sebelum restore.
           setDraft(cur => (cur === emptyDraft ? data : cur))
         }
@@ -730,28 +754,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // layar di-refresh atau aplikasi ditutup paksa.
   useEffect(() => {
     if (!draftHydratedRef.current) return
-    // Draft hasil restore bukan perubahan pengguna: pertahankan savedAt asli
+    const now = Date.now()
+    if (!hasDraftContent(draft)) {
+      draftCreatedAtRef.current = 0
+      draftSavedAtRef.current = 0
+      setDraftInfo(prev => (prev === null ? prev : null))
+      const timer = setTimeout(() => { void metaSet(DRAFT_STORAGE_KEY, null) }, 300)
+      return () => clearTimeout(timer)
+    }
+    // Draft hasil restore bukan perubahan pengguna: pertahankan waktu aslinya
     // agar umur 12 jam tidak ter-reset hanya karena aplikasi dibuka ulang.
-    if (draft !== hydratedDraftRef.current) draftSavedAtRef.current = Date.now()
+    if (draft !== hydratedDraftRef.current) draftSavedAtRef.current = now
+    if (!draftCreatedAtRef.current) draftCreatedAtRef.current = draftSavedAtRef.current || now
+    const createdAt = draftCreatedAtRef.current
+    const savedAt = draftSavedAtRef.current || now
+    const info: DraftInfo = { createdAt, savedAt, expiresAt: createdAt + DRAFT_TTL_MS }
+    setDraftInfo(prev => (
+      prev && prev.createdAt === createdAt && prev.savedAt === savedAt ? prev : info
+    ))
     const timer = setTimeout(() => {
-      void metaSet(
-        DRAFT_STORAGE_KEY,
-        draft === emptyDraft ? null : { savedAt: draftSavedAtRef.current, draft } satisfies StoredDraft,
-      )
+      void metaSet(DRAFT_STORAGE_KEY, {
+        createdAt,
+        savedAt,
+        officerId: officerIdRef.current,
+        draft,
+      } satisfies StoredDraft)
     }, 300)
     return () => clearTimeout(timer)
   }, [draft])
 
-  // Buang draft yang sudah 12 jam tidak berubah, termasuk saat aplikasi tetap terbuka.
+  // Buang draft yang sudah mencapai batas 12 jam, termasuk saat aplikasi
+  // dibiarkan terbuka. Batasnya dari createdAt, jadi tidak bisa diperpanjang
+  // hanya dengan terus mengedit form.
   useEffect(() => {
-    if (!draftHydratedRef.current || draft === emptyDraft) return
-    const remaining = DRAFT_TTL_MS - (Date.now() - draftSavedAtRef.current)
-    const timer = setTimeout(() => {
+    if (!draftInfo) return
+    const clear = () => {
+      draftCreatedAtRef.current = 0
+      draftSavedAtRef.current = 0
+      hydratedDraftRef.current = emptyDraft
       setDraft(emptyDraft)
+      setDraftInfo(null)
       void metaSet(DRAFT_STORAGE_KEY, null)
-    }, Math.max(0, remaining))
+    }
+    const remaining = draftInfo.expiresAt - Date.now()
+    if (remaining <= 0) { clear(); return }
+    const timer = setTimeout(clear, remaining)
     return () => clearTimeout(timer)
-  }, [draft])
+  }, [draftInfo])
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [tripsLoaded, setTripsLoaded] = useState(false)
@@ -909,6 +958,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetDraft = useCallback(() => {
     setDraft(emptyDraft)
     setActiveDermagaId(null)
+  }, [])
+  /** Buang draft sekarang juga (tombol "Hapus" di Riwayat). */
+  const discardDraft = useCallback(() => {
+    draftCreatedAtRef.current = 0
+    draftSavedAtRef.current = 0
+    hydratedDraftRef.current = emptyDraft
+    setDraft(emptyDraft)
+    setDraftInfo(null)
+    setActiveDermagaId(null)
+    void metaSet(DRAFT_STORAGE_KEY, null)
   }, [])
   const patchDraft = useCallback((p: Partial<Draft>) => setDraft(d => ({ ...d, ...p })), [])
   const setActiveDermaga = useCallback((id: string | null) => setActiveDermagaId(id), [])
@@ -1204,7 +1263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariffs,
     vehicleTypes,
     officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, resetDraft, discardDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
@@ -1212,7 +1271,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDermaga,
     clearAllTrips,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, vehicleTypes, officers, saveOfficers,
-    draft, resetDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, resetDraft, discardDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga, clearAllTrips])

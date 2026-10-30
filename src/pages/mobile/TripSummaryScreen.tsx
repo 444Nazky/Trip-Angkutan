@@ -101,12 +101,13 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     }
   }, [draft.routeCode])
 
-  // Format geofence error for user-friendly display
+  // Pesan geofence dibuat pendek: petugas di lapangan hanya butuh tahu apa yang
+  // harus dilakukan, bukan detail titik/radius. Pesan panjang (mis. "Rute X
+  // tidak diizinkan di titik Y. Rute yang diizinkan: ...") dipotong jadi satu
+  // kalimat.
   const formatGeofenceError = (result: { reason?: string; activePoint?: { name?: string } | null }) => {
-    if (result.activePoint) {
-      return `Lokasi terdeteksi di area "${result.activePoint.name || 'titik geofence'} tapi rute tidak cocok`
-    }
-    return result.reason || 'Lokasi di luar area geofence'
+    if (result.activePoint) return 'Rute ini tidak sesuai area Anda.'
+    return 'Anda sedang berada di luar area bertugas.'
   }
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     const result = await validateRouteForCurrentLocation(draft.routeCode!)
     if (!result.valid) {
       setGeofenceBlocked(result.blocked === true)
-      setGeofenceError(result.reason ?? 'Lokasi tidak valid')
+      setGeofenceError(formatGeofenceError(result))
       return
     }
     startTrip()
@@ -345,7 +346,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           {geofenceError && (
             <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[11px] ${geofenceBlocked ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
               <AlertCircle size={14} className="shrink-0" />
-              <span>{geofenceBlocked ? 'Luar area geofence' : 'Lokasi tidak valid'}</span>
+              <span>{geofenceBlocked ? 'Anda sedang berada di luar area bertugas' : 'Rute ini tidak sesuai area Anda'}</span>
             </div>
           )}
 

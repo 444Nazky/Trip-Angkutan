@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronLeft, Map, MapPin, Ruler, Clock, Anchor, Lock, RefreshCw, AlertTriangle, MapPinOff } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronUp, Map, MapPin, Ruler, Clock, Anchor, Lock, RefreshCw, AlertTriangle, MapPinOff } from 'lucide-react'
 import { refreshStoredRoutes, getStoredRoutes, type UiRoute } from '../../services/auth'
 import {
   getActiveGeofenceSnapshot,
@@ -7,9 +7,11 @@ import {
   getCurrentPosition,
   resetGpsFixCache,
   pointIsForOtherDermaga,
+  normalizeRouteCode,
   GEOFENCE_UPDATED_EVENT,
   type GeofencePoint,
 } from '../../services/geofence'
+import { partitionRoutes, pickAutoRouteCode, routeAllowed } from '../../services/routeAvailability'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -93,7 +95,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         setDockMismatch(null)
         setGeoStatus('blocked')
         setConfigMissing(false)
-        setSyncNote('GPS tidak tersedia. Pastikan izin lokasi aktif dan GPS perangkat menyala.')
+        setSyncNote('GPS tidak aktif. Nyalakan izin lokasi.')
         return null
       }
       // ponytail: teruskan dermaga terpilih — snapshot dinilai dari titik
@@ -202,7 +204,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           actualGeofenceId: snap.activePoint.id,
         })
         setGeoStatus('mismatch')
-        setSyncNote(`Ditemukan di ${snap.activePoint.name} — bukan ${dock?.name ?? dockId}`)
+        setSyncNote(`Anda terdeteksi di ${snap.activePoint.name}.`)
         return
       }
       setDockMismatch(null)
@@ -216,14 +218,14 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     setConfigMissing(snap.configMissing === true)
     setSyncNote(
       !position
-        ? 'GPS tidak tersedia. Periksa izin lokasi dan pengaturan perangkat.'
+        ? 'GPS tidak aktif. Nyalakan izin lokasi.'
         : sync.reason === 'empty'
-        ? 'Titik lokasi resmi belum terdaftar.'
+        ? 'Area bertugas belum terdaftar.'
         : sync.reason === 'unauthorized'
           ? 'Sesi server belum siap.'
           : sync.ok
-            ? 'Lokasi di luar area resmi.'
-            : 'Server tidak terjangkau. Periksa jaringan.',
+            ? 'Segera kembali ke posisi.'
+            : 'Server tidak terjangkau.',
     )
   }
 
@@ -234,20 +236,36 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   // geofence tetap membatasi input ke rute yang sesuai titik GPS aktif.
   const list = dockId ? dermagaFiltered : scopedRoutes
 
-  // ponytail: normalisasi kode rute — format "SBDZ-SJRE" vs "SBDZ→SJRE" harus
-  // dianggap rute yang sama, jadi locking geofence tidak salah kunci.
-  const normalizeRouteCode = (code: string): string =>
-    code.toUpperCase().trim().replace(/→|->|>/g, '-')
+  // Normalisasi kode rute memakai aturan yang sama dengan validasi trip
+  // (services/geofence.ts): "SBDZ-SJRE" == "SBDZ→SJRE" == "sbdz - sjre" —
+  // dulu layar ini punya normalizer sendiri sehingga kunci rute bisa berbeda
+  // pendapat dengan validasi saat trip dikirim.
+  const allowedRoutes = geoStatus === 'inside' && activeGeofence ? activeGeofence.allowedRoutes : []
 
-  const isRouteLocked = (code: string): boolean => {
-    if (geoStatus !== 'inside' || !activeGeofence) return true
-    const normalized = normalizeRouteCode(code)
-    return !activeGeofence.allowedRoutes.some(r => normalizeRouteCode(r) === normalized)
-  }
+  const isRouteLocked = (code: string): boolean => !routeAllowed(code, allowedRoutes)
 
   const validSelected = draft.routeCode && !isRouteLocked(draft.routeCode)
     ? draft.routeCode
     : null
+
+  // Rute yang diizinkan geofence tampil paling atas dan rute terkunci dilipat,
+  // supaya petugas tidak perlu scroll untuk menemukan rute yang bisa dipakai.
+  const { available, locked } = partitionRoutes(list, allowedRoutes)
+  const [showLocked, setShowLocked] = useState(false)
+
+  // Auto-select: begitu GPS memastikan petugas di titik yang benar, rute
+  // pertama yang diizinkan langsung terpilih — tidak perlu ketuk berulang kali,
+  // termasuk saat pilihan sebelumnya (mis. dari draft kemarin) terkunci.
+  const allowedKey = allowedRoutes.map(normalizeRouteCode).sort().join('|')
+  const listKey = list.map(r => r.code).join('|')
+  useEffect(() => {
+    if (geoStatus !== 'inside') return
+    const pick = pickAutoRouteCode({ routes: list, allowedRoutes, currentCode: draft.routeCode })
+    if (pick && pick !== draft.routeCode) patchDraft({ routeCode: pick })
+    // `allowedKey`/`listKey` mewakili isi array; array-nya sendiri dibuat ulang
+    // tiap render sehingga tidak boleh dipakai sebagai dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoStatus, allowedKey, listKey, draft.routeCode, patchDraft])
 
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
@@ -259,6 +277,55 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       patchDraft({ routeCode: validSelected, cameraFrom: 'trip-summary', cameraMode: 'photo' })
       go('camera')
     }
+  }
+
+  const renderRouteCard = (r: UiRoute) => {
+    const isLocked = isRouteLocked(r.code)
+    const isSelected = validSelected === r.code
+    return (
+      <button
+        key={r.code}
+        onClick={() => patchDraft({ routeCode: r.code })}
+        disabled={isLocked}
+        title={isLocked ? 'Rute terkunci: titik GPS aktif tidak cocok' : undefined}
+        className={`w-full rounded-2xl p-4 text-left border-2 transition-all ${
+          isLocked
+            ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+            : isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLocked ? 'bg-slate-200' : isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
+              {isLocked ? <Lock size={15} className="text-slate-500" /> : <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />}
+            </div>
+            <div>
+              <p className={`font-bold text-[13px] ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>{r.from} → {r.to}</p>
+              <p className="text-[11px] text-slate-400">{r.label}</p>
+            </div>
+          </div>
+          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+            isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
+          }`}>
+            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+          </div>
+        </div>
+        <div className="flex gap-4 pl-[52px] items-center">
+          <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance || '—'}</span>
+          <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration || '—'}</span>
+        </div>
+        {isLocked && (
+          <p className="mt-2 ml-[52px] text-[10px] font-medium text-slate-500 flex items-center gap-1">
+            <AlertTriangle size={10} className="text-slate-400 shrink-0" />
+            {geoStatus === 'inside'
+              ? 'Di luar area rute ini'
+              : geoStatus === 'checking'
+                ? 'Memeriksa lokasi GPS...'
+                : 'Di luar area bertugas'}
+          </p>
+        )}
+      </button>
+    )
   }
 
   return (
@@ -307,8 +374,8 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-3 flex items-center gap-2">
           <Lock size={13} className="text-blue-600 shrink-0" />
           <p className="text-[12px] text-blue-700">
-            <span className="font-semibold">{activeGeofence.name}</span>
-            <span className="text-blue-500"> — rute dikunci ke {activeGeofence.allowedRoutes.join(', ')} (radius {activeGeofence.radiusMeters}m)</span>
+            <span className="font-semibold">Di area {activeGeofence.name}</span>
+            <span className="text-blue-500"> · rute sesuai lokasi: {activeGeofence.allowedRoutes.join(', ')}</span>
           </p>
         </div>
       )}
@@ -320,13 +387,11 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
               <MapPinOff size={18} className="text-amber-600" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-amber-800 text-[13px] mb-1">
-                Lokasi Tidak Sesuai Dermaga
+              <p className="font-semibold text-amber-800 text-[13px] mb-0.5">
+                Anda sedang berada di luar area bertugas
               </p>
-              <p className="text-[11px] text-amber-700 leading-relaxed">
-                Anda terdeteksi di <span className="font-semibold">{dockMismatch.actualGeofence}</span>,
-                bukan di <span className="font-semibold">{dock?.name ?? dockMismatch.selectedDock}</span>.
-                Silakan berpindah ke dermaga yang sesuai untuk melanjutkan input trip.
+              <p className="text-[11px] text-amber-700 leading-snug">
+                Kembali ke <span className="font-semibold">{dock?.name ?? dockMismatch.selectedDock}</span>.
               </p>
             </div>
           </div>
@@ -354,13 +419,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             </div>
             <div className="flex-1">
               <p className="font-semibold text-red-800 text-[13px]">
-                {configMissing ? 'Geofence belum tersedia' : 'Di luar area resmi'}
+                {configMissing ? 'Area bertugas belum tersedia' : 'Anda sedang berada di luar area bertugas'}
               </p>
               <p className="text-[11px] text-red-700 leading-snug mt-0.5">
-                {configMissing
-                  ? 'Hubungi admin untuk mendaftarkan titik lokasi.'
-                  : 'Pindah ke dermaga resmi untuk input trip.'
-                }
+                {configMissing ? 'Hubungi admin.' : 'Segera kembali ke posisi.'}
               </p>
             </div>
           </div>
@@ -402,54 +464,24 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
             </p>
           </div>
         )}
-        {!loading && list.map(r => {
-          const locked = isRouteLocked(r.code)
-          const isSelected = validSelected === r.code
-          return (
-            <button
-              key={r.code}
-              onClick={() => patchDraft({ routeCode: r.code })}
-              disabled={locked}
-              title={locked ? 'Rute terkunci: titik GPS aktif tidak cocok' : undefined}
-              className={`w-full rounded-2xl p-4 text-left border-2 transition-all ${
-                locked
-                  ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                  : isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${locked ? 'bg-slate-200' : isSelected ? 'bg-blue-600' : 'bg-slate-100'}`}>
-                      {locked ? <Lock size={15} className="text-slate-500" /> : <Map size={16} className={isSelected ? 'text-white' : 'text-slate-500'} />}
-                    </div>
-                  <div>
-                    <p className={`font-bold text-[13px] ${locked ? 'text-slate-400' : 'text-slate-900'}`}>{r.from} → {r.to}</p>
-                    <p className="text-[11px] text-slate-400">{r.label}</p>
-                  </div>
-                </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                  isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
-                }`}>
-                  {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                </div>
-              </div>
-              <div className="flex gap-4 pl-[52px] items-center">
-                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Ruler size={10} /> {r.distance || '—'}</span>
-                <span className="text-[10px] text-slate-400 flex items-center gap-1"><Clock size={10} /> {r.duration || '—'}</span>
-              </div>
-              {locked && (
-                <p className="mt-2 ml-[52px] text-[10px] font-medium text-slate-500 flex items-center gap-1">
-                  <AlertTriangle size={10} className="text-slate-400 shrink-0" />
-                  {geoStatus === 'inside'
-                    ? 'Lokasi Anda sesuai titik rute lain — rute ini terkunci'
-                    : geoStatus === 'checking'
-                      ? 'Memeriksa lokasi GPS...'
-                      : 'Anda di luar radius geofence untuk rute ini'}
-                </p>
-              )}
-            </button>
-          )
-        })}
+        {/* Rute yang diizinkan geofence selalu di paling atas — tanpa scroll. */}
+        {!loading && available.length > 0 && (
+          <p className="px-1 pt-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-blue-600">
+            Sesuai lokasi Anda
+          </p>
+        )}
+        {!loading && available.map(renderRouteCard)}
+
+        {!loading && locked.length > 0 && (
+          <button
+            onClick={() => setShowLocked(v => !v)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-[11px] font-semibold text-slate-500 active:scale-[0.99]"
+          >
+            {showLocked ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {locked.length} rute lain terkunci
+          </button>
+        )}
+        {!loading && showLocked && locked.map(renderRouteCard)}
       </div>
 
       <button
