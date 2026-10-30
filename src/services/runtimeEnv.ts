@@ -33,11 +33,19 @@ export function isLocalhostDev(): boolean {
     // Capacitor belum siap - lanjut ke pemeriksaan manual di bawah.
   }
 
+  // Build pengembangan (ng serve) terdeteksi dari flag build Angular.
+  if (isDevMode()) return true
+
+  // Hanya origin loopback yang dianggap dev.
+  //
+  // PENTING — jangan pakai PORT sebagai penanda dev. Di deployment kantor,
+  // aplikasi mobile web PRODUKSI disajikan nginx DI PORT 5173 (nginx.conf).
+  // Dulu port 5173/3000/4200/8080 ikut dianggap "dev" -> seluruh alur
+  // pembaruan mati untuk semua petugas yang memakai mobile web: tombol
+  // "Cek Update" selalu dijawab "Sudah Terbaru" tanpa pernah menghubungi
+  // server update.
   const hostname = window.location.hostname || ''
-  const port = window.location.port || ''
-  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
-  const isDevPort = port === '5173' || port === '5174' || port === '3000' || port === '4200' || port === '8080'
-  return isLocalhost || isDevPort
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 }
 
 /**

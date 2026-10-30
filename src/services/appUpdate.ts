@@ -2,6 +2,7 @@ import { applyUpdate, checkForUpdate, getCurrentVersion, type CheckResult, type 
 import { getNativeVersion, isNewerVersion, shouldForceUpdate, updateService } from './updateService'
 import { hardReloadToNewBundle } from './otaReload'
 import { isLocalhostDev } from './ota'
+import { isNativeAndroid } from './apkInstaller'
 
 
 
