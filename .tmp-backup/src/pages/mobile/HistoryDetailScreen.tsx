@@ -1,0 +1,411 @@
+import { useState, useEffect } from 'react'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil, Info } from 'lucide-react'
+import { unitLabel, useApp, type VehicleEntry } from '../store'
+import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
+import type { MobileScreen } from '../types'
+
+
+
+
+interface HistoryDetailScreenProps {
+  go: (s: MobileScreen) => void
+}
+
+
+
+
+interface DocPhoto {
+  url: string
+  label: string
+  kind: 'trip' | 'vehicle' | 'selfie'
+  index?: number
+}
+
+
+
+
+export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
+  const { trips, detailTripId, officer, patchDraft, patchVehiclePhoto } = useApp()
+  const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
+  const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
+
+  const [queue, setQueue] = useState<SyncItem[]>([])
+  useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
+
+  // Status jujur: 'failed' = server menolak (merah), bukan sekadar "menunggu".
+  const syncStatus = t ? classifyTripSync(t.id, t.synced, queue) : undefined
+  const isSynced = syncStatus?.state === 'synced'
+  const sendFailed = syncStatus?.state === 'failed'
+  const queueItem = syncStatus?.item
+  const inQueue = !!queueItem
+  const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
+
+  const [preview, setPreview] = useState<DocPhoto | null>(null)
+
+  // Foto yang gagal dimuat (data URL rusak / gambar tidak bisa didekode WebView).
+  // Diperlakukan sama seperti foto yang belum ada: placeholder + tombol ambil
+  // ulang, bukan thumbnail rusak atau hitungan foto yang menipu.
+  const [broken, setBroken] = useState<Record<string, true>>({})
+  const usableUrl = (url?: string): string | undefined => (url && !broken[url] ? url : undefined)
+  const markBroken = (url: string) => setBroken(b => (b[url] ? b : { ...b, [url]: true }))
+
+  const [editVehicle, setEditVehicle] = useState<number | null>(null)
+  const [editPlate, setEditPlate] = useState('')
+  const [editType, setEditType] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+
+  if (!t) {
+    return (
+      <div className="px-4 pt-2 pb-4">
+        <button onClick={() => go('history')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
+          <ChevronLeft size={16} /> Riwayat
+        </button>
+        <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
+          <p className="text-[13px] font-bold text-slate-700">Belum ada trip</p>
+          <p className="text-[11px] text-slate-400 mt-1">Trip yang Anda catat akan muncul di sini</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Klasifikasi HARUS dari ada/tidaknya kendaraan, bukan `t.load`.
+  // Dulu trip ber-kendaraan yang semua muatannya "empty" tersimpan
+  // load='Kosong' → foto kendaraan tidak pernah ditampilkan dan labelnya
+  // tertukar menjadi "Foto Bukti Kapal Kosong".
+  const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
+  const isEmptyTrip = !realVehicles
+
+  const vehicles: VehicleEntry[] = realVehicles
+    ?? [{ plate: t.vehicle, type: t.type, category: t.category, tariff: t.revenueNum }]
+
+  const tripPhotoUrl = usableUrl(t.photoUrl)
+  const selfieUrl = usableUrl(t.selfieUrl)
+
+  const photos: DocPhoto[] = isEmptyTrip
+    ? [
+        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+        ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+      ]
+    : [
+        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
+        ...vehicles.map((v, i) => ({
+          url: usableUrl(v.photoUrl) ?? '',
+          label: unitLabel(vehicles, i),
+          kind: 'vehicle' as const,
+          index: i,
+        })).filter(p => !!p.url),
+        ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+      ]
+
+  const missingVehicles = isEmptyTrip
+    ? []
+    : vehicles
+        .map((v, i) => ({ i, label: unitLabel(vehicles, i), hasPhoto: !!usableUrl(v.photoUrl) }))
+        .filter(x => !x.hasPhoto)
+
+  const brokenCount = Object.keys(broken).length
+
+  // Setelah trip BERHASIL terkirim ke server, foto dokumentasi tidak boleh
+  // ditambah/diambil ulang lagi: data di server sudah final (snapshot),
+  // dan pengambilan ulang hanya memicu upload ulang trip yang sudah sah.
+  const canCapturePhoto = !isSynced
+
+  const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
+    if (!canCapturePhoto) return
+    patchDraft({
+      retakeTarget: { tripId: t.id, kind, index },
+      cameraMode: 'photo',
+      cameraFrom: 'vehicle-form',
+    })
+    go('camera')
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-4">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => go('history')} className="flex items-center gap-1.5 text-slate-500 text-[13px] hover:text-slate-700 font-medium">
+          <ChevronLeft size={16} /> Riwayat
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
+          <h2 className="font-black text-slate-900 text-[18px]">{t.route}</h2>
+        </div>
+        <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
+          isEmptyTrip ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {isEmptyTrip ? 'Kosong' : 'Ada Muatan'}
+        </span>
+      </div>
+
+      {/* Info Card */}
+      <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
+        <div className="grid grid-cols-2 gap-4">
+          {[{ l: 'Tanggal', v: t.date }, { l: 'Jam Mulai', v: t.time }, { l: 'Durasi', v: t.duration }, { l: 'Petugas', v: t.officer }].map(({ l, v }) => (
+            <div key={l}><p className="text-slate-500 text-[10px] mb-0.5">{l}</p><p className="text-white font-semibold text-[12px]">{v}</p></div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Detail Kendaraan (HANYA untuk Trip Muatan) ── */}
+      {!isEmptyTrip && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+          <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
+          {vehicles.map((v, i) => {
+            const label = unitLabel(vehicles, i)
+            const canRetake = !!realVehicles?.[i]
+            const editing = editVehicle === i
+            const photoUrl = usableUrl(v.photoUrl)
+            return (
+              <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
+                <div className="flex items-center gap-3">
+                  {photoUrl ? (
+                    <button onClick={() => setPreview({ url: photoUrl, label, kind: 'vehicle', index: i })} className="shrink-0" title={`Lihat foto ${label}`}>
+                      <img src={photoUrl} alt={`Foto ${label}`} loading="lazy" decoding="async" onError={() => markBroken(v.photoUrl!)} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                    </button>
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-dashed border-amber-300 flex items-center justify-center shrink-0">
+                      <ImageOff size={16} className="text-amber-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">{label}</span>
+                      <p className="font-mono text-[12px] font-black text-slate-900">{v.plate}</p>
+                    </div>
+                    <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
+                  </div>
+                  {!editing && canRetake && (
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {!photoUrl && canCapturePhoto && (
+                        <button
+                          onClick={() => retakePhoto('vehicle', i)}
+                          className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
+                        >
+                          <Camera size={11} /> Foto
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setEditVehicle(i); setEditPlate(v.plate); setEditType(v.type); setEditCategory(v.category) }}
+                        className="flex items-center gap-1 text-[10px] font-black text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"
+                      >
+                        <Pencil size={11} /> Ubah
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
+                {editing && (
+                  <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                    <input
+                      value={editPlate}
+                      onChange={e => setEditPlate(e.target.value.toUpperCase())}
+                      placeholder="Plat nomor"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={editType}
+                        onChange={e => setEditType(e.target.value)}
+                        placeholder="Jenis (Truk/Mobil/Motor)"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        value={editCategory}
+                        onChange={e => setEditCategory(e.target.value)}
+                        placeholder="Golongan"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (!t || !realVehicles?.[i] || !editPlate.trim()) return
+                          patchVehiclePhoto(t.id, i, { plate: editPlate.trim(), type: editType.trim() || v.type, category: editCategory.trim() || v.category })
+                          setEditVehicle(null)
+                        }}
+                        className="flex-1 rounded-lg bg-blue-600 text-white text-[12px] font-bold py-2 hover:bg-blue-700 active:scale-[0.98]"
+                      >
+                        Simpan & Kirim
+                      </button>
+                      <button
+                        onClick={() => setEditVehicle(null)}
+                        className="rounded-lg bg-white border border-slate-200 text-slate-600 text-[12px] font-bold px-4 py-2"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Galeri Foto Dokumentasi (HANYA tampilkan yang valid) ── */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
+          </p>
+          {t.photo && !tripPhotoUrl && canCapturePhoto && (
+            <button
+              onClick={() => retakePhoto('trip')}
+              className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
+            >
+              <Camera size={11} /> {isEmptyTrip ? 'Ambil Foto' : 'Ambil Foto Trip'}
+            </button>
+          )}
+        </div>
+
+        {isSynced && (missingVehicles.length > 0 || (t.photo && !tripPhotoUrl)) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 flex items-start gap-2">
+            <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Foto dokumentasi tidak dapat ditambah lagi — data trip sudah berhasil terkirim ke server.
+            </p>
+          </div>
+        )}
+
+        {photoStuck && !isEmptyTrip && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-800 leading-snug">
+              Foto dokumentasi belum lengkap{missingVehicles.length > 0 && (
+                <>: <b>{missingVehicles.map(x => x.label).join(', ')}</b></>
+              )} — ambil fotonya, antrean otomatis dikirim ulang.
+            </p>
+          </div>
+        )}
+
+        {brokenCount > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-800 leading-snug">
+              {brokenCount} foto tidak dapat dimuat dari penyimpanan perangkat — ambil ulang
+              fotonya supaya trip terkirim lengkap ke server.
+            </p>
+          </div>
+        )}
+
+        {photos.length === 0 ? (
+          <div className="rounded-xl bg-slate-50 py-8 text-center">
+            <Camera size={26} className="mx-auto text-slate-300 mb-2" />
+            <p className="text-[11px] text-slate-400">
+              {brokenCount > 0 ? 'Foto tidak dapat dimuat dari perangkat' : 'Belum ada foto dokumentasi tersimpan'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {photos.map((p, i) => (
+              <button
+                key={`${p.kind}-${p.index ?? 'trip'}-${i}`}
+                onClick={() => setPreview(p)}
+                className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 text-left active:scale-[0.98] transition-transform"
+              >
+                <img src={p.url} alt={p.label} loading="lazy" decoding="async" onError={() => markBroken(p.url)} className="w-full h-28 object-cover" />
+                <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-1.5">
+                  <span className="block text-white text-[10px] font-black uppercase truncate">{p.label}</span>
+                </span>
+              </button>
+            ))}
+            {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
+            {!isEmptyTrip && missingVehicles.map(x => (
+              canCapturePhoto ? (
+                <button
+                  key={`missing-${x.i}`}
+                  onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
+                  className="h-28 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <Camera size={18} className="text-amber-500" />
+                  <span className="text-[10px] font-black text-amber-700 uppercase">{x.label} — Belum ada foto</span>
+                </button>
+              ) : (
+                <div
+                  key={`missing-${x.i}`}
+                  className="h-28 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <Camera size={18} className="text-slate-300" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase">{x.label} — Tanpa foto</span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox dokumentasi */}
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white">
+            <X size={20} />
+          </button>
+          <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
+            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
+            {preview.kind !== 'selfie' && canCapturePhoto && (
+              <button
+                onClick={() => {
+                  const p = preview
+                  setPreview(null)
+                  if (p.kind === 'vehicle') retakePhoto('vehicle', p.index)
+                  else retakePhoto('trip')
+                }}
+                className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
+              >
+                <RefreshCcw size={12} /> Ambil Ulang
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sync Status */}
+      <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
+        sendFailed
+          ? 'bg-red-50 border-red-200'
+          : isSynced
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-amber-50 border-amber-200'
+      }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+          sendFailed ? 'bg-red-100' : isSynced ? 'bg-emerald-100' : 'bg-amber-100'
+        }`}>
+          {sendFailed
+            ? <AlertTriangle size={16} className="text-red-500" strokeWidth={2.5} />
+            : isSynced
+              ? <Cloud size={16} className="text-emerald-500" strokeWidth={2.5} />
+              : <CloudOff size={16} className="text-amber-500" strokeWidth={2.5} />}
+        </div>
+        <div className="flex-1">
+          <p className={`text-[12px] font-bold ${
+            sendFailed ? 'text-red-700' : isSynced ? 'text-emerald-700' : 'text-amber-700'
+          }`}>
+            {sendFailed
+              ? 'Gagal terkirim ke server'
+              : isSynced
+                ? 'Data trip berhasil terkirim'
+                : 'Masih menunggu koneksi, tersimpan di lokal'}
+          </p>
+          <p className={`text-[10px] ${
+            sendFailed ? 'text-red-600' : isSynced ? 'text-emerald-600' : 'text-amber-600'
+          }`}>
+            {sendFailed
+              ? `${syncStatus?.error ?? 'Server menolak data trip'}${syncStatus?.attempts ? ` · percobaan ${syncStatus.attempts}` : ''} — data BELUM masuk dashboard admin`
+              : isSynced
+                ? `Data berhasil dikirim ke ${t.syncedTarget ?? 'server'} · ${t.date}`
+                : photoStuck
+                  ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
+                  : inQueue
+                    ? 'Menunggu koneksi untuk mengirim...'
+                    : 'Data aman tersimpan di perangkat'}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,206 @@
+// ═══════════════════════════════════════════════════════════
+// Aplikasi Trip Angkutan - Plantation Modern Theme
+// Design System v2.0.1
+// (Token Ionic --ion-* dihapus: aplikasi memakai design token sendiri)
+// ═══════════════════════════════════════════════════════════
+
+:root {
+  // ── Primary Colors (Plantation Green) ──
+  --primary-50: #ECFDF5;
+  --primary-100: #D1FAE5;
+  --primary-200: #A7F3D0;
+  --primary-300: #6EE7B7;
+  --primary-400: #34D399;
+  --primary-500: #10B981;
+  --primary-600: #059669;
+  --primary-700: #047857;
+  --primary-800: #065F46;
+  --primary-900: #064E3B;
+  --primary-glow: rgba(16, 185, 129, 0.3);
+
+  // ── Forest Green (Deep Emphasis) ──
+  --forest-500: #0F5132;
+  --forest-600: #0A3D26;
+  --forest-700: #082B1A;
+  --forest-glow: rgba(10, 61, 38, 0.35);
+
+  // ── Secondary / Accent (Warm Amber) ──
+  --amber-50: #FFFBEB;
+  --amber-100: #FEF3C7;
+  --amber-200: #FDE68A;
+  --amber-300: #FCD34D;
+  --amber-400: #FBBF24;
+  --amber-500: #F59E0B;
+  --amber-600: #D97706;
+  --amber-700: #B45309;
+  --amber-glow: rgba(245, 158, 11, 0.3);
+
+  // ── Background Colors ──
+  --bg-base: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-card: #F8FAFC;
+  --bg-card-hover: #F1F5F9;
+  --bg-dark: #0F172A;
+  --bg-dark-secondary: #1E293B;
+  --bg-overlay: rgba(15, 23, 42, 0.5);
+
+  // ── Text Colors ──
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-inverse: #FFFFFF;
+  --text-primary-dark: #F8FAFC;
+  --text-secondary-dark: #CBD5E1;
+
+  // ── Status Colors ──
+  --status-success: #10B981;
+  --status-success-bg: #D1FAE5;
+  --status-warning: #F59E0B;
+  --status-warning-bg: #FEF3C7;
+  --status-danger: #EF4444;
+  --status-danger-bg: #FEE2E2;
+  --status-info: #3B82F6;
+  --status-info-bg: #DBEAFE;
+
+  // ── Border Colors ──
+  --border-light: #E2E8F0;
+  --border-medium: #CBD5E1;
+  --border-strong: #94A3B8;
+  --border-focus: #10B981;
+
+  // ── Shadows ──
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 12px 32px rgba(15, 23, 42, 0.16);
+  --shadow-green: 0 4px 16px rgba(16, 185, 129, 0.25);
+  --shadow-green-lg: 0 10px 28px rgba(16, 185, 129, 0.35);
+  --shadow-amber: 0 4px 16px rgba(245, 158, 11, 0.25);
+  --shadow-inset-light: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+
+  // ── Radius ──
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-full: 9999px;
+
+  // ── Spacing (bonus scale) ──
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  // ── Typography ──
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+
+/* ── 1. Timing Functions (Easing Curves) ── */
+  /* Smooth natural decelerations (Standard UI) */
+  --ease-out-quad: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-cubic: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Expressive Springs & Bounces */
+  --ease-spring-subtle: cubic-bezier(0.2, 1.2, 0.4, 1);   /* Snappy, slight overshoot */
+  --ease-spring-playful: cubic-bezier(0.34, 1.56, 0.64, 1); /* Pronounced bounce */
+  --ease-spring-bouncy: cubic-bezier(0.68, -0.6, 0.32, 1.6);/* Snaps back then springs forward */
+
+  /* Enter / Exit Intent Curves */
+  --ease-enter: cubic-bezier(0.0, 0.0, 0.2, 1);  /* Fast start, decelerates into place */
+  --ease-exit: cubic-bezier(0.4, 0.0, 1, 1);     /* Accelerates off-screen quickly */
+
+
+  /* ── 2. Standard Duration & Ease Tokens ── */
+  --transition-instant: 100ms var(--ease-out-quad);  /* Active states, checkboxes, toggles */
+  --transition-fast: 150ms var(--ease-out-cubic);    /* Hover states, tooltips, buttons */
+  --transition-normal: 250ms var(--ease-in-out-smooth); /* Dropdowns, accordion collapses, tabs */
+  --transition-slow: 350ms var(--ease-out-quart);   /* Modals, drawers, large panels */
+  --transition-spring: 300ms var(--ease-spring-playful); /* Badges, floating action buttons, popovers */
+
+
+  /* ── 3. Directional Intent Transitions ── */
+  --transition-enter: 220ms var(--ease-enter);      /* Elements appearing or expanding */
+  --transition-exit: 180ms var(--ease-exit);        /* Elements collapsing or disappearing */
+
+
+  /* ── 4. Hardware-Accelerated Property Composites ── */
+  /* Best practice: Animate composite properties (transform, opacity) instead of 'all' */
+  --transition-fade: opacity var(--transition-fast);
+  --transition-transform: transform var(--transition-fast);
+  --transition-composite: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Focus ring — consistent across the app
+*:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+// Prevent text selection on tap targets (mobile feel)
+button,
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILITY CLASSES (optional, mirrors your tokens)
+// ═══════════════════════════════════════════════════════════
+
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+.text-inverse   { color: var(--text-inverse); }
+.text-success   { color: var(--status-success); }
+.text-warning   { color: var(--status-warning); }
+.text-danger    { color: var(--status-danger); }
+
+.bg-surface { background: var(--bg-surface); }
+.bg-card    { background: var(--bg-card); }
+.bg-dark    { background: var(--bg-dark); color: var(--text-inverse); }
+
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-green { box-shadow: var(--shadow-green); }
+
+.radius-sm { border-radius: var(--radius-sm); }
+.radius-md { border-radius: var(--radius-md); }
+.radius-lg { border-radius: var(--radius-lg); }
+.radius-xl { border-radius: var(--radius-xl); }
+.radius-full { border-radius: var(--radius-full); }

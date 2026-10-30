@@ -1,0 +1,248 @@
+import { useState, useEffect } from 'react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landmark } from 'lucide-react'
+import { fetchTrips } from '../../services/trips'
+import { ensureAdminSession } from '../../services/auth'
+import { api } from '../../services/api'
+import type { AdminTab } from './components/types'
+import type { BackendOfficerRow } from './components/types'
+import type { BackendTrip } from '../../services/trips'
+import type { PlateRecord } from '../../services/plates'
+import type { Officer } from './components/types'
+import { loadTheme, applyTheme } from '../../services/theme'
+import { environment } from '../../environments/environment'
+import ReportSheet from './ReportSheet'
+import RecapSheet from './RecapSheet'
+
+import { TariffTab } from './tabs/TariffTab'
+import { PlatesTab } from './tabs/PlatesTab'
+import { RoutesTab } from './tabs/RoutesTab'
+import { RegionTab } from './tabs/RegionTab'
+import { OfficersTab } from './tabs/OfficersTab'
+import { ReportsTab } from './tabs/ReportsTab'
+import { SettingsTab } from './tabs/SettingsTab'
+import { EndpointTab } from './tabs/EndpointTab'
+
+
+
+export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+  const [officers, setOfficers] = useState<Officer[]>([])
+  const [revealed, setRevealed] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [tab, setTab] = useState<AdminTab>('reports')
+  const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline' | 'auth'>('connecting')
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [, setServerTrips] = useState<BackendTrip[]>([])
+  const [plates, setPlates] = useState<PlateRecord[]>([])
+
+
+  const [sheetMode, setSheetMode] = useState<'sheet' | 'rekap' | ''>(() => {
+    if (typeof window === 'undefined') return ''
+    return window.location.hash === '#/sheet/rekap' ? 'rekap' : window.location.hash === '#/sheet' ? 'sheet' : ''
+  })
+  useEffect(() => {
+    const onHash = () => setSheetMode(
+      window.location.hash === '#/sheet/rekap' ? 'rekap' : window.location.hash === '#/sheet' ? 'sheet' : '',
+    )
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
+    return rows.map(b => {
+      const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
+      const region = b.regions?.[0]?.name ?? b.region_code ?? b.region_id
+      return {
+        id: String(b.id), name: b.name,
+        initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+        region,
+        regions: b.regions && b.regions.length > 0 ? b.regions.map(r => r.name) : [region],
+        pin: old?.pin ?? '', status: b.is_active ? 'Aktif' : 'Nonaktif',
+        device: old?.device ?? '-', trips: old?.trips ?? 0,
+        lastActive: old?.lastActive ?? '-', joined: old?.joined ?? '-',
+        dermagaAccess: b.dermagas && b.dermagas.length > 0 ? b.dermagas : old?.dermagaAccess,
+      }
+    })
+  }
+
+  useEffect(() => { applyTheme(loadTheme()) }, [])
+
+  // Dependency array WAJIB ada di sini. Tanpa itu, efek ini jalan ulang
+  // setiap render -> setiap setState memicu render -> efek jalan lagi:
+  // request storm tak terbatas ke /trips dan /officers.
+  // `officers` sengaja TIDAK jadi dependency; state lama dipakai lewat
+  // functional update supaya tidak memicu loop.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      const sess = await ensureAdminSession()
+      if (!alive) return
+      if (!sess.ok) {
+        // Login yang DITOLAK server (kredensial salah, kredensial belum
+        // dikonfigurasi) berbeda dari server yang tidak bisa dihubungi.
+        // Dulu keduanya ditampilkan sebagai "Tidak bisa terhubung ke
+        // server", sehingga operator mengira servernya yang rusak padahal
+        // masalahnya kredensial.
+        setServerState(sess.authDenied ? 'auth' : 'offline')
+        setServerError(sess.error ?? 'Sesi admin tidak bisa dibuat')
+        return
+      }
+      setServerError(null)
+
+      const tri = await fetchTrips()
+      if (!alive) return
+      if (tri !== null) setServerTrips(tri)
+
+      const offs = await api.getOk<BackendOfficerRow[]>('/officers')
+      if (alive && offs) setOfficers(prev => mergeBackendOfficers(offs, prev))
+
+      setServerState('online')
+    })()
+    return () => { alive = false }
+  }, [])
+
+  // Navigation: Laporan as primary, other management tabs
+  const navItems: { key: AdminTab; label: string; Icon: any }[] = [
+    { key: 'reports', label: 'Laporan', Icon: BarChart2 },
+    { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
+    { key: 'plates', label: 'Master Plat', Icon: Hash },
+    { key: 'routes', label: 'Master Rute', Icon: MapPin },
+    { key: 'region', label: 'Master Dermaga', Icon: Landmark },
+    { key: 'officers', label: 'Petugas', Icon: Users },
+    { key: 'endpoint', label: 'Endpoint', Icon: Server },
+    { key: 'settings', label: 'Pengaturan', Icon: Settings },
+  ]
+
+  return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
+    <div className="flex bg-slate-900 min-h-screen">
+        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
+  <div className="p-6 border-b border-slate-800">
+    <div className="flex items-center gap-4">
+
+      <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
+        <img src="/assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
+      </div>
+
+      <div>
+        <p className="text-white font-black text-[14px]">Dashboard Trip</p>
+        <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
+      </div>
+    </div>
+  </div>
+
+        <nav className="flex-1 p-3 space-y-0.5">
+          {navItems.map(({ key, label, Icon }) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] admin-nav-item transition-all duration-150 ${
+                tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}>
+              <Icon size={16} />{label}
+            </button>
+          ))}
+        </nav>
+        <div className="p-4 border-t border-slate-800">
+          <button onClick={onLogout} className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 text-[12px] font-semibold">
+            <LogOut size={14} />Logout
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 ml-64 bg-slate-50 min-h-screen">
+        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
+          {(serverState === 'offline' || serverState === 'auth') && serverError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-red-700">
+                  {serverState === 'auth'
+                    ? 'Login admin gagal'
+                    : 'Tidak bisa terhubung ke server'}
+                </p>
+                <p className="text-[12px] text-red-600 mt-0.5">{serverError}</p>
+                <p className="text-[11px] text-red-500 mt-1">
+                  {serverState === 'auth'
+                    ? 'Server hidup, tetapi kredensial admin ditolak. Masukkan ulang username dan password. Bila password admin baru saja diganti, buka dashboard di tab baru dan gunakan kredensial baru.'
+                    : 'Server API intranet tidak merespons. Pastikan layanan di port 3000 masih berjalan, lalu coba lagi.'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setServerState('connecting')
+                  setServerError(null)
+                  if (serverState === 'auth') {
+                    // Kredensial ditolak: token yang tersimpan tidak berguna.
+                    // Hapus supaya halaman login muncul lagi.
+                    api.setToken(null)
+                    try { localStorage.removeItem('trip.admin') } catch { /* storage tidak tersedia */ }
+                    onLogout()
+                    return
+                  }
+                  window.location.reload()
+                }}
+                className="shrink-0 rounded-lg bg-white border border-red-200 px-3 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-100"
+              >
+                {serverState === 'auth' ? 'Masuk Ulang' : 'Coba Lagi'}
+              </button>
+            </div>
+          )}
+          {tab === 'reports' && (
+            <ReportsTab
+              onServerTripsChange={setServerTrips}
+              showToast={showToast}
+              revealed={revealed}
+              onToggleReveal={() => setRevealed(r => !r)}
+              baseUrl={environment.apiBaseUrl}
+            />
+          )}
+
+          {tab === 'tariff' && (
+            <TariffTab serverState={serverState} showToast={showToast} />
+          )}
+
+          {tab === 'plates' && (
+            <PlatesTab
+              plates={plates}
+              onPlatesChange={setPlates}
+              showToast={showToast}
+            />
+          )}
+
+          {tab === 'routes' && (
+            <RoutesTab showToast={showToast} />
+          )}
+
+          {tab === 'region' && (
+            <RegionTab showToast={showToast} />
+          )}
+
+          {tab === 'officers' && (
+            <OfficersTab
+              officers={officers}
+              onSaveOfficers={setOfficers}
+              showToast={showToast}
+            />
+          )}
+
+          {tab === 'endpoint' && (
+            <EndpointTab showToast={showToast} />
+          )}
+
+          {tab === 'settings' && (
+            <SettingsTab />
+          )}
+        </div>
+      </div>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg ${
+          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  )
+}

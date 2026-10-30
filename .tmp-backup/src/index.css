@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANSISI HALAMAN MOBILE — Minimal animations untuk performa
+   tab  : instant (tanpa animasi)    push/pop : sangat cepat
+   zoom : halaman detail            sheet : form/modal
+   ═════════════════════════════════════════════════════════════════════════ */
+@keyframes scr-push  { from { transform: translateX(16px);  opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-pop   { from { transform: translateX(-16px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-zoom  { from { transform: scale(0.96);       opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes scr-sheet { from { transform: translateY(24px);  opacity: 0.5 } to { transform: none; opacity: 1 } }
+/* tab: instant - no animation for smooth tab switching */
+
+/* Catatan: jangan pakai `backface-visibility: hidden` / `preserve-3d` di sini.
+   Keduanya memaksa layer komposit tersendiri dan di WebView Android sering
+   membuat konten (teks/gambar) di-render buram/pecah. Animasi di bawah ini
+   semuanya transform 2D + opacity, jadi konteks 3D tidak diperlukan. */
+.scr-anim {
+  will-change: transform, opacity;
+}
+.scr-anim-push  { animation: scr-push  0.15s ease-out both; }
+.scr-anim-pop   { animation: scr-pop   0.12s ease-out both; }
+.scr-anim-zoom  { animation: scr-zoom  0.15s ease-out both; }
+.scr-anim-sheet { animation: scr-sheet 0.18s ease-out both; }
+/* scr-anim-tab: no animation - instant switch for snappy feel */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIF — target utama perangkat seluler
+   • Kontainer memakai ukuran fluks (width/height 100% + max-width/height),
+     bukan piksel tetap, sehingga mengikuti lebar & tinggi layar apa pun.
+   • border-radius + overflow:hidden selalu aktif di semua ukuran layar,
+     sehingga isi dipotong rapi mengikuti lengkungan bingkai.
+   ═════════════════════════════════════════════════════════════════════════ */
+/* Akar aplikasi (state login) — TINGGI DEFINITE.
+   Tanpa ini, .app-frame yang memakai height:100% akan jatuh ke auto (induk
+   min-h-screen tingginya auto) → frame kolaps setinggi konten dan navbar
+   bawah ikut melayang, bukan menempel di dasar layar. */
+.app-root {
+  height: 100vh;   /* fallback WebView lama */
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-frame {
+  width: 100%;
+  max-width: 430px;
+  height: 100%;
+  max-height: 100dvh;
+  margin-inline: auto;
+  background: #f1f5f9;
+  border-radius: clamp(22px, 7vw, 44px);
+  border: 1px solid rgba(203, 213, 225, 0.6);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+@media (max-width: 640px) {
+  .app-frame {
+    /* Layar sentuh: bingkai tetap melengkung, hanya bayangan & garis tepi
+       yang dikurangi supaya konten tidak tampak "melayang". */
+    max-width: none;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   JARAK AMAN ATAS (safe area) — konten layar tidak menabrak status bar/notch
+   sistem, tapi juga tidak menyisakan "jidat" kosong yang terlalu lebar.
+
+   • --ion-safe-area-top  : dipakai bila Ionic/Capacitor menyuntikkan tinggi
+                            status bar bawaan perangkat.
+   • env(safe-area-inset-top) : nilai asli safe-area bawaan browser/WebView.
+   • +12px               : ruang lega tambahan — HomeScreen memakai pt-1 (4px),
+                            sehingga hero biru berhenti 16px dari tepi atas.
+   ═════════════════════════════════════════════════════════════════════════ */
+.screen-scroll {
+  padding-top: calc(var(--ion-safe-area-top, 0px) + env(safe-area-inset-top, 0px) + 12px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEEDBACK SENTUHAN TOMBOL — skalakan halus saat ditekan (semua platform).
+   :where() dipakai supaya spesifikasinya nol → kelas active:scale bawaan
+   Tailwind tetap menang bila ada, dan tombol yang tak diberi kelas pun
+   tetap memberi umpan balik.
+   ═════════════════════════════════════════════════════════════════════════ */
+:where(button) {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.18s ease;
+}
+:where(button.old) {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+:where(button:not(:disabled):active) { transform: scale(0.96); }
+:where(button:disabled) { cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scr-anim-push, .scr-anim-pop, .scr-anim-zoom, .scr-anim-sheet, .scr-anim-tab {
+    animation: none !important;
+  }
+  :where(button:not(:disabled):active) { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN DASHBOARD — Smooth tab transitions and UI animations
+   ═════════════════════════════════════════════════════════════════════════ */
+@keyframes admin-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes admin-slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.admin-tab-content {
+  /* Fill mode 'backwards' (bukan 'both') agar nilai transform dari keyframe
+     tidak tertinggal setelah animasi selesai. Transform yang tertinggal membuat
+     elemen ini menjadi containing block bagi anak position: fixed, sehingga
+     modal tampil di tengah dokumen dan bukan di tengah viewport. */
+  animation: admin-fade-in 0.25s ease-out backwards;
+  transform: none;
+}
+
+.admin-nav-item {
+  transition: all 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.admin-nav-item:hover {
+  transform: translateX(2px);
+}
+
+.admin-card {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.admin-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.admin-table-row {
+  transition: background-color 0.15s ease;
+}
+
+.admin-date-group {
+  animation: admin-slide-in 0.2s ease-out backwards;
+}
+
+/* Staggered animation for list items */
+.stagger-item {
+  animation: admin-fade-in 0.25s ease-out backwards;
+}
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 50ms; }
+.stagger-item:nth-child(3) { animation-delay: 100ms; }
+.stagger-item:nth-child(4) { animation-delay: 150ms; }
+.stagger-item:nth-child(5) { animation-delay: 200ms; }
+.stagger-item:nth-child(6) { animation-delay: 250ms; }
+.stagger-item:nth-child(7) { animation-delay: 300ms; }
+.stagger-item:nth-child(8) { animation-delay: 350ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-tab-content,
+  .admin-nav-item:hover,
+  .admin-card:hover,
+  .admin-date-group,
+  .stagger-item {
+    animation: none !important;
+    transform: none !important;
+  }
+}

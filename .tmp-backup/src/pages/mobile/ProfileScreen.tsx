@@ -1,0 +1,270 @@
+import { useEffect, useState } from 'react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { appUpdate } from '../../services/appUpdate'
+import { semverLabel } from '../../services/ota'
+import { useAppUpdate } from '../../components/UpdateNotifier'
+import { prefetchAllCriticalData } from '../../services/prefetch'
+import { useApp } from '../store'
+import type { MobileScreen } from '../types'
+
+
+
+
+
+interface ProfileScreenProps {
+  go: (s: MobileScreen) => void
+}
+
+
+
+
+
+export default function ProfileScreen({ go }: ProfileScreenProps) {
+  const { officer, trips, refreshOfficers } = useApp()
+  const update = useAppUpdate()
+  const [busy, setBusy] = useState(false)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
+  useEffect(() => {
+    void refreshOfficers()
+    void appUpdate.refreshVersions()
+    // Prefetch data kritis saat app aktif
+    void prefetchAllCriticalData()
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [refreshOfficers])
+
+
+
+
+
+  const checkNow = async () => {
+    setBusy(true)
+    try {
+      console.debug('[Profile] Memulai cek update...')
+      const result = await appUpdate.check()
+      console.debug('[Profile] Hasil cek update:', result)
+    } finally {
+      setBusy(false)
+      await appUpdate.refreshVersions()
+    }
+  }
+
+
+
+
+
+  const applyNow = async () => {
+    setBusy(true)
+    try {
+      console.debug('[Profile] Memulai apply update, kind:', appUpdate.state.kind)
+      const success = await appUpdate.apply()
+      console.debug('[Profile] Apply update selesai:', success, 'state:', appUpdate.state)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+
+
+
+
+  const updateReady = update.status === 'ready'
+  const appVersion = appUpdate.currentAppVersion
+  const moduleVersion = appUpdate.currentModuleVersion
+  const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
+ // Status check untuk menentukan state tombol
+  const isChecking = update.status === 'checking'
+  const isDownloading = update.status === 'downloading'
+  const isInstalling = update.status === 'installing'
+  const isUpToDate = update.status === 'up-to-date'
+  const hasError = update.status === 'error'
+  const isIdleOrOffline = update.status === 'idle' || update.status === 'offline'
+
+
+  const updateNote = (() => {
+    if (busy || isChecking) return 'Memeriksa pembaruan…'
+    if (isDownloading) return 'Mengunduh pembaruan…'
+    if (isInstalling) return update.kind === 'apk' ? 'Menunggu pemasangan APK…' : 'Menerapkan modul baru…'
+    if (updateReady) {
+      return update.kind === 'apk'
+        ? `Versi APK ${update.version} siap dipasang — tekan tombol untuk memulai`
+        : `Modul ${semverLabel(update.version ?? '')} siap dipasang — tekan tombol untuk memulai`
+    }
+    if (isUpToDate) return 'Aplikasi sudah versi terbaru'
+    if (hasError) return update.error ?? 'Pemeriksaan pembaruan gagal'
+    if (update.status === 'offline') return 'Tidak ada koneksi — coba lagi saat online'
+    return versionLine
+  })()
+
+
+
+
+  // Tentukan state tombol
+  const buttonState = (() => {
+    if (busy || isChecking) return { label: 'Memeriksa…', disabled: true, action: 'check' }
+    if (isDownloading) return { label: 'Mengunduh…', disabled: true, action: 'check' }
+    if (isInstalling) return { label: 'Memasang…', disabled: true, action: 'check' }
+    if (updateReady) return { label: 'Update Sekarang', disabled: false, action: 'update' }
+    if (hasError) return { label: 'Coba Lagi', disabled: false, action: 'check' }
+    if (isUpToDate) return { label: 'Sudah Terbaru', disabled: true, action: 'check' }
+    if (isIdleOrOffline) return { label: 'Cek Update', disabled: false, action: 'check' }
+    return { label: 'Cek & Perbarui', disabled: false, action: 'check' }
+  })()
+
+
+
+
+
+  const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+
+  const units = new Set(
+    myTrips
+      .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
+      .filter(p => p && p !== '-'),
+  )
+
+
+
+
+  return (
+    <div className="min-h-full bg-slate-50 px-4 pb-8 pt-4 space-y-4">
+      <div>
+        <h2 className="mt-1 text-xl font-bold text-slate-900">Profil Petugas</h2>
+      </div>
+
+      <section className="bg-[#0F172A] rounded-3xl p-5 mb-4">
+        <div className="flex items-center gap-4 mb-4">
+          <img src="/assets/guest-profile.jpeg" alt={officer.name} className="w-16 h-16 rounded-2xl object-cover" />
+          <div className="min-w-0">
+            <p className="text-white font-bold text-[16px] leading-tight">{officer.name}</p>
+            <p className="text-blue-400 text-[12px] mt-0.5">@{officer.username || officer.name.toLowerCase().replace(/\s+/g, '')}</p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-emerald-400 text-[11px] font-bold">REGION : {officer.region}</span>
+            </div>
+          </div>
+        </div>
+
+
+
+
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+          {[{ v: String(myTrips.length), l: 'Trip' }, { v: String(units.size), l: 'Kendaraan' }].map((stat, index) => (
+            <div key={stat.l} className={`text-center ${index > 0 ? 'border-l border-white/10 pl-4' : ''}`}>
+              <p className="text-white font-black text-[18px] leading-tight">{stat.v}</p>
+              <p className="text-slate-400 text-[11px] mt-1">{stat.l}</p>
+            </div>
+          ))}
+        </div>
+
+
+
+
+        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
+          <Lock size={12} className="text-slate-500" />
+          <span className="text-[11px] text-slate-500">Region Locked</span>
+          <span className="ml-auto text-[11px] font-black text-emerald-400 tracking-widest">{officer.region}</span>
+          <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
+        </div>
+      </section>
+
+
+
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="px-4 pb-2 pt-3">
+          <h3 className="text-xs font-semibold text-slate-800">Koneksi</h3>
+          <p className="mt-0.5 text-[10px] text-slate-400">Status jaringan perangkat</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-800">Jaringan internet</p>
+              <p className="text-[10px] text-slate-400">{isOnline ? 'Perangkat terhubung ke internet' : 'Perangkat sedang offline'}</p>
+            </div>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+
+
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-3 p-4">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><CheckCircle size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-800">Pembaruan Aplikasi</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{updateNote}</p>
+          </div>
+          <button
+            onClick={() => void (buttonState.action === 'update' ? applyNow() : checkNow())}
+            disabled={buttonState.disabled}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10px] font-semibold transition-colors ${
+              buttonState.action === 'update'
+                ? 'border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-slate-300 bg-transparent text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+            } disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:bg-slate-50`}
+          >
+
+
+
+            {busy || isChecking ? <RefreshCw size={12} className="animate-spin" /> : null}
+            {buttonState.label}
+          </button>
+        </div>
+        {updateReady && !busy && (
+          <div className="flex items-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-[10px] text-emerald-800">
+            <AlertCircle size={13} /> {update.kind === 'apk' ? 'Paket APK' : 'Modul web'} {update.version} siap dipasang — cukup satu tombol.
+          </div>
+        )}
+        {update.status === 'error' && !busy && (
+          <div className="flex items-center gap-2 border-t border-rose-100 bg-rose-50 px-4 py-2.5 text-[10px] text-rose-800">
+            <AlertCircle size={13} /> {update.error}
+          </div>
+        )}
+      </section>
+
+
+
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <button
+          onClick={() => go('geofence-config')}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><MapPin size={16} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-800">Titik wilayah validasi</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Konfigurasi area geofence</p>
+          </div>
+          <ChevronRight size={16} className="text-slate-400" />
+        </button>
+      </section>
+
+
+
+
+      <button
+        onClick={() => go('officer-switch')}
+        className="w-full flex items-center justify-center gap-2 py-3.5 text-red-500 font-bold text-[13px] rounded-2xl border border-red-200 hover:bg-red-50 active:bg-red-100 transition-colors"
+      >
+        <ArrowLeftRight size={15} /> Ganti Petugas
+      </button>
+
+      <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first · {officer.lastActive}</p>
+
+    </div>
+  )
+}
