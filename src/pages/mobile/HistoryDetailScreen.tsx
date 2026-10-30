@@ -177,7 +177,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                     </div>
                     <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
                   </div>
-                  {!editing && canRetake && (
+                  {!editing && canRetake && canCapturePhoto && (
                     <div className="flex flex-col gap-1 shrink-0">
                       {!photoUrl && canCapturePhoto && (
                         <button
@@ -198,7 +198,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 </div>
 
                 {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
-                {editing && (
+                {editing && canCapturePhoto && (
                   <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
                     <input
                       value={editPlate}

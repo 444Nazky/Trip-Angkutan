@@ -188,7 +188,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
               {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-slate-800">Jaringan internet</p>
+              <p className="text-xs font-medium text-slate-800">Jaringan intranet</p>
               <p className="text-[10px] text-slate-400">{isOnline ? 'Perangkat terhubung ke internet' : 'Perangkat sedang offline'}</p>
             </div>
             <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>

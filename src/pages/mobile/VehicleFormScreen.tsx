@@ -297,18 +297,18 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             </div>
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
-          {(check || checkLoading) && (
+          {(checkLoading || check?.found) && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
               {checkLoading ? (
                 <><Loader2 size={12} className="animate-spin" /> Memeriksa plat…</>
-              ) : check ? (
+              ) : check?.found ? (
                 <>
                   <span className={`font-medium ${
                     check.status === 'internal' ? 'text-slate-700'
                     : check.status === 'lokal' ? 'text-blue-600'
                     : 'text-amber-600'
                   }`}>{check.status}</span>
-                  {check.found && <span>(terdaftar di database)</span>}
+                  <span>(terdaftar di database)</span>
                   {check.offline && (
                     <span className="text-amber-600">(perkiraan offline — data master lokal)</span>
                   )}
