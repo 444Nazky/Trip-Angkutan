@@ -62,16 +62,26 @@ Jangan sampai tertukar:
 | Mesin | IP | Peran | Port |
 |-------|----|-------|------|
 | `ubuntu.local` | `192.168.1.123` | **SERVER PUSAT KANTOR** - kabel LAN ke router Linksys `192.168.1.1`, port forwarding 8000/5173/3000. Preset "Intranet Kantor" di aplikasi mengarah ke sini. | 8000, 5173, 3000 |
-| `blackarch` | `192.168.1.2` (+ `192.168.100.10`) | Host 개발 / build (repo coord + checkout deploy). | 8000, 5173, 3000 |
+| `blackarch` | `192.168.1.2` (+ `192.168.100.10`) | Host 개발 / build (repo coord + checkout deploy) - **EDIT KODE ONLY**: naskah/agent/build/test, tidak dipakai melayani aplikasi. | (tidak dipakai) |
 
 - Preset aplikasi `http://192.168.1.123:3000/api` -> **harus** hidup di
   `ubuntu.local`, bukan di `blackarch`.
 - `192.168.1.123` **sudah dipakai mesin lain** -> jangan pernah menambah
   alias IP `.123` di `blackarch` (duplikat IP -> ARP konflik, `.123` jadi
   tidak bisa dijangkau).
-- `ubuntu.local` tidak membuka SSH (port 22 tertutup) -> deploy ke sana
-  harus dijalankan **orang yang berada di depan mesin itu**. Lihat
-  `docs/DEPLOY-UBUNTU-LOCAL.md`.
+- `ubuntu.local` **sekarang membuka SSH** (user `nazky`):
+  `ssh nazky@192.168.1.123` -> repo ada di `~/Trip-Angkutan`. Semua
+  verifikasi server (log container, health endpoint, versi APK) dilakukan
+  dari sana. Lihat `docs/DEPLOY-UBUNTU-LOCAL.md`.
+- **Pembagian kerja (per 30 Okt 2026): `ubuntu.local` = server (runtime),
+  `blackarch` = edit kode saja.** Deploy, restart, dan publish APK selalu
+  di `ubuntu.local`.
+- JANGAN menilai kesehatan server dari `docker ps`/`docker logs` di
+  `blackarch`. Stack `trip-*` di `blackarch` berasal dari checkout lama
+  (`Aplikasi-Trip-Main Branch`) yang foldernya sudah dihapus, jadi
+  container `trip-db` gagal start (bind mount `server/db/schema.sql`
+  hilang -> exit 127) dan PostgREST lokal balas `PGRST002` +
+  `/api/app-version` 500. Itu artefak mesin dev, BUKAN masalah produksi.
 - Di `blackarch`, alamat `192.168.1.2` dibuat manual; sekarang sudah
   disimpan permanen di profil NM `LAN-Direct`
   (`ipv4.addresses "192.168.100.10/24,192.168.1.2/24"`, gateway TIDAK diubah
