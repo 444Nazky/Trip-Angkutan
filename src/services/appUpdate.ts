@@ -148,7 +148,13 @@ class AppUpdateController {
     const { module: moduleVersion } = await this.refreshVersions()
 
     // Paket APK diperiksa lebih dulu: kalau ada versi native baru, itu yang dipasang.
-    const apkInfo = await updateService.checkForUpdate().catch(() => null)
+    //
+    // HANYA di aplikasi native Android. Di browser / mobile web berkas APK
+    // tidak bisa dipasang, jadi kanal itu cuma memaksa unduhan ~16 MB sia-sia
+    // dan memblokir kanal modul (OTA) yang justru channel yang tepat untuk web.
+    const apkInfo = isNativeAndroid()
+      ? await updateService.checkForUpdate().catch(() => null)
+      : null
     if (apkInfo?.updateAvailable && updateService.state === 'ready') {
       const currentApp = this._currentApp ?? '0.0.0'
       const force = Boolean(apkInfo.isForceUpdate)
