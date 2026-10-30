@@ -16,6 +16,15 @@ interface Props {
   onApplied?: (url: string) => void
   /** Tampilkan judul + deskripsi di atas daftar. */
   withHeader?: boolean
+  /**
+   * Tampilkan tombol tambahan ("Reset ke Default" dan "Simpan tanpa tes").
+   *
+   * Default `true` (dipakai dashboard admin). Halaman server di aplikasi
+   * mobile memakai `false`: kedua tombol itu mengulang fungsi "Simpan &
+   * Terapkan" (keduanya menyimpan URL dan langsung menerapkannya), jadi
+   * cukup tombol "Simpan & Terapkan" + "Tes Koneksi".
+   */
+  showExtraActions?: boolean
 }
 
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
@@ -38,7 +47,7 @@ function messageFor(r: Awaited<ReturnType<typeof probeServerHealth>>): Status {
   return { kind: 'fail', msg: `Server tidak merespon (${r.ms} ms)${r.detail && r.detail !== 'Failed to fetch' ? ` — ${r.detail}` : ''}. URL lama tetap dipakai.` }
 }
 
-export default function EndpointPicker({ onApplied, withHeader = true }: Props) {
+export default function EndpointPicker({ onApplied, withHeader = true, showExtraActions = true }: Props) {
   const [url, setUrl] = useState(() => resolveApiBaseUrl())
   const [status, setStatus] = useState<Status>({ kind: 'idle', msg: '' })
   const [busy, setBusy] = useState(false)
@@ -190,20 +199,24 @@ export default function EndpointPicker({ onApplied, withHeader = true }: Props) 
         >
           <RefreshCw size={13} /> Tes Koneksi
         </button>
-        <button
-          onClick={() => void handleReset()}
-          disabled={busy}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          Reset ke Default
-        </button>
-        <button
-          onClick={handleSaveForce}
-          disabled={busy}
-          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50"
-        >
-          Simpan tanpa tes
-        </button>
+        {showExtraActions && (
+          <>
+            <button
+              onClick={() => void handleReset()}
+              disabled={busy}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              Reset ke Default
+            </button>
+            <button
+              onClick={handleSaveForce}
+              disabled={busy}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50"
+            >
+              Simpan tanpa tes
+            </button>
+          </>
+        )}
       </div>
 
       <p className="text-[10px] leading-relaxed text-slate-400">
