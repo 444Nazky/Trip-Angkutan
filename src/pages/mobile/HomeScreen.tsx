@@ -126,14 +126,6 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
               >
                 {hasDraft ? 'Lanjutkan Trip' : 'Mulai Trip'} <ArrowRight size={16} />
               </button>
-              {hasDraft && (
-                <button
-                  onClick={() => { resetDraft(); onStartTrip() }}
-                  className="w-full text-blue-100 text-[12px] font-semibold py-1.5 active:opacity-70"
-                >
-                  Mulai trip baru (hapus draft)
-                </button>
-              )}
             </div>
           ) : (
             <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">

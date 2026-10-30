@@ -5,6 +5,7 @@ import {
   getActiveGeofenceSnapshot,
   forceSyncGeofencesFromBackend,
   getCurrentPosition,
+  getLastKnownPosition,
   resetGpsFixCache,
   pointIsForOtherDermaga,
   normalizeRouteCode,
@@ -87,8 +88,11 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   useEffect(() => {
     let alive = true
 
-    const evaluate = async (forceGps = false): Promise<Awaited<ReturnType<typeof getActiveGeofenceSnapshot>> | null> => {
-      const position = await getCurrentPosition({ force: forceGps })
+    const evaluate = async (
+      forceGps = false,
+      known?: { latitude: number; longitude: number },
+    ): Promise<Awaited<ReturnType<typeof getActiveGeofenceSnapshot>> | null> => {
+      const position = known ?? await getCurrentPosition({ force: forceGps })
       if (!alive) return null
       if (!position) {
         setActiveGeofence(null)
@@ -102,7 +106,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       // dermaga tsb (bukan pemenang-tunggal), jadi D1 tidak kalah oleh titik D2
       // yang radiusnya tumpang tindih.
       const result = await getActiveGeofenceSnapshot(
-        { latitude: position.lat, longitude: position.lng },
+        known ? known : { latitude: position.lat, longitude: position.lng },
         dockId ?? undefined,
       )
       if (!alive) return null
@@ -136,8 +140,11 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       return result
     }
 
-    const evaluateWithSelfHeal = async (forceGps = false): Promise<void> => {
-      const first = await evaluate(forceGps)
+    const evaluateWithSelfHeal = async (
+      forceGps = false,
+      known?: { latitude: number; longitude: number },
+    ): Promise<void> => {
+      const first = await evaluate(forceGps, known)
       if (!alive || !first?.configMissing) return
 
       setSyncingGeo(true)
@@ -161,6 +168,13 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       )
     }
 
+    // ponytail: nilai lokasi SEKETIKA dengan fix terakhir (GPS watch), jangan
+    // menahan layar di "Memeriksa lokasi GPS..." selama GPS cold start. Fix
+    // baru menyusul lewat pemanggilan biasa di bawah dan menimpa hasilnya.
+    const lastFix = getLastKnownPosition()
+    if (lastFix) {
+      void evaluateWithSelfHeal(false, { latitude: lastFix.lat, longitude: lastFix.lng })
+    }
     void evaluateWithSelfHeal()
     // ponytail: JANGAN paksa GPS tiap 15 detik. GPS watch (lihat geofence.ts)
     // sudah menjaga cache tetap hangat, jadi evaluate() tanpa force = instan.

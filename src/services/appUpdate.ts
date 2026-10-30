@@ -155,6 +155,13 @@ class AppUpdateController {
     const apkInfo = isNativeAndroid()
       ? await updateService.checkForUpdate().catch(() => null)
       : null
+    // Server benar-benar menjawab "tidak ada APK baru" (bukan gagal jaringan):
+    // info dikembalikan walau updateAvailable=false, dan error tidak di-set.
+    const apkConfirmedLatest = isNativeAndroid()
+      && !!apkInfo
+      && !apkInfo.updateAvailable
+      && updateService.state === 'up-to-date'
+      && !updateService.error
     if (apkInfo?.updateAvailable && updateService.state === 'ready') {
       const currentApp = this._currentApp ?? '0.0.0'
       const force = Boolean(apkInfo.isForceUpdate)
@@ -174,6 +181,23 @@ class AppUpdateController {
     const result = await checkForUpdate(moduleVersion, state => { moduleState = state }, true)
       .catch((): CheckResult => ({ available: false }))
     if (result.available) {
+      const moduleVersion = String(result.version ?? '')
+      const moduleCore = moduleVersion.split('+')[0]
+      const appVersion = this._currentApp
+      // Bundel modul yang lebih lama dari APK terpasang tidak boleh ditawarkan:
+      // APK 1.0.8 sudah memuat modul web yang lebih baru daripada bundel OTA
+      // 1.0.5 di server. Dulu kondisi ini membuat tombol "Update" terus muncul
+      // di versi terbaru, dan menekannya berakhir dengan galat penerapan.
+      const moduleOlderThanApp = isNativeAndroid()
+        && apkConfirmedLatest
+        && !!appVersion
+        && !!moduleCore
+        && isNewerVersion(moduleCore, appVersion)
+      if (moduleOlderThanApp) {
+        console.log(`[Update] Modul ${moduleVersion} lebih lama dari APK ${appVersion} — sudah versi terbaru`)
+        this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
+        return this._state
+      }
       this.set({
         status: 'ready',
         kind: 'module',
@@ -190,11 +214,20 @@ class AppUpdateController {
       this.set({ status: 'error', kind: 'apk', version: null, error: apkError.message })
       return this._state
     }
-    if (moduleState.status === 'offline') {
-      this.set({ status: 'offline', kind: null, version: null, error: null })
-      return this._state
-    }
-    if (moduleState.status === 'error') {
+    // Kanal APK sudah memastikan server terjangkau & versi terpasang adalah
+    // yang terbaru. Kegagalan kanal modul (endpoint OTA tidak tersedia / tidak
+    // menjawab) TIDAK boleh dilaporkan sebagai error: jawabannya tetap
+    // "sudah versi terbaru" — inilah yang dulu muncul sebagai galat merah
+    // saat petugas menekan tombol update padahal aplikasi sudah terbaru.
+    if (moduleState.status === 'offline' || moduleState.status === 'error') {
+      if (apkConfirmedLatest) {
+        this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
+        return this._state
+      }
+      if (moduleState.status === 'offline') {
+        this.set({ status: 'offline', kind: null, version: null, error: null })
+        return this._state
+      }
       this.set({ status: 'error', kind: 'module', version: null, error: moduleState.error ?? 'Gagal menghubungi server pembaruan' })
       return this._state
     }
@@ -206,6 +239,12 @@ class AppUpdateController {
 
 
   async apply(): Promise<boolean> {
+    // Tidak ada paket lebih baru yang menunggu: jangan memulai pemasangan yang
+    // pasti gagal. Jawab "sudah versi terbaru" (status, bukan error).
+    if (!this._state.kind || this._state.status === 'up-to-date') {
+      this.set({ ...IDLE, status: 'up-to-date', error: null })
+      return false
+    }
     if (this._state.kind === 'apk') return this.applyApk()
     if (this._state.kind === 'module') return this.applyModule()
     return false
@@ -214,6 +253,15 @@ class AppUpdateController {
 
 
   private async applyApk(): Promise<boolean> {
+    // Bisa terjadi kalau APK sudah dipasang di luar alur ini (mis. petugas
+    // memasang manual) atau info versi basi: paket yang diminta sudah tidak
+    // lebih baru dari versi terpasang → "sudah versi terbaru", bukan galat.
+    const target = this._state.version
+    const installed = await updateService.refreshInstalledVersion()
+    if (target && !isNewerVersion(installed, target)) {
+      this.set({ ...IDLE, status: 'up-to-date', error: null })
+      return false
+    }
     this.set({ status: 'installing', error: null })
     const started = await updateService.installUpdate()
     if (!started) {

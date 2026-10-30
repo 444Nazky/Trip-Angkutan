@@ -96,7 +96,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         ? `Versi APK ${update.version} siap dipasang — tekan tombol untuk memulai`
         : `Modul ${semverLabel(update.version ?? '')} siap dipasang — tekan tombol untuk memulai`
     }
-    if (isUpToDate) return 'Aplikasi sudah versi terbaru'
+    if (isUpToDate) return 'Sudah versi terbaru'
     if (hasError) return update.error ?? 'Pemeriksaan pembaruan gagal'
     if (update.status === 'offline') return 'Tidak ada koneksi — coba lagi saat online'
     return versionLine
@@ -112,7 +112,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     if (isInstalling) return { label: 'Memasang…', disabled: true, action: 'check' }
     if (updateReady) return { label: 'Update Sekarang', disabled: false, action: 'update' }
     if (hasError) return { label: 'Coba Lagi', disabled: false, action: 'check' }
-    if (isUpToDate) return { label: 'Sudah Terbaru', disabled: true, action: 'check' }
+    // Tetap bisa ditekan: petugas yang menekan tombol saat sudah terbaru
+    // mendapat pesan "Sudah versi terbaru" (bukan error/tombol mati).
+    if (isUpToDate) return { label: 'Cek Update', disabled: false, action: 'check' }
     if (isIdleOrOffline) return { label: 'Cek Update', disabled: false, action: 'check' }
     return { label: 'Cek & Perbarui', disabled: false, action: 'check' }
   })()

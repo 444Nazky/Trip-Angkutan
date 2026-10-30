@@ -9,7 +9,8 @@
  *      ke login — sesi dibuat tidak expired, token dipertahankan).
  *   3. PURGE-FIRST: cache lokal dibersihkan tiap fetch, sisa data lama/fiktif
  *      tidak menumpuk; daftar kosong dari server ikut mengosongkan perangkat.
- *   4. Cuma titik aktif + rute penugasan petugas yang disimpan.
+ *   4. Semua titik aktif dari server disimpan; rute penugasan petugas hanya
+ *      menyaring saat dibaca (cache tidak boleh menyusut per penugasan).
  *   5. Server gagal/jaringan mati → data lama tetap dipakai (petugas tidak
  *      "mati lampu" saat offline).
  *   6. Blokir karena konfigurasi kosong ditandai `configMissing` supaya UI
@@ -217,7 +218,7 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
     expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
   })
 
-  it('hanya titik aktif + sesuai rute penugasan yang disimpan', async () => {
+  it('semua titik AKTIF dermaga disimpan; penyaringan rute dilakukan saat dibaca', async () => {
     h.routes = [{ code: 'SJRE-SBDZ' }]
     h.response = {
       ok: true,
@@ -230,8 +231,14 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
 
     const result = await forceSyncGeofencesFromBackend()
 
-    expect(result.count).toBe(1)
-    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1'])
+    // Data penugasan admin disimpan utuh (kecuali titik nonaktif). Dulu cache
+    // ditimpa dengan irisan rute saja sehingga titik untuk dermaga/rute lain
+    // hilang dari perangkat — geofence lalu "mati" saat petugas berganti
+    // dermaga, walau server sudah mengirim datanya.
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-1', 'geo-wilayah-lain'])
+    // Saat dibaca, rute penugasan tetap membatasi titik yang dipakai.
+    expect(scopedGeofencePoints(getStoredGeofencePoints()).map(p => p.id)).toEqual(['geo-1'])
   })
 
   it('titik TANPA kode rute (berlaku umum) tetap tersimpan walau petugas punya penugasan', async () => {
@@ -249,8 +256,9 @@ describe('purge-first, scoping penugasan & jalur sesi habis', () => {
 
     const result = await forceSyncGeofencesFromBackend()
 
-    expect(result.count).toBe(1)
-    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-umum'])
+    expect(result.count).toBe(2)
+    expect(getStoredGeofencePoints().map(p => p.id)).toEqual(['geo-umum', 'geo-wilayah-lain'])
+    expect(scopedGeofencePoints(getStoredGeofencePoints()).map(p => p.id)).toEqual(['geo-umum'])
   })
 
   it('scopedGeofencePoints tetap longgar sebelum rute penugasan tersimpan', () => {

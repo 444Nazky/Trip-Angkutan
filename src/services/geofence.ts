@@ -374,17 +374,23 @@ function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResul
   const points = rows.map(mapGeofence).filter((point): point is GeofencePoint => !!point)
     .filter(point => point.enabled)
     .filter(point => {
-      const source = rows.find(row => String(row.id) === point.id)
-      const dermagaId = point.dermagaId || source?.dermaga_id || source?.dermagaId
+      const dermagaId = point.dermagaId
       return !accessibleIds.size || !dermagaId || accessibleIds.has(dermagaId) || /^[A-Z]+-D\d+$/i.test(dermagaId)
     })
-  const routeMatched = points.filter(point => point.allowedRoutes.length === 0 || point.allowedRoutes.some(code => routeCodes.has(normalizeRouteCode(code))))
-  const scoped = routeMatched.length ? routeMatched : points
 
-  if (!scoped.length) {
+  if (!points.length) {
     return { ok: true, count: cached.length, reason: cached.length ? 'ok' : 'empty' }
   }
 
+  // Yang DISIMPAN adalah semua titik aktif milik dermaga yang boleh diakses
+  // petugas — BUKAN hanya yang kode rutenya cocok saat sync ini.
+  //
+  // Dulu cache ditimpa dengan irisan rute (routeMatched). Begitu rute/petugas
+  // berganti dermaga (atau kode rute di master berbeda format), titik yang
+  // "tidak cocok" terhapus dari perangkat dan petugas melihat "Area bertugas
+  // belum tersedia" — persis keluhan geofence yang berhenti berfungsi lagi
+  // setelah sempat normal. Penyaringan per rute cukup dilakukan saat MEMBACA
+  // (scopedGeofencePoints), yang punya fallback dan tidak menghapus data.
   const canonical = (items: GeofencePoint[]) => items.map(point => ({
     id: point.id,
     name: point.name,
@@ -396,15 +402,15 @@ function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResul
     enabled: point.enabled,
   }))
   const oldSerialized = JSON.stringify(canonical(cached))
-  const newSerialized = JSON.stringify(canonical(scoped))
-  saveGeofencePoints(scoped)
-  saveDiagnosis(buildDiagnosis(scoped))
+  const newSerialized = JSON.stringify(canonical(points))
+  saveGeofencePoints(points)
+  saveDiagnosis(buildDiagnosis(points))
   localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
   if (oldSerialized !== newSerialized) {
-    try { window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: scoped.length } })) } catch { /* ignore */ }
+    try { window.dispatchEvent(new CustomEvent(GEOFENCE_UPDATED_EVENT, { detail: { count: points.length } })) } catch { /* ignore */ }
   }
-  console.log('[geofence] Synced', scoped.length, 'points, aktif:', scoped.length)
-  return { ok: true, count: scoped.length, reason: 'ok' }
+  console.log('[geofence] Synced', points.length, 'points, rute cocok:', routeCodes.size)
+  return { ok: true, count: points.length, reason: 'ok' }
 }
 
 export async function syncGeofencesFromBackend(opts?: { force?: boolean }): Promise<SyncResult> {
@@ -499,12 +505,19 @@ export async function getActiveGeofenceSnapshot(
   dockId?: string | null
 ): Promise<ActiveSnapshot> {
   const cached = getCachedGpsFix()
-  let points = scopedGeofencePoints(getStoredGeofencePoints())
+  const availablePoints = scopedGeofencePoints(getStoredGeofencePoints())
+  let points = availablePoints
 
   if (dockId) {
-    const exactDock = points.filter(point => point.dermagaId === dockId)
-    const shared = points.filter(point => !point.dermagaId || !isUuid(point.dermagaId))
+    const exactDock = availablePoints.filter(point => point.dermagaId === dockId)
+    const shared = availablePoints.filter(point => !point.dermagaId || !isUuid(point.dermagaId))
     points = exactDock.length ? [...exactDock, ...shared] : shared
+    // Titik bisa saja tertaut ke dermaga lain (data admin berubah / petugas
+    // memilih dermaga berbeda). Jangan langsung menyimpulkan "konfigurasi
+    // kosong": nilai dulu posisi sebenarnya, lalu UI menampilkan status
+    // "di luar area bertugas" (mismatch) apa adanya. Dulu kondisi ini memicu
+    // sync berulang dan memblokir petugas yang sudah berdiri di titiknya.
+    if (!points.length) points = availablePoints
   }
 
   if (points.length === 0) {
@@ -680,6 +693,8 @@ let pendingGpsRequest: Promise<{ lat: number; lng: number; accuracy?: number } |
 // Rute" hampir selalu punya fix instan (tidak menunggu 8-15 detik GPS cold
 // start). Watch hanya hidup selama aplikasi aktif.
 let _gpsWatchId: string | null = null
+let _gpsWatchWanted = false
+let _gpsWatchRetry: ReturnType<typeof setTimeout> | null = null
 
 /**
  * Error GPS yang masih bisa dicoba dengan provider lain.
@@ -713,6 +728,7 @@ export function getLastKnownPosition():
 }
 
 export function startGpsWatch(): void {
+  _gpsWatchWanted = true
   if (_gpsWatchId) return
   try {
     void Geolocation.watchPosition(
@@ -727,13 +743,36 @@ export function startGpsWatch(): void {
           timestamp: Date.now(),
         })
       },
+      // Watch bisa berhenti sendiri (GPS di-restart OS, izin dicabut sementara,
+      // layar mati). Dulu `_gpsWatchId` tetap terisi sehingga start berikutnya
+      // dianggap "sudah jalan" — cache GPS membeku dan cek lokasi kembali
+      // menunggu cold start. Sekarang dijadwalkan satu percobaan ulang.
+      () => {
+        _gpsWatchId = null
+        if (!_gpsWatchWanted || _gpsWatchRetry) return
+        _gpsWatchRetry = setTimeout(() => {
+          _gpsWatchRetry = null
+          if (_gpsWatchWanted) startGpsWatch()
+        }, 10_000)
+      },
     )
-      .then(id => { _gpsWatchId = id })
+      .then(id => {
+        if (!_gpsWatchWanted) {
+          try { void Geolocation.clearWatch({ id }) } catch { /* ignore */ }
+          return
+        }
+        _gpsWatchId = id
+      })
       .catch(() => { _gpsWatchId = null })
   } catch { /* GPS tidak tersedia */ }
 }
 
 export function stopGpsWatch(): void {
+  _gpsWatchWanted = false
+  if (_gpsWatchRetry) {
+    clearTimeout(_gpsWatchRetry)
+    _gpsWatchRetry = null
+  }
   if (!_gpsWatchId) return
   try { void Geolocation.clearWatch({ id: _gpsWatchId }) } catch { /* ignore */ }
   _gpsWatchId = null
