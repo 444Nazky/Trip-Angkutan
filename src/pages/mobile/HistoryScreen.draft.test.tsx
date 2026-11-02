@@ -48,7 +48,7 @@ vi.mock('../store', () => ({
 
 vi.mock('../../services/sync', () => ({
   classifyTripSync: (_id: string, synced: boolean) => ({ state: synced ? 'synced' : 'local' }),
-  onSyncQueueChange: () => () => {},d
+  onSyncQueueChange: () => () => {},
 }))
 
 vi.mock('../../services/tripCancel', async (importOriginal) => {
