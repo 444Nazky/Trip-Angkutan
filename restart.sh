@@ -287,7 +287,7 @@ STORAGE_DIR="$BASE/data/storage"
 mkdir -p "$STORAGE_DIR" 2>/dev/null
 # `--user root` wajib: image berjalan sebagai user `deno`, dan user `deno`
 # tidak punya hak untuk mengganti kepemilikan berkas.
-if $DOCKER run --rm --user root -v "$STORAGE_DIR:/probe" --entrypoint sh trip-angkut-api -c \
+if $DOCKER run --rm --user root -v "$STORAGE_DIR:/probe" --entrypoint sh trip-angkutan-api -c \
         "chown -R deno:deno /probe" > /dev/null 2>&1; then
     ok
 else
