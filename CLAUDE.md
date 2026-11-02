@@ -113,6 +113,23 @@ Aturan aplikasi mobile (dipakai petugas lapangan) — jangan regresi:
   meta). Perangkat yang dipakai berganti petugas tidak boleh menampilkan
   draft orang lain. Draft lama (`trip.draft.v1`) dimigrasi sekali ke petugas
   yang sedang aktif lalu dihapus.
+- DRAFT BARU "BERHITUNG" ADA MINIMAL 1 KENDARAAN (aturan owner). Dua
+  helper berbeda di `src/services/tripDraft.ts`:
+  - `hasDraftContent(d)` = isian apa pun (dipakai untuk PENYIMPANAN lokal,
+    supaya isian yang sudah diketik tidak hilang saat aplikasi ditutup).
+  - `hasCountedDraft(d)` = draft sungguhan: minimal 1 kendaraan; untuk trip
+    KOSONG (yang alurnya tidak menambah kendaraan) minimal foto bukti.
+  Yang "berhitung" menentukan: kartu draft di Riwayat, kunci tombol
+  "Mulai Trip" di Beranda, dan apakah jam 15 menit sudah berjalan. Isian yang
+  baru berupa status muatan/rute BELUM dihitung: tidak mengunci tombol, tidak
+  tampil di Riwayat, jam 15 menit belum mulai (bermula saat kendaraan
+  pertama ditambahkan).
+- TOMBOL "MULAI TRIP" TERKUNCI KALAU ADA DRAFT (aturan owner). Di Beranda
+  (`src/pages/mobile/HomeScreen.tsx`) tombol "Mulai Trip (terkunci)" +
+  notifikasi panduan (`src/components/DraftLockToast.tsx`) memberi tahu:
+  lanjutkan draft ATAU hapus/batalkan draft di halaman Riwayat. Draft yang
+  lewat batas umur tetap bisa dikirim/dibatalkan; membatalkan = dokumen
+  pembatalan (bukan hapus diam-diam).
 - TRIP YANG SUDAH SELESAI = FINAL. Begitu trip selesai, tidak ada lagi tombol
   "Ubah" (plat/jenis/golongan) maupun ambil ulang foto — **walaupun trip
   belum sinkron ke server intranet**. Server bisa sudah menerima versi

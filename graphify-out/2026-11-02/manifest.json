@@ -210,8 +210,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/AdminDashboard.tsx": {
-    "mtime": 1793323716.9268382,
-    "ast_hash": "c0b758eab223123797d5d0857676577d",
+    "mtime": 1793567902.090577,
+    "ast_hash": "df638e6903744870bd943b0f859c4c8e",
     "semantic_hash": ""
   },
   "src/pages/admin/ReportSheet.tsx": {
@@ -230,8 +230,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/components/types.ts": {
-    "mtime": 1793265226.2687042,
-    "ast_hash": "84747665c013023f8b0c760c907d9b35",
+    "mtime": 1793567902.090577,
+    "ast_hash": "2c7693fcc922c4ec3f73e3dd6322e968",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/OfficersTab.tsx": {
@@ -245,8 +245,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.tsx": {
-    "mtime": 1793551757.4469633,
-    "ast_hash": "1cc36f538477a4084261a76a238feb36",
+    "mtime": 1793567902.090577,
+    "ast_hash": "c9a70dd675aada645a9058de9099ba7d",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RoutesTab.tsx": {
@@ -270,7 +270,7 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/CameraScreen.tsx": {
-    "mtime": 1793552278.7206612,
+    "mtime": 1793567902.090577,
     "ast_hash": "d3ef3b8a5cd56d45f6411a4f399cba00",
     "semantic_hash": ""
   },
@@ -290,17 +290,17 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryDetailScreen.tsx": {
-    "mtime": 1793551620.7375472,
+    "mtime": 1793567902.091384,
     "ast_hash": "0bf2517e94fb7c2928d9517600fc0698",
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryScreen.tsx": {
-    "mtime": 1793552433.8928156,
+    "mtime": 1793567902.0916145,
     "ast_hash": "28c9ccc61d3592ac5220b9fc4ecf4d86",
     "semantic_hash": ""
   },
   "src/pages/mobile/HomeScreen.tsx": {
-    "mtime": 1793552249.1531568,
+    "mtime": 1793567902.0916743,
     "ast_hash": "92244afab6414e04786bba4fdd2ba39a",
     "semantic_hash": ""
   },
@@ -330,7 +330,7 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/RouteSelectScreen.tsx": {
-    "mtime": 1793552226.3451169,
+    "mtime": 1793567902.091928,
     "ast_hash": "0200879686642f9d6fd9a9e29a91f09d",
     "semantic_hash": ""
   },
@@ -340,17 +340,17 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/TripConditionScreen.tsx": {
-    "mtime": 1793552211.8210266,
+    "mtime": 1793567902.0920258,
     "ast_hash": "256a74be2c7a71f7f62ef9ef7b41b698",
     "semantic_hash": ""
   },
   "src/pages/mobile/TripSummaryScreen.tsx": {
-    "mtime": 1793552278.7605097,
+    "mtime": 1793567902.0920904,
     "ast_hash": "230d63fb6b5e7c514d379e9ba70f4c80",
     "semantic_hash": ""
   },
   "src/pages/mobile/VehicleFormScreen.tsx": {
-    "mtime": 1793551529.470617,
+    "mtime": 1793567902.0923655,
     "ast_hash": "02561dd729fed6b06380b2e8ed60adfe",
     "semantic_hash": ""
   },
@@ -360,7 +360,7 @@
     "semantic_hash": ""
   },
   "src/pages/store.tsx": {
-    "mtime": 1793551303.7940688,
+    "mtime": 1793567902.0926793,
     "ast_hash": "48feeb9e0d1abbc9e7c46cd391d3c45f",
     "semantic_hash": ""
   },
@@ -445,7 +445,7 @@
     "semantic_hash": ""
   },
   "src/services/localDb.ts": {
-    "mtime": 1793551158.0032756,
+    "mtime": 1793567902.0929198,
     "ast_hash": "4a1f8c74647225f0ca9e8e1632640f3e",
     "semantic_hash": ""
   },
@@ -525,7 +525,7 @@
     "semantic_hash": ""
   },
   "src/services/sync.ts": {
-    "mtime": 1793551166.5351,
+    "mtime": 1793567902.0932899,
     "ast_hash": "96eaa1823361d7c9e13fee2da500fd31",
     "semantic_hash": ""
   },
@@ -545,7 +545,7 @@
     "semantic_hash": ""
   },
   "src/services/trips.ts": {
-    "mtime": 1793567624.0289524,
+    "mtime": 1793567902.0936382,
     "ast_hash": "d63888c11cb00b1cd64b72c971942719",
     "semantic_hash": ""
   },
@@ -1130,8 +1130,8 @@
     "semantic_hash": ""
   },
   "ALUR_APLIKASI.md": {
-    "mtime": 1793552358.9415483,
-    "ast_hash": "6ebe412095e28429a86299515ad7bc66",
+    "mtime": 1793568820.9520113,
+    "ast_hash": "0c37c05b1c57b6062e21b19c0d41bf15",
     "semantic_hash": ""
   },
   "Architecture.md": {
@@ -2242,8 +2242,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793552381.2775314,
-    "ast_hash": "7567c11362c97d337739e098c5486035",
+    "mtime": 1793568829.8991075,
+    "ast_hash": "653485d8cf00326362213a705634d79b",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2417,17 +2417,17 @@
     "semantic_hash": ""
   },
   "server/api/handlers/trips.test.ts": {
-    "mtime": 1793552557.588214,
-    "ast_hash": "5c19c8684fd1d91ff29aed8c01b2d512",
+    "mtime": 1793567902.089679,
+    "ast_hash": "5e45c921b55036a017f87853e423c45c",
     "semantic_hash": ""
   },
   "server/api/handlers/trips.ts": {
-    "mtime": 1793567588.8164074,
+    "mtime": 1793567902.089971,
     "ast_hash": "bc3de000e19dc4a97f927a73f4c6161c",
     "semantic_hash": ""
   },
   "server/api/index.ts": {
-    "mtime": 1793551671.1126533,
+    "mtime": 1793567902.0903192,
     "ast_hash": "026d9b869afafaad10ee6cd8a7c249cf",
     "semantic_hash": ""
   },
@@ -2467,7 +2467,7 @@
     "semantic_hash": ""
   },
   "src/pages/store.persistence.test.tsx": {
-    "mtime": 1793552308.915323,
+    "mtime": 1793567902.0923655,
     "ast_hash": "bce402eaf89f5b8758549039bc5ed14a",
     "semantic_hash": ""
   },
@@ -6577,7 +6577,7 @@
     "semantic_hash": ""
   },
   "src/components/CancelTripDialog.tsx": {
-    "mtime": 1793551325.6933634,
+    "mtime": 1793567902.1573591,
     "ast_hash": "473ba960a04730d0a1f40a39a23db8e9",
     "semantic_hash": ""
   },
@@ -6587,12 +6587,12 @@
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryDetailScreen.render.test.tsx": {
-    "mtime": 1793551850.1204462,
+    "mtime": 1793567902.0909865,
     "ast_hash": "3846d3bd26b2bd61d4580c7bcae521dd",
     "semantic_hash": ""
   },
   "src/pages/mobile/HistoryScreen.draft.test.tsx": {
-    "mtime": 1793551971.618321,
+    "mtime": 1793567902.0914445,
     "ast_hash": "3ab7923d4c3c0ef9c710a7931593554b",
     "semantic_hash": ""
   },
@@ -6612,22 +6612,22 @@
     "semantic_hash": ""
   },
   "src/services/tripCancel.test.ts": {
-    "mtime": 1793552167.4550278,
+    "mtime": 1793567902.1580467,
     "ast_hash": "ffbdc7a5a77a44c03dee4487fe0449ae",
     "semantic_hash": ""
   },
   "src/services/tripCancel.ts": {
-    "mtime": 1793567640.6980112,
+    "mtime": 1793567902.158101,
     "ast_hash": "6d6fb69b601342fd0b28969b5ffdfa8c",
     "semantic_hash": ""
   },
   "src/services/tripDraft.test.ts": {
-    "mtime": 1793552167.4553046,
+    "mtime": 1793567902.0932899,
     "ast_hash": "378fae41dbf59e9fa98fa42d952d679a",
     "semantic_hash": ""
   },
   "src/services/tripDraft.ts": {
-    "mtime": 1793551971.5973709,
+    "mtime": 1793567902.0935206,
     "ast_hash": "e20c737337b4216d96fa90a50f938e00",
     "semantic_hash": ""
   },
@@ -6654,6 +6654,31 @@
   ".tmp-backup/src/assets/karyamasv.svg": {
     "mtime": 1793258094.4439416,
     "ast_hash": "9caf53a847663de4597d6e85c092c768",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/components/DailyTrend.tsx": {
+    "mtime": 1793568764.6064057,
+    "ast_hash": "f82cd8c8fac413d78d37dc04bf7c2365",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/components/ReasonBars.tsx": {
+    "mtime": 1793567902.1573591,
+    "ast_hash": "bd6afc727ec9c9c2064cf43ad8e9e01c",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/tabs/CancellationsTab.render.test.tsx": {
+    "mtime": 1793567902.1577702,
+    "ast_hash": "bda3ea8181e076ba24fab1634a448923",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/tabs/CancellationsTab.tsx": {
+    "mtime": 1793568722.0179477,
+    "ast_hash": "ad262e3beaa04d8c8d98e127a1bc43cd",
+    "semantic_hash": ""
+  },
+  "src/services/cancelReasons.ts": {
+    "mtime": 1793567902.1579628,
+    "ast_hash": "65c3d31ad1b2febc844c5c782f8dae54",
     "semantic_hash": ""
   }
 }

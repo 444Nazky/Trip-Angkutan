@@ -24,6 +24,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { AppProvider, persistTrips, stripTripPhotos, useApp, type Draft, type Trip } from './store'
 import { dbAll, dbClear, dbPut, initLocalDb, metaGet, metaSet } from '../services/localDb'
+import type { DraftInfo } from '../services/tripDraft'
 
 // React 19 membutuhkan flag ini agar `act` benar-benar mem-flush efek.
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -93,7 +94,7 @@ const fullTrip = (): Trip => ({
 const readStored = () => dbAll<Trip>('trips')
 
 /** State trips terakhir yang dilihat UI (setara yang dibaca HistoryScreen). */
-const seen = { trips: [] as Trip[], loaded: false, draft: null as Draft | null, draftLocked: false }
+const seen = { trips: [] as Trip[], loaded: false, draft: null as Draft | null, draftLocked: false, draftInfo: null as DraftInfo | null }
 let app: ReturnType<typeof useApp> | null = null
 
 function Probe() {
@@ -103,6 +104,7 @@ function Probe() {
   seen.loaded = ctx.tripsLoaded
   seen.draft = ctx.draft
   seen.draftLocked = ctx.draftLocked
+  seen.draftInfo = ctx.draftInfo
   return null
 }
 
@@ -122,6 +124,7 @@ async function prepareColdStart(): Promise<void> {
   localStorage.setItem(LS_TRIPS, JSON.stringify([stripTripPhotos(fullTrip())]))
   seen.trips = []
   seen.loaded = false
+  seen.draftInfo = null
 }
 
 let root: Root | null = null
@@ -208,7 +211,9 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', (
   const makeDraft = (): Draft => ({
     routeCode: 'SBDZ-SJRE',
     condition: 'muatan',
-    vehicles: [],
+    // Minimal 1 kendaraan: draft baru "terhitung" kalau sudah ada isian
+    // minimal (lihat hasCountedDraft).
+    vehicles: [{ plate: 'B 1234 XY', type: 'Mobil', category: 'Lokal', tariff: 1000 }],
     vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
     photo: false,
     vPhoto: false,
@@ -244,8 +249,21 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', (
     expect(await metaGet(LS_DRAFT), 'draft tidak dihapus paksa').toBeTruthy()
   })
 
-  it('draft tiap petugas terpisah: draft petugas lain tidak pernah muncul', async () => {
+  it('draft tanpa kendaraan belum terhitung: tidak terkunci dan jam 15 menit belum mulai', async () => {
     await prepareColdStart()
+    const createdAt = Date.now() - 20 * 60 * 1000
+    const draft = { ...makeDraft(), vehicles: [] }
+    await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft })
+
+    await mountApp()
+    await flush()
+
+    expect(seen.draft?.condition, 'isian yang sudah diketik tetap dipulihkan').toBe('muatan')
+    expect(seen.draftLocked, 'draft tanpa kendaraan tidak dihitung, jadi tidak terkunci').toBe(false)
+    expect(seen.draftInfo, 'batas umur belum berjalan').toBeNull()
+  })
+
+  it('draft tiap petugas terpisah: draft petugas lain tidak pernah muncul', async () => {    await prepareColdStart()
     await mountApp()
     await flush()
 

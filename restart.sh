@@ -14,7 +14,10 @@
 #
 #  Catatan: script ini SENGAJA memakai `set -uo pipefail` (bukan `-e`).
 #  Satu langkah yang gagal tidak boleh menghentikan langkah berikutnya -
-#  kalau build admin gagal, mobile & API intranet tetap harus hidup.
+#  kalau migrasi gagal, mobile & API intranet tetap harus hidup.
+#
+#  Script ini TIDAK membangun image. Untuk perubahan kode jalankan
+#  ./rebuild.sh (build web + API, lalu otomatis memanggil script ini).
 # =============================================================================
 
 set -uo pipefail
@@ -241,20 +244,26 @@ else
     exit 1
 fi
 
-# ── Build image ───────────────────────────────────────────────────────────────
+# ── Cek image ─────────────────────────────────────────────────────────────────
+#
+# Build dipisah ke ./rebuild.sh karena memakan waktu lama. Restart sehari-hari
+# cukup menyalakan container dari image yang sudah ada. Kalau image belum ada
+# (clone baru / setelah `docker image prune`), berhenti SEBELUM `down` supaya
+# stack yang sedang berjalan tidak ikut mati.
 
-echo "[*] Build image web (admin + mobile)..."
-if $DOCKER build -t trip-angkutan "$BASE"; then
-    ok
-else
-    bad "build image web gagal - cek log di atas."
-fi
-
-echo "[*] Build image API intranet..."
-if $DOCKER build -f "$BASE/Dockerfile.backend" -t trip-angkutan-api "$BASE"; then
-    ok
-else
-    bad "build image API intranet gagal - cek log di atas."
+echo "[*] Memeriksa image..."
+MISSING_IMAGE=0
+for img in trip-angkutan trip-angkutan-api; do
+    if $DOCKER image inspect "$img" > /dev/null 2>&1; then
+        echo "    OK $img"
+    else
+        bad "image $img belum ada."
+        MISSING_IMAGE=1
+    fi
+done
+if [ "$MISSING_IMAGE" -ne 0 ]; then
+    echo "    Jalankan ./rebuild.sh dulu untuk membangun image, lalu ulangi script ini."
+    exit 1
 fi
 
 # ── Direktori penyimpanan berkas ──────────────────────────────────────────────
@@ -302,12 +311,10 @@ for name in trip-web trip-api; do
     fi
 done
 
-# --build WAJIB: tanpa ini `up` memakai image lama kalau langkah build di atas
-# gagal, sehingga perubahan kode (mis. menu admin) tidak muncul dan tidak ada
-# pesan yang jelas. Dengan --build, image web selalu dibangun ulang dari
-# sumber terbaru sebelum container dinyalakan.
-echo "[*] Menyalakan container (build ulang bila sumber berubah)..."
-if $DOCKER compose -f "$COMPOSE_FILE" up -d --build --remove-orphans; then
+# --build sengaja TIDAK dipakai: build ada di ./rebuild.sh. Tanpa flag ini
+# restart tetap cepat dan selalu memakai image terakhir yang sudah dibangun.
+echo "[*] Menyalakan container..."
+if $DOCKER compose -f "$COMPOSE_FILE" up -d --remove-orphans; then
     ok
 else
     bad "docker compose up gagal - cek log di atas."
