@@ -32,8 +32,8 @@ android {
         // geofence di atas + auto-select, rute terkunci dilipat, dan pesan
         // "di luar area bertugas" yang lebih singkat. Termasuk fitur draft
         // trip 12 jam yang tampil di Riwayat.
-        versionCode 19
-        versionName "1.1.0"
+        versionCode 20
+        versionName "1.1.1"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
