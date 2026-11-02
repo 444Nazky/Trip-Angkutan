@@ -197,20 +197,27 @@ export async function publishVersion(req: Request): Promise<Response> {
   const download_url = downloadUrl
     ? new URL(downloadUrl).pathname
     : storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
+  // upsert onConflict version: publish ulang versi yang sama (mis. build
+  // ulang karena aset basi) HARUS menimpa baris lama — sebelumnya insert
+  // polos kena unique constraint `app_versions_version_key` dan membalas 500,
+  // sehingga flag --force di publish-apk.mjs tidak pernah bisa bekerja.
   const { error: insertErr } = await db
     .from("app_versions")
-    .insert({
-      version,
-      download_url,
-      release_date: new Date().toISOString(),
-      release_notes: releaseNotes || "",
-      is_force_update: Boolean(isForceUpdate),
-      min_version: minVersion || null,
-      apk_size: apkSize,
-      apk_hash: apkHash,
-      apk_version_name: apkVersionName ? String(apkVersionName).trim() : null,
-      apk_version_code: Number.isFinite(Number(apkVersionCode)) ? Number(apkVersionCode) : null,
-    });
+    .upsert(
+      {
+        version,
+        download_url,
+        release_date: new Date().toISOString(),
+        release_notes: releaseNotes || "",
+        is_force_update: Boolean(isForceUpdate),
+        min_version: minVersion || null,
+        apk_size: apkSize,
+        apk_hash: apkHash,
+        apk_version_name: apkVersionName ? String(apkVersionName).trim() : null,
+        apk_version_code: Number.isFinite(Number(apkVersionCode)) ? Number(apkVersionCode) : null,
+      },
+      { onConflict: "version" },
+    );
   if (insertErr) throw insertErr;
 
   return json({
