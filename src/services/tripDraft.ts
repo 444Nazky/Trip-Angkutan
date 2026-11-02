@@ -80,8 +80,11 @@ export function hasDraftContent(d: Draft | null | undefined): boolean {
  */
 export function hasCountedDraft(d: Draft | null | undefined): boolean {
   if (!d) return false
+  // Kalau sudah ada kendaraan, sudah pasti Trip Muatan: draft terhitung.
+  if ((d.vehicles?.length ?? 0) > 0) return true
+  // Trip kosong tidak pernah menambah kendaraan: isian minimumnya foto bukti.
   if (d.condition === 'kosong') return !!d.photoUrl
-  return (d.vehicles?.length ?? 0) > 0
+  return false
 }
 
 /** Sisa umur draft dalam milidetik (0 kalau sudah lewat). */

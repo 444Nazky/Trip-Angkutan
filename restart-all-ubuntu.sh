@@ -302,8 +302,12 @@ for name in trip-web trip-api; do
     fi
 done
 
-echo "[*] Menyalakan container..."
-if $DOCKER compose -f "$COMPOSE_FILE" up -d --remove-orphans; then
+# --build WAJIB: tanpa ini `up` memakai image lama kalau langkah build di atas
+# gagal, sehingga perubahan kode (mis. menu admin) tidak muncul dan tidak ada
+# pesan yang jelas. Dengan --build, image web selalu dibangun ulang dari
+# sumber terbaru sebelum container dinyalakan.
+echo "[*] Menyalakan container (build ulang bila sumber berubah)..."
+if $DOCKER compose -f "$COMPOSE_FILE" up -d --build --remove-orphans; then
     ok
 else
     bad "docker compose up gagal - cek log di atas."

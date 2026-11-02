@@ -135,4 +135,19 @@ describe('draft di halaman Riwayat Trip', () => {
     await render()
     expect(container.textContent).not.toContain('Draft · belum terkirim')
   })
+
+  it('draft yang belum ada kendaraan tidak dihitung sebagai draft', async () => {
+    mocks.state.info = null
+    mocks.state.draft = {
+      routeCode: 'SJRE-SBDZ',
+      condition: 'muatan',
+      vehicles: [],
+      vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
+      photoUrl: null,
+      vPhotoUrl: undefined,
+      selfieUrl: undefined,
+    }
+    await render()
+    expect(container.textContent).not.toContain('Draft · belum terkirim')
+  })
 })

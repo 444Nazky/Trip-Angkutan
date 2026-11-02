@@ -10,6 +10,7 @@ import {
   draftResumeTarget,
   draftRouteLabel,
   formatDraftRemaining,
+  hasCountedDraft,
   hasDraftContent,
   readDraftFor,
   writeDraftFor,
@@ -101,6 +102,32 @@ describe('draft trip', () => {
     expect(draftResumeTarget(baseDraft)).toBe('trip-condition')
     expect(draftResumeTarget({ ...baseDraft, condition: 'muatan' })).toBe('route-select')
     expect(draftResumeTarget({ ...baseDraft, condition: 'muatan', routeCode: 'SJRE-SBDZ' })).toBe('trip-summary')
+  })
+})
+
+describe('aturan draft hanya terhitung bila ada isian minimal', () => {
+  it('draft kosong tidak terhitung', () => {
+    expect(hasCountedDraft(baseDraft)).toBe(false)
+    expect(hasCountedDraft(null)).toBe(false)
+  })
+
+  it('isian status muatan atau rute saja belum terhitung sebagai draft', () => {
+    expect(hasCountedDraft({ ...baseDraft, condition: 'muatan' })).toBe(false)
+    expect(hasCountedDraft({ ...baseDraft, routeCode: 'SJRE-SBDZ' })).toBe(false)
+    expect(hasCountedDraft({ ...baseDraft, condition: 'muatan', routeCode: 'SJRE-SBDZ' })).toBe(false)
+  })
+
+  it('satu kendaraan sudah cukup untuk menghitung draft', () => {
+    expect(hasCountedDraft({ ...baseDraft, vehicles: [vehicle] })).toBe(true)
+  })
+
+  it('trip kosong dihitung lewat foto bukti', () => {
+    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong' })).toBe(false)
+    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong', photoUrl: 'data:image/jpeg;base64,aaa' })).toBe(true)
+  })
+
+  it('trip kosong dengan kendaraan (anomali data) tetap terhitung', () => {
+    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong', vehicles: [vehicle] })).toBe(true)
   })
 })
 

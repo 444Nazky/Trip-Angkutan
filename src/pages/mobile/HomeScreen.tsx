@@ -1,9 +1,14 @@
-import { Truck, ChevronRight, ArrowRight, RefreshCw } from 'lucide-react'
+import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock } from 'lucide-react'
 import { useApp } from '../store'
 import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
-import { hasDraftContent } from '../../services/tripDraft'
-import { useState, useEffect } from 'react'
+import {
+  draftRemainingMs,
+  draftResumeTarget,
+  hasDraftContent,
+} from '../../services/tripDraft'
+import DraftLockToast from '../../components/DraftLockToast'
+import { useState, useEffect, useCallback } from 'react'
 import type { MobileScreen } from '../types'
 
 
@@ -23,11 +28,12 @@ type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: b
 
 
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
-  const { officer, trips, draft, draftLocked, resetDraft, setDetailTripId } = useApp()
+  const { officer, trips, draft, draftInfo, draftLocked, draftCounted, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [syncState, setSyncState] = useState<SyncState>(null)
   const [busy, setBusy] = useState(false)
+  const [lockToastOpen, setLockToastOpen] = useState(false)
 
   useEffect(() => {
     const h = () => setPendingCount(getPendingCount())
@@ -97,9 +103,38 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const hasDockAccess = (officer.dermagaAccess?.length ?? 0) > 0
   // Draft yang dipulihkan setelah aplikasi ditutup tidak boleh dihapus oleh
   // tombol mulai — petugas harus bisa melanjutkan isian yang sudah ada.
-  // Pakai helper yang sama dengan Riwayat supaya kedua layar tidak berbeda
-  // pendapat soal draft yang baru terisi separuh (mis. baru nomor polisi).
-  const hasDraft = hasDraftContent(draft)
+  //
+  // ATURAN DRAFT: draft baru "berhitung" kalau petugas sudah menginput
+  // minimal 1 kendaraan (untuk trip kosong: minimal foto bukti). Isian
+  // sebagian (baru pilih status muatan / rute) BELUM dianggap draft: tidak
+  // mengunci tombol Mulai Trip dan tidak mulai menghitung batas 15 menit.
+  const hasPartialDraft = hasDraftContent(draft)
+
+  // Lanjutkan isian draft yang sudah ada, dari layar terakhir yang sempat
+  // dikerjakan. Draft yang sudah lewat batas umur langsung ke Ringkasan
+  // (isiannya dibekukan: hanya kirim atau batalkan).
+  const handleContinueDraft = useCallback(() => {
+    if (draftLocked) { go('trip-summary'); return }
+    const target = draftResumeTarget(draft)
+    // Pilih rute butuh dermalaga aktif -> pakai alur mulai trip biasa.
+    if (target === 'route-select') { onStartTrip(); return }
+    go(target)
+  }, [draft, draftLocked, go, onStartTrip])
+
+  // Mulai / lanjutkan trip.
+  //
+  // - Draft TERHITUNG (sudah ada kendaraan): tombol "Mulai Trip" terkunci.
+  //   Petugas diberi tahu lewat notifikasi: lanjutkan atau hapus draft di
+  //   halaman Riwayat.
+  // - Isian sebagian: BELUM draft, jadi tombol tidak terkunci. Isian yang
+  //   sudah ada tetap dipertahankan (dipakai lagi), bukan dihapus.
+  // - Benar-benar kosong: draft dibersihkan lalu trip baru dimulai.
+  const handleStart = useCallback(() => {
+    if (draftCounted) { setLockToastOpen(true); return }
+    if (!hasPartialDraft) resetDraft()
+    onStartTrip()
+  }, [draftCounted, hasPartialDraft, onStartTrip, resetDraft])
+
   const units = new Set(
     myTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
@@ -113,25 +148,37 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
         <div className="relative">
           <p className="text-blue-100 text-[13px] font-semibold mb-1">
-            {hasDraft ? (draftLocked ? 'Draft terkunci' : 'Trip belum terkirim') : 'Siap bertugas?'}
+            {draftCounted ? (draftLocked ? 'Draft terkunci' : 'Trip belum terkirim') : 'Siap bertugas?'}
           </p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">
-            {hasDraft ? 'Lanjutkan Trip' : <>Mulai Trip<br />Baru Sekarang</>}
+            {draftCounted ? 'Lanjutkan Trip' : <>Mulai Trip<br />Baru Sekarang</>}
           </h2>
           {hasDockAccess ? (
             <div className="space-y-2">
-              <button
-                onClick={() => {
-                  if (!hasDraft) { resetDraft(); onStartTrip(); return }
-                  // Draft lewat batas 15 menit: tidak bisa diedit lagi, jadi
-                  // langsung ke Ringkasan (kirim atau batalkan).
-                  if (draftLocked) { go('trip-summary'); return }
-                  onStartTrip()
-                }}
-                className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
-              >
-                {hasDraft ? 'Lanjutkan Trip' : 'Mulai Trip'} <ArrowRight size={16} />
-              </button>
+              {draftCounted ? (
+                <>
+                  <button
+                    onClick={handleContinueDraft}
+                    className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    Lanjutkan Trip <ArrowRight size={16} />
+                  </button>
+                  {/* Mulai trip baru terkunci selama draft belum dikirim. */}
+                  <button
+                    onClick={() => setLockToastOpen(true)}
+                    className="w-full rounded-2xl border border-white/35 bg-white/10 py-2.5 px-3 text-[12px] font-bold text-blue-100 flex items-center justify-center gap-1.5 hover:bg-white/20 active:scale-[0.99] transition-all"
+                  >
+                    <Lock size={13} /> Mulai Trip (terkunci)
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleStart}
+                  className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
+                >
+                  Mulai Trip <ArrowRight size={16} />
+                </button>
+              )}
             </div>
           ) : (
             <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">
@@ -238,6 +285,15 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           ))}
         </div>
       </div>
+
+      {/* Panduan kalau tombol Mulai Trip terkunci karena masih ada draft */}
+      <DraftLockToast
+        visible={lockToastOpen}
+        onClose={() => setLockToastOpen(false)}
+        onGoHistory={() => { setLockToastOpen(false); go('history') }}
+        onContinue={() => { setLockToastOpen(false); handleContinueDraft() }}
+        remainingMs={draftRemainingMs(draftInfo)}
+      />
     </div>
   )
 }

@@ -9,7 +9,7 @@ import {
   draftResumeTarget,
   draftRouteLabel,
   formatDraftRemaining,
-  hasDraftContent,
+  hasCountedDraft,
 } from '../../services/tripDraft'
 import { readCancelQueue } from '../../services/tripCancel'
 import CancelTripDialog from '../../components/CancelTripDialog'
@@ -94,7 +94,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
   // Draft trip yang belum terkirim: tampil di Riwayat supaya petugas yang
   // tidak sengaja menutup form bisa melanjutkannya, bukan mengulang dari nol.
-  const draftActive = hasDraftContent(draft)
+  //
+  // ATURAN DRAFT: yang ditampilkan hanya draft yang sudah TERHITUNG, yaitu
+  // petugas sudah menginput minimal 1 kendaraan (untuk trip kosong: minimal
+  // foto bukti). Isian yang baru berupa status muatan atau rute belum
+  // dihitung sebagai draft, jadi tidak muncul di sini.
+  const draftActive = hasCountedDraft(draft)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -227,6 +232,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
                 + 'Tinggal kirim trip-nya atau batalkan dengan alasan.'
               : `Tersimpan di perangkat untuk ${draftTtlMinutes} menit sejak dibuat. Setelah itu isiannya dibekukan `}
             {!expired && 'dan hanya bisa dikirim atau dibatalkan.'}
+          </p>
+          <p className="mt-1 text-[10px] leading-relaxed text-amber-800/80">
+            Selama draft ini ada, tombol <strong>Mulai Trip</strong> di Beranda terkunci.{' '}
+            {expired
+              ? 'Kirim trip-nya atau batalkan dengan alasan, lalu tombolnya bisa dipakai lagi.'
+              : 'Selesaikan isiannya lewat tombol di bawah atau batalkan dengan alasan, lalu tombolnya bisa dipakai lagi.'}
           </p>
 
           <div className="mt-3 flex gap-2">
