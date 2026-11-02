@@ -48,6 +48,13 @@ vi.mock('./apkInstaller', () => ({
   isNativeAndroid: () => h.nativeAndroid,
 }))
 
+// jsdom berjalan di hostname localhost, jadi mode dev harus dimatikan supaya
+// alur pemeriksaan update benar-benar dijalankan (bukan dilewati).
+vi.mock('./runtimeEnv', async importOriginal => ({
+  ...(await importOriginal<typeof import('./runtimeEnv')>()),
+  isLocalhostDev: () => false,
+}))
+
 
 
 import { appUpdate } from './appUpdate'
