@@ -334,6 +334,30 @@ if [ -d "$MIGRATIONS_DIR" ]; then
     done
 fi
 
+# ── Muat ulang schema cache PostgREST ────────────────────────────────────────
+#
+# PENTING: PostgREST memuat daftar tabel SAAT START. Tabel yang dibuat
+# sesudahnya (mis. lewat migrasi di atas) BELUM dikenal -> setiap akses ke
+# tabel itu membalas 404, termasuk INSERT/UPDATE. Gejalanya di aplikasi:
+# dashboard admin bisa membaca tabel yang LAMA, tapi tabel BARU selalu
+# "Gagal menyimpan" padahal tabelnya ada di database.
+#
+# Perbaikannya: PostgREST mendengarkan channel notifikasi 'pgrst'. Satu
+# perintah NOTIFY memintanya memuat ulang daftar tabel.
+#
+# Perintah ini idempoten dan cepat, jadi aman dijalankan tiap restart.
+
+echo "[*] Memuat ulang schema cache PostgREST..."
+if $DOCKER compose -f "$COMPOSE_FILE" exec -T db \
+    psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-trip}" -d "${POSTGRES_DB:-trip}" \
+    -c "NOTIFY pgrst, 'reload schema';" > /dev/null 2>&1; then
+    sleep 2
+    ok "schema cache dimuat ulang (tabel baru langsung bisa ditulis)"
+else
+    warn "Gagal me-reload schema cache PostgREST - tabel baru mungkin membalas 404."
+    warn "  Perbaikan manual: docker compose exec db psql -U trip -d trip -c \"NOTIFY pgrst, 'reload schema';\""
+fi
+
 # ── Backfill snapshot harga tarif (sekali jalan, idempoten) ──────────────────
 #
 # ATURAN: perubahan tarif di admin hanya berlaku untuk trip SELANJUTNYA. Trip

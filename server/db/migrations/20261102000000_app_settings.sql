@@ -20,3 +20,9 @@ VALUES ('draft_ttl_minutes', '15')
 ON CONFLICT (key) DO NOTHING;
 
 COMMIT;
+
+-- Minta PostgREST memuat ulang daftar tabel. Tanpa ini, tabel `app_settings`
+-- (baru dibuat di atas) tidak dikenal PostgREST sampai container-nya
+-- restart -> INSERT/UPDATE membalas 404 meski tabelnya sudah ada.
+-- NOTIFY dikirim saat COMMIT, jadi placement-nya setelah COMMIT sudah aman.
+NOTIFY pgrst, 'reload schema';

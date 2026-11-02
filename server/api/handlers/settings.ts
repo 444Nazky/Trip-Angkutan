@@ -91,13 +91,26 @@ export async function putSettings(req: Request): Promise<Response> {
       return json({ error: "Nilai batas draft harus berupa angka (menit)" }, 400);
     }
 
-    const { error } = await db
+    const { data: existing, error: readErr } = await db
       .from("app_settings")
-      .upsert(
-        { key: DRAFT_TTL_KEY, value: String(minutes), updated_at: new Date().toISOString() },
-        { onConflict: "key" },
-      );
-    if (error) throw error;
+      .select("key")
+      .eq("key", DRAFT_TTL_KEY)
+      .maybeSingle();
+    if (readErr) throw readErr;
+
+    // Tulis eksplisit (update kalau baris sudah ada, insert kalau belum).
+    // Upsert PostgREST (`on_conflict`) sebenarnya juga bisa, tapi jalur
+    // update+insert lebih mudah dibaca dan tidak bergantung pada header
+    // Prefer.
+    const writeErr = existing
+      ? (await db
+          .from("app_settings")
+          .update({ value: String(minutes), updated_at: new Date().toISOString() })
+          .eq("key", DRAFT_TTL_KEY)).error
+      : (await db
+          .from("app_settings")
+          .insert({ key: DRAFT_TTL_KEY, value: String(minutes), updated_at: new Date().toISOString() })).error;
+    if (writeErr) throw writeErr;
 
     return json({ success: true, draftTtlMinutes: minutes });
   } catch (error) {
