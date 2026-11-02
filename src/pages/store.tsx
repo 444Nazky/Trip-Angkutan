@@ -108,8 +108,6 @@ export interface Trip {
   canceled?: boolean
   /** Alasan pembatalan (wajib diisi petugas). */
   cancelReason?: string
-  /** Keterangan tambahan dari petugas. */
-  cancelNote?: string
   /** Id dokumen pembatalan di antrean kirim. */
   cancelId?: string
 }
@@ -219,7 +217,7 @@ interface StoreValue {
   draftTtlMinutes: number
   resetDraft: () => void
   /** Batalkan draft: membuat dokumen pembatalan (alasannya wajib). */
-  cancelDraft: (reason: string, note?: string) => boolean
+  cancelDraft: (reason: string) => boolean
   patchDraft: (p: Partial<Draft>) => void
   addVehicle: (v: VehicleEntry) => void
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
@@ -1061,7 +1059,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * Alasan pembatalan WAJIB diisi: tanpa alasan, dokumen tidak bisa
    * ditindaklanjuti admin.
    */
-  const cancelDraft = useCallback((reason: string, note = ''): boolean => {
+  const cancelDraft = useCallback((reason: string): boolean => {
     const reasonText = String(reason ?? '').trim()
     if (!reasonText) return false
     const current = draftRef.current
@@ -1069,7 +1067,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       current,
       { id: String(officer.id), name: officer.name },
       reasonText,
-      note,
     )
     // Dokumen masuk antrean: offline pun tetap tersimpan & dikirim nanti.
     void queueCancelDocument(doc)
@@ -1109,7 +1106,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selfieCapturedAt: current.selfieCapturedAt,
       canceled: true,
       cancelReason: reasonText,
-      cancelNote: String(note ?? '').trim(),
       cancelId: doc.cancelId,
     }
     setTrips(prev => [entry, ...prev])

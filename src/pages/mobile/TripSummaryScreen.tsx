@@ -387,8 +387,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         title="Batalkan Trip"
         summary={`${route.from} → ${route.to} · ${vehicles.length} kendaraan`}
         onClose={() => setCancelOpen(false)}
-        onConfirm={(reason, note) => {
-          if (cancelDraft(reason, note)) {
+        onConfirm={(reason) => {
+          if (cancelDraft(reason)) {
             setCancelOpen(false)
             go('home')
           }

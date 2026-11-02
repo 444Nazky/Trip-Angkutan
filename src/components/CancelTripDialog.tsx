@@ -10,14 +10,16 @@ interface CancelTripDialogProps {
   summary?: string
   onClose: () => void
   /** Dipanggil saat alasan terkumpul. */
-  onConfirm: (reason: string, note: string) => void
+  onConfirm: (reason: string) => void
 }
 
 /**
  * Dialog pembatalan trip.
  *
- * WAJIB ada alasan: pembatalan menghasilkan dokumen yang dikirim ke server,
- * jadi tanpa alasan admin tidak bisa menindaklanjuti.
+ * Alasan WAJIB diisi manual (maks. 55 huruf): pembatalan menghasilkan dokumen
+ * yang dikirim ke server, jadi tanpa alasan admin tidak bisa menindaklanjuti.
+ * Petugas mengetik sendiri alasannya — tidak ada daftar pilihan, supaya
+ * alasan yang tidak tercakup daftar baku tetap bisa dicatat.
  */
 export default function CancelTripDialog({
   open,
@@ -27,12 +29,10 @@ export default function CancelTripDialog({
   onConfirm,
 }: CancelTripDialogProps) {
   const [reason, setReason] = useState<string>('')
-  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (open) {
       setReason('')
-      setNote('')
     }
   }, [open])
 
@@ -96,17 +96,6 @@ export default function CancelTripDialog({
           </p>
         )}
 
-        <label className="mt-3 block text-[12px] font-semibold text-slate-700">
-          Keterangan tambahan <span className="text-slate-400 font-normal">(opsional)</span>
-        </label>
-        <textarea
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          rows={3}
-          placeholder="Jelaskan singkat kondisi di lapangan"
-          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-300"
-        />
-
         <div className="mt-4 flex gap-2">
           <button
             onClick={onClose}
@@ -115,7 +104,7 @@ export default function CancelTripDialog({
             Kembali
           </button>
           <button
-            onClick={() => { if (canSubmit) onConfirm(reason, note.trim()) }}
+            onClick={() => { if (canSubmit) onConfirm(reason.trim()) }}
             disabled={!canSubmit}
             className={`flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors ${
               canSubmit ? 'bg-red-500 hover:bg-red-600' : 'cursor-not-allowed bg-slate-300'

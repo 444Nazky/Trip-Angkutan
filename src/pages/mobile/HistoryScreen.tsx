@@ -305,8 +305,8 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         title="Batalkan Draft"
         summary={`${draftRouteLabel(draft)} · ${draft.vehicles.length} kendaraan · ${draftPhotoCount(draft)} foto`}
         onClose={() => setCancelOpen(false)}
-        onConfirm={(reason, note) => {
-          cancelDraft(reason, note)
+        onConfirm={(reason) => {
+          cancelDraft(reason)
           setCancelOpen(false)
         }}
       />
@@ -361,7 +361,6 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
               {t.canceled && (
                 <p className="mt-1 text-[10px] leading-relaxed text-red-600">
                   Alasan: {t.cancelReason || '-'}
-                  {t.cancelNote ? ` — ${t.cancelNote}` : ''}
                   {t.cancelId && pendingCancels.includes(t.cancelId)
                     ? ' · dokumen pembatalan menunggu dikirim'
                     : t.cancelId && deliveredCancels[t.cancelId]

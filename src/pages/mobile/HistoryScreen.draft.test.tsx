@@ -141,6 +141,20 @@ describe('draft di halaman Riwayat Trip', () => {
     expect(mocks.cancel).not.toHaveBeenCalled()
   })
 
+  it('dialog pembatalan hanya punya input alasan manual maks 55 huruf', async () => {
+    await render()
+    await click('Batalkan')
+    const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    // Tidak ada lagi opsi alasan (radio) maupun keterangan opsional (textarea).
+    expect(dialog.querySelectorAll('input[type="radio"]').length).toBe(0)
+    expect(dialog.querySelectorAll('textarea').length).toBe(0)
+    expect(dialog.textContent).not.toContain('Keterangan tambahan')
+    // Input alasan tunggal dengan batas 55 huruf.
+    const input = dialog.querySelector('input') as HTMLInputElement
+    expect(input).toBeTruthy()
+    expect(input.getAttribute('maxlength')).toBe('55')
+  })
+
   it('pembatalan dengan alasan meneruskan alasan ke store', async () => {
     await render()
     await click('Batalkan')
