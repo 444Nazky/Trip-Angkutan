@@ -12,6 +12,7 @@ import {
   hasCountedDraft,
 } from '../../services/tripDraft'
 import { readCancelQueue } from '../../services/tripCancel'
+import { api, isIntranetBaseUrl, pingBaseUrl } from '../../services/api'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
 
@@ -46,14 +47,51 @@ function SyncBadge({ state }: { state: TripSyncState }) {
 
 
 function ConnectionIndicator() {
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    let active = true
+    let checking = false
+
+    const checkIntranet = async () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setIsConnected(false)
+        return
+      }
+
+      const endpoint = api.baseUrl
+      if (!isIntranetBaseUrl(endpoint)) {
+        setIsConnected(false)
+        return
+      }
+      if (checking) return
+
+      checking = true
+      try {
+        const result = await pingBaseUrl(endpoint, 4000)
+        if (active) {
+          setIsConnected(result.ok && typeof navigator !== 'undefined' && navigator.onLine && api.baseUrl === endpoint)
+        }
+      } catch {
+        if (active) setIsConnected(false)
+      } finally {
+        checking = false
+      }
+    }
+
+    const handleOnline = () => { void checkIntranet() }
+    const handleOffline = () => setIsConnected(false)
+    const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void checkIntranet()
+    }, 15_000)
+
+    void checkIntranet()
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
+      active = false
+      window.clearInterval(timer)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
@@ -61,12 +99,12 @@ function ConnectionIndicator() {
 
   return (
     <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all ${
-      isOnline
+      isConnected
         ? 'bg-emerald-50 text-emerald-600'
         : 'bg-slate-100 text-slate-500'
     }`}>
-      {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-      {isOnline ? 'Online' : 'Offline'}
+      {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+      {isConnected ? 'Online' : 'Offline'}
     </div>
   )
 }

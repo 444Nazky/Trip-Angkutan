@@ -20,8 +20,17 @@ const mocks = vi.hoisted(() => ({
       | { createdAt: number; savedAt: number; expiresAt: number }
       | null,
     locked: false,
+    intranetReachable: false,
   },
 }))
+
+vi.mock('../../services/api', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../services/api')>()
+  return {
+    ...actual,
+    pingBaseUrl: vi.fn(async () => ({ ok: mocks.state.intranetReachable, ms: 1 })),
+  }
+})
 
 vi.mock('../store', () => ({
   useApp: () => ({
@@ -54,6 +63,7 @@ beforeEach(() => {
   mocks.cancel.mockReset()
   mocks.go.mockReset()
   mocks.state.locked = false
+  mocks.state.intranetReachable = false
   mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 }
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -66,7 +76,11 @@ afterEach(() => {
 })
 
 const render = async () => {
-  await act(async () => { root.render(<HistoryScreen go={mocks.go} />) })
+  await act(async () => {
+    root.render(<HistoryScreen go={mocks.go} />)
+    await Promise.resolve()
+    await Promise.resolve()
+  })
 }
 
 const click = async (label: string) => {
@@ -76,6 +90,18 @@ const click = async (label: string) => {
 }
 
 describe('draft di halaman Riwayat Trip', () => {
+  it('tetap Offline saat perangkat online tetapi server intranet tidak terjangkau', async () => {
+    await render()
+    expect(container.textContent).toContain('Offline')
+    expect(container.textContent).not.toContain('Online')
+  })
+
+  it('menampilkan Online hanya setelah server intranet berhasil dijangkau', async () => {
+    mocks.state.intranetReachable = true
+    await render()
+    expect(container.textContent).toContain('Online')
+  })
+
   it('menampilkan draft yang belum terkirim beserta sisa waktunya', async () => {
     await render()
     expect(container.textContent).toContain('Draft · belum terkirim')
