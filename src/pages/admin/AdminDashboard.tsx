@@ -115,8 +115,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
-    { key: 'endpoint', label: 'Endpoint', Icon: Server },
-    { key: 'settings', label: 'Pengaturan', Icon: Settings },
+    { key: 'endpoint', label: 'Pengaturan', Icon: Settings },
+    { key: 'settings', label: 'Statistik Server', Icon: Server },
   ]
 
   return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
@@ -238,7 +238,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'settings' && (
-            <SettingsTab showToast={showToast} />
+            <SettingsTab />
           )}
         </div>
       </div>

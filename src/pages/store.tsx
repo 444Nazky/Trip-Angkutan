@@ -21,6 +21,7 @@ import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
 import {
   draftExpired,
+  hasCountedDraft,
   hasDraftContent,
   readDraftFor,
   writeDraftFor,
