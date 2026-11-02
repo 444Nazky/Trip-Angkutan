@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Ban } from 'lucide-react'
-import { CANCEL_REASONS } from '../services/tripCancel'
 
 interface CancelTripDialogProps {
   open: boolean
@@ -18,8 +17,7 @@ interface CancelTripDialogProps {
  * Dialog pembatalan trip.
  *
  * WAJIB ada alasan: pembatalan menghasilkan dokumen yang dikirim ke server,
- * jadi tanpa alasan admin tidak bisa menindaklanjuti. Alasan "Lainnya"
- * wajib disertai keterangan tambahan.
+ * jadi tanpa alasan admin tidak bisa menindaklanjuti.
  */
 export default function CancelTripDialog({
   open,
@@ -50,8 +48,7 @@ export default function CancelTripDialog({
 
   if (!open) return null
 
-  const needsNote = reason === 'Lainnya'
-  const canSubmit = !!reason && (!needsNote || note.trim().length > 0)
+  const canSubmit = reason.trim().length > 0
 
   return createPortal(
     <div
@@ -86,31 +83,21 @@ export default function CancelTripDialog({
         <p className="mb-2 text-[12px] font-semibold text-slate-700">
           Alasan pembatalan <span className="text-red-500">*</span>
         </p>
-        <div className="space-y-1.5">
-          {CANCEL_REASONS.map(r => (
-            <label
-              key={r}
-              className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-[12px] transition-colors ${
-                reason === r
-                  ? 'border-red-300 bg-red-50 text-red-800'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="cancel-reason"
-                value={r}
-                checked={reason === r}
-                onChange={() => setReason(r)}
-                className="h-3.5 w-3.5 accent-red-500"
-              />
-              <span className="font-medium">{r}</span>
-            </label>
-          ))}
-        </div>
+        <input
+          value={reason}
+          onChange={e => setReason(e.target.value.slice(0, 55))}
+          maxLength={55}
+          placeholder="Ketik alasan pembatalan (maks. 55 huruf)"
+          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-300"
+        />
+        {reason.length > 0 && (
+          <p className="mt-1 text-[10px] text-slate-500">
+            {reason.length}/55 huruf
+          </p>
+        )}
 
         <label className="mt-3 block text-[12px] font-semibold text-slate-700">
-          Keterangan {needsNote ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal">(opsional)</span>}
+          Keterangan tambahan <span className="text-slate-400 font-normal">(opsional)</span>
         </label>
         <textarea
           value={note}
@@ -119,11 +106,6 @@ export default function CancelTripDialog({
           placeholder="Jelaskan singkat kondisi di lapangan"
           className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-[12px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-300"
         />
-
-        <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-          Dokumen pembatalan (alasan + rincian trip) akan dikirim ke server kantor dan
-          tercatat di riwayat sebagai trip berstatus &quot;Dibatalkan&quot;.
-        </p>
 
         <div className="mt-4 flex gap-2">
           <button
