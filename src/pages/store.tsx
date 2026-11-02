@@ -198,6 +198,14 @@ interface StoreValue {
   /** Umur draft (dasar batas 15 menit) — null kalau tidak ada draft berisi. */
   draftInfo: DraftInfo | null
   /**
+   * Draft sudah TERHITUNG (minimal 1 kendaraan sudah diinput).
+   *
+   * Sumber kebenaran tunggal: store, Beranda, dan Riwayat memakai aturan
+   * yang sama (`hasCountedDraft`), jadi tidak mungkin ada layar yang
+   * menganggap ada draft sementara layar lain menganggap tidak ada.
+   */
+  draftCounted: boolean
+  /**
    * Draft sudah lewat batas umur: isiannya dibekukan (tidak bisa diedit
    * atau menambah kendaraan). Petugas masih bisa mengirim trip atau
    * membatalkannya dengan alasan.
@@ -794,15 +802,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const stored = await readDraftFor(owner)
         if (!alive) return
         const data = stored?.draft ?? emptyDraft
-        const createdAt = stored?.createdAt ?? stored?.savedAt ?? 0
+        // Draft yang dipulihkan hanya "berhitung" kalau sudah ada minimal 1
+        // kendaraan. Kalau belum, jam 15 menit BELUM mulai: begitu petugas
+        // menambah kendaraan, timer baru mulai dari saat itu.
+        const counted = hasCountedDraft(data)
+        const createdAt = counted ? (stored?.createdAt ?? stored?.savedAt ?? 0) : 0
         draftOwnerRef.current = owner
         draftCreatedAtRef.current = createdAt
         draftSavedAtRef.current = stored?.savedAt ?? 0
         hydratedDraftRef.current = stored ? data : null
         draftRef.current = data
         setDraft(data)
-        setDraftInfo(stored && createdAt
-          ? { createdAt, savedAt: stored.savedAt ?? createdAt, expiresAt: createdAt + draftTtlMsRef.current }
+        setDraftInfo(createdAt
+          ? { createdAt, savedAt: stored?.savedAt ?? createdAt, expiresAt: createdAt + draftTtlMsRef.current }
           : null)
       } catch (err) {
         console.warn('[store] gagal memulihkan draft:', err)
@@ -829,12 +841,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Draft hasil restore bukan perubahan pengguna: pertahankan waktu aslinya
     // agar batas 15 menit tidak ter-reset hanya karena aplikasi dibuka ulang.
     if (draft !== hydratedDraftRef.current) draftSavedAtRef.current = now
-    if (!draftCreatedAtRef.current) draftCreatedAtRef.current = draftSavedAtRef.current || now
+    // Jam 15 menit HANYA berjalan untuk draft yang TERHITUNG (minimal 1
+    // kendaraan sudah diinput). Isian yang baru berupa status muatan/rute
+    // belum dihitung sebagai draft: tidak ada jam, tidak mengunci layar.
+    const counted = hasCountedDraft(draft)
+    if (!counted) draftCreatedAtRef.current = 0
+    else if (!draftCreatedAtRef.current) draftCreatedAtRef.current = now
     const createdAt = draftCreatedAtRef.current
     const savedAt = draftSavedAtRef.current || now
-    const info: DraftInfo = { createdAt, savedAt, expiresAt: createdAt + draftTtlMsRef.current }
+    const info: DraftInfo | null = counted && createdAt
+      ? { createdAt, savedAt, expiresAt: createdAt + draftTtlMsRef.current }
+      : null
     setDraftInfo(prev => (
-      prev && prev.createdAt === createdAt && prev.savedAt === savedAt ? prev : info
+      prev && info && prev.createdAt === info.createdAt && prev.savedAt === info.savedAt ? prev : info
     ))
     const timer = setTimeout(() => {
       void writeDraftFor(owner, {
@@ -1402,7 +1421,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariffs,
     vehicleTypes,
     officers, saveOfficers,
-    draft, draftInfo, draftLocked, draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, draftLocked, draftCounted: hasCountedDraft(draft), draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
