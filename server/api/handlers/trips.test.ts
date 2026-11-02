@@ -23,6 +23,7 @@ import {
   errorText,
   explainDbError,
   isUuid,
+  validateCancelPayload,
 } from "./trips.ts";
 
 const UUID_A = "3f9b1c2e-5a7d-4b8c-9e1f-2a3b4c5d6e7f";
@@ -171,6 +172,16 @@ const TABLES: Record<string, FakeTable> = {
     ]),
     rows: [],
   },
+  // Dokumen pembatalan trip (hasil POST /trips/cancel).
+  trip_cancellations: {
+    columns: new Set([
+      "id", "no_cancel", "client_cancel_id", "officer_id", "region_id",
+      "dermaga_id", "reason", "note", "route_from", "route_to", "route_code",
+      "condition", "vehicle_count", "vehicles", "photo_count", "started_at",
+      "cancelled_at", "created_at",
+    ]),
+    rows: [],
+  },
 };
 
 /** Kolom yang nilainya harus UUID (FK). */
@@ -186,16 +197,75 @@ function pgrstError(code: string, message: string, status = 400): Response {
   });
 }
 
-/** Terapkan filter `eq.<nilai>` (nilai dibaca apa adanya). */
+/**
+ * Terapkan filter PostgREST yang dipakai handler:
+ *   `eq.<nilai>`    - kesamaan persis
+ *   `gte.<nilai>`   - lebih besar atau sama (timestamptz terurut)
+ *   `lte.<nilai>`   - lebih kecil atau sama
+ *   `ilike.<pola>`  - pencarian teks, `%` = wildcard
+ *   `or=(a,b,...)`  - salah satu dari (dipakai untuk pencarian bebas)
+ *
+ * Nilai dibaca apa adanya (tanpa decoding URL) supaya cocok dengan cara
+ * `db.from().eq()` menuliskan parameter.
+ */
 function applyFilters(
   rows: Record<string, unknown>[],
   params: URLSearchParams,
 ): Record<string, unknown>[] {
   let out = rows;
   for (const [key, raw] of params.entries()) {
-    if (!raw.startsWith("eq.")) continue;
-    const wanted = raw.slice("eq.".length);
-    out = out.filter((r) => String(r[key] ?? "") === wanted);
+    if (key === "or") {
+      // Bentuk: `(col.op.value,col.op.value)` — setiap bagian dipecah pada
+      // koma di LUAR nilai.
+      const inner = raw.replace(/^\(|\)$/g, "");
+      const parts = inner.split(",").map(p => p.trim()).filter(Boolean);
+      out = out.filter((r) =>
+        parts.some((part) => {
+          const dot = part.indexOf(".");
+          if (dot < 0) return false;
+          const col = part.slice(0, dot);
+          const rest = part.slice(dot + 1);
+          const opDot = rest.indexOf(".");
+          if (opDot < 0) return false;
+          const op = rest.slice(0, opDot);
+          const value = rest.slice(opDot + 1);
+          const cell = String(r[col] ?? "");
+          if (op === "ilike") {
+            const re = new RegExp(
+              `^${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`,
+              "i",
+            );
+            return re.test(cell);
+          }
+          if (op === "eq") return cell === value;
+          return false;
+        })
+      );
+      continue;
+    }
+    if (raw.startsWith("eq.")) {
+      const wanted = raw.slice("eq.".length);
+      out = out.filter((r) => String(r[key] ?? "") === wanted);
+      continue;
+    }
+    if (raw.startsWith("gte.")) {
+      const wanted = raw.slice("gte.".length);
+      out = out.filter((r) => String(r[key] ?? "") >= wanted);
+      continue;
+    }
+    if (raw.startsWith("lte.")) {
+      const wanted = raw.slice("lte.".length);
+      out = out.filter((r) => String(r[key] ?? "") <= wanted);
+      continue;
+    }
+    if (raw.startsWith("ilike.")) {
+      const pattern = raw.slice("ilike.".length);
+      const re = new RegExp(
+        `^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`,
+        "i",
+      );
+      out = out.filter((r) => re.test(String(r[key] ?? "")));
+    }
   }
   return out;
 }
@@ -215,16 +285,42 @@ function startFakePostgrest() {
     if (req.method === "GET") {
       const select = url.searchParams.get("select");
       if (select) {
-        // Hanya kolom sederhana yang dicek; embed diabaikan.
+        // Hanya kolom sederhana yang dicek; embed (mis. `officers(name)`)
+        // diabaikan — PostgREST menyelesaikan embed lewat relasi FK.
         for (const part of select.split(",")) {
-          const col = part.trim().split("(")[0].trim();
+          const trimmed = part.trim();
+          if (trimmed.includes("(")) continue; // embed
+          const col = trimmed.split("(")[0].trim();
           if (col && col !== "*" && !t.columns.has(col)) {
             return pgrstError("42703", `column "${table}.${col}" does not exist`);
           }
         }
       }
       const rows = applyFilters(t.rows, url.searchParams);
-      return Response.json(rows);
+
+      // Urut according parameter `order` (mis. `cancelled_at.desc`).
+      const order = url.searchParams.get("order");
+      let sorted = rows;
+      if (order) {
+        sorted = [...rows].sort((a, b) => {
+          for (const clause of order.split(",")) {
+            const [col, dir] = clause.trim().split(".");
+            const av = String(a[col] ?? "");
+            const bv = String(b[col] ?? "");
+            if (av === bv) continue;
+            const cmp = av < bv ? -1 : 1;
+            return dir === "desc" ? -cmp : cmp;
+          }
+          return 0;
+        });
+      }
+
+      const limit = url.searchParams.get("limit");
+      const offset = url.searchParams.get("offset");
+      let page = sorted;
+      if (offset) page = page.slice(Number(offset));
+      if (limit) page = page.slice(0, Number(limit));
+      return Response.json(page);
     }
 
     // ---- POST (insert) ----
@@ -534,4 +630,259 @@ Deno.test("harga saat trip dikirim tersimpan sebagai snapshot (perubahan tarif t
   // Admin mengubah tarif -> baris yang sudah tersimpan TIDAK boleh ikut berubah.
   TABLES.region_tariff_rows.rows[0].muatan_tariff = 75_000;
   assertEquals(vehicles[0].tariff_amount, 50_000, "harga trip lama tidak boleh ikut berubah");
+});
+
+Deno.test("dokumen pembatalan wajib punya alasan", () => {
+  assertEquals(validateCancelPayload({ reason: "Pelanggan membatalkan" }), null);
+  assertEquals(
+    validateCancelPayload({ reason: "  " }),
+    "Alasan pembatalan wajib diisi",
+  );
+  assertEquals(
+    validateCancelPayload({ note: "tanpa alasan" }),
+    "Alasan pembatalan wajib diisi",
+  );
+  assertEquals(
+    validateCancelPayload(null),
+    "Payload pembatalan tidak valid",
+  );
+  assertEquals(
+    validateCancelPayload({ reason: "x".repeat(200) }),
+    "Alasan pembatalan terlalu panjang",
+  );
+});
+
+/** Permintaan POST JSON (dipakai endpoint pembatalan). */
+function jsonRequest(path: string, body: unknown, token: string): Request {
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+Deno.test("pembatalan tanpa alasan ditolak", async () => {
+  resetTables();
+  const { cancelTrip } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
+
+  const res = await cancelTrip(jsonRequest("/trips/cancel", { clientCancelId: "c1" }, token));
+  assertEquals(res.status, 400);
+  assertEquals(TABLES.trip_cancellations.rows.length, 0, "dokumen tidak boleh tersimpan tanpa alasan");
+});
+
+Deno.test("dokumen pembatalan tersimpan lengkap dengan rincian trip", async () => {
+  resetTables();
+  const { cancelTrip } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
+
+  const res = await cancelTrip(jsonRequest("/trips/cancel", {
+    clientCancelId: "c-123",
+    reason: "Pelanggan membatalkan",
+    note: "kapal ditunda",
+    routeFrom: "SJRE",
+    routeTo: "SBDZ",
+    routeCode: "SJRE-SBDZ",
+    condition: "muatan",
+    vehicleCount: 1,
+    vehicles: [{ plate: "B 1234 XY", type: "Mobil", category: "Lokal", load: "loaded", tariff: 75000 }],
+    photoCount: 2,
+  }, token));
+  const body = await res.json();
+
+  assertEquals(res.status, 201, `harus 201, dapat ${res.status}: ${JSON.stringify(body)}`);
+  assertEquals(TABLES.trip_cancellations.rows.length, 1);
+  const row = TABLES.trip_cancellations.rows[0];
+  assertEquals(row.reason, "Pelanggan membatalkan");
+  assertEquals(row.note, "kapal ditunda");
+  assertEquals(row.officer_id, OFFICER_ID);
+  assertEquals(row.route_from, "SJRE");
+  assertEquals(row.vehicle_count, 1);
+  assertEquals(row.photo_count, 2);
+  assert(String(row.no_cancel).startsWith("CNL"), "nomor dokumen harus berawalan CNL");
+});
+
+Deno.test("pengiriman ulang dokumen pembatalan tidak membuat dokumen ganda", async () => {
+  resetTables();
+  const { cancelTrip } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
+
+  const payload = {
+    clientCancelId: "c-456",
+    reason: "Data masuk salah",
+    routeFrom: "A",
+    routeTo: "B",
+  };
+  const first = await cancelTrip(jsonRequest("/trips/cancel", payload, token));
+  assertEquals(first.status, 201);
+  const second = await cancelTrip(jsonRequest("/trips/cancel", payload, token));
+  assertEquals(second.status, 200, "dokumen yang sama harus dikenali, bukan dibuat ulang");
+  assertEquals(TABLES.trip_cancellations.rows.length, 1, "harus tetap satu dokumen");
+});
+
+// ── Uji endpoint pemantauan pembatalan ───────────────────────────────────────
+//
+// Admin memakai tab "Pembatalan Trip" untuk melihat DOKUMEN pembatalan:
+// daftar, filter (tanggal/alasan/cari), dan ringkasan (per alasan, per hari,
+// per petugas). Ringkasan dihitung di server supaya angka pada kartu,
+// grafik, dan tabel selalu berasal dari potongan data yang sama.
+
+Deno.test("ringkasan pembatalan menghitung per alasan, per hari, per petugas", async () => {
+  const { summarizeCancellations } = await loadHandler();
+
+  const summary = summarizeCancellations([
+    {
+      reason: "Pelanggan membatalkan",
+      officer_id: "officer-a",
+      officer_name: "Petugas A",
+      vehicle_count: 2,
+      photo_count: 1,
+      cancelled_at: "2026-11-01T02:00:00.000Z", // 09:00 WIB -> 1 Nov
+    },
+    {
+      reason: "Pelanggan membatalkan",
+      officer_id: "officer-a",
+      officer_name: "Petugas A",
+      vehicle_count: 1,
+      photo_count: 0,
+      cancelled_at: "2026-11-01T15:00:00.000Z", // 22:00 WIB -> 1 Nov
+    },
+    {
+      reason: "Data masuk salah",
+      officer_id: "officer-b",
+      officer_name: "Petugas B",
+      vehicle_count: 3,
+      photo_count: 4,
+      cancelled_at: "2026-11-02T01:00:00.000Z", // 08:00 WIB -> 2 Nov
+    },
+  ]);
+
+  assertEquals(summary.total, 3);
+  // Alasan paling banyak dihitung DULU, bukan yang terakhir.
+  assertEquals(summary.byReason[0], { reason: "Pelanggan membatalkan", count: 2 });
+  assertEquals(summary.byReason[1], { reason: "Data masuk salah", count: 1 });
+  // Tanggal dihitung dalam zona WIB (UTC 02:00 = 09:00 WIB, masih 1 Nov).
+  assertEquals(summary.byDay, [
+    { day: "2026-11-01", count: 2 },
+    { day: "2026-11-02", count: 1 },
+  ]);
+  assertEquals(summary.byOfficer[0], {
+    officerId: "officer-a",
+    officerName: "Petugas A",
+    count: 2,
+  });
+  assertEquals(summary.vehicleCount, 6);
+  assertEquals(summary.photoCount, 5);
+});
+
+Deno.test("ringkasan pembatalan tetap benar saat tidak ada dokumen", async () => {
+  const { summarizeCancellations } = await loadHandler();
+  const summary = summarizeCancellations([]);
+  assertEquals(summary.total, 0);
+  assertEquals(summary.byReason, []);
+  assertEquals(summary.byDay, []);
+  assertEquals(summary.byOfficer, []);
+});
+
+Deno.test("daftar pembatalan difilter tanggal, alasan, dan pencarian", async () => {
+  resetTables();
+  const { getTripCancellations } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ role: "admin", username: "admin" });
+
+  TABLES.trip_cancellations.rows.push(
+    {
+      id: "c-1",
+      no_cancel: "CNL20261101AAAAAA",
+      officer_id: OFFICER_ID,
+      officer_name: "Petugas A",
+      reason: "Pelanggan membatalkan",
+      note: "kapal ditunda",
+      route_from: "SJRE",
+      route_to: "SBDZ",
+      vehicle_count: 1,
+      photo_count: 2,
+      cancelled_at: "2026-11-01T02:00:00.000Z",
+    },
+    {
+      id: "c-2",
+      no_cancel: "CNL20261105BBBBBB",
+      officer_id: OFFICER_ID,
+      officer_name: "Petugas A",
+      reason: "Data masuk salah",
+      note: null,
+      route_from: "CRB",
+      route_to: "SBDZ",
+      vehicle_count: 3,
+      photo_count: 0,
+      cancelled_at: "2026-11-05T08:00:00.000Z",
+    },
+  );
+
+  const get = async (qs: string) => {
+    const res = await getTripCancellations(
+      new Request(`http://x/trips/cancellations${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      new URL(`http://x/trips/cancellations${qs}`),
+    );
+    assertEquals(res.status, 200, `harus 200, dapat ${res.status}`);
+    return await res.json();
+  };
+
+  // Tanpa filter -> semua dokumen.
+  assertEquals((await get("")).length, 2);
+
+  // Rentang tanggal (WIB). 1 Nov 00:00 WIB = 31 Okt 17:00 UTC.
+  const satuNov = await get("?startDate=2026-11-01&endDate=2026-11-01");
+  assertEquals(satuNov.length, 1);
+  assertEquals(satuNov[0].id, "c-1");
+
+  // Filter alasan.
+  const salahData = await get("?reason=Data%20masuk%20salah");
+  assertEquals(salahData.length, 1);
+  assertEquals(salahData[0].id, "c-2");
+
+  // Pencarian bebas pada keterangan.
+  const cari = await get("?q=kapal");
+  assertEquals(cari.length, 1);
+  assertEquals(cari[0].id, "c-1");
+});
+
+Deno.test("mode=summary mengembalikan ringkasan, bukan daftar dokumen", async () => {
+  resetTables();
+  const { getTripCancellations } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ role: "admin", username: "admin" });
+
+  TABLES.trip_cancellations.rows.push({
+    id: "c-9",
+    no_cancel: "CNL20261101CCCCCC",
+    officer_id: OFFICER_ID,
+    officer_name: "Petugas C",
+    reason: "Lainnya",
+    note: null,
+    vehicle_count: 2,
+    photo_count: 1,
+    cancelled_at: "2026-11-01T02:00:00.000Z",
+  });
+
+  const url = new URL("http://x/trips/cancellations?mode=summary");
+  const res = await getTripCancellations(
+    new Request("http://x/trips/cancellations?mode=summary", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    url,
+  );
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.total, 1);
+  assertEquals(body.byReason, [{ reason: "Lainnya", count: 1 }]);
+  assertEquals(body.vehicleCount, 2);
 });

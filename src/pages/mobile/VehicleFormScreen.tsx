@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { ChevronLeft, Camera, Check, Loader2 } from 'lucide-react'
+import { ChevronLeft, Camera, Check, Loader2, Ban } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
+import { DRAFT_MAX_MINUTES } from '../../services/tripDraft'
 import type { MobileScreen } from '../types'
 import {
 
@@ -37,6 +38,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     editDraftVehicle,
     tariffs,
     vehicleTypes: masterTypes,
+    draftLocked,
   } = useApp()
   const { plate, type: vehicleType, category, load: vehicleLoad } = draft.vehicleForm
   const editingIndex = draft.editVehicleIndex ?? null
@@ -220,6 +222,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </span>
       </div>
 
+      {draftLocked && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
+          <Ban size={14} className="mt-0.5 shrink-0" />
+          <span>
+            Draft sudah lewat {DRAFT_MAX_MINUTES} menit — kendaraan tidak bisa ditambah atau diubah lagi.
+            Tinggal kirim trip ini dari Ringkasan atau batalkan dengan alasan.
+          </span>
+        </div>
+      )}
+
       {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk */}
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
         {/* Foto Dokumentasi */}
@@ -229,14 +241,15 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               Foto Dokumentasi <span className="text-red-500">*</span>
             </label>
             {photoTaken && (
-              <button onClick={() => openCamera('photo')} className="text-[11px] text-blue-600 font-medium">
+              <button onClick={() => openCamera('photo')} disabled={draftLocked} className="text-[11px] text-blue-600 font-medium disabled:text-slate-300">
                 Ulangi
               </button>
             )}
           </div>
           <button
             onClick={() => openCamera('photo')}
-            className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+            disabled={draftLocked}
+            className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors disabled:opacity-50 ${
               photoTaken
                 ? 'border-slate-200 bg-white'
                 : 'border-dashed border-slate-300 bg-slate-50 hover:border-slate-400'
@@ -269,6 +282,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               ref={plateInputRef}
               value={plate}
               onChange={handlePlateChange}
+              disabled={draftLocked}
               onBlur={() => {
                 void validatePlateInput()
                 if (plate.trim()) void runCheck(plate)
@@ -286,6 +300,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                   key={value}
                   type="button"
                   onClick={() => setField({ load: value })}
+                  disabled={draftLocked}
                   aria-pressed={vehicleLoad === value}
                   className={`px-2.5 py-2 text-[11px] font-semibold rounded-md transition-colors ${
                     vehicleLoad === value ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
@@ -328,6 +343,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               id="v-type"
               value={typeOk ? vehicleType : ''}
               onChange={e => setField({ type: e.target.value })}
+              disabled={draftLocked}
               className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
                 typeOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
               }`}
@@ -357,6 +373,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               id="v-category"
               value={categoryOk ? category : ''}
               onChange={e => setField({ category: e.target.value })}
+              disabled={draftLocked}
               className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
                 categoryOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
               }`}
@@ -374,14 +391,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       {/* Tombol Simpan — terkunci sampai 4/4 */}
       <button
         onClick={() => isFormComplete && setShowModal(true)}
-        disabled={!isFormComplete}
+        disabled={!isFormComplete || draftLocked}
         className={`w-full py-3.5 mt-4 rounded-xl font-semibold text-sm transition-colors ${
-          isFormComplete
+          isFormComplete && !draftLocked
             ? 'bg-slate-900 text-white hover:bg-slate-800'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'
         }`}
       >
-        {!photoTaken
+        {draftLocked
+          ? 'Draft Kedaluwarsa'
+          : !photoTaken
           ? 'Ambil Foto Dahulu'
           : !plateOk
             ? 'Isi Nomor Plat'
@@ -418,14 +437,16 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
                 <button
                   onClick={() => editDraftVehicle(i)}
-                  className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0"
+                  disabled={draftLocked}
+                  className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 shrink-0 disabled:opacity-40 disabled:hover:bg-blue-50"
                   title={`Ubah data ${unitLabel(draft.vehicles, i)}`}
                 >
                   Ubah
                 </button>
                 <button
                   onClick={() => removeDraftVehicle(i)}
-                  className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-2 py-1.5 shrink-0"
+                  disabled={draftLocked}
+                  className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 rounded-lg px-2 py-1.5 shrink-0 disabled:opacity-40 disabled:hover:bg-red-50"
                   title={`Hapus ${unitLabel(draft.vehicles, i)} dari trip ini`}
                 >
                   Hapus

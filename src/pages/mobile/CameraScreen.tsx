@@ -55,7 +55,7 @@ async function getPhotoPosition(): Promise<{ lat: number | null; lon: number | n
 
 
 export default function CameraScreen({ go }: CameraScreenProps) {
-  const { draft, patchDraft, officer, patchTripPhoto, patchVehiclePhoto } = useApp()
+  const { draft, patchDraft, officer, patchTripPhoto, patchVehiclePhoto, draftLocked } = useApp()
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [liveState, setLiveState] = useState<'off' | 'starting' | 'ready' | 'denied'>('off')
@@ -97,6 +97,13 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
   }, [])
+
+  // Draft yang lewat batas 15 menit tidak boleh ditambah foto lagi: keluar
+  // dari layar kamera sebelum jepret diambil.
+  useEffect(() => {
+    if (!draftLocked) return
+    go(retake ? 'history-detail' : (draft.cameraReturn ?? 'trip-summary'))
+  }, [draftLocked, go, retake, draft.cameraReturn])
 
 
 

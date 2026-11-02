@@ -93,7 +93,7 @@ const fullTrip = (): Trip => ({
 const readStored = () => dbAll<Trip>('trips')
 
 /** State trips terakhir yang dilihat UI (setara yang dibaca HistoryScreen). */
-const seen = { trips: [] as Trip[], loaded: false, draft: null as Draft | null }
+const seen = { trips: [] as Trip[], loaded: false, draft: null as Draft | null, draftLocked: false }
 let app: ReturnType<typeof useApp> | null = null
 
 function Probe() {
@@ -102,6 +102,7 @@ function Probe() {
   seen.trips = ctx.trips
   seen.loaded = ctx.tripsLoaded
   seen.draft = ctx.draft
+  seen.draftLocked = ctx.draftLocked
   return null
 }
 
@@ -201,8 +202,9 @@ describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka u
   })
 })
 
-describe('draft trip — dipulihkan setelah aplikasi ditutup, kedaluwarsa 12 jam', () => {
-  const LS_DRAFT = 'trip.draft.v1'
+describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', () => {
+  // Draft disimpan per petugas (kunci berbeda untuk tiap id petugas).
+  const LS_DRAFT = 'trip.draft.v2:anon'
   const makeDraft = (): Draft => ({
     routeCode: 'SBDZ-SJRE',
     condition: 'muatan',
@@ -215,9 +217,10 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, kedaluwarsa 12 jam
     startedAt: Date.now(),
   })
 
-  it('draft yang belum 12 jam dipulihkan apa adanya', async () => {
+  it('draft yang belum 15 menit dipulihkan apa adanya', async () => {
     await prepareColdStart()
-    await metaSet(LS_DRAFT, { savedAt: Date.now() - 60_000, draft: makeDraft() })
+    const createdAt = Date.now() - 60_000
+    await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft: makeDraft() })
 
     await mountApp()
     await flush()
@@ -225,22 +228,48 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, kedaluwarsa 12 jam
     expect(seen.draft?.condition, 'draft harus dipulihkan').toBe('muatan')
     expect(seen.draft?.routeCode).toBe('SBDZ-SJRE')
     expect(await metaGet(LS_DRAFT), 'draft masih tersimpan').toBeTruthy()
+    expect(seen.draftLocked, 'draft belum kedaluwarsa').toBe(false)
   })
 
-  it('draft berumur lebih dari 12 jam dibuang dan dihapus dari penyimpanan', async () => {
+  it('draft yang lewat 15 menit tetap ada tapi isiannya dibekukan (tidak bisa diedit)', async () => {
     await prepareColdStart()
-    await metaSet(LS_DRAFT, { savedAt: Date.now() - 13 * 60 * 60 * 1000, draft: makeDraft() })
+    const createdAt = Date.now() - 20 * 60 * 1000
+    await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft: makeDraft() })
 
     await mountApp()
     await flush()
 
-    expect(seen.draft?.condition, 'draft kedaluwarsa tidak boleh dipulihkan').toBeNull()
-    expect(await metaGet(LS_DRAFT), 'draft kedaluwarsa harus dihapus').toBeNull()
+    expect(seen.draft?.condition, 'draft kedaluwarsa masih bisa dikirim/dibatalkan').toBe('muatan')
+    expect(seen.draftLocked, 'draft harus terkunci').toBe(true)
+    expect(await metaGet(LS_DRAFT), 'draft tidak dihapus paksa').toBeTruthy()
+  })
+
+  it('draft tiap petugas terpisah: draft petugas lain tidak pernah muncul', async () => {
+    await prepareColdStart()
+    await mountApp()
+    await flush()
+
+    // Petugas A mengisi draft.
+    await act(async () => { app!.setOfficerId('o1') })
+    await flush()
+    await act(async () => { app!.patchDraft({ condition: 'muatan', routeCode: 'SBDZ-SJRE' }) })
+    await flush()
+
+    // Petugas B masuk: draftnya harus kosong.
+    await act(async () => { app!.setOfficerId('o2') })
+    await flush()
+    expect(seen.draft?.condition, 'draft petugas B tidak boleh melihat draft petugas A').toBeFalsy()
+
+    // Petugas A masuk lagi: draftnya masih ada.
+    await act(async () => { app!.setOfficerId('o1') })
+    await flush()
+    expect(seen.draft?.condition, 'draft petugas A harus utuh').toBe('muatan')
+    expect(seen.draft?.routeCode).toBe('SBDZ-SJRE')
   })
 
   it('draft format lama (tanpa savedAt) tetap dipulihkan', async () => {
     await prepareColdStart()
-    await metaSet(LS_DRAFT, makeDraft())
+    await metaSet('trip.draft.v1', makeDraft())
 
     await mountApp()
     await flush()

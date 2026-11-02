@@ -23,7 +23,7 @@ type SyncState = { synced: number; failed: number; busy?: boolean; reachable?: b
 
 
 export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
-  const { officer, trips, draft, resetDraft, setDetailTripId } = useApp()
+  const { officer, trips, draft, draftLocked, resetDraft, setDetailTripId } = useApp()
   const [pendingCount, setPendingCount] = useState(getPendingCount)
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [syncState, setSyncState] = useState<SyncState>(null)
@@ -113,7 +113,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         <div className="absolute right-10 bottom-3 w-14 h-14 rounded-full bg-blue-800/40" />
         <div className="relative">
           <p className="text-blue-100 text-[13px] font-semibold mb-1">
-            {hasDraft ? 'Trip belum terkirim' : 'Siap bertugas?'}
+            {hasDraft ? (draftLocked ? 'Draft terkunci' : 'Trip belum terkirim') : 'Siap bertugas?'}
           </p>
           <h2 className="text-white font-black text-[22px] leading-tight mb-4">
             {hasDraft ? 'Lanjutkan Trip' : <>Mulai Trip<br />Baru Sekarang</>}
@@ -121,7 +121,13 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           {hasDockAccess ? (
             <div className="space-y-2">
               <button
-                onClick={() => { if (!hasDraft) resetDraft(); onStartTrip() }}
+                onClick={() => {
+                  if (!hasDraft) { resetDraft(); onStartTrip(); return }
+                  // Draft lewat batas 15 menit: tidak bisa diedit lagi, jadi
+                  // langsung ke Ringkasan (kirim atau batalkan).
+                  if (draftLocked) { go('trip-summary'); return }
+                  onStartTrip()
+                }}
                 className="bg-white text-blue-700 font-bold py-3.5 rounded-2xl text-[14px] hover:bg-blue-50 active:scale-95 transition-all w-full flex items-center justify-center gap-2 shadow-lg"
               >
                 {hasDraft ? 'Lanjutkan Trip' : 'Mulai Trip'} <ArrowRight size={16} />

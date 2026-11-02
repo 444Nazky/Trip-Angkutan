@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Truck, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, FileText, Clock, ChevronRight, Trash2 } from 'lucide-react'
+import { Truck, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, FileText, Clock, ChevronRight, Ban } from 'lucide-react'
 import { fmtDate, fmtTime, useApp } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem, type TripSyncState } from '../../services/sync'
 import {
+  draftExpired,
   draftPhotoCount,
   draftRemainingMs,
   draftResumeTarget,
   draftRouteLabel,
   formatDraftRemaining,
   hasDraftContent,
+  DRAFT_MAX_MINUTES,
 } from '../../services/tripDraft'
+import { readCancelQueue } from '../../services/tripCancel'
+import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
 
 
@@ -79,7 +83,7 @@ interface HistoryScreenProps {
 
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
-  const { trips, setDetailTripId, officer, draft, draftInfo, discardDraft } = useApp()
+  const { trips, setDetailTripId, officer, draft, draftInfo, draftLocked, cancelDraft } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
 
   // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
@@ -92,19 +96,33 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
   // Draft trip yang belum terkirim: tampil di Riwayat supaya petugas yang
   // tidak sengaja menutup form bisa melanjutkannya, bukan mengulang dari nol.
   const draftActive = hasDraftContent(draft)
-  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!draftActive) {
-      setConfirmDiscard(false)
+      setCancelOpen(false)
       return
     }
     setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 30000)
+    const timer = window.setInterval(() => setNow(Date.now()), 15000)
     return () => window.clearInterval(timer)
   }, [draftActive, draftInfo?.expiresAt])
   const draftRemaining = draftRemainingMs(draftInfo, now)
   const draftChangedAt = draftInfo ? new Date(draftInfo.savedAt) : null
+  // Draft yang lewat batas 15 menit: isiannya dibekukan (tidak bisa diedit /
+  // menambah kendaraan), tapi masih boleh dikirim atau dibatalkan.
+  const expired = draftLocked || draftExpired(draftInfo, now)
+
+  // Dokumen pembatalan yang belum sampai ke server.
+  const [pendingCancels, setPendingCancels] = useState<string[]>([])
+  useEffect(() => {
+    let alive = true
+    void readCancelQueue().then(items => {
+      if (!alive) return
+      setPendingCancels(items.map(i => i.cancelId))
+    })
+    return () => { alive = false }
+  }, [cancelOpen, trips.length])
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
@@ -118,9 +136,11 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     ? myTrips
     : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
 
-  const syncedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'synced').length
+  const canceledCount = myTrips.filter(t => t.canceled).length
+  const syncedCount = myTrips.filter(t => !t.canceled && stateOf(t.id, t.synced) === 'synced').length
   const failedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
   const localCount = myTrips.filter(t => {
+    if (t.canceled) return false
     const s = stateOf(t.id, t.synced)
     return s === 'pending' || s === 'local'
   }).length
@@ -138,6 +158,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           <Cloud size={10} />
           <span>{syncedCount} terkirim</span>
         </div>
+        {canceledCount > 0 && (
+          <div className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold">
+            <Ban size={10} />
+            <span>{canceledCount} dibatalkan</span>
+          </div>
+        )}
         {failedCount > 0 && (
           <div className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold">
             <AlertTriangle size={10} />
@@ -150,7 +176,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
         </div>
       </div>
 
-      {/* Draft trip yang belum terkirim — bisa dilanjutkan atau dibuang */}
+      {/* Draft trip yang belum terkirim — bisa dilanjutkan, dikirim, atau dibatalkan */}
       {draftActive && (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start justify-between gap-2">
@@ -163,9 +189,15 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
                 <p className="truncate text-[14px] font-bold text-slate-900">{draftRouteLabel(draft)}</p>
               </div>
             </div>
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+            <span className={`flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold ring-1 ${
+              expired ? 'text-red-700 ring-red-200' : 'text-amber-700 ring-amber-200'
+            }`}>
               <Clock size={10} />
-              {draftInfo ? `Sisa ${formatDraftRemaining(draftRemaining)}` : 'Sisa 12j'}
+              {expired
+                ? 'Kedaluwarsa'
+                : draftInfo
+                  ? `Sisa ${formatDraftRemaining(draftRemaining)}`
+                  : `Sisa ${DRAFT_MAX_MINUTES} mnt`}
             </span>
           </div>
 
@@ -191,48 +223,49 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
           </div>
 
           <p className="mt-2 text-[10px] leading-relaxed text-amber-800/80">
-            Tersimpan di perangkat. Otomatis dihapus 12 jam setelah draft dibuat.
+            {expired
+              ? `Draft sudah lewat ${DRAFT_MAX_MINUTES} menit — isiannya tidak bisa diedit atau ditambah kendaraannya lagi. `
+                + 'Tinggal kirim trip-nya atau batalkan dengan alasan.'
+              : `Tersimpan di perangkat untuk ${DRAFT_MAX_MINUTES} menit sejak dibuat. Setelah itu isiannya dibekukan `}
+            {!expired && 'dan hanya bisa dikirim atau dibatalkan.'}
           </p>
 
-          {confirmDiscard ? (
-            <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-amber-200">
-              <p className="text-[11px] text-slate-600">Hapus draft ini? Semua isian dan fotonya akan hilang.</p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => setConfirmDiscard(false)}
-                  className="flex-1 rounded-lg border border-slate-200 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={() => {
-                    discardDraft()
-                    setConfirmDiscard(false)
-                  }}
-                  className="flex-1 rounded-lg bg-red-500 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
-                >
-                  Hapus draft
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex gap-2">
+            {expired ? (
+              <button
+                onClick={() => go('trip-summary')}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-[12px] font-semibold text-white hover:bg-slate-800 active:scale-[0.99]"
+              >
+                Kirim Trip <ChevronRight size={14} />
+              </button>
+            ) : (
               <button
                 onClick={() => go(draftResumeTarget(draft))}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-[12px] font-semibold text-white hover:bg-slate-800 active:scale-[0.99]"
               >
                 Lanjutkan <ChevronRight size={14} />
               </button>
-              <button
-                onClick={() => setConfirmDiscard(true)}
-                className="flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-white px-3 py-2.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
-              >
-                <Trash2 size={13} /> Hapus
-              </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={() => setCancelOpen(true)}
+              className="flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-white px-3 py-2.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+            >
+              <Ban size={13} /> Batalkan
+            </button>
+          </div>
         </section>
       )}
+
+      <CancelTripDialog
+        open={cancelOpen}
+        title="Batalkan Draft"
+        summary={`${draftRouteLabel(draft)} · ${draft.vehicles.length} kendaraan · ${draftPhotoCount(draft)} foto`}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={(reason, note) => {
+          cancelDraft(reason, note)
+          setCancelOpen(false)
+        }}
+      />
 
       {/* Filter */}
       <div className="flex gap-2">
@@ -272,9 +305,24 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[14px] font-bold text-slate-900">{t.route}</p>
-                <SyncBadge state={stateOf(t.id, t.synced)} />
+                {t.canceled ? (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                    <Ban size={10} /> Dibatalkan
+                  </span>
+                ) : (
+                  <SyncBadge state={stateOf(t.id, t.synced)} />
+                )}
               </div>
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
+              {t.canceled && (
+                <p className="mt-1 text-[10px] leading-relaxed text-red-600">
+                  Alasan: {t.cancelReason || '-'}
+                  {t.cancelNote ? ` — ${t.cancelNote}` : ''}
+                  {t.cancelId && pendingCancels.includes(t.cancelId)
+                    ? ' · dokumen pembatalan menunggu dikirim'
+                    : ' · dokumen pembatalan sudah dikirim'}
+                </p>
+              )}
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-[11px] text-slate-400">{t.date} · {t.time}</span>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${t.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.load}</span>

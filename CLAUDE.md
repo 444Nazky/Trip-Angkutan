@@ -83,6 +83,40 @@ Tariff model (do not regress):
   before deploying. Rebuild containers after backend changes:
   `docker compose build api-intranet web && docker compose up -d`.
 
+Aturan aplikasi mobile (dipakai petugas lapangan) — jangan regresi:
+
+- DRAFT MAKSIMAL 15 MENIT. `src/services/tripDraft.ts` → `DRAFT_TTL_MS =
+  15 * 60 * 1000`, dihitung dari `createdAt` (bukan waktu edit terakhir, supaya
+  draft tidak bisa diperpanjang hanya dengan menyentuh form). Setelah lewat
+  15 menit draft **dibekukan**, bukan dihapus: `store.tsx` mengekspos
+  `draftLocked`, dan semua layar yang bisa mengubah isian (kondisi muatan,
+  rute, form kendaraan, kamera) mengarahkan balik ke Ringkasan. Yang boleh
+  setelahnya: **Kirim Trip** atau **Batalkan**.
+- DRAFT PER PETUGAS. Kunci penyimpanan `trip.draft.v2:<officerId>` (IndexedDB
+  meta). Perangkat yang dipakai berganti petugas tidak boleh menampilkan
+  draft orang lain. Draft lama (`trip.draft.v1`) dimigrasi sekali ke petugas
+  yang sedang aktif lalu dihapus.
+- TRIP YANG SUDAH SELESAI = FINAL. Begitu trip selesai, tidak ada lagi tombol
+  "Ubah" (plat/jenis/golongan) maupun ambil ulang foto — **walaupun trip
+  belum sinkron ke server intranet**. Server bisa sudah menerima versi
+  pertama; membiarkan perangkat mengubah isi membuat server & perangkat tidak
+  sinkron. Koreksi dilakukan lewat pembatalan + trip baru.
+- PEMBATALAN = DOKUMEN, BUKAN HAPUS. Tombol "Hapus" di kartu draft diganti
+  "Batalkan"; alasan pembatalan WAJIB dipilih (`CANCEL_REASONS` di
+  `src/services/tripCancel.ts`). Pembatalan membuat dokumen (alasan +
+  keterangan + rincian trip) yang dikirim ke `POST /api/trips/cancel`, disimpan
+  di tabel `trip_cancellations` (migrasi
+  `server/db/migrations/20261101000000_trip_cancellations.sql`), dan tampil di
+  tab admin **"Pembatalan Trip"** (`src/pages/admin/tabs/CancellationsTab.tsx`
+  — filter rentang/alasan/cari, kartu statistik, grafik per alasan & per hari,
+  tabel dokumen + rincian kendaraan, ekspor .xlsx). Server: `GET
+  /api/trips/cancellations` (`?mode=summary` = ringkasan, `?startDate=
+  &endDate=&reason=&q=` = filter; batas tanggal pakai offset WIB +07:00
+  eksplisit). Daftar alasan dipindahkan ke modul ringan
+  `src/services/cancelReasons.ts` (bukan `tripCancel.ts`) supaya halaman admin
+  tidak menarik modul antrean offline (IndexedDB) ke bundle dashboard. Di
+  Riwayat muncul baris "Dibatalkan".
+
 Master jenis kendaraan (satu-satunya daftar yang sah):
 
 - Tabel `vehicle_types` (server/db/schema.sql) = sumber tunggal daftar jenis

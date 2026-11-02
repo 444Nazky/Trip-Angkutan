@@ -1,21 +1,30 @@
 import type { Draft } from '../pages/store'
+import { metaGet, metaSet } from './localDb'
 
 /**
- * Batas umur draft trip: 12 jam sejak draft DIBUAT.
+ * Batas umur draft trip: 15 MENIT sejak draft DIBUAT.
  *
  * Draft = trip yang sudah diisi petugas tetapi belum terkirim. Batas ini
  * sengaja dihitung dari waktu pembuatan, BUKAN waktu perubahan terakhir:
  * versi lama menyimpan `savedAt` yang bergeser setiap kali form disentuh,
  * sehingga draft bisa hidup berhari-hari selama sesekali dibuka. Dengan
- * patokan `createdAt`, draft benar-benar hilang paling lambat 12 jam setelah
- * petugas mulai mengisinya — tanggal trip di draft tidak pernah tertinggal
- * jauh dari kenyataan.
+ * patokan `createdAt`, draft benar-benar hilang paling lambat 15 menit
+ * setelah petugas mulai mengisinya — tanggal trip di draft tidak pernah
+ * tertinggal jauh dari kenyataan.
+ *
+ * Setelah batas terlampaui draft TIDAK dihapus paksa: isiannya dibekukan
+ * (tidak bisa diedit / menambah kendaraan) supaya petugas tetap bisa
+ * mengirim trip-nya atau membatalkannya dengan alasan. Penghapusan total
+ * baru terjadi saat draft dikirim atau dibatalkan.
  */
-export const DRAFT_TTL_MS = 12 * 60 * 60 * 1000
+export const DRAFT_TTL_MS = 15 * 60 * 1000
+
+/** Batas umur draft dalam menit (untuk ditampilkan di UI). */
+export const DRAFT_MAX_MINUTES = Math.round(DRAFT_TTL_MS / 60000)
 
 /** Keterangan umur draft yang ditampilkan di UI. */
 export interface DraftInfo {
-  /** Kapan draft pertama kali berisi (dasar batas 12 jam). */
+  /** Kapan draft pertama kali berisi (dasar batas 15 menit). */
   createdAt: number
   /** Kapan draft terakhir diubah. */
   savedAt: number
@@ -51,7 +60,18 @@ export function draftRemainingMs(info: DraftInfo | null | undefined, now = Date.
   return Math.max(0, info.expiresAt - now)
 }
 
-/** "45 mnt", "11j 20m", "12j" — ringkas untuk chip di kartu Riwayat. */
+/**
+ * Draft sudah kedaluwarsa?
+ *
+ * Draft yang lewat batas 15 menit tidak boleh diedit lagi (tambah/ubah
+ * kendaraan, ganti foto) — tapi masih bisa dikirim atau dibatalkan.
+ */
+export function draftExpired(info: DraftInfo | null | undefined, now = Date.now()): boolean {
+  if (!info) return false
+  return now >= info.expiresAt
+}
+
+/** "45 mnt", "11j 20m", "12j" — ringkas untuk chip di Riwayat. */
 export function formatDraftRemaining(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return 'kedaluwarsa'
   const totalMinutes = Math.ceil(ms / 60000)
@@ -99,4 +119,72 @@ export function draftResumeTarget(d: Draft): DraftResumeTarget {
   if (!d.condition) return 'trip-condition'
   if (!d.routeCode) return 'route-select'
   return 'trip-summary'
+}
+
+// ── Penyimpanan draft per petugas ───────────────────────────────────────────
+//
+// DULU hanya ada SATU draft untuk seluruh petugas di perangkat. Begitu
+// petugas berganti (mis. device dipakai shift pagi & sore), draft milik
+// petugas lama muncul di layar petugas baru — dan sebaliknya.
+// Sekarang setiap petugas punya draft-nya sendiri, tersimpan di kunci
+// terpisah, jadi tidak saling menimpa.
+
+const DRAFT_KEY_PREFIX = 'trip.draft.v2:'
+/** Kunci lama (satu draft untuk semua petugas) — dipakai sekali saat migrasi. */
+const LEGACY_DRAFT_KEY = 'trip.draft.v1'
+
+export interface StoredDraft {
+  savedAt: number
+  createdAt?: number
+  officerId?: string
+  draft: Draft
+}
+
+/** Kunci penyimpanan draft milik seorang petugas. */
+export function draftKeyFor(officerId?: string | null): string {
+  const key = String(officerId ?? '').trim()
+  return `${DRAFT_KEY_PREFIX}${key || 'anon'}`
+}
+
+/**
+ * Baca draft milik seorang petugas.
+ *
+ * Kalau draft untuk petugas itu belum ada, draft LAMA (versi satu draft
+ * untuk semua petugas) diambil kalau miliknya cocok — lalu dihapus supaya
+ * tidak pernah muncul lagi di perangkat lain.
+ */
+export async function readDraftFor(officerId?: string | null): Promise<StoredDraft | null> {
+  const key = draftKeyFor(officerId)
+  const own = await metaGet(key) as StoredDraft | null
+  if (own && typeof own === 'object' && own.draft) return own
+
+  // Migrasi dari kunci lama (sekali saja). Dua bentuk yang pernah dipakai:
+  //   - { savedAt, createdAt, officerId, draft }  (format StoredDraft)
+  //   - draft mentah (format paling lama, tanpa savedAt)
+  const legacyRaw = await metaGet(LEGACY_DRAFT_KEY) as (StoredDraft & { draft?: Draft }) | null
+  if (!legacyRaw || typeof legacyRaw !== 'object') return null
+  const legacyDraft = (legacyRaw.draft ?? legacyRaw) as Draft
+  if (!legacyDraft || typeof legacyDraft !== 'object') return null
+  const legacyOwner = String(legacyRaw.officerId ?? '')
+  const wanted = String(officerId ?? '')
+  if (legacyOwner && wanted && legacyOwner !== wanted) return null
+  // Draft format lama tidak punya savedAt: waktunya dihitung dari sekarang.
+  const savedAt = typeof legacyRaw.savedAt === 'number' ? legacyRaw.savedAt : Date.now()
+  const migrated: StoredDraft = {
+    savedAt,
+    createdAt: typeof legacyRaw.createdAt === 'number' ? legacyRaw.createdAt : savedAt,
+    officerId: wanted || legacyOwner,
+    draft: legacyDraft,
+  }
+  await metaSet(key, migrated)
+  await metaSet(LEGACY_DRAFT_KEY, null)
+  return migrated
+}
+
+/** Simpan draft milik seorang petugas (null = hapus). */
+export async function writeDraftFor(
+  officerId: string | null | undefined,
+  value: StoredDraft | null,
+): Promise<void> {
+  await metaSet(draftKeyFor(officerId), value)
 }

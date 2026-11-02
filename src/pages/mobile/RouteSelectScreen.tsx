@@ -28,7 +28,7 @@ interface RouteSelectScreenProps {
 
 
 export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScreenProps) {
-  const { draft, patchDraft, officer } = useApp()
+  const { draft, patchDraft, officer, draftLocked } = useApp()
 
   const dockId = selectedDockId ?? null
   const accessibleDermagas = officer.dermagaAccess || []
@@ -41,6 +41,12 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   // server jalan di background tanpa menutupi list.
   const [routes, setRoutes] = useState<UiRoute[]>(() => getStoredRoutes())
   const [loading, setLoading] = useState(() => getStoredRoutes().length === 0)
+
+  // Draft yang lewat batas 15 menit: rute tidak bisa diubah lagi. Langsung
+  // ke Ringkasan supaya petugas bisa mengirim atau membatalkan tripnya.
+  useEffect(() => {
+    if (draftLocked) go('trip-summary')
+  }, [draftLocked, go])
 
   useEffect(() => {
     let alive = true

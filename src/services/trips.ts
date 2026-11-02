@@ -28,6 +28,80 @@ export async function fetchTrips(): Promise<BackendTrip[] | null> {
 
 
 
+/** Dokumen pembatalan trip yang dikirim dari aplikasi mobile. */
+export interface TripCancellation {
+  id: string
+  no_cancel: string
+  officer_id: string
+  reason: string
+  note: string | null
+  route_from: string | null
+  route_to: string | null
+  route_code: string | null
+  condition: string | null
+  vehicle_count: number
+  vehicles: Array<{ plate?: string; type?: string; category?: string; load?: string; tariff?: number }> | null
+  photo_count: number
+  started_at: string | null
+  cancelled_at: string
+  created_at: string
+  officer_name?: string | null
+  region_code?: string | null
+}
+
+
+
+/** Filter untuk daftar/ringkasan dokumen pembatalan. */
+export interface TripCancellationFilters {
+  /** Tanggal mulai (YYYY-MM-DD, WIB). */
+  startDate?: string
+  /** Tanggal selesai (YYYY-MM-DD, WIB). */
+  endDate?: string
+  /** Alasan pembatalan tertentu. */
+  reason?: string
+  /** Pencarian bebas (no. dokumen, rute, keterangan). */
+  q?: string
+}
+
+/** Ringkasan dokumen pembatalan (untuk kartu statistik & grafik). */
+export interface TripCancellationSummary {
+  total: number
+  byReason: { reason: string; count: number }[]
+  byDay: { day: string; count: number }[]
+  byOfficer: { officerId: string; officerName: string; count: number }[]
+  vehicleCount: number
+  photoCount: number
+}
+
+
+
+/** Query string dari filter (kosong kalau tidak ada filter). */
+function cancellationQuery(filters?: TripCancellationFilters): string {
+  const params = new URLSearchParams()
+  if (filters?.startDate) params.set('startDate', filters.startDate)
+  if (filters?.endDate) params.set('endDate', filters.endDate)
+  if (filters?.reason) params.set('reason', filters.reason)
+  if (filters?.q) params.set('q', filters.q)
+  const s = params.toString()
+  return s ? `?${s}` : ''
+}
+
+
+
+/** Daftar dokumen pembatalan (admin). */
+export async function fetchTripCancellations(filters?: TripCancellationFilters): Promise<TripCancellation[] | null> {
+  return api.getOk<TripCancellation[]>(`/trips/cancellations${cancellationQuery(filters)}`)
+}
+
+
+
+/** Ringkasan dokumen pembatalan (admin) — dipakai untuk kartu & grafik. */
+export async function fetchTripCancellationSummary(filters?: TripCancellationFilters): Promise<TripCancellationSummary | null> {
+  return api.getOk<TripCancellationSummary>(`/trips/cancellations${cancellationQuery(filters)}&mode=summary`)
+}
+
+
+
 export interface ReportVehicle {
   id: string
   no_polisi: string

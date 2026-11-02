@@ -15,6 +15,7 @@ import {
 } from './localDb'
 import type { Trip, VehicleEntry } from '../pages/store'
 import { syncOnResume } from './adminPull'
+import { processCancelQueue, readCancelQueue } from './tripCancel'
 
 
 
@@ -1208,7 +1209,10 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
     // perlu dikirim. Sekarang server tidak disentuh selama antrean kosong.
     const items = await readQueue()
     _queueCache = items
-    if (items.length === 0) {
+    // Dokumen pembatalan trip punya antrean sendiri: keduanya harus dikirim,
+    // jadi antrean dianggap kosong HANYA kalau trip DAN pembatalan kosong.
+    const cancels = await readCancelQueue()
+    if (items.length === 0 && cancels.length === 0) {
       _pendingCount = 0
       notifyQueueListeners()
       return
@@ -1233,6 +1237,10 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
       // per item menambah 1 request untuk setiap antrean entry.
       await processItem(item, opts?.retryAll ?? false)
     }
+
+    // Dokumen pembatalan dikirim setelah trip: pembatalan adalah dokumen
+    // terpisah, tidak boleh hilang kalau trip gagal terkirim.
+    await processCancelQueue()
   } catch (err) {
     console.warn('[sync] siklus terputus:', err)
   } finally {

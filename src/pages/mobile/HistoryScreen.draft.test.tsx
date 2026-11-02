@@ -5,7 +5,7 @@ import HistoryScreen from './HistoryScreen'
 
 const mocks = vi.hoisted(() => ({
   go: vi.fn(),
-  discard: vi.fn(),
+  cancel: vi.fn(),
   state: {
     draft: {
       routeCode: 'SJRE-SBDZ' as string | null,
@@ -16,9 +16,10 @@ const mocks = vi.hoisted(() => ({
       vPhotoUrl: undefined as string | undefined,
       selfieUrl: undefined as string | undefined,
     },
-    info: { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 12 * 3600_000 } as
+    info: { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 } as
       | { createdAt: number; savedAt: number; expiresAt: number }
       | null,
+    locked: false,
   },
 }))
 
@@ -29,7 +30,8 @@ vi.mock('../store', () => ({
     officer: { id: 'o1', name: 'Petugas' },
     draft: mocks.state.draft,
     draftInfo: mocks.state.info,
-    discardDraft: mocks.discard,
+    draftLocked: mocks.state.locked,
+    cancelDraft: mocks.cancel,
   }),
   fmtDate: () => '30 Okt 2026',
   fmtTime: () => '10:00',
@@ -40,13 +42,19 @@ vi.mock('../../services/sync', () => ({
   onSyncQueueChange: () => () => {},
 }))
 
+vi.mock('../../services/tripCancel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/tripCancel')>()
+  return { ...actual, readCancelQueue: async () => [] }
+})
+
 let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  mocks.discard.mockReset()
+  mocks.cancel.mockReset()
   mocks.go.mockReset()
-  mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 12 * 3600_000 }
+  mocks.state.locked = false
+  mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 }
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -72,7 +80,7 @@ describe('draft di halaman Riwayat Trip', () => {
     await render()
     expect(container.textContent).toContain('Draft · belum terkirim')
     expect(container.textContent).toContain('SJRE → SBDZ')
-    expect(container.textContent).toContain('Sisa 12j')
+    expect(container.textContent).toContain('Sisa 15 mnt')
     expect(container.textContent).toContain('1 kendaraan')
   })
 
@@ -82,12 +90,35 @@ describe('draft di halaman Riwayat Trip', () => {
     expect(mocks.go).toHaveBeenCalledWith('trip-summary')
   })
 
-  it('draft hanya benar-benar dihapus setelah dikonfirmasi', async () => {
+  it('draft yang lewat 15 menit tidak bisa diedit, hanya kirim atau batalkan', async () => {
+    mocks.state.locked = true
+    mocks.state.info = { createdAt: Date.now() - 20 * 60_000, savedAt: Date.now() - 20 * 60_000, expiresAt: Date.now() - 5 * 60_000 }
     await render()
-    await click('Hapus')
-    expect(mocks.discard).not.toHaveBeenCalled()
-    await click('Hapus draft')
-    expect(mocks.discard).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Kedaluwarsa')
+    expect(container.textContent).not.toContain('Lanjutkan')
+    expect(container.textContent).toContain('Kirim Trip')
+    expect(container.textContent).toContain('Batalkan')
+  })
+
+  it('pembatalan draft wajib memakai alasan', async () => {
+    await render()
+    await click('Batalkan')
+    // Dialog terbuka: tombol konfirmasi belum bisa ditekan tanpa alasan.
+    const konfirmasi = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
+    expect(konfirmasi, 'dialog pembatalan harus terbuka').toBeTruthy()
+    expect((konfirmasi as HTMLButtonElement).disabled, 'tanpa alasan tombol harus nonaktif').toBe(true)
+    expect(mocks.cancel).not.toHaveBeenCalled()
+  })
+
+  it('pembatalan dengan alasan meneruskan alasan ke store', async () => {
+    await render()
+    await click('Batalkan')
+    const radio = [...container.querySelectorAll('input[type="radio"]')][0] as HTMLInputElement
+    await act(async () => { radio.click() })
+    const konfirmasi = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
+    await act(async () => { konfirmasi!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(mocks.cancel).toHaveBeenCalledTimes(1)
+    expect(mocks.cancel.mock.calls[0][0]).toBeTruthy()
   })
 
   it('tanpa draft tidak ada kartu draft', async () => {

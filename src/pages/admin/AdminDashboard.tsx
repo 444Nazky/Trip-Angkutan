@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landmark } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landmark, Ban } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -19,6 +19,7 @@ import { RoutesTab } from './tabs/RoutesTab'
 import { RegionTab } from './tabs/RegionTab'
 import { OfficersTab } from './tabs/OfficersTab'
 import { ReportsTab } from './tabs/ReportsTab'
+import { CancellationsTab } from './tabs/CancellationsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
 
@@ -108,6 +109,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'reports', label: 'Laporan', Icon: BarChart2 },
+    { key: 'cancellations', label: 'Pembatalan Trip', Icon: Ban },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
@@ -195,7 +197,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               revealed={revealed}
               onToggleReveal={() => setRevealed(r => !r)}
               baseUrl={environment.apiBaseUrl}
+              onOpenCancellations={() => setTab('cancellations')}
             />
+          )}
+
+          {tab === 'cancellations' && (
+            <CancellationsTab showToast={showToast} />
           )}
 
           {tab === 'tariff' && (

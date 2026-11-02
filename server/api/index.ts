@@ -241,6 +241,9 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // ---------------- /trips ----------------
   if (a === "trips") {
     if (req.method === "POST" && b === "complete") return await trps.completeTrip(req);
+    // Dokumen pembatalan trip (bukan "hapus"): selalu ada alasannya.
+    if (req.method === "POST" && b === "cancel") return await trps.cancelTrip(req);
+    if (req.method === "GET" && b === "cancellations") return await trps.getTripCancellations(req, url);
     if (req.method === "POST" && !b) return await trps.createTrip(req);
     if (req.method === "GET" && !b) return await trps.getTrips(req, url);
     return notFound();

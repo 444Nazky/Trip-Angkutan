@@ -107,7 +107,30 @@ TripSummaryScreen
 TripActiveScreen → TripCompleteScreen → Selesai + Sync
 ```
 
-### 1.6 Keamanan & Manajemen Petugas
+### 1.6 Batas Waktu Draft & Draft per Petugas
+| Aturan | Detail |
+|--------|--------|
+| **Umur draft** | Maksimal **15 menit** sejak draft DIBUAT (`createdAt`, bukan waktu edit terakhir). Sumber: `src/services/tripDraft.ts` → `DRAFT_TTL_MS`. |
+| **Setelah 15 menit** | Isian draft **dibekukan** (`draftLocked`): tidak bisa menambah kendaraan, mengubah plat/jenis, mengganti foto, memilih rute/status muatan. Yang boleh: **Kirim Trip** atau **Batalkan**. Draft TIDAK dihapus paksa. |
+| **Draft per petugas** | Setiap petugas punya draft sendiri (kunci `trip.draft.v2:<officerId>` di IndexedDB). Perangkat yang dipakai berganti petugas tidak menampilkan draft orang lain. Draft lama (satu untuk semua) dimigrasi sekali ke petugas yang sedang aktif. |
+
+### 1.7 Trip yang Sudah Selesai = FINAL
+| Aturan | Detail |
+|--------|--------|
+| **Tidak bisa diedit** | Begitu trip selesai (tombol Kirim ditekan), isinya beku: tidak ada tombol "Ubah" plat/jenis/golongan, tidak ada ambil ulang foto — **walaupun datanya belum sempat sinkron ke intranet**. |
+| **Alasannya** | Server bisa sudah menerima versi pertama; kalau perangkat masih boleh mengubah isi, server & perangkat jadi tidak sinkron. |
+| **Koreksi** | Trip yang salah tidak di-edit ulang, tapi **dibatalkan dengan alasan** lalu dicatat sebagai trip baru. |
+
+### 1.8 Pembatalan Trip (bukan "Hapus")
+| Step | Detail |
+|------|--------|
+| 1 | Petugas mengetuk **Batalkan** (di kartu Draft di Riwayat, atau **Batalkan Trip** di Ringkasan). |
+| 2 | Dialog pembatalan terbuka — **alasan WAJIB** dipilih (`CANCEL_REASONS`); alasan "Lainnya" wajib disertai keterangan. |
+| 3 | Aplikasi membuat **dokumen pembatalan**: alasan + keterangan + rincian trip (rute, kendaraan, jumlah foto, jam mulai/batal). Dokumen masuk antrean (`pending-cancel`) dan dikirim ke server saat ada koneksi. |
+| 4 | Server menyimpan dokumen di tabel `trip_cancellations` (`POST /api/trips/cancel`), admin memantaunya di tab **Pembatalan Trip** (filter rentang/alasan/cari, kartu statistik, grafik per alasan & per hari, tabel dokumen + rincian kendaraan, ekspor .xlsx). |
+| 5 | Di Riwayat muncul satu baris berstatus **Dibatalkan** (bukan dihapus diam-diam). |
+
+### 1.9 Keamanan & Manajemen Petugas
 | Fitur | Screen | Deskripsi |
 |-------|--------|-----------|
 | **Ganti Petugas** | OfficerSwitchScreen | Daftar petugas region yang sama; pilih → PinVerifyScreen |

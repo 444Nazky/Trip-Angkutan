@@ -1,15 +1,17 @@
 const DB_NAME = 'trip-sync-v2'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 
 
 
-export type StoreName = 'pending' | 'trips' | 'meta'
+export type StoreName = 'pending' | 'trips' | 'meta' | 'pending-cancel'
 
 const STORE_PENDING: StoreName = 'pending'
 const STORE_TRIPS: StoreName = 'trips'
 const STORE_META: StoreName = 'meta'
-const ALL_STORES: StoreName[] = [STORE_PENDING, STORE_TRIPS, STORE_META]
+/** Antrean dokumen pembatalan trip (terpisah dari trip). */
+const STORE_PENDING_CANCEL: StoreName = 'pending-cancel'
+const ALL_STORES: StoreName[] = [STORE_PENDING, STORE_TRIPS, STORE_META, STORE_PENDING_CANCEL]
 
 
 
@@ -18,6 +20,7 @@ const KEY_PATH: Record<StoreName, string> = {
   pending: 'syncId',
   trips: 'id',
   meta: 'k',
+  'pending-cancel': 'cancelId',
 }
 
 const LS_PREFIX = 'trip.localdb.v1.'

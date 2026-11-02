@@ -1,7 +1,7 @@
-import { Fragment, useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters } from '../../../services/trips'
+import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -33,11 +33,13 @@ interface ReportsTabProps {
   revealed: boolean
   onToggleReveal: () => void
   baseUrl?: string
+  /** Buka tab "Pembatalan Trip" (pemantauan lengkap). */
+  onOpenCancellations?: () => void
 }
 
 
 
-export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleReveal, baseUrl = '' }: ReportsTabProps) {
+export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleReveal, baseUrl = '', onOpenCancellations }: ReportsTabProps) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
@@ -47,6 +49,24 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const [viewingPhotos, setViewingPhotos] = useState<{ id: string; url: string; caption?: string }[] | null>(null)
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
+  // Dokumen pembatalan trip (dari aplikasi mobile): trip yang dibatalkan
+  // petugas WAJIB ada alasannya, jadi dokumennya ditampilkan di sini.
+  const [cancellations, setCancellations] = useState<TripCancellation[]>([])
+
+  // Alasan yang paling SERING dipilih (bukan pembatalan terakhir) — dihitung
+  // dari baris yang sudah dimuat supaya ringkasannya jujur.
+  const topCancelReason = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const c of cancellations) {
+      const r = (c.reason || '').trim() || 'Tanpa alasan'
+      counts.set(r, (counts.get(r) ?? 0) + 1)
+    }
+    let best: { reason: string; count: number } | null = null
+    for (const [reason, count] of counts) {
+      if (!best || count > best.count) best = { reason, count }
+    }
+    return best
+  }, [cancellations])
 
   /**
    * Muat laporan dari server.
@@ -112,6 +132,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       void loadReports(undefined, { silent: true })
+      void fetchTripCancellations().then(c => { if (c) setCancellations(c) })
     }, 30_000)
     return () => window.clearInterval(timer)
   }, [loadReports])
@@ -125,6 +146,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       void loadReports()
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
+      fetchTripCancellations().then(c => { if (c) setCancellations(c) }).catch(() => null)
     }
     // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
     // penambahan dependency tidak memicu fetch ulang saat filter berubah.
@@ -264,6 +286,30 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             title="Unduh berkas .xlsx (cara lama, opsional)"
             className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <Download size={15} /> .xlsx
+          </button>
+        </div>
+      </div>
+
+      {/* Ringkasan pembatalan — rinciannya ada di tab "Pembatalan Trip". */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-[13px] font-black text-slate-800">Dokumen Pembatalan Trip</h4>
+          <p className="text-[11px] text-slate-500">
+            {cancellations.length > 0
+              ? `Alasan teratas: ${topCancelReason?.reason ?? '-'} — buka tab "Pembatalan Trip" untuk rincian & grafik.`
+              : 'Setiap trip yang dibatalkan petugas tercatat lengkap dengan alasannya.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600">
+            {cancellations.length} dokumen
+          </span>
+          <button
+            onClick={() => onOpenCancellations?.()}
+            disabled={!onOpenCancellations}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            Buka Pemantauan
           </button>
         </div>
       </div>

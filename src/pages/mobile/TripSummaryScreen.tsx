@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Pencil, Plus, User, X } from 'lucide-react'
+import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
+import { DRAFT_MAX_MINUTES } from '../../services/tripDraft'
+import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
 
 
@@ -27,13 +29,14 @@ interface TripSummaryScreenProps {
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const {
-    draft, trips, resetDraft, startTrip, patchDraft, editDraftVehicle,
+    draft, trips, startTrip, patchDraft, editDraftVehicle, draftLocked, cancelDraft,
     finishEmptyTrip, finishMuatanTrip,
   } = useApp()
 
   const hasTripPhoto = !!draft.photoUrl
   const hasSelfie = !!draft.selfieUrl
   const isMuatan = draft.condition !== 'kosong'
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
   const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
@@ -126,7 +129,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   const route = activeRoutes().find(r => r.code === draft.routeCode) ?? activeRoutes()[0]
   const vehicles = draft.vehicles
-  const backTo = draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
+  // Draft terkunci (lewat 15 menit) tidak bisa diedit lagi, jadi tombol
+  // kembali tidak boleh membuka langkah yang bisa mengubah isian.
+  const backTo = draftLocked
+    ? 'home'
+    : draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const missingVehiclePhoto = vehicles.filter(v => !v.photoUrl).length
   // Foto bukti wajib untuk SEMUA trip. Trip muatan juga wajib swafoto petugas
   // sebelum End Trip lokal dijalankan (validasi sama di store.finishMuatanTrip).
@@ -146,12 +153,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     go('trip-complete')
   }
 
-  const handleBatal = () => {
-    openConfirmDialog('Apakah Anda yakin ingin membatalkan trip ini?', () => {
-      resetDraft()
-      go('home')
-    })
-  }
+  // Pembatalan trip SELALU lewat dialog alasan: yang terkirim ke server
+  // adalah dokumen pembatalan, bukan sekadar menghapus draf.
+  const handleBatal = () => setCancelOpen(true)
 
   const handleAddVehicle = () => {
     patchDraft({
@@ -227,7 +231,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-slate-400">{vehicles.length} unit</span>
-                {draft.condition !== 'kosong' && (
+                {draft.condition !== 'kosong' && !draftLocked && (
                   <button
                     onClick={handleAddVehicle}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.98]"
@@ -261,14 +265,16 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                       ) : (
                         <button
                           onClick={() => { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: i }); go('camera') }}
-                          className="rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-medium text-slate-600 transition-colors hover:bg-white"
+                          disabled={draftLocked}
+                          className="rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-medium text-slate-600 transition-colors hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent"
                         >
                           Foto
                         </button>
                       )}
                       <button
                         onClick={() => { editDraftVehicle(i); go('vehicle-form') }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-white"
+                        disabled={draftLocked}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-white disabled:opacity-40 disabled:hover:bg-transparent"
                         aria-label={`Edit kendaraan ${v.plate}`}
                         title="Edit kendaraan"
                       >
@@ -294,7 +300,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               </div>
               <button
                 onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'photo' }); go('camera') }}
-                className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors ${hasTripPhoto ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
+                disabled={draftLocked}
+                className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${hasTripPhoto ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
               >
                 {hasTripPhoto ? 'Ubah' : 'Ambil'}
               </button>
@@ -321,7 +328,8 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 </div>
                 <button
                   onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'selfie', cameraReturn: 'trip-summary' }); go('camera') }}
-                  className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors ${hasSelfie ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
+                  disabled={draftLocked}
+                  className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${hasSelfie ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
                 >
                   {hasSelfie ? 'Ulangi' : 'Ambil'}
                 </button>
@@ -343,6 +351,16 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             </p>
           )}
 
+          {draftLocked && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
+              <Ban size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Draft sudah lewat {DRAFT_MAX_MINUTES} menit. Isian tidak bisa diedit atau ditambah
+                kendaraannya lagi — tinggal kirim trip ini atau batalkan dengan alasan.
+              </span>
+            </div>
+          )}
+
           {geofenceError && (
             <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[11px] ${geofenceBlocked ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
               <AlertCircle size={14} className="shrink-0" />
@@ -358,12 +376,25 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             >
               {draft.condition === 'kosong' ? 'Selesaikan' : 'Kirim Trip'}
             </button>
-            <button onClick={handleBatal} className="w-full rounded-xl border border-slate-200 bg-transparent py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-white">
-              Batal
+            <button onClick={handleBatal} className="w-full rounded-xl border border-red-200 bg-transparent py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50">
+              Batalkan Trip
             </button>
           </div>
         </main>
       </div>
+
+      <CancelTripDialog
+        open={cancelOpen}
+        title="Batalkan Trip"
+        summary={`${route.from} → ${route.to} · ${vehicles.length} kendaraan`}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={(reason, note) => {
+          if (cancelDraft(reason, note)) {
+            setCancelOpen(false)
+            go('home')
+          }
+        }}
+      />
 
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

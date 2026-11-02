@@ -1,5 +1,6 @@
 export type AdminTab =
   | 'reports'
+  | 'cancellations'
   | 'tariff'
   | 'plates'
   | 'routes'

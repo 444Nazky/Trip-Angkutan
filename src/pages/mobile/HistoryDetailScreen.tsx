@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, X, RefreshCcw, Pencil, Info } from 'lucide-react'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
 import type { MobileScreen } from '../types'
@@ -25,7 +25,7 @@ interface DocPhoto {
 
 
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
-  const { trips, detailTripId, officer, patchDraft, patchVehiclePhoto } = useApp()
+  const { trips, detailTripId, officer } = useApp()
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
 
@@ -48,11 +48,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const [broken, setBroken] = useState<Record<string, true>>({})
   const usableUrl = (url?: string): string | undefined => (url && !broken[url] ? url : undefined)
   const markBroken = (url: string) => setBroken(b => (b[url] ? b : { ...b, [url]: true }))
-
-  const [editVehicle, setEditVehicle] = useState<number | null>(null)
-  const [editPlate, setEditPlate] = useState('')
-  const [editType, setEditType] = useState('')
-  const [editCategory, setEditCategory] = useState('')
 
   if (!t) {
     return (
@@ -105,20 +100,15 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const brokenCount = Object.keys(broken).length
 
-  // Setelah trip BERHASIL terkirim ke server, foto dokumentasi tidak boleh
-  // ditambah/diambil ulang lagi: data di server sudah final (snapshot),
-  // dan pengambilan ulang hanya memicu upload ulang trip yang sudah sah.
-  const canCapturePhoto = !isSynced
-
-  const retakePhoto = (kind: 'trip' | 'vehicle', index?: number) => {
-    if (!canCapturePhoto) return
-    patchDraft({
-      retakeTarget: { tripId: t.id, kind, index },
-      cameraMode: 'photo',
-      cameraFrom: 'vehicle-form',
-    })
-    go('camera')
-  }
+  // Trip yang sudah SELESAI bersifat FINAL: tidak bisa diedit lagi, aunque
+  // datanya belum sempat sinkron ke server intranet.
+  //
+  // DULU masih ada tombol "Ubah" (plat/jenis/golongan) dan tombol ambil
+  // ulang foto selama trip belum terkirim. Akibatnya isi trip bisa berubah
+  // setelah petugas menekan "Kirim Trip" — server sudah menerima versi
+  // pertama, lalu perangkat mengirim versi berbeda. Sekarang begitu trip
+  // selesai, isinya beku: satu-satunya koreksi adalah membatalkan trip
+  // (dengan alasan) dan mencatatnya sebagai trip baru.
 
   return (
     <div className="px-4 pt-2 pb-4">
@@ -140,6 +130,22 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </span>
       </div>
 
+      {t.canceled && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-2">
+            <Ban size={15} className="text-red-500" />
+            <p className="text-[12px] font-bold text-red-700">Trip Dibatalkan</p>
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-red-700/90">
+            Alasan: {t.cancelReason || '-'}
+            {t.cancelNote ? ` — ${t.cancelNote}` : ''}
+          </p>
+          <p className="mt-1 text-[10px] leading-relaxed text-red-600/80">
+            Dokumen pembatalan sudah dikirim ke server kantor sebagai bukti pembatalan trip ini.
+          </p>
+        </div>
+      )}
+
       {/* Info Card */}
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="grid grid-cols-2 gap-4">
@@ -155,8 +161,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className="text-[11px] font-bold text-slate-500 mb-3 uppercase tracking-wide">Detail Kendaraan ({vehicles.length})</p>
           {vehicles.map((v, i) => {
             const label = unitLabel(vehicles, i)
-            const canRetake = !!realVehicles?.[i]
-            const editing = editVehicle === i
             const photoUrl = usableUrl(v.photoUrl)
             return (
               <div key={`${v.plate}-${i}`} className={`${i > 0 ? 'pt-3 mt-3 border-t border-slate-100' : ''}`}>
@@ -177,69 +181,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                     </div>
                     <p className="text-[10px] text-slate-400">{v.type} · {v.category}</p>
                   </div>
-                  {!editing && canRetake && canCapturePhoto && (
-                    <div className="flex flex-col gap-1 shrink-0">
-                      {!photoUrl && canCapturePhoto && (
-                        <button
-                          onClick={() => retakePhoto('vehicle', i)}
-                          className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
-                        >
-                          <Camera size={11} /> Foto
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setEditVehicle(i); setEditPlate(v.plate); setEditType(v.type); setEditCategory(v.category) }}
-                        className="flex items-center gap-1 text-[10px] font-black text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"
-                      >
-                        <Pencil size={11} /> Ubah
-                      </button>
-                    </div>
-                  )}
                 </div>
-
-                {/* Form edit info kendaraan — perubahan otomatis dikirim ulang ke server */}
-                {editing && canCapturePhoto && (
-                  <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
-                    <input
-                      value={editPlate}
-                      onChange={e => setEditPlate(e.target.value.toUpperCase())}
-                      placeholder="Plat nomor"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        value={editType}
-                        onChange={e => setEditType(e.target.value)}
-                        placeholder="Jenis (Truk/Mobil/Motor)"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
-                      <input
-                        value={editCategory}
-                        onChange={e => setEditCategory(e.target.value)}
-                        placeholder="Golongan"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          if (!t || !realVehicles?.[i] || !editPlate.trim()) return
-                          patchVehiclePhoto(t.id, i, { plate: editPlate.trim(), type: editType.trim() || v.type, category: editCategory.trim() || v.category })
-                          setEditVehicle(null)
-                        }}
-                        className="flex-1 rounded-lg bg-blue-600 text-white text-[12px] font-bold py-2 hover:bg-blue-700 active:scale-[0.98]"
-                      >
-                        Simpan & Kirim
-                      </button>
-                      <button
-                        onClick={() => setEditVehicle(null)}
-                        className="rounded-lg bg-white border border-slate-200 text-slate-600 text-[12px] font-bold px-4 py-2"
-                      >
-                        Batal
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })}
@@ -252,21 +194,14 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
             {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
           </p>
-          {t.photo && !tripPhotoUrl && canCapturePhoto && (
-            <button
-              onClick={() => retakePhoto('trip')}
-              className="flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-100 rounded-lg px-2.5 py-1.5"
-            >
-              <Camera size={11} /> {isEmptyTrip ? 'Ambil Foto' : 'Ambil Foto Trip'}
-            </button>
-          )}
         </div>
 
-        {isSynced && (missingVehicles.length > 0 || (t.photo && !tripPhotoUrl)) && (
+        {(missingVehicles.length > 0 || (t.photo && !tripPhotoUrl)) && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 flex items-start gap-2">
             <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
             <p className="text-[11px] text-slate-600 leading-snug">
-              Foto dokumentasi tidak dapat ditambah lagi — data trip sudah berhasil terkirim ke server.
+              Foto dokumentasi tidak dapat ditambah lagi — trip yang sudah selesai bersifat final,
+              {' '}{isSynced ? 'dan datanya sudah tersimpan di server.' : 'meskipun datanya belum sempat terkirim.'}
             </p>
           </div>
         )}
@@ -277,7 +212,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <p className="text-[11px] text-amber-800 leading-snug">
               Foto dokumentasi belum lengkap{missingVehicles.length > 0 && (
                 <>: <b>{missingVehicles.map(x => x.label).join(', ')}</b></>
-              )} — ambil fotonya, antrean otomatis dikirim ulang.
+              )} — trip sudah selesai dan tidak bisa diedit lagi, jadi data ini belum bisa
+              dikirim ke server. Hubungi admin kantor.
             </p>
           </div>
         )}
@@ -315,24 +251,13 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             ))}
             {/* Slot kosong untuk kendaraan tanpa foto (HANYA untuk trip muatan) */}
             {!isEmptyTrip && missingVehicles.map(x => (
-              canCapturePhoto ? (
-                <button
-                  key={`missing-${x.i}`}
-                  onClick={() => realVehicles?.[x.i] && retakePhoto('vehicle', x.i)}
-                  className="h-28 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 flex flex-col items-center justify-center gap-1.5"
-                >
-                  <Camera size={18} className="text-amber-500" />
-                  <span className="text-[10px] font-black text-amber-700 uppercase">{x.label} — Belum ada foto</span>
-                </button>
-              ) : (
-                <div
-                  key={`missing-${x.i}`}
-                  className="h-28 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1.5"
-                >
-                  <Camera size={18} className="text-slate-300" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase">{x.label} — Tanpa foto</span>
-                </div>
-              )
+              <div
+                key={`missing-${x.i}`}
+                className="h-28 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1.5"
+              >
+                <Camera size={18} className="text-slate-300" />
+                <span className="text-[10px] font-black text-slate-400 uppercase">{x.label} — Tanpa foto</span>
+              </div>
             ))}
           </div>
         )}
@@ -347,19 +272,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
             <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
             <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
-            {preview.kind !== 'selfie' && canCapturePhoto && (
-              <button
-                onClick={() => {
-                  const p = preview
-                  setPreview(null)
-                  if (p.kind === 'vehicle') retakePhoto('vehicle', p.index)
-                  else retakePhoto('trip')
-                }}
-                className="flex items-center gap-1.5 text-[11px] font-black text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-2"
-              >
-                <RefreshCcw size={12} /> Ambil Ulang
-              </button>
-            )}
           </div>
         </div>
       )}

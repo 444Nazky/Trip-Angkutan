@@ -152,6 +152,18 @@ function validateVehiclePayload(vehicle: any, index: number): string | null {
   return null;
 }
 
+/**
+ * Tanggal ISO dari payload (dari perangkat) — dipakai untuk kolom timestamptz.
+ * Nilai tidak valid -> null (bukan error).
+ */
+function payloadDate(value: unknown): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toISOString();
+}
+
 function numericCoordinate(value: unknown): number | null {
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
@@ -701,6 +713,294 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (explained) return json({ error: explained.message }, explained.status);
     return json({ error: "Failed to submit complete trip documentation" }, 500);
   }
+}
+
+/**
+ * Validasi payload pembatalan.
+ *
+ * Mengembalikan pesan error (bahasa Indonesia) atau null bila valid.
+ * Alasan pembatalan WAJIB ada: tanpa alasan, dokumen pembatalan tidak
+ * bisa ditindaklanjuti admin.
+ */
+export function validateCancelPayload(body: any): string | null {
+  if (!body || typeof body !== "object") return "Payload pembatalan tidak valid";
+  const reason = String(body.reason ?? "").trim();
+  if (!reason) return "Alasan pembatalan wajib diisi";
+  if (reason.length > MAX_SHORT_TEXT) return "Alasan pembatalan terlalu panjang";
+  return null;
+}
+
+// POST /trips/cancel — dokumen pembatalan trip.
+//
+// PETUGAS tidak pernah bisa menghapus trip diam-diam: pembatalan menghasilkan
+// DOKUMEN yang berisi alasan + rincian trip yang dibatalkan. Dokumen ini
+// tersimpan di tabel `trip_cancellations` supaya admin bisa menindaklanjuti
+// (mis.trip dibatalkan karena pelanggan membatalkan).
+export async function cancelTrip(req: Request): Promise<Response> {
+  try {
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "Invalid token" }, 401);
+
+    const officerId = asUuidOrNull(ctx.officerId);
+    if (!officerId) {
+      return json(
+        { error: "Token tidak memuat id petugas yang valid — logout lalu login ulang" },
+        401,
+      );
+    }
+
+    const body = await req.json().catch(() => null) as any;
+    const problem = validateCancelPayload(body);
+    if (problem) return json({ error: problem }, 400);
+
+    // Alasan WAJIB: tanpa alasan dokumen tidak bisa ditindaklanjuti admin.
+    const reason = shortText(body.reason);
+    const note = longText(body.note);
+
+    const clientCancelId = String(body.clientCancelId ?? "").trim().slice(0, MAX_SHORT_TEXT);
+
+    // Idempoten: retry dari perangkat yang sama tidak boleh membuat dokumen
+    // ganda (dokumen kedua akan dibuat kalau id-nya berbeda).
+    if (clientCancelId) {
+      const { data } = await db
+        .from("trip_cancellations")
+        .select("id, no_cancel")
+        .eq("officer_id", officerId)
+        .eq("client_cancel_id", clientCancelId)
+        .limit(1);
+      const found = data?.[0];
+      if (found) {
+        return json({ id: found.id, noCancel: found.no_cancel, duplicate: true }, 200);
+      }
+    }
+
+    const vehiclesRaw = Array.isArray(body.vehicles) ? body.vehicles : [];
+    const vehicles = vehiclesRaw.slice(0, 100).map((v: any) => ({
+      plate: shortText(v?.plate).toUpperCase(),
+      type: shortText(v?.type),
+      category: shortText(v?.category),
+      load: shortText(v?.load),
+      tariff: Number.isFinite(Number(v?.tariff)) ? Number(v.tariff) : 0,
+    }));
+
+    const { regionId, dermagaId } = await resolveTripReferences(
+      officerId,
+      ctx.regionId,
+      undefined,
+    );
+
+    const cancelledAt = payloadDate(body.cancelledAt) ?? new Date().toISOString();
+    const startedAt = payloadDate(body.startedAt);
+
+    const id = crypto.randomUUID();
+    // Nomor dokumen pakai hex acak (8 digit), bukan `Math.random()`.
+    // Kolom `no_cancel` punya constraint UNIQUE: nomor yang kembar bikin INSERT
+    // ditolak dan dokumen pembatalan hilang. `generateTripNo` pakai pola yang
+    // sama supaya nomor selalu unik.
+    const noCancel = `CNL${new Date().toISOString().slice(0, 10).replace(/-/g, "")}${
+      Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase()
+    }`;
+
+    const row: Record<string, unknown> = {
+      id,
+      no_cancel: noCancel,
+      client_cancel_id: clientCancelId || null,
+      officer_id: officerId,
+      region_id: regionId,
+      dermaga_id: dermagaId || null,
+      reason,
+      note: note || null,
+      route_from: body.routeFrom ? shortText(body.routeFrom) : null,
+      route_to: body.routeTo ? shortText(body.routeTo) : null,
+      route_code: body.routeCode ? shortText(body.routeCode) : null,
+      condition: body.condition ? shortText(body.condition) : null,
+      vehicle_count: Number.isFinite(Number(body.vehicleCount))
+        ? Number(body.vehicleCount)
+        : vehicles.length,
+      vehicles,
+      photo_count: Number.isFinite(Number(body.photoCount)) ? Number(body.photoCount) : 0,
+      started_at: startedAt,
+      cancelled_at: cancelledAt,
+    };
+
+    const { error } = await db.from("trip_cancellations").insert(row).select("id").single();
+    if (error) throw error;
+
+    console.log("[trips/cancel] officer", officerId, "dokumen", noCancel, "alasan:", reason);
+
+    return json({ id, noCancel }, 201);
+  } catch (error) {
+    console.error("Cancel trip error:", error);
+    const raw = errorText(error);
+    // Tabel belum ada = migrasi database belum dijalankan di server ini.
+    if (/42P01|does not exist/i.test(raw)) {
+      return json(
+        { error: "Tabel pembatalan belum ada di database — jalankan migrasi server" },
+        500,
+      );
+    }
+    const explained = explainDbError(error);
+    if (explained) return json({ error: explained.message }, explained.status);
+    return json({ error: "Gagal menyimpan dokumen pembatalan" }, 500);
+  }
+}
+
+// GET /trips/cancellations — daftar dokumen pembatalan (admin).
+//
+// Menyediakan DUA bentuk hasil supaya satu endpoint bisa dipakai untuk kartu
+// ringkasan maupun tabel lengkap:
+//
+//   ?mode=summary  -> { total, byReason, byDay, byOfficer, ... }
+//   (default)      -> [ ...baris dokumen... ]
+//
+// Filter yang berlaku untuk keduanya: rentang tanggal, alasan, dan pencarian
+// teks. Tanpa filter, "today" = semua riwayat.
+export async function getTripCancellations(req: Request, url: URL): Promise<Response> {
+  try {
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "Invalid token" }, 401);
+
+    const range = cancelDateRange(url);
+    const reason = shortText(url.searchParams.get("reason"));
+    const search = shortText(url.searchParams.get("q"));
+
+    let query = db
+      .from("trip_cancellations")
+      .select("*, officers(name), regions(code)")
+      .order("cancelled_at", { ascending: false })
+      .limit(2000);
+
+    // Petugas (bukan admin) hanya boleh melihat dokumennya sendiri.
+    if (ctx.role !== "admin") {
+      query = query.eq("officer_id", String(ctx.officerId ?? ""));
+    }
+
+    if (range.start) query = query.gte("cancelled_at", range.start);
+    if (range.end) query = query.lte("cancelled_at", range.end);
+    if (reason) query = query.eq("reason", reason);
+    if (search) {
+      // Pencarian bebas dibatasi ke kolom yang relevan supaya tidak ikut
+      // mencocokkan baris di luar layar.
+      const like = `%${search.replace(/[%,()]/g, " ").trim()}%`;
+      query = query.or(
+        `no_cancel.ilike.${like},route_from.ilike.${like},route_to.ilike.${like},route_code.ilike.${like},note.ilike.${like}`,
+      );
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Fetch cancellations error:", error);
+      // Tabel belum ada = migrasi database belum dijalankan di server ini.
+      if (/42P01|does not exist/i.test(errorText(error))) {
+        return json(
+          { error: "Tabel pembatalan belum ada di database — jalankan migrasi server" },
+          500,
+        );
+      }
+      return json({ error: "Gagal memuat dokumen pembatalan" }, 500);
+    }
+
+    const rows = (data ?? []).map((c: any) => ({
+      ...c,
+      officer_name: c.officers?.name ?? null,
+      region_code: c.regions?.code ?? null,
+    }));
+
+    if (url.searchParams.get("mode") === "summary") {
+      return json(summarizeCancellations(rows));
+    }
+
+    return json(rows);
+  } catch (error) {
+    console.error("Get cancellations error:", error);
+    return json({ error: "Gagal memuat dokumen pembatalan" }, 500);
+  }
+}
+
+/**
+ * Rentang tanggal dari query string, dalam zona waktu WIB.
+ *
+ * `cancelled_at` disimpan sebagai timestamptz; batas "hari ini" harus ikut
+ * zona WIB, bukan UTC, supaya trip yang dibatalkan jam 23 WIB tidak ikut
+ * terhitung di hari berikutnya (atau sebelumnya).
+ */
+function cancelDateRange(url: URL): { start?: string; end?: string } {
+  const start = shortText(url.searchParams.get("startDate"));
+  const end = shortText(url.searchParams.get("endDate"));
+  const out: { start?: string; end?: string } = {};
+  // Offset WIB (+07:00) ditulis eksplisit supaya tidak bergantung pada zona
+  // waktu mesin server.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(start)) out.start = `${start}T00:00:00+07:00`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(end)) out.end = `${end}T23:59:59.999+07:00`;
+  return out;
+}
+
+/**
+ * Ringkasan dokumen pembatalan untuk kartu statistik.
+ *
+ * Dipisah dari handler supaya bisa diuji tanpa database.
+ */
+export function summarizeCancellations(rows: any[]): {
+  total: number;
+  byReason: { reason: string; count: number }[];
+  byDay: { day: string; count: number }[];
+  byOfficer: { officerId: string; officerName: string; count: number }[];
+  vehicleCount: number;
+  photoCount: number;
+} {
+  const reasonCounts = new Map<string, number>();
+  const dayCounts = new Map<string, number>();
+  const officerCounts = new Map<string, { name: string; count: number }>();
+  let vehicleCount = 0;
+  let photoCount = 0;
+
+  for (const row of rows ?? []) {
+    const reason = String(row?.reason ?? "").trim() || "Tanpa alasan";
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+
+    const day = wibDayKey(row?.cancelled_at);
+    if (day) dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
+
+    const officerId = String(row?.officer_id ?? "");
+    const prev = officerCounts.get(officerId);
+    officerCounts.set(officerId, {
+      name: String(row?.officer_name ?? "").trim() || "Tanpa nama",
+      count: (prev?.count ?? 0) + 1,
+    });
+
+    vehicleCount += Number(row?.vehicle_count ?? 0) || 0;
+    photoCount += Number(row?.photo_count ?? 0) || 0;
+  }
+
+  return {
+    total: (rows ?? []).length,
+    byReason: [...reasonCounts.entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)),
+    byDay: [...dayCounts.entries()]
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => a.day.localeCompare(b.day)),
+    byOfficer: [...officerCounts.entries()]
+      .map(([officerId, v]) => ({ officerId, officerName: v.name, count: v.count }))
+      .sort((a, b) => b.count - a.count || a.officerName.localeCompare(b.officerName)),
+    vehicleCount,
+    photoCount,
+  };
+}
+
+/**
+ * Tanggal (YYYY-MM-DD) dari timestamptz, dalam zona waktu WIB.
+ */
+function wibDayKey(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const iso = /Z|[+-]\d{2}:\d{2}$/.test(s) ? s : `${s.replace(" ", "T")}Z`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(d);
 }
 
 // POST /trips — legacy simple version (no photos)

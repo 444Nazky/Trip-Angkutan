@@ -15,9 +15,16 @@ interface TripConditionScreenProps {
 
 
 export default function TripConditionScreen({ go }: TripConditionScreenProps) {
-  const { draft, patchDraft } = useApp()
+  const { draft, patchDraft, draftLocked } = useApp()
   const [condition, setCondition] = useState<'kosong' | 'muatan' | null>(draft.condition)
   useEffect(() => { setCondition(draft.condition) }, [draft.condition])
+
+  // Draft yang lewat batas 15 menit tidak bisa diubah lagi: status muatan
+  // hanya bisa dipilih saat draft masih muda. Setelah itu petugas langsung
+  // ke Ringkasan untuk mengirim atau membatalkan.
+  useEffect(() => {
+    if (draftLocked) go('trip-summary')
+  }, [draftLocked, go])
 
   useEffect(() => { void getCurrentPosition() }, [])
 

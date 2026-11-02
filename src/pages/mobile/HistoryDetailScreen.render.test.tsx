@@ -53,12 +53,13 @@ const render = async () => {
 }
 
 describe('detail riwayat trip', () => {
-  it('boleh mengubah detail kendaraan sebelum trip terkirim', async () => {
+  it('trip selesai tidak bisa diedit walau belum terkirim ke server', async () => {
     await render()
-    expect(container.textContent).toContain('Ubah')
+    expect(container.textContent).not.toContain('Ubah')
+    expect(container.textContent).toContain('bersifat final')
   })
 
-  it('tidak boleh mengubah detail kendaraan setelah trip terkirim', async () => {
+  it('trip selesai tidak bisa diedit setelah trip terkirim', async () => {
     state.synced = true
     await render()
     expect(container.textContent).not.toContain('Ubah')
