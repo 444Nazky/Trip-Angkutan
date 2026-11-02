@@ -11,7 +11,7 @@ import {
   formatDraftRemaining,
   hasCountedDraft,
 } from '../../services/tripDraft'
-import { readCancelQueue } from '../../services/tripCancel'
+import { onCancelQueueChange, readDeliveredCancels, type DeliveredCancel } from '../../services/tripCancel'
 import { api, isIntranetBaseUrl, pingBaseUrl } from '../../services/api'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
@@ -157,14 +157,18 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
   // Dokumen pembatalan yang belum sampai ke server.
   const [pendingCancels, setPendingCancels] = useState<string[]>([])
+  const [deliveredCancels, setDeliveredCancels] = useState<Record<string, DeliveredCancel>>({})
+  // Langganan (bukan baca sekali) supaya teks "menunggu dikirim" berubah
+  // sendiri begitu dokumen batal diterima server.
   useEffect(() => {
     let alive = true
-    void readCancelQueue().then(items => {
+    const off = onCancelQueueChange(items => {
       if (!alive) return
       setPendingCancels(items.map(i => i.cancelId))
+      void readDeliveredCancels().then(map => { if (alive) setDeliveredCancels(map) })
     })
-    return () => { alive = false }
-  }, [cancelOpen, trips.length])
+    return () => { alive = false; off() }
+  }, [])
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
@@ -360,7 +364,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
                   {t.cancelNote ? ` — ${t.cancelNote}` : ''}
                   {t.cancelId && pendingCancels.includes(t.cancelId)
                     ? ' · dokumen pembatalan menunggu dikirim'
-                    : ' · dokumen pembatalan sudah dikirim'}
+                    : t.cancelId && deliveredCancels[t.cancelId]
+                      ? ' · dokumen pembatalan sudah diterima server'
+                      : ' · status dokumen pembatalan belum terkonfirmasi'}
                 </p>
               )}
               <div className="flex items-center gap-3 mt-2">

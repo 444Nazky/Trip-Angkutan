@@ -145,6 +145,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     return json({ status: "ok", version: "3.0.0-local", mode, instance: INSTANCE_ID });
   }
 
+  // ---------------- /favicon.ico ----------------
+  // Browser otomatis meminta favicon saat port API dibuka langsung. Itu bukan
+  // panggilan API, jadi balas 204 (bukan 404) supaya tidak dihitung sebagai
+  // request gagal pada Success Rate dashboard.
+  if (a === "favicon.ico" && req.method === "GET") return new Response(null, { status: 204 });
+
   // ---------------- /auth ----------------
   if (a === "auth" && req.method === "POST") {
     switch (b) {
@@ -176,6 +182,15 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "POST" && !b) return await mst.createRegion(req);
     if (req.method === "PUT" && b) return await mst.updateRegion(req, b);
     if (req.method === "DELETE" && b) return await mst.deleteRegion(req, b);
+    return notFound();
+  }
+
+  // ---------------- /dermaga (tunggal) ----------------
+  // Aplikasi petugas memakai bentuk tunggal untuk roster per dermaga.
+  // Selama rute ini belum ada, setiap resume membalas 404 sehingga
+  // Success Rate di dashboard turun tanpa ada kesalahan nyata.
+  if (a === "dermaga") {
+    if (req.method === "GET" && b && c === "officers") return await ofc.dermagaOfficers(req, b);
     return notFound();
   }
 

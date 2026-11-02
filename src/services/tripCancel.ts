@@ -1,6 +1,6 @@
 import { api } from './api'
 import { refreshBackendSession } from './auth'
-import { dbAll, dbDelete, dbPut, initLocalDb } from './localDb'
+import { dbAll, dbDelete, dbPut, initLocalDb, metaGet, metaSet } from './localDb'
 import type { Draft, VehicleEntry } from '../pages/store'
 import type { Officer } from '../pages/types'
 
@@ -67,7 +67,66 @@ export interface CancelPhoto {
 export interface CancelQueueItem extends CancelDocument {
   attempts: number
   lastError?: string
+  /**
+   * Kode kegagalan dari server (mis. "400"). Kosong = gagal jaringan,
+   * artinya dokumen belum pernah sampai ke server — statusnya tetap
+   * "menunggu koneksi", bukan "ditolak server".
+   */
+  lastErrorCode?: string
   lastAttemptAt?: number
+}
+
+/** Bukti bahwa sebuah dokumen pembatalan benar-benar diterima server. */
+export interface DeliveredCancel {
+  deliveredAt: number
+  noCancel?: string
+}
+
+const DELIVERED_META_KEY = 'cancel-delivered'
+
+type CancelQueueListener = (items: CancelQueueItem[]) => void
+
+let cancelListeners: CancelQueueListener[] = []
+
+/**
+ * Berlangganan perubahan antrean pembatalan.
+ *
+ * Tanpa ini layar hanya membaca antrean sekali saat dibuka: setelah dokumen
+ * terkirim, tulisan "menunggu dikirim" tetap menempel di layar sampai
+ * halaman dimuat ulang.
+ */
+export function onCancelQueueChange(cb: CancelQueueListener): () => void {
+  cancelListeners.push(cb)
+  void readCancelQueue().then(items => {
+    try { cb(items) } catch { /* listener yang error tidak boleh mengganggu antrean */ }
+  })
+  return () => { cancelListeners = cancelListeners.filter(x => x !== cb) }
+}
+
+function notifyCancelQueueChange(): void {
+  void readCancelQueue().then(items => {
+    for (const l of [...cancelListeners]) {
+      try { l(items) } catch { /* ignore */ }
+    }
+  })
+}
+
+/** Dokumen pembatalan yang sudah DIKONFIRMASI server (bukan sekadar hilang dari antrean). */
+export async function readDeliveredCancels(): Promise<Record<string, DeliveredCancel>> {
+  try {
+    const raw = await metaGet(DELIVERED_META_KEY)
+    return raw && typeof raw === 'object' ? raw as Record<string, DeliveredCancel> : {}
+  } catch {
+    return {}
+  }
+}
+
+async function markCancelDelivered(cancelId: string, noCancel?: string): Promise<void> {
+  try {
+    const map = await readDeliveredCancels()
+    map[cancelId] = { deliveredAt: Date.now(), noCancel }
+    await metaSet(DELIVERED_META_KEY, map)
+  } catch { /* antrean tetap benar walau bukti kirim gagal disimpan */ }
 }
 
 function randomId(): string {
@@ -163,6 +222,7 @@ export async function queueCancelDocument(doc: CancelDocument): Promise<void> {
   await initLocalDb()
   const item: CancelQueueItem = { ...doc, attempts: 0 }
   await dbPut<CancelQueueItem>('pending-cancel', item)
+  notifyCancelQueueChange()
   window.setTimeout(() => { void processCancelQueue() }, 150)
 }
 
@@ -225,7 +285,11 @@ export async function processCancelQueue(): Promise<void> {
         if (ok) res = await sendCancelDocument(item)
       }
       if (res.ok) {
+        // Bukti kirim dicatat LEBIH DULU: kalau penghapusan antrean gagal,
+        // layar tetap tahu dokumen sudah diterima server.
+        await markCancelDelivered(item.cancelId, res.data?.noCancel)
         await dbDelete('pending-cancel', item.cancelId)
+        notifyCancelQueueChange()
         continue
       }
       await dbPut<CancelQueueItem>('pending-cancel', {
@@ -233,14 +297,19 @@ export async function processCancelQueue(): Promise<void> {
         attempts: (item.attempts ?? 0) + 1,
         lastAttemptAt: Date.now(),
         lastError: res.error?.message ?? `Server menolak (HTTP ${res.error?.code ?? '?'})`,
+        lastErrorCode: res.error?.code,
       })
+      notifyCancelQueueChange()
     } catch (err) {
       await dbPut<CancelQueueItem>('pending-cancel', {
         ...item,
         attempts: (item.attempts ?? 0) + 1,
         lastAttemptAt: Date.now(),
         lastError: err instanceof Error ? err.message : 'Gagal mengirim dokumen pembatalan',
+        // Tidak ada kode = gagal jaringan: dokumen belum sampai ke server.
+        lastErrorCode: undefined,
       })
+      notifyCancelQueueChange()
     }
   }
 }

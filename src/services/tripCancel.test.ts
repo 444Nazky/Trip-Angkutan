@@ -5,6 +5,7 @@ import {
   processCancelQueue,
   queueCancelDocument,
   readCancelQueue,
+  readDeliveredCancels,
   CANCEL_REASONS,
   isCancelReason,
 } from './tripCancel'
@@ -29,6 +30,7 @@ describe('dokumen pembatalan trip', () => {
   beforeEach(async () => {
     await initLocalDb()
     await dbClear('pending-cancel')
+    await dbClear('meta')
   })
 
   it('alasan pembatalan memakai daftar baku', () => {
@@ -90,5 +92,40 @@ describe('dokumen pembatalan trip', () => {
     ])
     // Berhasil kirim -> antrean kosong.
     expect(await readCancelQueue()).toHaveLength(0)
+  })
+
+  it('mencatat bukti terkirim dari server, bukan menyimpulkan dari antrean kosong', async () => {
+    const doc = buildCancelDocument(draft, { id: 'o1', name: 'Petugas' }, 'Lainnya', 'uji')
+    await queueCancelDocument(doc)
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      return new Response(JSON.stringify({ id: 'c-1', noCancel: 'CNL20261102AAAAAA' }), { status: 200 })
+    }))
+
+    await processCancelQueue()
+
+    const delivered = await readDeliveredCancels()
+    expect(delivered[doc.cancelId]?.deliveredAt).toBeGreaterThan(0)
+    expect(delivered[doc.cancelId]?.noCancel).toBe('CNL20261102AAAAAA')
+  })
+
+  it('menandai dokumen yang DITOLAK server (kode error tersimpan)', async () => {
+    const doc = buildCancelDocument(draft, { id: 'o1', name: 'Petugas' }, 'Lainnya', 'uji')
+    await queueCancelDocument(doc)
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      return new Response(JSON.stringify({ error: 'Alasan pembatalan wajib diisi' }), { status: 400 })
+    }))
+
+    await processCancelQueue()
+
+    const queue = await readCancelQueue()
+    expect(queue).toHaveLength(1)
+    expect(queue[0].lastErrorCode).toBe('400')
+    expect((await readDeliveredCancels())[doc.cancelId]).toBeUndefined()
   })
 })

@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info } from 'lucide-react'
 import { unitLabel, useApp, type VehicleEntry } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
+import {
+  onCancelQueueChange,
+  readDeliveredCancels,
+  type CancelQueueItem,
+  type DeliveredCancel,
+} from '../../services/tripCancel'
 import type { MobileScreen } from '../types'
 
 
@@ -31,6 +37,18 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const [queue, setQueue] = useState<SyncItem[]>([])
   useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
+
+  // Dokumen pembatalan punya antrean SENDIRI dan tidak pernah mengubah
+  // `trip.synced`. Status pembatalan karena itu dibaca dari antrean
+  // pembatalan + bukti kirim dari server, bukan dari status trip.
+  const [cancelQueue, setCancelQueue] = useState<CancelQueueItem[]>([])
+  useEffect(() => onCancelQueueChange(setCancelQueue), [])
+  const [deliveredCancels, setDeliveredCancels] = useState<Record<string, DeliveredCancel>>({})
+  useEffect(() => {
+    let alive = true
+    void readDeliveredCancels().then(map => { if (alive) setDeliveredCancels(map) })
+    return () => { alive = false }
+  }, [cancelQueue])
 
   // Status jujur: 'failed' = server menolak (merah), bukan sekadar "menunggu".
   const syncStatus = t ? classifyTripSync(t.id, t.synced, queue) : undefined
@@ -100,6 +118,17 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const brokenCount = Object.keys(broken).length
 
+  // Status dokumen pembatalan — sumber kebenaran untuk trip berstatus batal.
+  // 'sent' hanya kalau server benar-benar mengonfirmasi (bukti kirim tercatat),
+  // bukan sekadar karena antrean kebetulan kosong.
+  const cancelItem = t.cancelId ? cancelQueue.find(i => i.cancelId === t.cancelId) : undefined
+  const cancelDelivered = t.cancelId ? deliveredCancels[t.cancelId] : undefined
+  const cancelState: 'sent' | 'failed' | 'pending' = cancelItem
+    ? (cancelItem.lastErrorCode ? 'failed' : 'pending')
+    : cancelDelivered
+      ? 'sent'
+      : 'pending'
+
   // Trip yang sudah SELESAI bersifat FINAL: tidak bisa diedit lagi, aunque
   // datanya belum sempat sinkron ke server intranet.
   //
@@ -141,7 +170,11 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             {t.cancelNote ? ` — ${t.cancelNote}` : ''}
           </p>
           <p className="mt-1 text-[10px] leading-relaxed text-red-600/80">
-            Dokumen pembatalan sudah dikirim ke server kantor sebagai bukti pembatalan trip ini.
+            {cancelState === 'sent'
+              ? 'Dokumen pembatalan sudah diterima server kantor sebagai bukti pembatalan trip ini.'
+              : cancelState === 'failed'
+                ? 'Dokumen pembatalan BELUM diterima server kantor — lihat status di bawah.'
+                : 'Dokumen pembatalan akan dikirim otomatis begitu tersambung ke server kantor.'}
           </p>
         </div>
       )}
@@ -276,7 +309,49 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {/* Sync Status */}
+      {/* Status: trip yang dibatalkan tidak lagi memakai status antrean trip —
+          yang dikirim ke server adalah dokumen pembatalan. */}
+      {t.canceled ? (
+        <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
+          cancelState === 'failed'
+            ? 'bg-red-50 border-red-200'
+            : cancelState === 'sent'
+              ? 'bg-emerald-50 border-emerald-200'
+              : 'bg-amber-50 border-amber-200'
+        }`}>
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+            cancelState === 'failed' ? 'bg-red-100' : cancelState === 'sent' ? 'bg-emerald-100' : 'bg-amber-100'
+          }`}>
+            {cancelState === 'failed'
+              ? <AlertTriangle size={16} className="text-red-500" strokeWidth={2.5} />
+              : cancelState === 'sent'
+                ? <Cloud size={16} className="text-emerald-500" strokeWidth={2.5} />
+                : <CloudOff size={16} className="text-amber-500" strokeWidth={2.5} />}
+          </div>
+          <div className="flex-1">
+            <p className={`text-[12px] font-bold ${
+              cancelState === 'failed' ? 'text-red-700' : cancelState === 'sent' ? 'text-emerald-700' : 'text-amber-700'
+            }`}>
+              {cancelState === 'failed'
+                ? 'Dokumen pembatalan ditolak server'
+                : cancelState === 'sent'
+                  ? 'Pembatalan trip berhasil terkirim'
+                  : 'Pembatalan trip menunggu koneksi, tersimpan di lokal'}
+            </p>
+            <p className={`text-[10px] ${
+              cancelState === 'failed' ? 'text-red-600' : cancelState === 'sent' ? 'text-emerald-600' : 'text-amber-600'
+            }`}>
+              {cancelState === 'failed'
+                ? `${cancelItem?.lastError ?? 'Server menolak dokumen pembatalan'}${cancelItem?.attempts ? ` · percobaan ${cancelItem.attempts}` : ''} — belum masuk dashboard admin`
+                : cancelState === 'sent'
+                  ? `Dokumen pembatalan diterima server kantor${cancelDelivered?.noCancel ? ` · ${cancelDelivered.noCancel}` : ''} · ${t.date}`
+                  : cancelItem?.lastError
+                    ? `${cancelItem.lastError} — otomatis dicoba lagi saat koneksi pulih`
+                    : 'Dokumen pembatalan aman tersimpan di perangkat dan dikirim otomatis'}
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
         sendFailed
           ? 'bg-red-50 border-red-200'
@@ -318,6 +393,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </p>
         </div>
       </div>
+      )}
     </div>
   )
 }

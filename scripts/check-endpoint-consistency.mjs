@@ -22,6 +22,10 @@
  *      akan masuk ke database yang tidak dibaca dashboard.
  *   3. Endpoint default harus punya host jaringan privat (LAN) — inilah
  *      server kantor.
+ *   4. Tidak boleh ada host backend cloud (Supabase/Railway/Cloudflare tunnel/
+ *      Vercel/Firebase) yang tertinggal di bundle yang DISERVE (www/ dan
+ *      admin-www/). Satu URL lama di bundle cukup untuk mengirim data ke luar
+ *      jaringan kantor tanpa ada yang sadar.
  *
  * Dijalankan otomatis setelah `ng build` (lihat package.json -> build).
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -162,6 +166,31 @@ export function checkEndpointConsistency(env) {
 
 export { readEnvFromBundle, isPrivateHost, parseEnvFromSource }
 
+/** Host backend cloud yang TIDAK boleh muncul lagi di bundle hasil build. */
+const CLOUD_HOST_RE = /https?:\/\/[^\s"'`<>]*(?:railway\.app|supabase\.co|trycloudflare\.com|vercel\.app|firebaseio\.com|firebaseapp\.com)/gi
+
+/**
+ * Cari referensi host cloud di semua berkas yang ikut diserve.
+ * Return daftar "<path> -> <url>" supaya pesan build menyebut lokasi persisnya.
+ */
+export function findCloudEndpoints(dir) {
+  const hits = []
+  if (!fs.existsSync(dir)) return hits
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name)
+      if (entry.isDirectory()) { walk(full); continue }
+      if (!/\.(js|css|html|json|webmanifest)$/i.test(entry.name)) continue
+      const text = fs.readFileSync(full, 'utf8')
+      for (const match of text.matchAll(CLOUD_HOST_RE)) {
+        hits.push(`${path.relative(ROOT, full)} -> ${match[0]}`)
+      }
+    }
+  }
+  walk(dir)
+  return hits
+}
+
 function main() {
   if (!fs.existsSync(ASSET_JS)) {
     console.error(`✖ Folder build tidak ditemukan: ${ASSET_JS}\n  Jalankan \`ng build\` dulu.`)
@@ -183,6 +212,13 @@ function main() {
     fail('Environment bundle tidak lengkap — pola apiBaseUrl/intranetApiBaseUrl berubah. Perbarui script ini.')
   } else {
     for (const p of checkEndpointConsistency(env)) fail(p)
+  }
+
+  // 4. Tidak boleh ada endpoint cloud yang tertinggal di build yang diserve.
+  for (const dir of [WWW, path.join(ROOT, 'admin-www')]) {
+    for (const hit of findCloudEndpoints(dir)) {
+      fail(`Endpoint cloud ditemukan di build: ${hit}. Semua trafik harus ke server intranet (http://192.168.1.123:3000/api).`)
+    }
   }
 
   // Info tambahan: kalau folder admin-www hasil deploy lama masih ada,

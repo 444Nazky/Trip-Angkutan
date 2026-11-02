@@ -7,31 +7,29 @@
 - **Port 8000**: Admin Dashboard (HARUS serve dari direktori `admin-www/`)
 - **Port 3000**: API INTRANET (server lokal di PC kantor, opsional)
 
-### Backend - DUAL ENDPOINT
-Aplikasi mobile punya **dua pilihan endpoint**, dipilih petugas lewat
-"Pengaturan Server" (halaman Profil / Login):
+### Backend - FULL INTRANET (tanpa cloud)
+Satu-satunya endpoint adalah **server intranet kantor**:
 
-| Endpoint | URL | Kapan dipakai |
-|----------|-----|---------------|
-| Supabase (cloud) | `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api` | Default, butuh internet |
-| Intranet Kantor (LAN) | `http://192.168.1.123:3000/api` | Di kantor, tanpa internet |
+| Endpoint | URL |
+|----------|-----|
+| API Intranet (LAN) | `http://192.168.1.123:3000/api` |
 
-- **Kode API-nya SAMA**. `supabase/functions/api/index.ts` sekarang mengekspor
-  `handleRequest`, lalu:
-  - Cloud  : Edge Runtime memanggil `Deno.serve(handleRequest)`
-  - Intranet: `supabase/functions/api/local_server.ts` memanggil `Deno.serve` dengan
-    handler yang sama, di port 3000.
-- **Database tetap Supabase PostgreSQL** (cloud). Yang lokal hanya HTTP server-nya.
-- **`JWT_SECRET` intranet HARUS sama** dengan secret di Supabase, kalau tidak
-  token yang issued cloud tidak valid di intranet (muncul "session expired").
-- Router menampilkan label `Supabase` / `Intranet` di Profil > Server / Endpoint.
-- Admin dashboard tetap memakai Supabase cloud.
+- Tidak ada endpoint cloud (Supabase/Railway/Cloudflare tunnel). Jangan
+  menambahkan host publik sebagai default atau cadangan.
+- **Database**: PostgreSQL lokal di container `trip-db`, diakses server API
+  lewat PostgREST lokal (`http://rest:3000`). Tidak ada database cloud.
+- **Berkas** (foto trip, APK, bundel OTA) disimpan di disk host
+  (`./data/storage` -> `/data/storage`), path-nya RELATIF (`/files/...`).
+- `scripts/check-endpoint-consistency.mjs` menggagalkan build kalau
+  `apiBaseUrl`/`intranetApiBaseUrl` tidak menunjuk host LAN, atau kalau bundle
+  yang diserve masih memuat host cloud.
 
 File terkait:
 - `src/services/api.ts` - `apiBaseCandidates()`, `isIntranetBaseUrl()`, `setApiBaseUrlOverride()`
 - `src/environments/environment.ts` - `intranetApiBaseUrl`
-- `src/components/ServerSettingsModal.tsx` - UI pilihan endpoint
-- `supabase/functions/api/local_server.ts` - server intranet (Deno)
+- `src/components/ServerSettingsModal.tsx` - UI pengaturan server
+- `server/api/local_server.ts` - server intranet (Deno, port 3000)
+- `docker-compose.yml` - `web`, `api-intranet`, `db`, `rest` (semua lokal)
 - `Dockerfile.backend` - image Deno untuk service `api-intranet`
 
 ### Setup server intranet (PC kantor)

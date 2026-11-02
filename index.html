@@ -6,11 +6,13 @@
   <!--
     CSP: batasi sumber daya yang boleh dimuat — membatasi dampak XSS.
 
-    connect-src dibuka ke https: (endpoint produksi Supabase) + http lokal/LAN
-    untuk pengujian perangkat. frame-src dibutuhkan oleh pratinjau peta
-    OpenStreetMap di tab Rute/Geofence.
+    connect-src HANYA mengizinkan origin sendiri + alamat LAN/loopback: satu-
+    satunya backend adalah server intranet (http://192.168.1.123:3000/api).
+    Tidak ada cloud (Supabase/Railway) yang boleh dipanggil dari dashboard.
+    img-src https: tetap dibuka untuk tile peta, dan frame-src dibutuhkan oleh
+    pratinjau peta OpenStreetMap di tab Rute/Geofence.
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* ws://localhost:* wss://localhost:*; frame-src https://www.openstreetmap.org https://www.google.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* http://172.16.*:* ws://localhost:* wss://localhost:*; frame-src https://www.openstreetmap.org https://www.google.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
   <title>Admin Trip Angkutan</title>
   <style>
     body {

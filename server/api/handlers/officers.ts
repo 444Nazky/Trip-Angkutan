@@ -91,6 +91,33 @@ export async function officerDermagaAccess(req: Request, officerId: string): Pro
   }
 }
 
+// GET /dermaga/:id/officers — petugas yang punya akses ke satu dermaga.
+//
+// Dipanggil aplikasi petugas setiap resume (syncDermagaOfficersToDb) untuk
+// menyimpan roster per dermaga sebagai cache offline. Rute ini dulu TIDAK ADA
+// di server (hanya /dermagas untuk master dan /officers/:id/dermaga-access),
+// jadi setiap resume selalu membalas 404 dan menurunkan Success Rate panel
+// Endpoint padahal tidak ada yang rusak di sisi database.
+export async function dermagaOfficers(req: Request, dermagaId: string): Promise<Response> {
+  try {
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "Not authenticated" }, 401);
+    // Id bukan uuid -> tidak mungkin ada barisnya; balas daftar kosong, bukan 500.
+    if (!UUID_RE.test(dermagaId)) return json([]);
+
+    const { data, error } = await db
+      .from("officer_dermagas")
+      .select("officers!officer_dermagas_officer_id_fkey(id, name, username, is_active, region_id)")
+      .eq("dermaga_id", dermagaId);
+    if (error) throw error;
+
+    return json((data ?? []).map((row: any) => row.officers).filter(Boolean));
+  } catch (error) {
+    console.error("Fetch dermaga officers error:", error);
+    return json({ error: "Failed to fetch dermaga officers" }, 500);
+  }
+}
+
 // GET /officers/my-region
 export async function myRegionOfficers(req: Request): Promise<Response> {
   try {

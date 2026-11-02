@@ -77,13 +77,24 @@ export interface TripCancellationSummary {
 
 
 
-/** Query string dari filter (kosong kalau tidak ada filter). */
-function cancellationQuery(filters?: TripCancellationFilters): string {
+/**
+ * Query string dari filter (kosong kalau tidak ada filter).
+ *
+ * `extra` dipakai untuk menambahkan parameter mode ke query yang SAMA.
+ * Dulu ringkasan menempelkan `&mode=summary` di luar helper ini, sehingga
+ * tanpa filter URL-nya menjadi `/trips/cancellations&mode=summary` — `&` tanpa
+ * `?` membuat query string ikut jadi bagian path dan server membalas 404.
+ */
+function cancellationQuery(
+  filters?: TripCancellationFilters,
+  extra?: Record<string, string>,
+): string {
   const params = new URLSearchParams()
   if (filters?.startDate) params.set('startDate', filters.startDate)
   if (filters?.endDate) params.set('endDate', filters.endDate)
   if (filters?.reason) params.set('reason', filters.reason)
   if (filters?.q) params.set('q', filters.q)
+  for (const [key, value] of Object.entries(extra ?? {})) params.set(key, value)
   const s = params.toString()
   return s ? `?${s}` : ''
 }
@@ -99,7 +110,7 @@ export async function fetchTripCancellations(filters?: TripCancellationFilters):
 
 /** Ringkasan dokumen pembatalan (admin) — dipakai untuk kartu & grafik. */
 export async function fetchTripCancellationSummary(filters?: TripCancellationFilters): Promise<TripCancellationSummary | null> {
-  return api.getOk<TripCancellationSummary>(`/trips/cancellations${cancellationQuery(filters)}&mode=summary`)
+  return api.getOk<TripCancellationSummary>(`/trips/cancellations${cancellationQuery(filters, { mode: 'summary' })}`)
 }
 
 
