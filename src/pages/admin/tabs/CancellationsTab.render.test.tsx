@@ -154,7 +154,7 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toContain('Petugas terlibat')
     // Total 2 pembatalan, 3 kendaraan, 2 petugas.
     expect(body).toContain('Total pembatalan')
-    const tiles = Array.from(container.querySelectorAll('.text-2xl')).map(el => el.textContent?.trim())
+    const tiles = Array.from(container.querySelectorAll('.text-xl')).map(el => el.textContent?.trim())
     expect(tiles).toContain('2')
     expect(tiles).toContain('3')
   })

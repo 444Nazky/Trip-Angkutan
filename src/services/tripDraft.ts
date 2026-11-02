@@ -39,11 +39,14 @@ export interface DraftInfo {
 export type DraftResumeTarget = 'trip-condition' | 'route-select' | 'trip-summary'
 
 /**
- * Apakah draft berisi sesuatu yang layak ditampilkan/disimpan.
+ * Apakah draft berisi isian apa pun yang layak disimpan.
  *
- * Field teknis (cameraMode, cameraFrom, editVehicleIndex, ...) tidak
- * dihitung: berpindah ke layar kamera lalu kembali tidak boleh memunculkan
- * draft kosong di Riwayat.
+ * Dipakai untuk penyimpanan lokal (supaya isian yang sudah diketik tidak
+ * hilang saat aplikasi ditutup). Field teknis (cameraMode, cameraFrom,
+ * editVehicleIndex, ...) tidak dihitung: berpindah ke layar kamera lalu
+ * kembali tidak boleh menyisakan draft kosong.
+ *
+ * Untuk "apakah ini sudah menjadi draft" pakalah `hasCountedDraft`.
  */
 export function hasDraftContent(d: Draft | null | undefined): boolean {
   if (!d) return false
@@ -56,6 +59,29 @@ export function hasDraftContent(d: Draft | null | undefined): boolean {
     !!d.selfieUrl ||
     !!d.vehicleForm?.plate?.trim()
   )
+}
+
+/**
+ * Apakah draft sudah TERHITUNG sebagai draft sungguhan.
+ *
+ * ATURAN: draft hanya terhitung kalau petugas sudah menginput minimal 1
+ * kendaraan. Isian yang baru berupa pilihan status muatan atau rute BELUM
+ * terhitung: isian seperti itu tidak disimpan, tidak muncul di Riwayat,
+ * tidak mengunci tombol "Mulai Trip", dan tidak mulai menghitung batas 15
+ * menit. Jadi mengunci layar bukan berarti iniciada trip.
+ *
+ * Pengecualian trip KOSONG: alur trip kosong memang tidak pernah menambah
+ * kendaraan (Rute → Foto Bukti → Ringkasan), jadi isian minimum-nya adalah
+ * foto bukti trip.
+ *
+ * Dipakai sebagai sumber kebenaran tunggal oleh store (penyimpanan + TTL),
+ * Beranda (kunci tombol Mulai Trip), dan Riwayat (kartu draft) supaya ketiga
+ * layar tidak berbeda pendapat soal "apakah ada draft".
+ */
+export function hasCountedDraft(d: Draft | null | undefined): boolean {
+  if (!d) return false
+  if (d.condition === 'kosong') return !!d.photoUrl
+  return (d.vehicles?.length ?? 0) > 0
 }
 
 /** Sisa umur draft dalam milidetik (0 kalau sudah lewat). */

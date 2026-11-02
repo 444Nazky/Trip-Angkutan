@@ -49,6 +49,16 @@ function nextVersion() {
 
 
 
+// Versi modul bisa dipaksa lewat --version= (mis. saat rilis sengaja
+// IKUT versi APK, seperti 1.1.0). Tanpa flag ini, versinya naik sendiri
+// dari manifest lokal seperti sebelumnya.
+const forcedVersion = argValue('version')
+const moduleVersion = forcedVersion
+  ? `${String(forcedVersion).replace(/\+\d+$/, '')}+${Date.now()}`
+  : nextVersion()
+
+
+
 if (!fs.existsSync(path.join(WEB_DIR, 'index.html'))) {
   console.error(' www/ belum dibuild. Jalankan "npm run build" dulu.')
   process.exit(1)
@@ -62,7 +72,6 @@ if (!assets.includes('index.html') || assets.length < 3) {
   process.exit(1)
 }
 
-const version = nextVersion()
 const files = {}
 const integrity = {}
 
@@ -72,13 +81,13 @@ for (const asset of assets) {
   integrity[asset] = crypto.createHash('sha256').update(bytes).digest('hex')
 }
 
-console.log(`Bundel: ${assets.length} berkas, versi ${version}`)
+console.log(`Bundel: ${assets.length} berkas, versi ${moduleVersion}`)
 console.log(`Server: ${SERVER}`)
 
 
 
 const payload = {
-  version,
+  version: moduleVersion,
   files,
   integrity,
   releaseNotes: argValue('notes') || '',
@@ -107,7 +116,7 @@ if (!response.ok) {
 
 
 // Manifest lokal ikut diperbarui supaya versi bundel di perangkat = yang dipublikasikan.
-fs.writeFileSync(MANIFEST_FILE, `${JSON.stringify({ version, assets, integrity }, null, 2)}\n`)
+fs.writeFileSync(MANIFEST_FILE, `${JSON.stringify({ version: moduleVersion, assets, integrity }, null, 2)}\n`)
 
 console.log(` ${body?.message || `Modul ${version} dipublikasikan`}`)
 if (body?.pruned?.length) console.log(`   bundel lama dihapus: ${body.pruned.join(', ')}`)

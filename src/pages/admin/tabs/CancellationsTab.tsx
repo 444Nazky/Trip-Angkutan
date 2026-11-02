@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Download, RefreshCw, Search } from 'lucide-react'
+import { Ban, CarFront, Download, FileText, ListChecks, RefreshCw, Search, Users, type LucideIcon } from 'lucide-react'
 import {
   fetchTripCancellations,
   fetchTripCancellationSummary,
@@ -17,6 +17,11 @@ interface CancellationsTabProps {
 }
 
 type RangeKey = 'today' | '7d' | '30d' | '90d' | 'all'
+
+const INPUT_CLS =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+const BTN_GHOST =
+  'inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
 
 const RANGE_PRESETS: { key: RangeKey; label: string; days: number | null }[] = [
   { key: 'today', label: 'Hari Ini', days: 1 },
@@ -163,30 +168,41 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="flex items-center gap-2 font-black text-slate-900 text-lg">
-            <Ban size={18} className="text-red-500" /> Pembatalan Trip
+          <h3 className="text-lg font-black text-slate-900">
+            Pembatalan Trip
           </h3>
-          <p className="text-slate-500 text-[12px]">
+          <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
             Trip yang dibatalkan petugas beserta alasannya — setiap pembatalan
             menghasilkan dokumen, jadi tidak ada trip yang hilang tanpa jejak.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-600">
+            <FileText size={12} /> {rows.length} dokumen
+          </span>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+            state === 'ready' ? 'bg-emerald-50 text-emerald-600' : state === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
+          }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${
+              state === 'ready' ? 'bg-emerald-500' : state === 'offline' ? 'bg-amber-500' : 'animate-pulse bg-slate-400'
+            }`} />
+            {state === 'ready' ? 'Server: Tersambung' : state === 'offline' ? 'Server tidak merespons' : 'Memuat...'}
+          </span>
           <button
             onClick={() => void load()}
             disabled={state === 'loading'}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className={BTN_GHOST}
           >
-            <RefreshCw size={14} /> Muat Ulang
+            <RefreshCw size={12} /> Muat ulang
           </button>
           <button
             onClick={exportXlsx}
             disabled={!rows.length}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className={BTN_GHOST}
           >
-            <Download size={14} /> .xlsx
+            <Download size={12} /> Ekspor .xlsx
           </button>
         </div>
       </div>
@@ -201,7 +217,7 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
               <button
                 key={p.key}
                 onClick={() => setRange(p.key)}
-                className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                   range === p.key
                     ? 'border-blue-600 bg-blue-600 text-white'
                     : 'border-slate-200 text-slate-500 hover:bg-slate-50'
@@ -218,7 +234,7 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
           <select
             value={reason}
             onChange={e => setReason(e.target.value)}
-            className="min-w-[190px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            className={`${INPUT_CLS} min-w-[190px]`}
           >
             <option value="">Semua alasan</option>
             {CANCEL_REASONS.map(r => (
@@ -247,12 +263,12 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="No. dokumen, rute, atau keterangan"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700"
+                className={`${INPUT_CLS} py-2 pl-9 pr-3`}
               />
             </div>
             <button
               type="submit"
-              className="rounded-xl border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50"
+              className={BTN_GHOST}
             >
               Cari
             </button>
@@ -271,20 +287,26 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
       )}
 
       {/* Kartu statistik — angkanya besar dan proporsional, bukan tabular. */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Total pembatalan" value={total} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Total pembatalan" value={total} Icon={Ban} tone="text-red-600" />
         <StatTile
           label="Kendaraan dibatalkan"
           value={summary?.vehicleCount ?? 0}
+          Icon={CarFront}
+          tone="text-blue-600"
         />
         <StatTile
           label="Alasan teratas"
           value={topReason?.count ?? 0}
           hint={topReason?.reason}
+          Icon={ListChecks}
+          tone="text-amber-600"
         />
         <StatTile
           label="Petugas terlibat"
           value={summary?.byOfficer?.length ?? 0}
+          Icon={Users}
+          tone="text-emerald-600"
         />
       </div>
 
@@ -353,7 +375,15 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
                     <Fragment key={c.id}>
                       <tr
                         onClick={() => setExpanded(isOpen ? null : c.id)}
-                        className="cursor-pointer transition-colors duration-150 hover:bg-slate-50"
+                        onKeyDown={event => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setExpanded(isOpen ? null : c.id)
+                          }
+                        }}
+                        tabIndex={0}
+                        aria-expanded={isOpen}
+                        className="cursor-pointer transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400"
                       >
                         <td className="p-3 font-mono text-[11px] font-bold text-slate-700">{c.no_cancel}</td>
                         <td className="p-3 text-[11px] text-slate-600">
@@ -447,11 +477,25 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
  * Nilainya proporsional (bukan `tabular-nums`) — angka besar yang berdiri
  * sendiri jadi terlihat renggang kalau semua digitnya selebar digit "0".
  */
-function StatTile({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function StatTile({
+  label,
+  value,
+  hint,
+  Icon,
+  tone,
+}: {
+  label: string
+  value: number
+  hint?: string
+  Icon: LucideIcon
+  tone: string
+}) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[11px] font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-slate-900">{value.toLocaleString('id-ID')}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+        <Icon size={13} className={tone} /> {label}
+      </div>
+      <p className={`mt-1 text-xl font-black ${tone}`}>{value.toLocaleString('id-ID')}</p>
       {hint && (
         <p className="mt-0.5 truncate text-[11px] text-slate-500" title={hint}>{hint}</p>
       )}

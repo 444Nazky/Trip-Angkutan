@@ -244,8 +244,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><MapPin size={16} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Titik wilayah validasi</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">Konfigurasi area geofence</p>
+            <p className="text-xs font-medium text-slate-800">Lokasi aktif</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Informasi Lokasi aktif saat ini</p>
           </div>
           <ChevronRight size={16} className="text-slate-400" />
         </button>
