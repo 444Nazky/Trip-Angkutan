@@ -144,8 +144,14 @@ describe('draft di halaman Riwayat Trip', () => {
   it('pembatalan dengan alasan meneruskan alasan ke store', async () => {
     await render()
     await click('Batalkan')
-    const radio = [...document.body.querySelectorAll('input[type="radio"]')][0] as HTMLInputElement
-    await act(async () => { radio.click() })
+    // Alasan diisi manual lewat input teks (bukan radio button).
+    const input = document.body.querySelector('[role="dialog"] input') as HTMLInputElement
+    expect(input, 'dialog harus punya input alasan').toBeTruthy()
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, 'Pelanggan membatalkan')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
     const konfirmasi = [...document.body.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
     await act(async () => { konfirmasi!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(mocks.cancel).toHaveBeenCalledTimes(1)
