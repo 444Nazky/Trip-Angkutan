@@ -23,6 +23,7 @@ import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
 import * as imp from "./handlers/import.ts";
 import * as vts from "./handlers/vehicleTypes.ts";
+import * as setg from "./handlers/settings.ts";
 import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
@@ -212,6 +213,15 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "POST" && !b) return await vts.createVehicleType(req);
     if (req.method === "PUT" && b) return await vts.updateVehicleType(req, b);
     if (req.method === "DELETE" && b) return await vts.deleteVehicleType(req, b);
+    return notFound();
+  }
+
+  // ---------------- /settings ----------------
+  // Pengaturan aplikasi (batas umur draft). Dibaca admin + mobile, ditulis
+  // admin saja.
+  if (a === "settings") {
+    if (req.method === "GET" && !b) return await setg.getSettings(req);
+    if (req.method === "PUT" && !b) return await setg.putSettings(req);
     return notFound();
   }
 

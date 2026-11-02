@@ -70,10 +70,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     }
   }
 
-s
-
-
-
   const updateReady = update.status === 'ready'
   const appVersion = appUpdate.currentAppVersion
   const moduleVersion = appUpdate.currentModuleVersion

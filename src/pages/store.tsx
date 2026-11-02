@@ -20,13 +20,13 @@ import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
 import {
-  DRAFT_TTL_MS,
   draftExpired,
   hasDraftContent,
   readDraftFor,
   writeDraftFor,
   type DraftInfo,
 } from '../services/tripDraft'
+import { getCachedSettings, pullAppSettings } from '../services/appSettings'
 import { buildCancelDocument, queueCancelDocument } from '../services/tripCancel'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
@@ -197,11 +197,18 @@ interface StoreValue {
   /** Umur draft (dasar batas 15 menit) — null kalau tidak ada draft berisi. */
   draftInfo: DraftInfo | null
   /**
-   * Draft sudah lewat batas 15 menit: isiannya dibekukan (tidak bisa diedit
+   * Draft sudah lewat batas umur: isiannya dibekukan (tidak bisa diedit
    * atau menambah kendaraan). Petugas masih bisa mengirim trip atau
    * membatalkannya dengan alasan.
    */
   draftLocked: boolean
+  /**
+   * Batas umur draft (menit) yang berlaku di perangkat ini.
+   *
+   * Diambil dari server (dashboard admin → tab "Pengaturan"), jadi owner
+   * bisa mengubahnya tanpa build baru. Nilai bawaan: 15 menit.
+   */
+  draftTtlMinutes: number
   resetDraft: () => void
   /** Batalkan draft: membuat dokumen pembatalan (alasannya wajib). */
   cancelDraft: (reason: string, note?: string) => boolean
@@ -723,9 +730,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const draftSavedAtRef = useRef(0)
   const hydratedDraftRef = useRef<Draft | null>(null)
   const [draftInfo, setDraftInfo] = useState<DraftInfo | null>(null)
-  // Draft yang lewat batas 15 menit: isiannya dibekukan, tapi masih bisa
+  // Draft yang lewat batas umur: isiannya dibekukan, tapi masih bisa
   // dikirim atau dibatalkan.
   const [draftLocked, setDraftLocked] = useState(false)
+  // Batas umur draft yang berlaku (ms). Diambil dari server supaya owner
+  // bisa mengubahnya dari dashboard admin tanpa build baru. Nilai awal
+  // diambil dari cache perangkat (default 15 menit).
+  const [draftTtlMs, setDraftTtlMs] = useState<number>(
+    () => getCachedSettings().draftTtlMinutes * 60_000,
+  )
+  const draftTtlMinutes = Math.round(draftTtlMs / 60_000)
+  // Ref supaya efek yang bergantung pada officerId tidak perlu ikut
+  // dependensi draftTtlMs (nanti dibuat ulang tiap nilainya berubah).
+  const draftTtlMsRef = useRef(draftTtlMs)
+  useEffect(() => { draftTtlMsRef.current = draftTtlMs }, [draftTtlMs])
+
+  // Tarik batas umur draft terbaru dari server.
+  //
+  // Owner bisa mengubahnya dari dashboard admin. Nilai gagal ditarik TIDAK
+  // menimpa nilai tersimpan di perangkat, jadi pengaturan yang sudah berlaku
+  // tidak hilang hanya karena sesaat offline.
+  useEffect(() => {
+    let alive = true
+    void pullAppSettings().then(s => {
+      if (!alive) return
+      setDraftTtlMs(s.draftTtlMinutes * 60_000)
+    })
+    return () => { alive = false }
+  }, [loggedIn])
   // Pemilik draft yang sedang ada di state (id petugas). Draft tiap petugas
   // disimpan terpisah, jadi perangkat yang dipakai bergantian tidak saling
   // menimpa isian.
@@ -769,7 +801,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         draftRef.current = data
         setDraft(data)
         setDraftInfo(stored && createdAt
-          ? { createdAt, savedAt: stored.savedAt ?? createdAt, expiresAt: createdAt + DRAFT_TTL_MS }
+          ? { createdAt, savedAt: stored.savedAt ?? createdAt, expiresAt: createdAt + draftTtlMsRef.current }
           : null)
       } catch (err) {
         console.warn('[store] gagal memulihkan draft:', err)
@@ -799,7 +831,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!draftCreatedAtRef.current) draftCreatedAtRef.current = draftSavedAtRef.current || now
     const createdAt = draftCreatedAtRef.current
     const savedAt = draftSavedAtRef.current || now
-    const info: DraftInfo = { createdAt, savedAt, expiresAt: createdAt + DRAFT_TTL_MS }
+    const info: DraftInfo = { createdAt, savedAt, expiresAt: createdAt + draftTtlMsRef.current }
     setDraftInfo(prev => (
       prev && prev.createdAt === createdAt && prev.savedAt === savedAt ? prev : info
     ))
@@ -814,7 +846,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [draft])
 
-  // Draft yang lewat batas 15 menit tidak boleh diedit lagi. Draft TIDAK
+  // Draft yang lewat batas umur tidak boleh diedit lagi. Draft TIDAK
   // dihapus paksa: isiannya dibekukan supaya petugas tetap bisa mengirim
   // trip-nya atau membatalkannya dengan alasan.
   useEffect(() => {
@@ -829,6 +861,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(check, remaining + 50)
     return () => clearTimeout(timer)
   }, [draftInfo])
+
+  // Batas umur draft yang berubah (mis. owner mengaturnya di dashboard)
+  // harus langsung berlaku pada draft yang sedang ada: tanggal kedaluwarsa
+  // dihitung ulang dari waktu draft DIBUAT, bukan dari waktu pengaturan
+  // berubah.
+  useEffect(() => {
+    setDraftInfo(prev => (
+      prev ? { ...prev, expiresAt: prev.createdAt + draftTtlMs } : prev
+    ))
+  }, [draftTtlMs])
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [tripsLoaded, setTripsLoaded] = useState(false)
@@ -1359,7 +1401,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariffs,
     vehicleTypes,
     officers, saveOfficers,
-    draft, draftInfo, draftLocked, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, draftLocked, draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
@@ -1367,7 +1409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDermaga,
     clearAllTrips,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, vehicleTypes, officers, saveOfficers,
-    draft, draftInfo, draftLocked, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, draftLocked, draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga, clearAllTrips])

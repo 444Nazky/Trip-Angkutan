@@ -85,13 +85,30 @@ Tariff model (do not regress):
 
 Aturan aplikasi mobile (dipakai petugas lapangan) — jangan regresi:
 
-- DRAFT MAKSIMAL 15 MENIT. `src/services/tripDraft.ts` → `DRAFT_TTL_MS =
+- DRAFT MAKSIMAL 15 MENIT (bisa diubah dari dashboard admin). Nilai
+  *bawaan* ada di `src/services/tripDraft.ts` → `DRAFT_TTL_MS =
   15 * 60 * 1000`, dihitung dari `createdAt` (bukan waktu edit terakhir, supaya
   draft tidak bisa diperpanjang hanya dengan menyentuh form). Setelah lewat
-  15 menit draft **dibekukan**, bukan dihapus: `store.tsx` mengekspos
+  batas tersebut draft **dibekukan**, bukan dihapus: `store.tsx` mengekspos
   `draftLocked`, dan semua layar yang bisa mengubah isian (kondisi muatan,
   rute, form kendaraan, kamera) mengarahkan balik ke Ringkasan. Yang boleh
   setelahnya: **Kirim Trip** atau **Batalkan**.
+- BATAS DURASI DRAFT BISA DIATUR DARI DASHBOARD ADMIN (aturan owner).
+  Nilai yang dipakai perangkat berasal dari server, bukan dari kode:
+  - Server: `GET /api/settings` (baca, semua user login) + `PUT
+    /api/settings` (tulis, admin saja) — handler
+    `server/api/handlers/settings.ts`, tabel `app_settings` (key-value),
+    migrasi `server/db/migrations/20261102000000_app_settings.sql`.
+  - Admin: tab **"Pengaturan"** → panel "Batas Umur Draft Trip"
+    (`src/pages/admin/components/AppSettingsPanel.tsx`).
+  - Mobile: `src/services/appSettings.ts` menarik nilai saat aplikasi
+    dibuka, menyimpannya di localStorage (`trip.appSettings.v1`), dan
+    `store.tsx` memakainya untuk menghitung `expiresAt` +status
+    `draftLocked`. Kalau server tidak bisa dihubungi, nilai TERSIMPAN
+    dipakai (bukan ditimpa nilai bawaan) supaya pengaturan tidak hilang
+    hanya karena sinyal hilang sesaat.
+  - `DRAFT_MAX_MINUTES` (konstanta) hanya nilai bawaan untuk UI — jangan
+    dipakai sebagai sumber kebenaran.
 - DRAFT PER PETUGAS. Kunci penyimpanan `trip.draft.v2:<officerId>` (IndexedDB
   meta). Perangkat yang dipakai berganti petugas tidak boleh menampilkan
   draft orang lain. Draft lama (`trip.draft.v1`) dimigrasi sekali ke petugas

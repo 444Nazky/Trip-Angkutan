@@ -2,7 +2,7 @@ import type { Draft } from '../pages/store'
 import { metaGet, metaSet } from './localDb'
 
 /**
- * Batas umur draft trip: 15 MENIT sejak draft DIBUAT.
+ * Batas umur draft trip: 15 MENIT sejak draft DIBUAT (nilai bawaan).
  *
  * Draft = trip yang sudah diisi petugas tetapi belum terkirim. Batas ini
  * sengaja dihitung dari waktu pembuatan, BUKAN waktu perubahan terakhir:
@@ -16,10 +16,14 @@ import { metaGet, metaSet } from './localDb'
  * (tidak bisa diedit / menambah kendaraan) supaya petugas tetap bisa
  * mengirim trip-nya atau membatalkannya dengan alasan. Penghapusan total
  * baru terjadi saat draft dikirim atau dibatalkan.
+ *
+ * NILAI INI BISA DIUBAH dari dashboard admin (tab "Pengaturan"). Nilai di
+ * bawah hanya nilai bawaan - lihat `services/appSettings.ts` dan state
+ * `draftTtlMs` di `pages/store.tsx` untuk nilai yang benar-benar dipakai.
  */
 export const DRAFT_TTL_MS = 15 * 60 * 1000
 
-/** Batas umur draft dalam menit (untuk ditampilkan di UI). */
+/** Batas umur draft dalam menit (nilai bawaan, untuk ditampilkan di UI). */
 export const DRAFT_MAX_MINUTES = Math.round(DRAFT_TTL_MS / 60000)
 
 /** Keterangan umur draft yang ditampilkan di UI. */

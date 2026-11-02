@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Loader2, Ban } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
-import { DRAFT_MAX_MINUTES } from '../../services/tripDraft'
 import type { MobileScreen } from '../types'
 import {
 
@@ -39,6 +38,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     tariffs,
     vehicleTypes: masterTypes,
     draftLocked,
+    draftTtlMinutes,
   } = useApp()
   const { plate, type: vehicleType, category, load: vehicleLoad } = draft.vehicleForm
   const editingIndex = draft.editVehicleIndex ?? null
@@ -226,7 +226,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
           <Ban size={14} className="mt-0.5 shrink-0" />
           <span>
-            Draft sudah lewat {DRAFT_MAX_MINUTES} menit — kendaraan tidak bisa ditambah atau diubah lagi.
+            Draft sudah lewat {draftTtlMinutes} menit — kendaraan tidak bisa ditambah atau diubah lagi.
             Tinggal kirim trip ini dari Ringkasan atau batalkan dengan alasan.
           </span>
         </div>

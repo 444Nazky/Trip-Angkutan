@@ -3,7 +3,6 @@ import { ChevronLeft, Camera, Truck, MapPin, Package, AlertCircle, Ban, Pencil, 
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
 import { validateRouteForCurrentLocation } from '../../services/geofence'
-import { DRAFT_MAX_MINUTES } from '../../services/tripDraft'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
 
@@ -29,7 +28,7 @@ interface TripSummaryScreenProps {
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const {
-    draft, trips, startTrip, patchDraft, editDraftVehicle, draftLocked, cancelDraft,
+    draft, trips, startTrip, patchDraft, editDraftVehicle, draftLocked, draftTtlMinutes, cancelDraft,
     finishEmptyTrip, finishMuatanTrip,
   } = useApp()
 
@@ -355,7 +354,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
               <Ban size={14} className="mt-0.5 shrink-0" />
               <span>
-                Draft sudah lewat {DRAFT_MAX_MINUTES} menit. Isian tidak bisa diedit atau ditambah
+                Draft sudah lewat {draftTtlMinutes} menit. Isian tidak bisa diedit atau ditambah
                 kendaraannya lagi — tinggal kirim trip ini atau batalkan dengan alasan.
               </span>
             </div>

@@ -10,7 +10,6 @@ import {
   draftRouteLabel,
   formatDraftRemaining,
   hasDraftContent,
-  DRAFT_MAX_MINUTES,
 } from '../../services/tripDraft'
 import { readCancelQueue } from '../../services/tripCancel'
 import CancelTripDialog from '../../components/CancelTripDialog'
@@ -83,7 +82,7 @@ interface HistoryScreenProps {
 
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
-  const { trips, setDetailTripId, officer, draft, draftInfo, draftLocked, cancelDraft } = useApp()
+  const { trips, setDetailTripId, officer, draft, draftInfo, draftLocked, draftTtlMinutes, cancelDraft } = useApp()
   const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
 
   // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
@@ -197,7 +196,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
                 ? 'Kedaluwarsa'
                 : draftInfo
                   ? `Sisa ${formatDraftRemaining(draftRemaining)}`
-                  : `Sisa ${DRAFT_MAX_MINUTES} mnt`}
+                  : `Sisa ${draftTtlMinutes} mnt`}
             </span>
           </div>
 
@@ -224,9 +223,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
           <p className="mt-2 text-[10px] leading-relaxed text-amber-800/80">
             {expired
-              ? `Draft sudah lewat ${DRAFT_MAX_MINUTES} menit — isiannya tidak bisa diedit atau ditambah kendaraannya lagi. `
+              ? `Draft sudah lewat ${draftTtlMinutes} menit — isiannya tidak bisa diedit atau ditambah kendaraannya lagi. `
                 + 'Tinggal kirim trip-nya atau batalkan dengan alasan.'
-              : `Tersimpan di perangkat untuk ${DRAFT_MAX_MINUTES} menit sejak dibuat. Setelah itu isiannya dibekukan `}
+              : `Tersimpan di perangkat untuk ${draftTtlMinutes} menit sejak dibuat. Setelah itu isiannya dibekukan `}
             {!expired && 'dan hanya bisa dikirim atau dibatalkan.'}
           </p>
 
