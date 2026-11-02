@@ -12,13 +12,6 @@ import {
   type SystemMetrics,
 } from '../../../services/serverStats'
 
-/**
- * Panel statistik server untuk tab "Endpoint".
- *
- * Gaya visual: terminal/btop - panel gelap, angka monospace, bar horizontal,
- * dan grafik batang per menit. Data diambil dari server intranet port 3000
- * (`http://192.168.1.123:3000/api/server-stats`), bukan dari alamat lain.
- */
 
 const POLL_INTERVAL_MS = 5000
 
