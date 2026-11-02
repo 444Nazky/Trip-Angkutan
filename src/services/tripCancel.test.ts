@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
-import { buildCancelDocument, CANCEL_REASONS, isCancelReason } from './tripCancel'
+import {
+  buildCancelDocument,
+  processCancelQueue,
+  queueCancelDocument,
+  readCancelQueue,
+  CANCEL_REASONS,
+  isCancelReason,
+} from './tripCancel'
 import { dbClear, initLocalDb } from './localDb'
 import type { Draft } from '../pages/store'
 
@@ -40,6 +47,12 @@ describe('dokumen pembatalan trip', () => {
     expect(doc.vehicles[0].plate).toBe('B 1234 XY')
     // foto trip + swafoto + foto kendaraan
     expect(doc.photoCount).toBe(3)
+    expect(doc.photos?.map(p => p.label)).toEqual([
+      'Foto kondisi draft',
+      'Swafoto petugas',
+      'Foto kendaraan B 1234 XY',
+    ])
+    expect(doc.photos?.[0].mimeType).toBe('image/jpeg')
     expect(doc.officerId).toBe('o1')
     expect(doc.clientCancelId).toBeTruthy()
   })
@@ -49,5 +62,33 @@ describe('dokumen pembatalan trip', () => {
     const b = buildCancelDocument(draft, { id: 'o1', name: 'Petugas' }, 'Lainnya')
     expect(a.clientCancelId).not.toBe(b.clientCancelId)
     expect(a.cancelId).not.toBe(b.cancelId)
+  })
+
+  it('mengirim foto sebagai multipart, bukan JSON', async () => {
+    const doc = buildCancelDocument(draft, { id: 'o1', name: 'Petugas' }, 'Lainnya')
+    await queueCancelDocument(doc)
+
+    const calls: Array<{ url: string; body: unknown }> = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      calls.push({ url, body: init?.body })
+      return new Response(JSON.stringify({ id: 'c-1' }), { status: 200 })
+    }))
+
+    await processCancelQueue()
+
+    const post = calls.find(c => c.url.endsWith('/trips/cancel'))
+    expect(post?.body).toBeInstanceOf(FormData)
+    const form = post?.body as FormData
+    expect(form.getAll('photos')).toHaveLength(3)
+    const payload = JSON.parse(String(form.get('payload')))
+    expect(payload.photos).toEqual([
+      { index: 0, label: 'Foto kondisi draft' },
+      { index: 1, label: 'Swafoto petugas' },
+      { index: 2, label: 'Foto kendaraan B 1234 XY' },
+    ])
+    // Berhasil kirim -> antrean kosong.
+    expect(await readCancelQueue()).toHaveLength(0)
   })
 })

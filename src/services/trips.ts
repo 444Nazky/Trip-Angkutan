@@ -42,6 +42,8 @@ export interface TripCancellation {
   vehicle_count: number
   vehicles: Array<{ plate?: string; type?: string; category?: string; load?: string; tariff?: number }> | null
   photo_count: number
+  /** Foto draft (bukti pembatalan) — dokumen versi lama tidak punya ini. */
+  photos?: Array<{ url: string; label?: string | null }> | null
   started_at: string | null
   cancelled_at: string
   created_at: string

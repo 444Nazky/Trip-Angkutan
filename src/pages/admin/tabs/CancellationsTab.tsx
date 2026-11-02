@@ -10,7 +10,6 @@ import {
 import { CANCEL_REASONS } from '../../../services/cancelReasons'
 import { downloadXlsx } from '../../../services/xlsx'
 import { ReasonBars } from '../components/ReasonBars'
-import { DailyTrend } from '../components/DailyTrend'
 
 interface CancellationsTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -323,12 +322,12 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h4 className="text-[13px] font-black text-slate-800">Tren per hari</h4>
+          <h4 className="text-[13px] font-black text-slate-800">Petugas paling sering membatalkan</h4>
           <p className="mb-3 text-[11px] text-slate-500">
-            Jumlah dokumen pembatalan yang masuk setiap hari.
+            Urutan petugas berdasarkan jumlah dokumen pembatalan pada rentang ini.
           </p>
           <div className={state === 'loading' ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-            <DailyTrend data={summary?.byDay ?? []} />
+            <OfficerRanking data={summary?.byOfficer ?? []} total={total} />
           </div>
         </div>
       </div>
@@ -456,6 +455,7 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
                                 <span className="font-bold">Keterangan petugas:</span> {c.note}
                               </p>
                             )}
+                            <CancelPhotos photos={c.photos} count={c.photo_count} />
                           </td>
                         </tr>
                       )}
@@ -466,6 +466,113 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Petugas dengan pembatalan terbanyak.
+ *
+ * Bentuknya daftar berperingkat, bukan grafik waktu: yang dicari admin adalah
+ * SIAPA yang sering membatalkan, dan itu cukup dibaca sebagai baris teks +
+ * panjang batang. Warna tunggal, sama seperti ReasonBars (magnituda, bukan
+ * identitas).
+ */
+function OfficerRanking({
+  data,
+  total,
+}: {
+  data: { officerId: string; officerName: string; count: number }[]
+  total: number
+}) {
+  if (!data.length) {
+    return (
+      <p className="px-1 py-6 text-center text-[12px] text-slate-400">
+        Belum ada pembatalan pada rentang ini.
+      </p>
+    )
+  }
+  const ranked = [...data].sort((a, b) => b.count - a.count)
+  const max = Math.max(...ranked.map(d => d.count), 1)
+
+  return (
+    <ul className="space-y-3">
+      {ranked.map((d, i) => {
+        const pct = total > 0 ? Math.round((d.count / total) * 100) : 0
+        const widthPct = Math.max(1, (d.count / max) * 100)
+        const name = d.officerName || 'Tanpa nama'
+        return (
+          <li key={d.officerId || name}>
+            <div className="mb-1 flex items-baseline justify-between gap-3">
+              <span className="truncate text-[12px] font-medium text-slate-700" title={name}>
+                <span className="mr-1.5 text-[10px] font-bold tabular-nums text-slate-400">
+                  {i + 1}.
+                </span>
+                {name}
+              </span>
+              <span className="shrink-0 text-[11px] font-bold tabular-nums text-slate-500">
+                {d.count} - {pct}%
+              </span>
+            </div>
+            <div className="h-2.5 w-full rounded-sm bg-slate-200">
+              <div
+                className="h-2.5 rounded-r bg-emerald-500"
+                style={{ width: `${widthPct}%` }}
+              />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/**
+ * Foto draft pembatalan.
+ *
+ * `photos` kosong pada dokumen yang dikirim aplikasi versi lama: yang tersisa
+ * hanya `photo_count`, jadi admin diberi tahu supaya tidak mengira foto hilang.
+ */
+function CancelPhotos({
+  photos,
+  count,
+}: {
+  photos?: Array<{ url: string; label?: string | null }> | null
+  count?: number
+}) {
+  const list = photos ?? []
+  if (!list.length) {
+    return count && count > 0 ? (
+      <p className="mt-2 text-[11px] text-slate-400">
+        {count} foto tidak tersedia - dikirim aplikasi versi lama.
+      </p>
+    ) : null
+  }
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 text-[11px] font-bold text-slate-600">Foto draft</p>
+      <div className="flex flex-wrap gap-2">
+        {list.map((p, i) => (
+          <a
+            key={`${p.url}-${i}`}
+            href={p.url}
+            target="_blank"
+            rel="noreferrer"
+            className="group block w-24"
+            title={p.label ?? 'Foto draft'}
+          >
+            <img
+              src={p.url}
+              alt={p.label ?? 'Foto draft'}
+              loading="lazy"
+              className="h-24 w-24 rounded-lg border border-slate-200 object-cover transition group-hover:border-blue-400"
+            />
+            <span className="mt-1 block truncate text-[10px] text-slate-500">
+              {p.label ?? 'Foto draft'}
+            </span>
+          </a>
+        ))}
       </div>
     </div>
   )

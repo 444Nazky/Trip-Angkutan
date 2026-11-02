@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Ban } from 'lucide-react'
 import { CANCEL_REASONS } from '../services/tripCancel'
 
@@ -37,16 +38,34 @@ export default function CancelTripDialog({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
   if (!open) return null
 
   const needsNote = reason === 'Lainnya'
   const canSubmit = !!reason && (!needsNote || note.trim().length > 0)
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl max-h-[85vh] overflow-y-auto">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      style={{ position: 'fixed', inset: 0 }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-trip-dialog-title"
+        className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+      >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+          <h3 id="cancel-trip-dialog-title" className="flex items-center gap-2 text-base font-bold text-slate-900">
             <Ban size={18} className="text-red-500" /> {title}
           </h3>
           <button
@@ -124,6 +143,7 @@ export default function CancelTripDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

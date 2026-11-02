@@ -65,6 +65,7 @@ beforeEach(() => {
   mocks.state.locked = false
   mocks.state.intranetReachable = false
   mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 }
+  document.body.style.overflow = ''
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -130,21 +131,26 @@ describe('draft di halaman Riwayat Trip', () => {
     await render()
     await click('Batalkan')
     // Dialog terbuka: tombol konfirmasi belum bisa ditekan tanpa alasan.
-    const konfirmasi = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
+    const konfirmasi = [...document.body.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
     expect(konfirmasi, 'dialog pembatalan harus terbuka').toBeTruthy()
     expect((konfirmasi as HTMLButtonElement).disabled, 'tanpa alasan tombol harus nonaktif').toBe(true)
+    const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    expect(dialog.parentElement?.style.position).toBe('fixed')
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(dialog.textContent).not.toMatch(/\p{Extended_Pictographic}/u)
     expect(mocks.cancel).not.toHaveBeenCalled()
   })
 
   it('pembatalan dengan alasan meneruskan alasan ke store', async () => {
     await render()
     await click('Batalkan')
-    const radio = [...container.querySelectorAll('input[type="radio"]')][0] as HTMLInputElement
+    const radio = [...document.body.querySelectorAll('input[type="radio"]')][0] as HTMLInputElement
     await act(async () => { radio.click() })
-    const konfirmasi = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
+    const konfirmasi = [...document.body.querySelectorAll('button')].find(b => b.textContent?.includes('Batalkan Trip'))
     await act(async () => { konfirmasi!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(mocks.cancel).toHaveBeenCalledTimes(1)
     expect(mocks.cancel.mock.calls[0][0]).toBeTruthy()
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('tanpa draft tidak ada kartu draft', async () => {

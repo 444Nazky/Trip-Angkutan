@@ -29,7 +29,11 @@ const CANCEL_ROWS = [
     route_code: 'SJRE-SBDZ',
     condition: 'muatan',
     vehicle_count: 2,
-    photo_count: 3,
+    photo_count: 2,
+    photos: [
+      { url: 'http://server/foto-kondisi.jpg', label: 'Foto kondisi draft' },
+      { url: 'http://server/swafoto.jpg', label: 'Swafoto petugas' },
+    ],
     vehicles: [
       { plate: 'B 1234 XY', type: 'Mobil', category: 'Lokal', load: 'loaded', tariff: 75000 },
       { plate: 'B 5678 ZA', type: 'Truk Kecil', category: 'Internal', load: 'loaded', tariff: 50000 },
@@ -51,7 +55,7 @@ const CANCEL_ROWS = [
     route_code: 'CRB-SBDZ',
     condition: 'kosong',
     vehicle_count: 1,
-    photo_count: 0,
+    photo_count: 1,
     vehicles: [{ plate: 'D 9999 ZZ', type: 'Motor', category: 'Lokal', load: 'empty', tariff: 15000 }],
     started_at: '2026-11-02T00:30:00.000Z',
     cancelled_at: '2026-11-02T01:00:00.000Z',
@@ -164,7 +168,7 @@ describe('CancellationsTab (render harness)', () => {
 
     const body = container.textContent ?? ''
     expect(body).toContain('Pembatalan per alasan')
-    expect(body).toContain('Tren per hari')
+    expect(body).toContain('Petugas paling sering membatalkan')
     // Setiap alasan tampil beserta jumlah & persentasenya.
     expect(body).toContain('Pelanggan membatalkan')
     expect(body).toMatch(/1 · 50%/)
@@ -202,5 +206,26 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toContain('B 1234 XY')
     expect(body).toContain('B 5678 ZA')
     expect(body).toContain('Truk Kecil')
+  })
+
+  it('menampilkan foto draft dan peringatan dokumen versi lama', async () => {
+    await renderTab()
+
+    const rows = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
+    await act(async () => {
+      rows[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const body = container.textContent ?? ''
+    expect(body).toContain('Foto draft')
+    expect(body).toContain('Swafoto petugas')
+    const images = Array.from(container.querySelectorAll('img'))
+    expect(images.map(img => img.getAttribute('src'))).toContain('http://server/foto-kondisi.jpg')
+
+    // Dokumen lama hanya menyimpan jumlah foto tanpa URL.
+    await act(async () => {
+      rows[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(container.textContent).toContain('dikirim aplikasi versi lama')
   })
 })

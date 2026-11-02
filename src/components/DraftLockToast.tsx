@@ -6,8 +6,8 @@ import { AlertTriangle, History, PlayCircle, X } from 'lucide-react'
  *
  * Muncul ketika petugas mengetuk tombol "Mulai Trip" padahal masih ada
  * draft yang belum dikirim. Isinya memberi tahu dua jalan keluar yang
- * memang tersedia: LANJUTKAN isian yang sudah ada, atau HAPUS draft itu di
- * halaman Riwayat (dibatalkan dengan alasan, bukan dihapus diam-diam).
+ * memang tersedia: lanjutkan isian yang sudah ada, atau batalkan draft itu
+ * dengan alasan di halaman Riwayat.
  */
 interface DraftLockToastProps {
   visible: boolean
@@ -53,9 +53,8 @@ export default function DraftLockToast({
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-black text-amber-800">Trip baru belum bisa dimulai</p>
           <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-            Masih ada draft trip yang belum dikirim. Lanjutkan atau hapus draft di halaman
-            Riwayat (hapus berarti batalkan dengan alasan), lalu tombol Mulai Trip bisa dipakai
-            lagi.
+            Masih ada draft trip yang belum dikirim. Lanjutkan atau batalkan draft dengan alasan
+            di halaman Riwayat, lalu tombol Mulai Trip bisa dipakai lagi.
           </p>
           {remainingLabel && (
             <p className="text-[10px] font-semibold text-amber-600 mt-1">{remainingLabel}</p>
@@ -76,7 +75,7 @@ export default function DraftLockToast({
               <History size={12} /> Buka Riwayat
             </button>
           </div>
-zr        </div>
+        </div>
         <button
           onClick={onClose}
           className="shrink-0 text-amber-400 hover:text-amber-600 p-1"

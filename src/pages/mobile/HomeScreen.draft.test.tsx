@@ -8,6 +8,18 @@ const mocks = vi.hoisted(() => ({
   startTrip: vi.fn(),
   resetDraft: vi.fn(),
   state: {
+    trips: [] as Array<{
+      id: string
+      officer: string
+      officerId: string
+      canceled?: boolean
+      synced?: boolean
+      vehicle: string
+      vehicles: Array<{ plate: string }>
+      load: string
+      route: string
+      time: string
+    }>,
     draft: {
       routeCode: 'SJRE-SBDZ' as string | null,
       condition: 'muatan' as 'muatan' | 'kosong' | null,
@@ -25,7 +37,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../store', () => ({
   useApp: () => ({
-    trips: [],
+    trips: mocks.state.trips,
     setDetailTripId: () => {},
     officer: { id: 'o1', name: 'Petugas', dermagaAccess: [{ id: 'd1', name: 'Dermaga A' }] },
     draft: mocks.state.draft,
@@ -56,6 +68,7 @@ beforeEach(() => {
   mocks.resetDraft.mockReset()
   mocks.state.locked = false
   mocks.state.counted = true
+  mocks.state.trips = []
   mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 }
   mocks.state.draft = {
     routeCode: 'SJRE-SBDZ',
@@ -95,7 +108,7 @@ describe('penguncian tombol Mulai Trip saat masih ada draft', () => {
     await render()
     await click('Mulai Trip (terkunci)')
     expect(container.textContent).toContain('Trip baru belum bisa dimulai')
-    expect(container.textContent).toContain('Lanjutkan atau hapus draft di halaman')
+    expect(container.textContent).toContain('Lanjutkan atau batalkan draft dengan alasan')
     expect(container.textContent).toContain('Riwayat')
     // Trip baru TIDAK boleh dimulai diam-diam.
     expect(mocks.startTrip).not.toHaveBeenCalled()
@@ -134,5 +147,27 @@ describe('penguncian tombol Mulai Trip saat masih ada draft', () => {
     expect(container.textContent).not.toContain('Mulai Trip (terkunci)')
     await click('Mulai Trip')
     expect(mocks.startTrip).toHaveBeenCalled()
+  })
+
+  it('tidak menghitung trip yang dibatalkan sebagai tercatat atau belum terkirim', async () => {
+    mocks.state.trips = [
+      {
+        id: 'trip-active', officer: 'Petugas', officerId: 'o1', synced: false,
+        vehicle: 'B 1234 XY', vehicles: [{ plate: 'B 1234 XY' }],
+        load: 'Ada Muatan', route: 'Dermaga A → Dermaga B', time: '10:00',
+      },
+      {
+        id: 'trip-cancelled', officer: 'Petugas', officerId: 'o1', canceled: true, synced: false,
+        vehicle: 'B 5678 XY', vehicles: [{ plate: 'B 5678 XY' }],
+        load: 'Ada Muatan', route: 'Dermaga C → Dermaga D', time: '09:00',
+      },
+    ]
+
+    await render()
+
+    const totalLabel = [...container.querySelectorAll('p')].find(p => p.textContent === 'Total Trip tercatat')
+    expect(totalLabel?.parentElement?.querySelector('p')?.textContent).toBe('1')
+    expect(container.textContent).toContain('1 belum terkirim')
+    expect(container.textContent).not.toContain('2 belum terkirim')
   })
 })

@@ -268,7 +268,10 @@ async function request<T>(
   timeoutMs = 12000,
 ): Promise<ApiResponse<T>> {
   const token = loadToken()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  // FormData wajib dibiarkan apa adanya: browser yang menetapkan
+  // Content-Type beserta boundary-nya.
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const url = `${currentBaseUrl()}${path}`
   const ctrl = new AbortController()
@@ -278,7 +281,7 @@ async function request<T>(
     const res = await fetch(url, {
       method,
       headers,
-      body: body != null ? JSON.stringify(body) : undefined,
+      body: body == null ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
       signal: ctrl.signal,
     })
     clearTimeout(timer)

@@ -76,11 +76,12 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
   )
+  const recordedTrips = myTrips.filter(t => !t.canceled)
   // Status kirim per trip (antrean = sumber kebenaran, bukan `trip.synced`).
   const stateOf = (id: string, synced: boolean | undefined) =>
     classifyTripSync(id, synced, queue).state
-  const queuedCount = myTrips.filter(t => stateOf(t.id, t.synced) !== 'synced').length
-  const failedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
+  const queuedCount = recordedTrips.filter(t => stateOf(t.id, t.synced) !== 'synced').length
+  const failedCount = recordedTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
@@ -124,8 +125,8 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   // Mulai / lanjutkan trip.
   //
   // - Draft TERHITUNG (sudah ada kendaraan): tombol "Mulai Trip" terkunci.
-  //   Petugas diberi tahu lewat notifikasi: lanjutkan atau hapus draft di
-  //   halaman Riwayat.
+  //   Petugas diberi tahu lewat notifikasi: lanjutkan atau batalkan draft
+  //   dengan alasan di halaman Riwayat.
   // - Isian sebagian: BELUM draft, jadi tombol tidak terkunci. Isian yang
   //   sudah ada tetap dipertahankan (dipakai lagi), bukan dihapus.
   // - Benar-benar kosong: draft dibersihkan lalu trip baru dimulai.
@@ -136,7 +137,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   }, [draftCounted, hasPartialDraft, onStartTrip, resetDraft])
 
   const units = new Set(
-    myTrips
+    recordedTrips
       .flatMap(t => (t.vehicles && t.vehicles.length ? t.vehicles.map(v => v.plate) : [t.vehicle]))
       .filter(p => p && p !== '-'),
   )
@@ -239,7 +240,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       {/* Stats */}
       <div className="grid grid-cols-2" style={{ gap: 16 }}>
         {[
-          { label: 'Trip', val: String(myTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
+          { label: 'Trip', val: String(recordedTrips.length), sub: 'Total Trip tercatat', color: 'blue' },
           { label: 'Kendaraan', val: String(units.size), sub: 'Total Unit Tercatat', color: 'slate' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
@@ -265,7 +266,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
           </button>
         </div>
         <div className="flex flex-col" style={{ gap: 12 }}>
-          {myTrips.slice(0, 3).map(t => (
+          {recordedTrips.slice(0, 3).map(t => (
             <button
               key={t.id}
               onClick={() => { setDetailTripId(t.id); go('history-detail') }}

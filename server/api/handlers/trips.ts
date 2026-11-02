@@ -749,7 +749,27 @@ export async function cancelTrip(req: Request): Promise<Response> {
       );
     }
 
-    const body = await req.json().catch(() => null) as any;
+    // Dua bentuk body: JSON (aplikasi lama, tanpa foto) dan multipart
+    // (payload + `photos`). Foto draft adalah bukti pembatalan, jadi ikut
+    // dikirim dan dilihat admin.
+    const contentType = req.headers.get("content-type") ?? "";
+    let body: any = null;
+    let files: File[] = [];
+    if (contentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const raw = form.get("payload");
+      body = typeof raw === "string" ? JSON.parse(raw) : null;
+      files = form.getAll("photos").filter((f): f is File => f instanceof File);
+      if (files.length > 20) return json({ error: "Maksimal 20 foto per pembatalan" }, 400);
+      if (files.some((f) => !PHOTO_TYPES.has(f.type))) {
+        return json({ error: "Format file harus JPG, PNG, atau WEBP" }, 400);
+      }
+      if (files.some((f) => f.size > 5 * 1024 * 1024)) {
+        return json({ error: "Ukuran file maksimal 5MB" }, 400);
+      }
+    } else {
+      body = await req.json().catch(() => null) as any;
+    }
     const problem = validateCancelPayload(body);
     if (problem) return json({ error: problem }, 400);
 
@@ -782,6 +802,30 @@ export async function cancelTrip(req: Request): Promise<Response> {
       load: shortText(v?.load),
       tariff: Number.isFinite(Number(v?.tariff)) ? Number(v.tariff) : 0,
     }));
+
+    // Foto draft: `body.photos` = [{ index, label }], berkasnya di `photos`.
+    // Diunggah SEBELUM insert supaya kegagalan storage tidak meninggalkan
+    // dokumen tanpa foto (mirip alur /trips/complete).
+    const photoMeta = Array.isArray(body.photos) ? body.photos.slice(0, 20) : [];
+    if (photoMeta.length !== files.length) {
+      return json({ error: "Jumlah foto dan keterangannya tidak cocok" }, 400);
+    }
+    const photos: { url: string; label: string }[] = [];
+    for (const meta of photoMeta) {
+      const file = files[Number(meta?.index)];
+      if (!file) return json({ error: "Index foto pembatalan tidak valid" }, 400);
+      photos.push({
+        url: await storePhoto(file),
+        label: shortText(meta?.label) || "Foto draft",
+      });
+    }
+    const hasPhotosColumn = await supportsColumn("trip_cancellations", "photos");
+    if (photos.length > 0 && !hasPhotosColumn) {
+      return json(
+        { error: "Kolom foto pembatalan belum ada di database — jalankan migrasi server" },
+        500,
+      );
+    }
 
     const { regionId, dermagaId } = await resolveTripReferences(
       officerId,
@@ -825,6 +869,9 @@ export async function cancelTrip(req: Request): Promise<Response> {
       started_at: startedAt,
       cancelled_at: cancelledAt,
     };
+    // Database lama (migrasi belum jalan) tetap bisa menerima pembatalan
+    // tanpa foto; kolomnya hanya ditulis kalau benar-benar ada.
+    if (hasPhotosColumn) row.photos = photos;
 
     const { error } = await db.from("trip_cancellations").insert(row).select("id").single();
     if (error) throw error;

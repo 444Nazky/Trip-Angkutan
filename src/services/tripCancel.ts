@@ -38,6 +38,13 @@ export interface CancelDocument {
     tariff: number
   }>
   photoCount: number
+  /**
+   * Foto draft yang ikut dikirim sebagai bukti pembatalan.
+   *
+   * Disimpan sebagai data URL di antrean lokal; baru diubah jadi berkas saat
+   * dikirim. Dokumen dari versi aplikasi lama tidak punya field ini.
+   */
+  photos?: CancelPhoto[]
   /** Kapan draft dibuat (epoch ms). */
   draftCreatedAt: number | null
   /** Kapan trip dimulai (epoch ms). */
@@ -48,7 +55,15 @@ export interface CancelDocument {
   officerName: string
 }
 
-/** Item antrean pembatalan (dengan status percobaan kirim). */
+/** Foto draft yang dilampirkan pada dokumen pembatalan. */
+export interface CancelPhoto {
+  dataUrl: string
+  mimeType: string
+  label: string
+}
+
+/**
+ * Item antrean pembatalan (dengan status percobaan kirim). */
 export interface CancelQueueItem extends CancelDocument {
   attempts: number
   lastError?: string
@@ -86,6 +101,19 @@ export function buildCancelDocument(
     (draft.selfieUrl ? 1 : 0) +
     vehicles.filter(v => !!v.photoUrl).length
 
+  const photos: CancelPhoto[] = []
+  const addPhoto = (dataUrl: string | null | undefined, label: string) => {
+    const url = String(dataUrl ?? '').trim()
+    if (!url) return
+    const mime = /^data:([^;,]+)/.exec(url)?.[1] ?? 'image/jpeg'
+    photos.push({ dataUrl: url, mimeType: mime, label })
+  }
+  addPhoto(draft.photoUrl, 'Foto kondisi draft')
+  addPhoto(draft.selfieUrl, 'Swafoto petugas')
+  vehicles.forEach((v, i) => {
+    addPhoto(v.photoUrl, `Foto kendaraan ${v.plate?.trim() || i + 1}`)
+  })
+
   const clientCancelId = randomId()
   return {
     cancelId: `cancel:${clientCancelId}`,
@@ -105,6 +133,7 @@ export function buildCancelDocument(
       tariff: v.tariff ?? 0,
     })),
     photoCount,
+    photos,
     draftCreatedAt: draft.startedAt ?? null,
     startedAt: draft.startedAt ?? null,
     cancelledAt: new Date().toISOString(),
@@ -138,6 +167,46 @@ export async function queueCancelDocument(doc: CancelDocument): Promise<void> {
 }
 
 /**
+ * Kirim satu dokumen pembatalan.
+ *
+ * Tanpa foto cukup JSON (jalur lama). Dengan foto harus multipart, karena
+ * berkas tidak bisa ditumpangkan pada JSON.
+ */
+async function sendCancelDocument(item: CancelQueueItem) {
+  const payload = {
+    clientCancelId: item.clientCancelId,
+    reason: item.reason,
+    note: item.note,
+    routeFrom: item.routeFrom,
+    routeTo: item.routeTo,
+    routeCode: item.routeCode,
+    condition: item.condition,
+    vehicleCount: item.vehicleCount,
+    vehicles: item.vehicles,
+    photoCount: item.photoCount,
+    startedAt: item.startedAt ? new Date(item.startedAt).toISOString() : null,
+    cancelledAt: item.cancelledAt,
+  }
+  const photos = item.photos ?? []
+  if (!photos.length) {
+    return api.post<{ id?: string; noCancel?: string }>('/trips/cancel', payload)
+  }
+
+  const form = new FormData()
+  const meta: { index: number; label: string }[] = []
+  for (let i = 0; i < photos.length; i++) {
+    const photo = photos[i]
+    const blob = await (await fetch(photo.dataUrl)).blob()
+    const ext = photo.mimeType === 'image/png' ? 'png' : photo.mimeType === 'image/webp' ? 'webp' : 'jpg'
+    form.append('photos', blob, `foto-${i}.${ext}`)
+    meta.push({ index: i, label: photo.label })
+  }
+  form.append('payload', JSON.stringify({ ...payload, photos: meta }))
+  // Unggah foto lebih lambat dari JSON biasa; beri waktu lebih.
+  return api.post<{ id?: string; noCancel?: string }>('/trips/cancel', form, 60000)
+}
+
+/**
  * Kirim antrean pembatalan ke server.
  *
  * Berhasil  -> item dihapus dari antrean.
@@ -149,39 +218,11 @@ export async function processCancelQueue(): Promise<void> {
 
   for (const item of items) {
     try {
-      let res = await api.post<{ id?: string; noCancel?: string }>('/trips/cancel', {
-        clientCancelId: item.clientCancelId,
-        reason: item.reason,
-        note: item.note,
-        routeFrom: item.routeFrom,
-        routeTo: item.routeTo,
-        routeCode: item.routeCode,
-        condition: item.condition,
-        vehicleCount: item.vehicleCount,
-        vehicles: item.vehicles,
-        photoCount: item.photoCount,
-        startedAt: item.startedAt ? new Date(item.startedAt).toISOString() : null,
-        cancelledAt: item.cancelledAt,
-      })
+      let res = await sendCancelDocument(item)
       // 401 = token ditolak. Satu percobaan login ulang, lalu kirim lagi.
       if (!res.ok && res.error?.code === '401') {
         const ok = await refreshBackendSession()
-        if (ok) {
-          res = await api.post<{ id?: string; noCancel?: string }>('/trips/cancel', {
-            clientCancelId: item.clientCancelId,
-            reason: item.reason,
-            note: item.note,
-            routeFrom: item.routeFrom,
-            routeTo: item.routeTo,
-            routeCode: item.routeCode,
-            condition: item.condition,
-            vehicleCount: item.vehicleCount,
-            vehicles: item.vehicles,
-            photoCount: item.photoCount,
-            startedAt: item.startedAt ? new Date(item.startedAt).toISOString() : null,
-            cancelledAt: item.cancelledAt,
-          })
-        }
+        if (ok) res = await sendCancelDocument(item)
       }
       if (res.ok) {
         await dbDelete('pending-cancel', item.cancelId)

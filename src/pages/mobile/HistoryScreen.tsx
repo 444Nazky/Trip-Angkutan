@@ -266,16 +266,8 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
           <p className="mt-2 text-[10px] leading-relaxed text-amber-800/80">
             {expired
-              ? `Draft sudah lewat ${draftTtlMinutes} menit — isiannya tidak bisa diedit atau ditambah kendaraannya lagi. `
-                + 'Tinggal kirim trip-nya atau batalkan dengan alasan.'
-              : `Tersimpan di perangkat untuk ${draftTtlMinutes} menit sejak dibuat. Setelah itu isiannya dibekukan `}
-            {!expired && 'dan hanya bisa dikirim atau dibatalkan.'}
-          </p>
-          <p className="mt-1 text-[10px] leading-relaxed text-amber-800/80">
-            Selama draft ini ada, tombol <strong>Mulai Trip</strong> di Beranda terkunci.{' '}
-            {expired
-              ? 'Kirim trip-nya atau batalkan dengan alasan, lalu tombolnya bisa dipakai lagi.'
-              : 'Selesaikan isiannya lewat tombol di bawah atau batalkan dengan alasan, lalu tombolnya bisa dipakai lagi.'}
+              ? 'Draft kedaluwarsa. Kirim atau batalkan untuk membuka Mulai Trip.'
+              : 'Lanjutkan atau batalkan draft untuk membuka Mulai Trip.'}
           </p>
 
           <div className="mt-3 flex gap-2">
