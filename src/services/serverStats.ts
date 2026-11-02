@@ -44,6 +44,24 @@ export interface PathStat {
   lastMs: number
 }
 
+/** Kegagalan dikelompokkan per kode HTTP + path. */
+export interface ErrorGroup {
+  status: number
+  path: string
+  count: number
+  lastAt: number
+}
+
+/** Request gagal terakhir (bukti cepat di panel). */
+export interface RecentError {
+  at: number
+  method: string
+  path: string
+  status: number
+  ms: number
+  ip?: string
+}
+
 export interface ServerMetrics {
   startedAt: number
   uptimeMs: number
@@ -60,6 +78,9 @@ export interface ServerMetrics {
   memory: { rss: number; heapUsed: number; heapTotal: number; external: number }
   buckets: MetricsBucket[]
   topPaths: PathStat[]
+  /** Opsional: server versi lama belum mengirim rincian error. */
+  topErrors?: ErrorGroup[]
+  recentErrors?: RecentError[]
   lastRequestAt: number | null
   uniqueClientsLastHour: number
 }

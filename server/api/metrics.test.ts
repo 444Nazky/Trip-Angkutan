@@ -47,6 +47,24 @@ Deno.test("bucket terisi setelah ada request", () => {
   assertEquals(last.ok >= 1, true);
 });
 
+Deno.test("snapshot() merinci error per kode + path", () => {
+  recordRequest({ path: "/uji/error-a", method: "GET", status: 404, ms: 3, ip: "10.0.0.9" });
+  recordRequest({ path: "/uji/error-a", method: "GET", status: 404, ms: 4, ip: "10.0.0.9" });
+  recordRequest({ path: "/uji/error-b", method: "POST", status: 500, ms: 9, ip: "10.0.0.9" });
+
+  const snap = snapshot();
+  const a = snap.topErrors.find((e) => e.path === "/uji/error-a");
+  const b = snap.topErrors.find((e) => e.path === "/uji/error-b");
+  assertEquals(a?.status, 404);
+  assertEquals(a?.count, 2);
+  assertEquals(b?.status, 500);
+  assertEquals(b?.count, 1);
+
+  // Kegagalan terbaru harus di paling depan.
+  assertEquals(snap.recentErrors[0].path, "/uji/error-b");
+  assertEquals(snap.recentErrors[0].status, 500);
+});
+
 Deno.test("snapshot sistem terbaca di mesin Linux", async () => {
   const sys = await systemSnapshot();
   // Deno memblokir /proc kecuali --allow-all atau --allow-run=cat (subprocess

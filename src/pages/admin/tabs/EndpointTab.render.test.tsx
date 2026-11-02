@@ -44,6 +44,8 @@ const statsPayload = {
     memory: { rss: 80 * 1024 * 1024, heapUsed: 10 * 1024 * 1024, heapTotal: 20 * 1024 * 1024, external: 0 },
     buckets: [{ minute: Date.now() - 60_000, total: 3, ok: 3, err: 0 }],
     topPaths: [{ path: '/trips', count: 10, errors: 0, avgMs: 12, lastMs: 9 }],
+    topErrors: [{ status: 404, path: '/trips/cancellations&mode=summary', count: 3, lastAt: Date.now() - 60_000 }],
+    recentErrors: [{ at: Date.now() - 60_000, method: 'GET', path: '/trips/cancellations&mode=summary', status: 404, ms: 4, ip: '192.168.1.2' }],
     lastRequestAt: Date.now(),
     uniqueClientsLastHour: 2,
   },
@@ -101,6 +103,20 @@ describe('tab Pengaturan — panel statistik server port 3000', () => {
     expect(container.textContent).toContain('Total Requests')
     expect(container.textContent).toContain('Success Rate')
     expect(container.textContent).toContain('Grafik Request per Menit')
+  })
+
+  it('menampilkan penyebab error per kode dan endpoint', async () => {
+    await act(async () => {
+      root.render(<SettingsTab />)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(container.textContent).toContain('Penyebab Error')
+    expect(container.textContent).toContain('/trips/cancellations&mode=summary')
+    expect(container.textContent).toContain('404')
+    expect(container.textContent).toContain('3')
   })
 
   it('meminta data ke server intranet, bukan ke host internet', async () => {

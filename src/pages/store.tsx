@@ -40,7 +40,6 @@ export interface VehicleEntry {
   type: string
   category: string
   golongan?: string
-  /** Kondisi kendaraan saat trip ini: bermuatan atau kosong. */
   load?: 'loaded' | 'empty'
   tariff: number
 

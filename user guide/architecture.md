@@ -70,7 +70,6 @@ Aplikasi mobile punya dua pilihan server yang dipilih petugas di
 
 | Endpoint | URL | Kapan dipakai |
 |---|---|---|
-| Supabase (cloud) | `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api` | Default, butuh internet |
 | **Intranet kantor (LAN)** | `http://192.168.1.123:3000/api` | Di kantor, tanpa internet |
 
 Kode API-nya sama persis; yang membedakan hanya lokasi server dan tempat

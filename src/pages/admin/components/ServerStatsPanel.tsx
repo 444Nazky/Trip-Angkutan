@@ -544,6 +544,51 @@ export function ServerStatsPanel() {
             </div>
           </div>
 
+          {/* Rincian error — penyebab langsung turunnya Success Rate */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Penyebab Error (per kode &amp; endpoint)</p>
+            {(() => {
+              const groups = m.topErrors ?? []
+              if (groups.length === 0) {
+                return (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[11px] text-emerald-300">
+                    Tidak ada request gagal sejak server dijalankan.
+                  </div>
+                )
+              }
+              return (
+                <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700/60">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Kode</th>
+                        <th className="px-3 py-2 font-semibold">Path</th>
+                        <th className="px-3 py-2 font-semibold">Jumlah</th>
+                        <th className="px-3 py-2 font-semibold">Terakhir</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {groups.map(g => (
+                        <tr key={`${g.status}-${g.path}`} className="text-slate-300">
+                          <td className="px-3 py-1.5 font-mono font-bold" style={{ color: g.status >= 500 ? '#EF4444' : '#F59E0B' }}>{g.status}</td>
+                          <td className="px-3 py-1.5 font-mono text-[10px]">{g.path}</td>
+                          <td className="px-3 py-1.5 font-mono">{g.count}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{formatAgo(Date.now() - g.lastAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()}
+            {(m.recentErrors?.length ?? 0) > 0 && (
+              <p className="mt-2 truncate text-[10px] text-slate-500" title={(m.recentErrors ?? []).map(e => `${new Date(e.at).toLocaleTimeString('id-ID')} ${e.method} ${e.path} → ${e.status} (${e.ip ?? '-'})`).join('\n')}>
+                Terakhir: {m.recentErrors?.[0].method} {m.recentErrors?.[0].path} → {m.recentErrors?.[0].status}
+                {' '}· {m.recentErrors?.[0].ip ?? '-'} · {m.recentErrors?.[0].at ? new Date(m.recentErrors[0].at).toLocaleTimeString('id-ID') : '-'}
+              </p>
+            )}
+          </div>
+
           {/* Top endpoint */}
           {m.topPaths.length > 0 && (
             <div className="flex min-h-0 flex-1 flex-col">
@@ -584,6 +629,15 @@ export function ServerStatsPanel() {
       )}
     </div>
   )
+}
+
+function formatAgo(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s} dtk lalu`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} mnt lalu`
+  const h = Math.floor(m / 60)
+  return `${h} jam ${m % 60} mnt lalu`
 }
 
 function StatCard({

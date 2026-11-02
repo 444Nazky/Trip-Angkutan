@@ -27,6 +27,25 @@ export type PathStat = {
   lastMs: number;
 };
 
+/** Rincian kegagalan per kode HTTP + path — penyebab langsung Success Rate turun. */
+export type ErrorGroup = {
+  status: number;
+  path: string;
+  count: number;
+  /** Epoch ms kegagalan terakhir untuk kombinasi ini. */
+  lastAt: number;
+};
+
+/** Satu request gagal terakhir (untuk bukti cepat di panel). */
+export type RecentError = {
+  at: number;
+  method: string;
+  path: string;
+  status: number;
+  ms: number;
+  ip?: string;
+};
+
 export type MetricsSnapshot = {
   /** Epoch ms saat registry dibuat (= start proses, mendekati uptime server). */
   startedAt: number;
@@ -53,6 +72,10 @@ export type MetricsSnapshot = {
   /** Deret waktu per menit (terlama -> terbaru). */
   buckets: MetricsBucket[];
   topPaths: PathStat[];
+  /** Error dikelompokkan per kode + path, terbanyak dulu. */
+  topErrors: ErrorGroup[];
+  /** Maksimal 10 kegagalan terakhir, terbaru dulu. */
+  recentErrors: RecentError[];
   lastRequestAt: number | null;
   /** Jumlah client unik (IP) yang terlihat dalam 1 jam terakhir. */
   uniqueClientsLastHour: number;
@@ -80,6 +103,11 @@ const counters = {
 let latencySamples: number[] = [];
 const buckets = new Map<number, MetricsBucket>();
 const paths = new Map<string, { count: number; errors: number; totalMs: number; lastMs: number }>();
+/** Batas grup error yang disimpan (kode+path) dan riwayat kegagalan terakhir. */
+const MAX_ERROR_GROUPS = 20;
+const MAX_RECENT_ERRORS = 10;
+const errorGroups = new Map<string, { status: number; path: string; count: number; lastAt: number }>();
+let recentErrors: RecentError[] = [];
 /** IP klien -> epoch ms request terakhir. */
 const clients = new Map<string, number>();
 let lastRequestAt: number | null = null;
@@ -151,6 +179,30 @@ export function recordRequest(input: RecordInput): void {
   stat.lastMs = input.ms;
   if (input.status >= 400) stat.errors += 1;
   paths.set(input.path, stat);
+
+  if (input.status >= 400) {
+    const key = `${input.status} ${input.path}`;
+    const group = errorGroups.get(key) ?? { status: input.status, path: input.path, count: 0, lastAt: 0 };
+    group.count += 1;
+    group.lastAt = now;
+    errorGroups.set(key, group);
+
+    recentErrors.unshift({
+      at: now,
+      method: input.method,
+      path: input.path,
+      status: input.status,
+      ms: input.ms,
+      ip: input.ip,
+    });
+    if (recentErrors.length > MAX_RECENT_ERRORS) recentErrors.length = MAX_RECENT_ERRORS;
+
+    // Jaga memori: buang grup error yang paling lama tidak muncul.
+    if (errorGroups.size > MAX_ERROR_GROUPS) {
+      const oldest = [...errorGroups.entries()].sort((a, b) => a[1].lastAt - b[1].lastAt);
+      for (const [k] of oldest.slice(0, oldest.length - MAX_ERROR_GROUPS)) errorGroups.delete(k);
+    }
+  }
 
   if (paths.size > MAX_PATHS) {
     // Buang path paling jarang dipakai.
@@ -236,6 +288,12 @@ export function snapshot(): MetricsSnapshot {
     .sort((a, b) => b.count - a.count)
     .slice(0, 12);
 
+  // Error per kode + path: inilah penyebab langsung turunnya Success Rate
+  // (mis. 3x 404 /trips/cancellations&mode=summary dari bundel lama).
+  const topErrors: ErrorGroup[] = [...errorGroups.values()]
+    .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt)
+    .slice(0, MAX_ERROR_GROUPS);
+
   return {
     startedAt,
     uptimeMs: now - startedAt,
@@ -252,6 +310,8 @@ export function snapshot(): MetricsSnapshot {
     memory: memoryUsage(),
     buckets: bucketList,
     topPaths,
+    topErrors,
+    recentErrors: [...recentErrors],
     lastRequestAt,
     uniqueClientsLastHour: clients.size,
   };
@@ -267,6 +327,8 @@ export function resetMetrics(): void {
   latencySamples = [];
   buckets.clear();
   paths.clear();
+  errorGroups.clear();
+  recentErrors = [];
   clients.clear();
   lastRequestAt = null;
 }
