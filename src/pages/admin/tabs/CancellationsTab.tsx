@@ -10,7 +10,6 @@ import {
 import { CANCEL_REASONS } from '../../../services/cancelReasons'
 import { api } from '../../../services/api'
 import { downloadXlsx } from '../../../services/xlsx'
-import { ReasonBars } from '../components/ReasonBars'
 
 interface CancellationsTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -321,31 +320,7 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
         />
       </div>
 
-      {/* Grafik */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h4 className="text-[13px] font-black text-slate-800">Pembatalan per alasan</h4>
-          <p className="mb-3 text-[11px] text-slate-500">
-            Alasan yang paling sering dipilih petugas.
-          </p>
-          <div className={state === 'loading' ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-            <ReasonBars data={summary?.byReason ?? []} total={total} />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h4 className="text-[13px] font-black text-slate-800">Petugas paling sering membatalkan</h4>
-          <p className="mb-3 text-[11px] text-slate-500">
-            Urutan petugas berdasarkan jumlah dokumen pembatalan pada rentang ini.
-          </p>
-          <div className={state === 'loading' ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-            <OfficerRanking data={summary?.byOfficer ?? []} total={total} />
-          </div>
-        </div>
-      </div>
-
-      {/* Tabel dokumen — table view: semua angka grafik bisa dibaca di sini
-          juga, tidak hanya lewat hover. */}
+      {/* Tabel dokumen — semua angka ringkasan bisa dibaca di sini juga. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <div>
@@ -500,63 +475,6 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
         )}
       </div>
     </div>
-  )
-}
-
-/**
- * Petugas dengan pembatalan terbanyak.
- *
- * Bentuknya daftar berperingkat, bukan grafik waktu: yang dicari admin adalah
- * SIAPA yang sering membatalkan, dan itu cukup dibaca sebagai baris teks +
- * panjang batang. Warna tunggal, sama seperti ReasonBars (magnituda, bukan
- * identitas).
- */
-function OfficerRanking({
-  data,
-  total,
-}: {
-  data: { officerId: string; officerName: string; count: number }[]
-  total: number
-}) {
-  if (!data.length) {
-    return (
-      <p className="px-1 py-6 text-center text-[12px] text-slate-400">
-        Belum ada pembatalan pada rentang ini.
-      </p>
-    )
-  }
-  const ranked = [...data].sort((a, b) => b.count - a.count)
-  const max = Math.max(...ranked.map(d => d.count), 1)
-
-  return (
-    <ul className="space-y-3">
-      {ranked.map((d, i) => {
-        const pct = total > 0 ? Math.round((d.count / total) * 100) : 0
-        const widthPct = Math.max(1, (d.count / max) * 100)
-        const name = d.officerName || 'Tanpa nama'
-        return (
-          <li key={d.officerId || name}>
-            <div className="mb-1 flex items-baseline justify-between gap-3">
-              <span className="truncate text-[12px] font-medium text-slate-700" title={name}>
-                <span className="mr-1.5 text-[10px] font-bold tabular-nums text-slate-400">
-                  {i + 1}.
-                </span>
-                {name}
-              </span>
-              <span className="shrink-0 text-[11px] font-bold tabular-nums text-slate-500">
-                {d.count} - {pct}%
-              </span>
-            </div>
-            <div className="h-2.5 w-full rounded-sm bg-slate-200">
-              <div
-                className="h-2.5 rounded-r bg-emerald-500"
-                style={{ width: `${widthPct}%` }}
-              />
-            </div>
-          </li>
-        )
-      })}
-    </ul>
   )
 }
 

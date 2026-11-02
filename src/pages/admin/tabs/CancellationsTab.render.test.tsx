@@ -5,7 +5,7 @@
  * Yang diuji:
  *   1. dokumen pembatalan tampil lengkap dengan alasan & keterangan,
  *   2. kartu statistik memakai angka ringkasan dari server,
- *   3. grafik "per alasan" menampilkan setiap alasan beserta jumlahnya,
+ *   3. kartu grafik per alasan / per petugas sudah dihapus (rangkuman saja),
  *   4. filter alasan benar-benar dikirim ke server (bukan hanya di UI),
  *   5. rincian kendaraan terbuka saat baris diklik.
  *
@@ -163,15 +163,15 @@ describe('CancellationsTab (render harness)', () => {
     expect(tiles).toContain('3')
   })
 
-  it('menampilkan grafik pembatalan per alasan dengan jumlahnya', async () => {
+  it('tidak lagi menampilkan kartu grafik per alasan dan per petugas', async () => {
     await renderTab()
 
     const body = container.textContent ?? ''
-    expect(body).toContain('Pembatalan per alasan')
-    expect(body).toContain('Petugas paling sering membatalkan')
-    // Setiap alasan tampil beserta jumlah & persentasenya.
-    expect(body).toContain('Pelanggan membatalkan')
-    expect(body).toMatch(/1 · 50%/)
+    expect(body).not.toContain('Pembatalan per alasan')
+    expect(body).not.toContain('Petugas paling sering membatalkan')
+    // Ringkasan tetap tersedia lewat kartu statistik & tabel dokumen.
+    expect(body).toContain('Alasan teratas')
+    expect(body).toContain('Petugas terlibat')
   })
 
   it('mengirim filter alasan ke server saat alasan dipilih', async () => {
