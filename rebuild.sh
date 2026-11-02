@@ -2,11 +2,11 @@
 # =============================================================================
 #  rebuild.sh
 #  Bangun ulang image Docker Trip Angkutan (web + API intranet) dari sumber
-#  terbaru, lalu jalankan restart-all-ubuntu.sh.
+#  terbaru, lalu jalankan restart.sh.
 #
-#  Dipisah dari restart-all-ubuntu.sh karena build memakan waktu lama:
+#  Dipisah dari restart.sh karena build memakan waktu lama:
 #    - Perubahan kode       -> ./rebuild.sh
-#    - Cuma restart layanan -> ./restart-all-ubuntu.sh
+#    - Cuma restart layanan -> ./restart.sh
 #
 #  Kalau build gagal, container lama dibiarkan berjalan (tidak ada `down`).
 # =============================================================================
@@ -15,7 +15,7 @@ set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")" && pwd)"
 
-# ── Deteksi docker (sama dengan restart-all-ubuntu.sh) ───────────────────────
+# ── Deteksi docker (sama dengan restart.sh) ───────────────────────
 
 if [ "$(id -u)" -eq 0 ]; then
     DOCKER="docker"
@@ -60,4 +60,4 @@ if [ "$FAILURES" -gt 0 ]; then
 fi
 
 echo "[*] Build selesai. Menjalankan restart..."
-exec "$BASE/restart-all-ubuntu.sh"
+exec "$BASE/restart.sh"
