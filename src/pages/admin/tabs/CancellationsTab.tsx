@@ -8,6 +8,7 @@ import {
   type TripCancellationSummary,
 } from '../../../services/trips'
 import { CANCEL_REASONS } from '../../../services/cancelReasons'
+import { api } from '../../../services/api'
 import { downloadXlsx } from '../../../services/xlsx'
 import { ReasonBars } from '../components/ReasonBars'
 
@@ -21,6 +22,17 @@ const INPUT_CLS =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
 const BTN_GHOST =
   'inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40'
+
+/**
+ * Server menyimpan URL foto sebagai path relatif ("/files/...").
+ * Halaman admin disajikan dari port berbeda (8000) daripada API (3000),
+ * jadi path relatif harus diarahkan ke origin API.
+ */
+function fileUrl(url: string): string {
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
+  const origin = api.baseUrl.replace(/\/api\/?$/, '')
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`
+}
 
 const RANGE_PRESETS: { key: RangeKey; label: string; days: number | null }[] = [
   { key: 'today', label: 'Hari Ini', days: 1 },
@@ -411,7 +423,27 @@ export function CancellationsTab({ showToast }: CancellationsTabProps) {
                           {c.vehicle_count ?? 0}
                         </td>
                         <td className="p-3 text-right text-[12px] tabular-nums text-slate-700">
-                          {c.photo_count ?? 0}
+                          {c.photos?.[0]?.url ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <a
+                                href={fileUrl(c.photos[0].url)}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={c.photos[0].label ?? 'Lihat foto draft'}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <img
+                                  src={fileUrl(c.photos[0].url)}
+                                  alt={c.photos[0].label ?? 'Foto draft'}
+                                  loading="lazy"
+                                  className="h-9 w-9 rounded-md border border-slate-200 object-cover"
+                                />
+                              </a>
+                              <span className="text-[11px] text-slate-500">{c.photos.length}</span>
+                            </span>
+                          ) : (
+                            c.photo_count ?? 0
+                          )}
                         </td>
                       </tr>
                       {isOpen && (
@@ -549,6 +581,9 @@ function CancelPhotos({
       </p>
     ) : null
   }
+  // Server menyimpan URL berkas sebagai path relatif ("/files/..."). Halaman
+  // admin disajikan dari port berbeda (8000) daripada API (3000), jadi path
+  // relatif akan dicari di server admin dan fotonya 404.
   return (
     <div className="mt-3">
       <p className="mb-1.5 text-[11px] font-bold text-slate-600">Foto draft</p>
@@ -556,14 +591,14 @@ function CancelPhotos({
         {list.map((p, i) => (
           <a
             key={`${p.url}-${i}`}
-            href={p.url}
+            href={fileUrl(p.url)}
             target="_blank"
             rel="noreferrer"
             className="group block w-24"
             title={p.label ?? 'Foto draft'}
           >
             <img
-              src={p.url}
+              src={fileUrl(p.url)}
               alt={p.label ?? 'Foto draft'}
               loading="lazy"
               className="h-24 w-24 rounded-lg border border-slate-200 object-cover transition group-hover:border-blue-400"

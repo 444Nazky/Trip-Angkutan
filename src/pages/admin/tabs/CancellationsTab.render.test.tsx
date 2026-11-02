@@ -32,7 +32,7 @@ const CANCEL_ROWS = [
     photo_count: 2,
     photos: [
       { url: 'http://server/foto-kondisi.jpg', label: 'Foto kondisi draft' },
-      { url: 'http://server/swafoto.jpg', label: 'Swafoto petugas' },
+      { url: '/files/trip-photos/swafoto.jpg', label: 'Swafoto petugas' },
     ],
     vehicles: [
       { plate: 'B 1234 XY', type: 'Mobil', category: 'Lokal', load: 'loaded', tariff: 75000 },
@@ -221,6 +221,12 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toContain('Swafoto petugas')
     const images = Array.from(container.querySelectorAll('img'))
     expect(images.map(img => img.getAttribute('src'))).toContain('http://server/foto-kondisi.jpg')
+
+    // Path relatif dari server (mis. "/files/trip-photos/...") harus diarahkan
+    // ke origin API, bukan origin halaman admin (port berbeda).
+    const swafoto = images.map(img => img.getAttribute('src') ?? '')
+      .find(src => src.includes('/files/trip-photos/swafoto.jpg'))
+    expect(swafoto).toMatch(/^https?:\/\/[^/]+\/files\/trip-photos\/swafoto\.jpg$/)
 
     // Dokumen lama hanya menyimpan jumlah foto tanpa URL.
     await act(async () => {
