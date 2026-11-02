@@ -1,7 +1,6 @@
  import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
-import { semverLabel } from '../../services/ota'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useApp } from '../store'
@@ -72,8 +71,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
   const updateReady = update.status === 'ready'
   const appVersion = appUpdate.currentAppVersion
-  const moduleVersion = appUpdate.currentModuleVersion
-  const versionLine = `Versi APK ${appVersion ?? '—'} · modul ${moduleVersion ? semverLabel(moduleVersion) : '—'}`
+  const versionLine = `Versi APK ${appVersion ?? '—'}`
  // Status check untuk menentukan state tombol
   const isChecking = update.status === 'checking'
   const isDownloading = update.status === 'downloading'
@@ -86,11 +84,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const updateNote = (() => {
     if (busy || isChecking) return 'Memeriksa pembaruan…'
     if (isDownloading) return 'Mengunduh pembaruan…'
-    if (isInstalling) return update.kind === 'apk' ? 'Menunggu pemasangan APK…' : 'Menerapkan modul baru…'
+    if (isInstalling) return 'Menunggu pemasangan APK…'
     if (updateReady) {
-      return update.kind === 'apk'
-        ? `Versi APK ${update.version} siap dipasang — tekan tombol untuk memulai`
-        : `Modul ${semverLabel(update.version ?? '')} siap dipasang — tekan tombol untuk memulai`
+      return `Versi APK ${update.version} siap dipasang — tekan tombol untuk memulai`
     }
     if (isUpToDate) return 'Sudah versi terbaru'
     if (hasError) return update.error ?? 'Pemeriksaan pembaruan gagal'
@@ -224,7 +220,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         </div>
         {updateReady && !busy && (
           <div className="flex items-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-[10px] text-emerald-800">
-            <AlertCircle size={13} /> {update.kind === 'apk' ? 'Paket APK' : 'Modul web'} {update.version} siap dipasang — cukup satu tombol.
+            <AlertCircle size={13} /> Paket APK {update.version} siap dipasang — cukup satu tombol.
           </div>
         )}
         {update.status === 'error' && !busy && (

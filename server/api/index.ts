@@ -310,15 +310,12 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // ---------------- impor massal (migrasi sekali jalan) ----------------
   if (a === "admin" && b === "import" && req.method === "POST") return await imp.importData(req);
 
-  // ---------------- app update / OTA ----------------
+  // ---------------- app update (APK penuh) ----------------
   if (a === "app-version" && req.method === "GET") return await upd.getAppVersion(req, url);
   if (a === "release-notes" && req.method === "GET" && b) return await upd.releaseNotes(req, b);
   if (a === "apk-list" && req.method === "GET") return await upd.apkList(req);
   if (a === "publish-version" && req.method === "POST") return await upd.publishVersion(req);
   if (a === "app-download" && req.method === "GET" && b) return await upd.appDownload(req, b);
-  if (a === "ota-manifest" && req.method === "GET") return await upd.otaManifest(req);
-  if (a === "ota-versions" && req.method === "GET") return await upd.otaVersions(req);
-  if (a === "publish-ota" && req.method === "POST") return await upd.publishOta(req);
   if (a === "report-version" && req.method === "POST") return await upd.reportDeviceVersion(req);
   if (a === "device-versions" && req.method === "GET") return await upd.deviceVersions(req);
 
@@ -453,7 +450,7 @@ const anomalySeen = new Map<string, number>();
  * File: direktori lokal, dilayani di `/files/<bucket>/<path>`.
  */
 export async function handleRequest(req: Request): Promise<Response> {
-  // File lokal (foto trip, APK, bundle OTA) dilayani langsung dari disk,
+  // File lokal (foto trip, APK) dilayani langsung dari disk,
   // tanpa lewat database maupun rate limiter API.
   const asset = await serveStoredFile(new URL(req.url).pathname);
   if (asset) return asset;

@@ -1,7 +1,7 @@
 // ─── Sumber tunggal alamat backend (PRODUKSI) ────────────────────────────────
 //
 // Aplikasi hanya memakai server INTRANET kantor (PC lokal, port 3000). Tidak
-// ada endpoint cloud: seluruh permintaan, unggahan berkas, dan pembaruan OTA
+// ada endpoint cloud: seluruh permintaan, unggahan berkas, dan pembaruan aplikasi
 // dilayani mesin yang sama di jaringan lokal.
 const INTRANET_API_BASE_URL = 'http://192.168.1.123:3000/api'
 

@@ -38,12 +38,11 @@ const IMPORT_TABLES = [
   "plate_scans",
   "app_versions",
   "device_versions",
-  "ota_bundles",
   "admin_credentials",
 ] as const;
 
 /** Bucket penyimpanan yang boleh diisi lewat impor. */
-const IMPORT_BUCKETS = ["trip-photos", "apks", "ota"] as const;
+const IMPORT_BUCKETS = ["trip-photos", "apks"] as const;
 
 /** Jumlah baris per permintaan INSERT. */
 const CHUNK = 200;

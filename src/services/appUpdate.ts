@@ -1,7 +1,5 @@
-import { applyUpdate, checkForUpdate, getCurrentVersion, type CheckResult, type UpdateState } from './ota'
 import { getNativeVersion, isNewerVersion, shouldForceUpdate, updateService } from './updateService'
-import { hardReloadToNewBundle } from './otaReload'
-import { isLocalhostDev } from './ota'
+import { isLocalhostDev } from './runtimeEnv'
 import { isNativeAndroid } from './apkInstaller'
 
 
@@ -22,9 +20,12 @@ if (updateDisabled()) {
 
 
 
-// Dua kanal pembaruan (modul web + paket APK) dijalankan oleh satu alur:
-// tombol "Cek & Perbarui Aplikasi" tidak perlu tahu kanal mana yang aktif.
-export type AppUpdateKind = 'module' | 'apk'
+// Pembaruan aplikasi SELALU lewat paket APK penuh.
+//
+// DULU ada dua kanal: bundel modul web (OTA) dan paket APK. Kanal OTA sudah
+// dihapus seluruhnya — sekarang satu-satunya cara memperbarui aplikasi adalah
+// memasang APK baru dari server intranet.
+export type AppUpdateKind = 'apk'
 
 
 
@@ -67,7 +68,6 @@ const IDLE: AppUpdateState = {
 class AppUpdateController {
   private _state: AppUpdateState = { ...IDLE }
   private _listeners = new Set<Listener>()
-  private _currentModule: string | null = null
   private _currentApp: string | null = null
   private _checking: Promise<AppUpdateState> | null = null
 
@@ -75,12 +75,6 @@ class AppUpdateController {
 
   get state(): AppUpdateState {
     return this._state
-  }
-
-
-
-  get currentModuleVersion(): string | null {
-    return this._currentModule
   }
 
 
@@ -111,19 +105,16 @@ class AppUpdateController {
 
 
 
-  async refreshVersions(): Promise<{ module: string | null; app: string | null }> {
+  async refreshVersions(): Promise<{ app: string | null }> {
     // Skip version refresh for localhost development
     if (updateDisabled()) {
-      return { module: null, app: null }
+      return { app: null }
     }
-    try {
-      this._currentModule = (await getCurrentVersion()) ?? this._currentModule
-    } catch { /* pakai nilai lama */ }
     try {
       this._currentApp = (await getNativeVersion()) ?? updateService.currentVersion ?? this._currentApp
     } catch { /* pakai nilai lama */ }
     this.set({})
-    return { module: this._currentModule, app: this._currentApp }
+    return { app: this._currentApp }
   }
 
 
@@ -145,23 +136,17 @@ class AppUpdateController {
 
   private async runCheck(): Promise<AppUpdateState> {
     this.set({ status: 'checking', error: null })
-    const { module: moduleVersion } = await this.refreshVersions()
+    await this.refreshVersions()
 
-    // Paket APK diperiksa lebih dulu: kalau ada versi native baru, itu yang dipasang.
-    //
-    // HANYA di aplikasi native Android. Di browser / mobile web berkas APK
-    // tidak bisa dipasang, jadi kanal itu cuma memaksa unduhan ~16 MB sia-sia
-    // dan memblokir kanal modul (OTA) yang justru channel yang tepat untuk web.
-    const apkInfo = isNativeAndroid()
-      ? await updateService.checkForUpdate().catch(() => null)
-      : null
-    // Server benar-benar menjawab "tidak ada APK baru" (bukan gagal jaringan):
-    // info dikembalikan walau updateAvailable=false, dan error tidak di-set.
-    const apkConfirmedLatest = isNativeAndroid()
-      && !!apkInfo
-      && !apkInfo.updateAvailable
-      && updateService.state === 'up-to-date'
-      && !updateService.error
+    // Paket APK HANYA bisa dipasang di aplikasi native Android. Di browser /
+    // mobile web berkas APK tidak bisa dipasang, jadi kanal itu dilewati
+    // seluruhnya - tidak ada kanal pengganti lagi.
+    if (!isNativeAndroid()) {
+      this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
+      return this._state
+    }
+
+    const apkInfo = await updateService.checkForUpdate().catch(() => null)
     if (apkInfo?.updateAvailable && updateService.state === 'ready') {
       const currentApp = this._currentApp ?? '0.0.0'
       const force = Boolean(apkInfo.isForceUpdate)
@@ -177,61 +162,13 @@ class AppUpdateController {
       return this._state
     }
 
-    let moduleState: UpdateState = { status: 'idle' }
-    const result = await checkForUpdate(moduleVersion, state => { moduleState = state }, true)
-      .catch((): CheckResult => ({ available: false }))
-    if (result.available) {
-      const moduleVersion = String(result.version ?? '')
-      const moduleCore = moduleVersion.split('+')[0]
-      const appVersion = this._currentApp
-      // Bundel modul yang lebih lama dari APK terpasang tidak boleh ditawarkan:
-      // APK 1.0.8 sudah memuat modul web yang lebih baru daripada bundel OTA
-      // 1.0.5 di server. Dulu kondisi ini membuat tombol "Update" terus muncul
-      // di versi terbaru, dan menekannya berakhir dengan galat penerapan.
-      const moduleOlderThanApp = isNativeAndroid()
-        && apkConfirmedLatest
-        && !!appVersion
-        && !!moduleCore
-        && isNewerVersion(moduleCore, appVersion)
-      if (moduleOlderThanApp) {
-        console.log(`[Update] Modul ${moduleVersion} lebih lama dari APK ${appVersion} — sudah versi terbaru`)
-        this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
-        return this._state
-      }
-      this.set({
-        status: 'ready',
-        kind: 'module',
-        version: result.version ?? null,
-        notes: null,
-        isForce: false,
-        error: null,
-      })
-      return this._state
-    }
-
     const apkError = updateService.error
     if (apkError?.message) {
       this.set({ status: 'error', kind: 'apk', version: null, error: apkError.message })
       return this._state
     }
-    // Kanal APK sudah memastikan server terjangkau & versi terpasang adalah
-    // yang terbaru. Kegagalan kanal modul (endpoint OTA tidak tersedia / tidak
-    // menjawab) TIDAK boleh dilaporkan sebagai error: jawabannya tetap
-    // "sudah versi terbaru" — inilah yang dulu muncul sebagai galat merah
-    // saat petugas menekan tombol update padahal aplikasi sudah terbaru.
-    if (moduleState.status === 'offline' || moduleState.status === 'error') {
-      if (apkConfirmedLatest) {
-        this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
-        return this._state
-      }
-      if (moduleState.status === 'offline') {
-        this.set({ status: 'offline', kind: null, version: null, error: null })
-        return this._state
-      }
-      this.set({ status: 'error', kind: 'module', version: null, error: moduleState.error ?? 'Gagal menghubungi server pembaruan' })
-      return this._state
-    }
 
+    // Server sudah terjangkau dan versi terpasang adalah yang terbaru.
     this.set({ status: 'up-to-date', kind: null, version: null, notes: null, error: null })
     return this._state
   }
@@ -245,9 +182,7 @@ class AppUpdateController {
       this.set({ ...IDLE, status: 'up-to-date', error: null })
       return false
     }
-    if (this._state.kind === 'apk') return this.applyApk()
-    if (this._state.kind === 'module') return this.applyModule()
-    return false
+    return this.applyApk()
   }
 
 
@@ -265,26 +200,11 @@ class AppUpdateController {
     this.set({ status: 'installing', error: null })
     const started = await updateService.installUpdate()
     if (!started) {
-      this.set({ status: 'error', error: updateService.error?.message ?? 'Gagal memulai pemasangan APK' })
+      this.set({ status: 'error', kind: 'apk', version: null, error: updateService.error?.message ?? 'Gagal memulai pemasangan APK' })
       return false
     }
     // Versi baru hanya sah setelah aplikasi hidup kembali.
     setTimeout(() => { void this.syncInstalledVersion() }, 5000)
-    return true
-  }
-
-
-
-  private async applyModule(): Promise<boolean> {
-    this.set({ status: 'downloading', error: null })
-    const version = this._state.version
-    const applied = await applyUpdate()
-    if (!applied) {
-      this.set({ status: 'error', kind: 'module', error: 'Gagal menerapkan modul baru' })
-      return false
-    }
-    this.set({ status: 'installing', error: null })
-    await hardReloadToNewBundle(version ?? undefined)
     return true
   }
 

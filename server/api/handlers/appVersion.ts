@@ -1,9 +1,12 @@
-// Handler update aplikasi/OTA: metadata rilis di tabel `app_versions`, manifest
-// OTA di `ota_bundles`, berkas di direktori lokal `apks` dan `ota`.
+// Handler update aplikasi: metadata rilis di tabel `app_versions`, berkas APK
+// di direktori lokal `apks`.
+//
+// TIDAK ADA lagi kanal OTA (bundel modul web): pembaruan aplikasi kini
+// SELALU lewat paket APK penuh. Endpoint & tabel `ota_bundles` sudah
+// dihapus.
 import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
 const APK_BUCKET = "apks";
-const OTA_BUCKET = "ota";
 function storagePublicUrl(bucket: string, path: string): string {
   return db.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
@@ -230,129 +233,6 @@ export async function appDownload(req: Request, version: string): Promise<Respon
   } catch {
     return json({ error: "APK_NOT_FOUND" }, 404);
   }
-}
-
-// GET /ota-manifest
-export async function otaManifest(_req: Request): Promise<Response> {
-  try {
-    const { data, error } = await db.from("ota_bundles").select("manifest, published_at");
-    if (error || !data?.length) {
-      return json({ error: "OTA_NOT_PUBLISHED", message: "Belum ada bundel modul yang dipublikasikan" }, 404);
-    }
-    // ponytail: pick active (highest version) client-side; cukup karena manifest kecil
-    const active = (data as any[]).sort((a, b) => compareVersions(b.manifest.version, a.manifest.version))[0];
-    const m = active.manifest;
-    return new Response(JSON.stringify({
-      version: m.version,
-      assets: m.assets,
-      integrity: m.integrity || {},
-      minVersion: m.minVersion || null,
-      isForceUpdate: Boolean(m.isForceUpdate),
-      releaseNotes: m.releaseNotes || "",
-      publishedAt: m.publishedAt || active.published_at || null,
-    }), {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
-  } catch (error) {
-    console.error("OTA manifest error:", error);
-    return json({ error: "OTA_MANIFEST_FAILED", message: "Gagal membaca manifest modul" }, 500);
-  }
-}
-
-// GET /ota-versions
-export async function otaVersions(_req: Request): Promise<Response> {
-  try {
-    const { data } = await db.from("ota_bundles").select("manifest, published_at");
-    const rows = (data ?? []) as any[];
-    const versions = rows.map((r) => r.manifest.version).sort(compareVersions).reverse();
-    const active = versions[0] || null;
-    return json({ activeVersion: active, versions });
-  } catch {
-    return json({ activeVersion: null, versions: [] });
-  }
-}
-
-// POST /publish-ota  (x-publish-secret) — files: { assetPath: base64 }
-export async function publishOta(req: Request): Promise<Response> {
-  const secret = req.headers.get("x-publish-secret");
-  const expected = Deno.env.get("PUBLISH_SECRET") || "trip-angkut-secret";
-  if (secret !== expected) return json({ error: "UNAUTHORIZED", message: "Unauthorized" }, 401);
-
-  const { version, files, releaseNotes, minVersion, isForceUpdate } = await req.json().catch(() => ({})) as any;
-  if (!version || !/^\d+\.\d+\.\d+(?:\+\d+)?$/.test(String(version))) {
-    return json({ error: "INVALID_VERSION", message: "Versi modul tidak valid (contoh: 1.0.26+1792118276850)" }, 400);
-  }
-  if (!files || typeof files !== "object") {
-    return json({ error: "MISSING_FILES", message: "Payload files (base64 per berkas) wajib diisi" }, 400);
-  }
-
-  const entries = Object.entries(files);
-  if (!entries.length || entries.length > 120) {
-    return json({ error: "INVALID_FILES", message: "Jumlah berkas harus 1..120" }, 400);
-  }
-
-  const cleaned: { assetPath: string; bytes: Uint8Array; sha256: string }[] = [];
-  for (const [rawPath, rawBase64] of entries) {
-    const assetPath = String(rawPath ?? "").replace(/\\/g, "/").trim();
-    if (!assetPath || assetPath.startsWith("/") || assetPath.includes("..")) {
-      return json({ error: "INVALID_ASSET_PATH", message: `Nama berkas tidak sah: ${rawPath}` }, 400);
-    }
-    const bytes = Uint8Array.from(atob(String(rawBase64 ?? "")), (c) => c.charCodeAt(0));
-    if (!bytes.length) return json({ error: "EMPTY_ASSET", message: `Berkas kosong: ${assetPath}` }, 400);
-    if (bytes.length > 8 * 1024 * 1024) {
-      return json({ error: "ASSET_TOO_LARGE", message: `Berkas terlalu besar: ${assetPath}` }, 400);
-    }
-    cleaned.push({ assetPath, bytes, sha256: await sha256Hex(bytes) });
-  }
-
-  if (!cleaned.some((item) => item.assetPath === "index.html")) {
-    return json({ error: "MISSING_ENTRY", message: "Bundel harus memuat index.html" }, 400);
-  }
-
-  const integrity: Record<string, string> = {};
-  for (const item of cleaned) integrity[item.assetPath] = item.sha256;
-
-  // Upload ke storage bucket dulu, supaya tanda "publish" aman kalau upload gagal
-  for (const item of cleaned) {
-    const { error } = await db.storage
-      .from(OTA_BUCKET)
-      .upload(`${String(version)}/${item.assetPath}`, item.bytes.buffer as ArrayBuffer, { upsert: true });
-    if (error) {
-      console.error(`OTA upload error (${item.assetPath}):`, error);
-      return json({ error: "OTA_PUBLISH_FAILED", message: `Gagal upload bundel modul (${item.assetPath})` }, 500);
-    }
-  }
-
-  const manifest = {
-    version: String(version),
-    assets: cleaned.map((i) => i.assetPath),
-    integrity,
-    minVersion: minVersion || null,
-    isForceUpdate: Boolean(isForceUpdate),
-    releaseNotes: releaseNotes || "",
-    publishedAt: new Date().toISOString(),
-  };
-
-  const { error: insertErr } = await db
-    .from("ota_bundles")
-    .insert({ version: String(version), manifest, published_at: manifest.publishedAt });
-  if (insertErr) {
-    console.error("OTA insert error:", insertErr);
-    return json({ error: "OTA_PUBLISH_FAILED", message: "Gagal publikasi manifest" }, 500);
-  }
-
-  return json({
-    success: true,
-    version: manifest.version,
-    files: manifest.assets.length,
-    pruned: [],
-    message: `Modul ${manifest.version} dipublikasikan`,
-  });
 }
 
 // POST /report-version (upsert device)

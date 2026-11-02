@@ -13,14 +13,14 @@
  *   4. VERIFIKASI: setiap referensi lokal di index.html & setiap impor dinamis
  *      `./chunk-*.js` harus menunjuk berkas yang benar-benar ada.
  *
- * MENGAPA AMAN untuk aplikasi mobile + OTA:
+ * MENGAPA AMAN untuk aplikasi mobile:
  *   • index.html tetap di root www → base href="/" & navigasi SW tetap sama.
  *   • SEMUA JS pindah SEKALIGUS (entry + chunk) → impor dinamis antar chunk
  *     memakai jalur RELATIF (`./chunk-x.js`) dan tetap valid karena berada di
  *     folder yang sama. Tidak ada satu pun string path di dalam JS yang perlu
  *     diubah → tidak ada risiko white screen akibat rewrite keliru.
  *   • CSS tidak punya `url(...)` lokal (semua data:/https) → aman dipindah.
- *   • version.json (OTA) dibuat dari isi www SETELAH script ini jalan, sehingga
+ *   • manifest dibuat dari isi www SETELAH script ini jalan, sehingga
  *     manifest selalu konsisten dengan struktur di lapangan.
  *
  * Script IDEMPOTEN: dijalankan ulang tidak menggandakan apa pun.
@@ -39,8 +39,8 @@ const CSS_OUT = path.join('assets', 'css')
 /** Nama bundle yang dikeluarkan Angular/esbuild di root www. */
 const BUNDLE_JS = /^(?:chunk|main)-[\w-]+\.js$/
 const BUNDLE_CSS = /^(?:chunk|main|styles)-[\w-]+\.css$/
-/** Berkas yang TIDAK BOLEH dipindah dari root (dibaca aplikasi/OTA). */
-const KEEP_AT_ROOT = new Set(['sw.js', 'index.html', 'version.json', 'prerendered-routes.json', '3rdpartylicenses.txt'])
+/** Berkas yang TIDAK BOLEH dipindah dari root (dibaca aplikasi). */
+const KEEP_AT_ROOT = new Set(['index.html', 'prerendered-routes.json', '3rdpartylicenses.txt'])
 
 const errors = []
 const log = (msg) => console.log(msg)
@@ -54,7 +54,7 @@ function ensureWww() {
 
 /**
  * Buang bundle LAMA di folder tujuan (dari build sebelumnya yang tidak dibersihkan
- * Angular) supaya hash basi tidak menumpuk dan tidak ikut terbawa manifest OTA.
+ * Angular) supaya hash basi tidak menumpuk dan tidak ikut terbawa.
  * HANYA dijalankan bila ada bundle BARU yang dipindah dari root — agar script
  * aman diulang (idempoten) pada hasil build yang sudah tertata.
  */
@@ -199,8 +199,6 @@ function verify(moved) {
     }
   }
 
-  // 4. Service worker OTA tetap di root (registrasi memakai 'sw.js')
-  if (!fs.existsSync(path.join(WWW, 'sw.js'))) errors.push('sw.js hilang dari root www — OTA tidak akan terdaftar')
 }
 
 function main() {

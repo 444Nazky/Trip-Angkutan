@@ -19,7 +19,6 @@ import {
   setApiBaseUrlOverride,
   validateEndpointInput,
 } from './api'
-import { otaAssetsBase } from './ota'
 import { environment } from '../environments/environment'
 
 // `native` = apakah aplikasi dianggap berjalan di WebView native (Capacitor).
@@ -91,12 +90,6 @@ describe('endpoint intranet tunggal', () => {
     expect(api.url).toBe('http://192.168.1.123:3000/api')
   })
 
-  it('bundel OTA diambil dari server intranet yang sedang aktif', () => {
-    // Bundel disajikan server yang sama dengan API (/files/ota), jadi origin
-    // aset harus mengikuti base URL aktif.
-    setApiBaseUrlOverride('http://192.168.1.123:3000/api')
-    expect(otaAssetsBase()).toBe('http://192.168.1.123:3000/files/ota/')
-  })
 })
 
 describe('split-brain endpoint: mobile app & dashboard admin wajib server sama', () => {

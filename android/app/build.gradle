@@ -29,8 +29,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Rilis 1.1.4 - Ubah dialog pembatalan: hapus opsi alasan bawaan,
         // ganti dengan input teks manual maksimal 55 karakter (wajib diisi).
-        versionCode 23
-        versionName "1.1.4"
+        versionCode 24
+        versionName "1.1.5"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

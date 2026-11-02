@@ -2,7 +2,7 @@
  * Migrasi data sekali jalan: server daring -> server intranet lokal.
  *
  * Menyalin SELURUH baris tabel operasional beserta berkas di bucket
- * trip-photos/ apks/ ota/ ke PostgreSQL lokal (lewat PostgREST) dan ke
+ * trip-photos/ dan apks/ ke PostgreSQL lokal (lewat PostgREST) dan ke
  * STORAGE_DIR di PC kantor. Jalankan SEKALI di PC kantor, di jaringan yang
  * masih punya akses ke server lama, sebelum aplikasi dipakai penuh di
  * jaringan lokal.
@@ -12,9 +12,9 @@
  *     officer_regions, officer_dermagas, vehicles, tariffs, vehicle_plates,
  *     region_tariffs.
  *   - Tabel transaksi : trips, trip_vehicles, plate_scans.
- *   - Tabel rilis : app_versions, device_versions, ota_bundles,
+ *   - Tabel rilis : app_versions, device_versions,
  *     admin_credentials.
- *   - Berkas : seluruh isi bucket trip-photos/, apks/, dan ota/.
+ *   - Berkas : seluruh isi bucket trip-photos/ dan apks/.
  *
  * URL berkas di dalam database ditulis ulang menjadi path lokal relatif
  * (`/files/<bucket>/<path>`). Tanpa langkah ini, data hasil migrasi masih
@@ -66,11 +66,10 @@ const TABLES = [
   "plate_scans",
   "app_versions",
   "device_versions",
-  "ota_bundles",
-  "admin_credentials",
+    "admin_credentials",
 ];
 
-const BUCKETS = ["trip-photos", "apks", "ota"];
+const BUCKETS = ["trip-photos", "apks"];
 
 /**
  * Kolom yang menyimpan path berkas, per tabel.

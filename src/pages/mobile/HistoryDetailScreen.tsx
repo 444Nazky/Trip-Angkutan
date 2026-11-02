@@ -118,9 +118,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const brokenCount = Object.keys(broken).length
 
-  // Status dokumen pembatalan — sumber kebenaran untuk trip berstatus batal.
-  // 'sent' hanya kalau server benar-benar mengonfirmasi (bukti kirim tercatat),
-  // bukan sekadar karena antrean kebetulan kosong.
+
   const cancelItem = t.cancelId ? cancelQueue.find(i => i.cancelId === t.cancelId) : undefined
   const cancelDelivered = t.cancelId ? deliveredCancels[t.cancelId] : undefined
   const cancelState: 'sent' | 'failed' | 'pending' = cancelItem
@@ -129,15 +127,6 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       ? 'sent'
       : 'pending'
 
-  // Trip yang sudah SELESAI bersifat FINAL: tidak bisa diedit lagi, aunque
-  // datanya belum sempat sinkron ke server intranet.
-  //
-  // DULU masih ada tombol "Ubah" (plat/jenis/golongan) dan tombol ambil
-  // ulang foto selama trip belum terkirim. Akibatnya isi trip bisa berubah
-  // setelah petugas menekan "Kirim Trip" — server sudah menerima versi
-  // pertama, lalu perangkat mengirim versi berbeda. Sekarang begitu trip
-  // selesai, isinya beku: satu-satunya koreksi adalah membatalkan trip
-  // (dengan alasan) dan mencatatnya sebagai trip baru.
 
   return (
     <div className="px-4 pt-2 pb-4">

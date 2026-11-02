@@ -2,41 +2,23 @@
  * Tes alur pembaruan TUNGGAL ("Cek & Perbarui Aplikasi").
  *
  * Aturan yang dijaga:
- *   1. Satu tombol memeriksa dua kanal sekaligus (modul web + APK).
- *   2. Kalau ada paket APK baru, kanal itu yang dipakai — bukan modul.
- *   3. Kalau hanya modul yang baru, modul diterapkan tanpa ganti APK.
- *   4. Kalau keduanya terbaru, tombol berhenti di "up-to-date" tanpa aksi.
+ *   1. Satu tombol memeriksa paket APK dari server intranet.
+ *   2. Kalau ada APK baru, status "ready" dan satu tombol langsung memasang.
+ *   3. Kalau APK terpasang sudah yang terbaru, tombol berhenti di
+ *      "up-to-date" tanpa aksi.
+ *   4. Kanal OTA (bundel modul web) sudah dihapus — tidak boleh ada lagi.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 
 
 const h = vi.hoisted(() => ({
-  moduleAvailable: false as boolean | string,
-  moduleState: 'idle' as string,
   apkInfo: null as null | Record<string, unknown>,
   apkState: 'up-to-date' as string,
   apkError: null as null | { message: string },
   installCalls: 0,
-  applyCalls: 0,
-  reloadCalls: 0,
   nativeVersion: '1.0.10',
   nativeAndroid: true,
-}))
-
-
-
-vi.mock('./ota', () => ({
-  isLocalhostDev: () => false,
-  getCurrentVersion: async () => '1.0.10',
-  checkForUpdate: async (_local: string | null | undefined, onState?: (s: { status: string }) => void) => {
-    onState?.({ status: h.moduleState })
-    return h.moduleAvailable ? { available: true, version: '1.0.20' } : { available: false }
-  },
-  applyUpdate: async () => {
-    h.applyCalls++
-    return true
-  },
 }))
 
 
@@ -61,14 +43,6 @@ vi.mock('./updateService', () => ({
 
 
 
-vi.mock('./otaReload', () => ({
-  hardReloadToNewBundle: async () => {
-    h.reloadCalls++
-  },
-}))
-
-
-
 // Kanal APK hanya jalan di aplikasi native Android (lihat appUpdate.ts).
 vi.mock('./apkInstaller', () => ({
   isNativeAndroid: () => h.nativeAndroid,
@@ -81,14 +55,10 @@ import { appUpdate } from './appUpdate'
 
 
 beforeEach(async () => {
-  h.moduleAvailable = false
-  h.moduleState = 'idle'
   h.apkInfo = null
   h.apkState = 'up-to-date'
   h.apkError = null
   h.installCalls = 0
-  h.applyCalls = 0
-  h.reloadCalls = 0
   h.nativeVersion = '1.0.10'
   h.nativeAndroid = true
   await appUpdate.reset()
@@ -116,12 +86,10 @@ const apkRelease = {
 
 
 
-describe('alur pembaruan tunggal', () => {
-  it('paket APK baru menang atas modul, dan satu tombol langsung memasang', async () => {
+describe('alur pembaruan tunggal (APK penuh)', () => {
+  it('paket APK baru → status ready dan satu tombol langsung memasang', async () => {
     h.apkInfo = apkRelease
     h.apkState = 'ready'
-    h.moduleAvailable = true
-    h.moduleState = 'ready'
 
     const state = await appUpdate.check()
 
@@ -132,27 +100,9 @@ describe('alur pembaruan tunggal', () => {
 
     expect(await appUpdate.apply()).toBe(true)
     expect(h.installCalls).toBe(1)
-    // Modul tidak boleh diterapkan saat paket APK yang dipilih.
-    expect(h.applyCalls).toBe(0)
   })
 
-  it('hanya modul yang baru → diterapkan tanpa ganti APK', async () => {
-    h.moduleAvailable = true
-    h.moduleState = 'ready'
-
-    const state = await appUpdate.check()
-
-    expect(state.status).toBe('ready')
-    expect(state.kind).toBe('module')
-    expect(state.version).toBe('1.0.20')
-
-    expect(await appUpdate.apply()).toBe(true)
-    expect(h.applyCalls).toBe(1)
-    expect(h.reloadCalls).toBe(1)
-    expect(h.installCalls).toBe(0)
-  })
-
-  it('keduanya terbaru → up-to-date dan tombol tidak melakukan apa pun', async () => {
+  it('APK terpasang sudah terbaru → up-to-date dan tombol tidak melakukan apa pun', async () => {
     const state = await appUpdate.check()
 
     expect(state.status).toBe('up-to-date')
@@ -160,7 +110,6 @@ describe('alur pembaruan tunggal', () => {
 
     expect(await appUpdate.apply()).toBe(false)
     expect(h.installCalls).toBe(0)
-    expect(h.applyCalls).toBe(0)
   })
 
   it('kegagalan kanal APK dilaporkan apa adanya, bukan diklaim terbaru', async () => {
@@ -174,12 +123,17 @@ describe('alur pembaruan tunggal', () => {
     expect(state.error).toBe('Gagal mengunduh setelah 3 percobaan')
   })
 
-  it('tanpa koneksi → status offline, bukan error menakutkan', async () => {
-    h.moduleState = 'offline'
+  it('di browser kanal APK dilewati → up-to-date tanpa unduhan sia-sia', async () => {
+    // Di web/mobile web berkas APK tidak bisa dipasang. Tidak ada kanal
+    // pengganti lagi, jadi hasilnya "sudah versi terbaru".
+    h.nativeAndroid = false
+    h.apkInfo = apkRelease
+    h.apkState = 'ready'
 
     const state = await appUpdate.check()
 
-    expect(state.status).toBe('offline')
+    expect(state.status).toBe('up-to-date')
+    expect(h.installCalls).toBe(0)
   })
 
   it('pemeriksaan beruntun tidak dijalankan dobel', async () => {
@@ -192,20 +146,8 @@ describe('alur pembaruan tunggal', () => {
     expect(first.status).toBe('ready')
   })
 
-  it('di browser kanal APK dilewati, kanal modul yang dipakai', async () => {
-    // Di web/mobile web berkas APK tidak bisa dipasang. Kalau kanal APK tetap
-    // dijalankan, tombol"Unduh"ank APK 16 MB sia-sia dan kanal modul (OTA)
-    // yang channel yang benar untuk web ikut terblokir.
-    h.nativeAndroid = false
-    h.apkInfo = apkRelease
-    h.apkState = 'ready'
-    h.moduleAvailable = true
-    h.moduleState = 'ready'
-
-    const state = await appUpdate.check()
-
-    expect(state.status).toBe('ready')
-    expect(state.kind).toBe('module')
-    expect(h.installCalls).toBe(0)
+  it('tidak ada lagi kanal modul web (OTA)', () => {
+    // Kanal OTA dihapus: tidak ada status 'module' yang bisa muncul.
+    expect(appUpdate.state.kind).not.toBe('module')
   })
 })

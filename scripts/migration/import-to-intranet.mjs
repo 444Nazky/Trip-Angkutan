@@ -9,9 +9,9 @@
 //                       officer_regions, officer_dermagas, vehicles, tariffs,
 //                       vehicle_plates, region_tariffs.
 //   - Tabel transaksi : trips, trip_vehicles, plate_scans.
-//   - Tabel rilis     : app_versions, device_versions, ota_bundles,
+//   - Tabel rilis     : app_versions, device_versions,
 //                       admin_credentials.
-//   - Berkas          : seluruh isi bucket trip-photos/, apks/, dan ota/.
+//   - Berkas          : seluruh isi bucket trip-photos/ dan apks/.
 //
 // ID (uuid) dari server lama dipertahankan supaya seluruh relasi antar tabel
 // tetap sah. Path berkas di dalam database ditulis ulang menjadi path lokal
@@ -94,11 +94,10 @@ const TABLES = [
   'plate_scans',
   'app_versions',
   'device_versions',
-  'ota_bundles',
-  'admin_credentials',
+    'admin_credentials',
 ]
 
-const BUCKETS = ['trip-photos', 'apks', 'ota']
+const BUCKETS = ['trip-photos', 'apks']
 
 /** Kolom yang menyimpan path berkas, per tabel. */
 const FILE_COLUMNS = {

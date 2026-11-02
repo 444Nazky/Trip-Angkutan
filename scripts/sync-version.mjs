@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// sync versi gradle + package.json + version.json
+// sync versi gradle + package.json
 // pakai: node scripts/sync-version.mjs 1.0.6 [--root=DIR] [--code=9]
 
 import fs from 'node:fs'
@@ -9,11 +9,10 @@ const argv = process.argv.slice(2)
 const version = argv.find(a => /^\d+\.\d+\.\d+$/.test(a))
 const rootArg = argv.find(a => a.startsWith('--root='))
 const codeArg = argv.find(a => a.startsWith('--code='))
-const moduleArg = argv.includes('--module')
 const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.resolve(import.meta.dirname, '..')
 
 if (!version) {
-  console.error('pakai: node scripts/sync-version.mjs 1.0.6 [--root=DIR] [--code=9] [--module]')
+  console.error('pakai: node scripts/sync-version.mjs 1.0.6 [--root=DIR] [--code=9]')
   process.exit(1)
 }
 
@@ -64,29 +63,8 @@ function syncGradle() {
 }
 
 
-// sync version.json (assets + integrity dibiarkan apa adanya)
-//
-// CATATAN: version.json adalah manifest bundel MODUL (saluran OTA), bukan
-// versi paket APK. Nilainya dikelola `scripts/publish-ota-server.mjs` (versi
-// modul naik sendiri dari versi modul aktif di server). Kalau script ini ikut
-// menimpanya, versi modul mundur ke versi APK dan bundel yang baru
-// dipublikasikan tidak pernah terpilih sebagai "active" - pembaruan modul
-// diam-diam berhenti bekerja. Jadi file ini HANYA disentuh bila diminta
-// eksplisit lewat --module.
-function syncVersionJson() {
-  if (!moduleArg) return skipped.push('version.json (versi modul dikelola publish-ota-server.mjs)')
-  const file = path.join(ROOT, 'version.json')
-  if (!fs.existsSync(file)) return skipped.push('version.json')
-
-  const json = JSON.parse(fs.readFileSync(file, 'utf8'))
-  json.version = `${version}+${Date.now()}`
-  save(file, `${JSON.stringify(json, null, 2)}\n`)
-}
-
-
 syncPackageJson()
 syncGradle()
-syncVersionJson()
 
 console.log(`versi ${version} ditulis ke: ${done.join(', ') || '-'}`)
 if (skipped.length) console.log(`dilewati (tidak ada): ${skipped.join(', ')}`)

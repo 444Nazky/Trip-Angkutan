@@ -89,7 +89,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
   const label = state.error ? 'Pembaruan Gagal' : 'Pembaruan Siap'
   const detail = state.status === 'error'
     ? state.error
-    : `Versi ${state.version ?? '—'} siap dipasang${state.kind === 'module' ? ' (tanpa ganti APK)' : ''}.`
+    : `Paket APK versi ${state.version ?? '—'} siap dipasang.`
 
 
 
