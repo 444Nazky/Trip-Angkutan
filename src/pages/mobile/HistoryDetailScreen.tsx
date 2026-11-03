@@ -81,10 +81,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
     )
   }
 
-  // Klasifikasi HARUS dari ada/tidaknya kendaraan, bukan `t.load`.
-  // Dulu trip ber-kendaraan yang semua muatannya "empty" tersimpan
-  // load='Kosong' → foto kendaraan tidak pernah ditampilkan dan labelnya
-  // tertukar menjadi "Foto Bukti Kapal Kosong".
+  
   const realVehicles = t.vehicles && t.vehicles.length > 0 ? t.vehicles : undefined
   const isEmptyTrip = !realVehicles
 
