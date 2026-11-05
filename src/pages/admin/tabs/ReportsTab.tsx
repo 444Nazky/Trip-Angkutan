@@ -53,10 +53,9 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   // Master jenis kendaraan (/vehicle-types) - supaya breakdown menampilkan
   // SEMUA jenis, termasuk yang belum punya trip pada filter ini.
   const [vehicleTypeNames, setVehicleTypeNames] = useState<string[]>([])
-  // Dokumen pembatalan trip (dari aplikasi mobile): trip yang dibatalkan
-  // petugas WAJIB ada alasannya, jadi dokumennya ditampilkan di sini.
-  // Hanya dokumen pada rentang tanggal yang sama dengan laporan, supaya
-  // jumlah di strip dan di kartu Total Trip cocok dengan /reports/trips.
+  // Dokumen pembatalan trip (dari aplikasi mobile), hanya pada rentang
+  // tanggal yang sama dengan laporan - supaya angka di kartu Total Trip
+  // cocok dengan /reports/trips dan database.
   const [cancellations, setCancellations] = useState<TripCancellation[]>([])
 
   const cancelFilters = useMemo(
@@ -70,21 +69,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   }, [cancelFilters])
 
   useEffect(() => { loadCancellations() }, [loadCancellations])
-
-  // Alasan yang paling SERING dipilih (bukan pembatalan terakhir) — dihitung
-  // dari baris yang sudah dimuat supaya ringkasannya jujur.
-  const topCancelReason = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const c of cancellations) {
-      const r = (c.reason || '').trim() || 'Tanpa alasan'
-      counts.set(r, (counts.get(r) ?? 0) + 1)
-    }
-    let best: { reason: string; count: number } | null = null
-    for (const [reason, count] of counts) {
-      if (!best || count > best.count) best = { reason, count }
-    }
-    return best
-  }, [cancellations])
 
   /**
    * Muat laporan dari server.
@@ -210,6 +194,11 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   const totalUnit = reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
   const totalRevenue = reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
   const muatanCount = reportTrips.filter(t => t.status_muatan === 'muatan').length
+  const muatanPct = totalTrip ? (muatanCount / totalTrip) * 100 : 0
+  const tanpaMuatan = totalTrip - muatanCount
+  const tanpaMuatanPct = totalTrip ? (tanpaMuatan / totalTrip) * 100 : 0
+  const avgRevenuePerTrip = totalTrip ? Math.round(totalRevenue / totalTrip) : 0
+
   // Server membatasi /reports/trips ke 1000 baris terbaru. Kalau tepat di batas,
   // angka di dasbor (termasuk breakdown) belum tentu penuh - beri tahu operator.
   const reportTruncated = reportTrips.length >= 1000
@@ -251,30 +240,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         </div>
       </div>
 
-      {/* Ringkasan pembatalan — rinciannya ada di tab "Pembatalan Trip". */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-[13px] font-black text-slate-800">Dokumen Pembatalan Trip</h4>
-          <p className="text-[11px] text-slate-500">
-            {cancellations.length > 0
-              ? `Alasan teratas: ${topCancelReason?.reason ?? '-'} — buka tab "Pembatalan Trip" untuk rincian & grafik.`
-              : 'Setiap trip yang dibatalkan petugas tercatat lengkap dengan alasannya.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600">
-            {cancellations.length} dokumen
-          </span>
-          <button
-            onClick={() => onOpenCancellations?.()}
-            disabled={!onOpenCancellations}
-            className="text-[11px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-          >
-            Buka Pemantauan
-          </button>
-        </div>
-      </div>
-
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
         <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
@@ -308,9 +273,9 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
 
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
+            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{totalTrip}</p>
             <p className="mt-1 text-[10px] font-bold text-slate-400">
               Trip Berhasil: {totalTrip} Trip
               <span className="mx-1.5 text-slate-200">|</span>
@@ -324,17 +289,22 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
               Buka Pemantauan
             </button>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
+            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{muatanCount}</p>
+            <p className="mt-1.5 text-[10px] font-bold text-slate-400">{muatanPct.toFixed(0)}% dari total trip</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Tanpa Muatan</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip - muatanCount}</p>
+            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{tanpaMuatan}</p>
+            <p className="mt-1.5 text-[10px] font-bold text-slate-400">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
             <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
+            <p className="mt-1.5 text-[10px] font-bold text-slate-400">
+              Rata-rata <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={avgRevenuePerTrip} className="inline font-black text-slate-500" /> / trip
+            </p>
           </div>
         </div>
       )}
