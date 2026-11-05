@@ -316,6 +316,13 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
               <span className="mx-1.5 text-slate-200">|</span>
               Trip Dibatalkan: {cancellations.length} Trip
             </p>
+            <button
+              onClick={() => onOpenCancellations?.()}
+              disabled={!onOpenCancellations}
+              className="mt-2 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              Buka Pemantauan
+            </button>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
