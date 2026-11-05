@@ -4,6 +4,7 @@ import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Cale
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
+import { BreakdownSummaryCard } from '../components/BreakdownSummaryCard'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
 import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
@@ -234,19 +235,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const totalUnit = reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
   const totalRevenue = reportTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
   const muatanCount = reportTrips.filter(t => t.status_muatan === 'muatan').length
-  const kosongCount = totalTrip - muatanCount
-  const muatanPct = totalTrip ? (muatanCount / totalTrip) * 100 : 0
-
-  const reportDaily = Array.from(
-    reportTrips.reduce((m, t) => {
-      const k = dayKeyWib(t.created_at)
-      m.set(k, (m.get(k) || 0) + 1)
-      return m
-    }, new Map<string, number>()),
-    ([day, count]) => ({ day, count }),
-  ).sort((a, b) => a.day.localeCompare(b.day)).slice(-14)
-
-  const maxDaily = Math.max(1, ...reportDaily.map(d => d.count))
+  // Server membatasi /reports/trips ke 1000 baris terbaru. Kalau tepat di batas,
+  // angka di dasbor (termasuk breakdown) belum tentu penuh - beri tahu operator.
+  const reportTruncated = reportTrips.length >= 1000
 
   return (
     <div className="space-y-4">
@@ -366,59 +357,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
         </div>
       )}
 
+      {reportTruncated && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-800">
+          Menampilkan 1000 trip terbaru dari server. Persempit rentang tanggal agar angka di dasbor dan breakdown akurat.
+        </p>
+      )}
+
       {reportState === 'ready' && totalTrip > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <div>
-                <h4 className="font-bold text-slate-800 text-sm">Trip per Hari</h4>
-                <p className="text-[11px] text-slate-400">maksimal 14 hari terakhir dalam rentang terpilih</p>
-              </div>
-              <span className="text-[11px] font-bold text-slate-400">puncak {maxDaily} trip/hari</span>
-            </div>
-            <div className="flex items-end gap-1.5 h-40">
-              {reportDaily.map((d, i) => (
-                <div key={d.day} title={`${d.day} - ${d.count} trip`}
-                  className="h-full flex-1 min-w-0 flex flex-col justify-end items-center gap-1">
-                  <span className="text-[9px] font-bold text-slate-500 tabular-nums">{d.count}</span>
-                  <div className="w-full rounded-t-md bg-blue-600 transition-all"
-                    style={{ height: `${Math.max(6, (d.count / maxDaily) * 70)}%` }} />
-                  <span className={`text-[9px] text-slate-400 whitespace-nowrap ${reportDaily.length > 8 && i % 2 === 1 ? 'opacity-0' : ''}`}>
-                    {Number(d.day.slice(8))}/{d.day.slice(5, 7)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-            <h4 className="font-bold text-slate-800 text-sm">Komposisi Muatan</h4>
-            <p className="text-[11px] text-slate-400 mb-4">trip bermuatan vs kosong</p>
-            <div className="flex items-center gap-5">
-              <div className="relative w-28 h-28 shrink-0 rounded-full"
-                style={{ background: `conic-gradient(#3B82F6 0 ${muatanPct}%, #cbd5e1 ${muatanPct}% 100%)` }}>
-                <div className="absolute inset-[10px] bg-white rounded-full flex flex-col items-center justify-center">
-                  <span className="text-xl font-black text-slate-900 tabular-nums leading-none">{totalTrip}</span>
-                  <span className="text-[9px] font-bold text-slate-400 mt-0.5">TRIP</span>
-                </div>
-              </div>
-              <div className="space-y-2.5 text-[12px]">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                  <span className="text-slate-600 font-semibold">Ada Muatan</span>
-                  <span className="font-black text-slate-800 tabular-nums">{muatanCount}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-                  <span className="text-slate-600 font-semibold">Tanpa Muatan</span>
-                  <span className="font-black text-slate-800 tabular-nums">{kosongCount}</span>
-                </div>
-                <p className="text-[11px] text-slate-400 pt-1">{Math.round(muatanPct)}% trip bermuatan</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BreakdownSummaryCard reportTrips={reportTrips} revealed={revealed} onToggleReveal={onToggleReveal} />
       )}
 
       {viewingPhotos && createPortal((
