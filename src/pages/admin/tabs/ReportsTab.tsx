@@ -275,7 +275,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
-            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{totalTrip}</p>
+            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{totalTrip}</p>
             <p className="mt-1 text-[10px] font-bold text-slate-400">
               Trip Berhasil: {totalTrip} Trip
               <span className="mx-1.5 text-slate-200">|</span>
@@ -291,18 +291,18 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
-            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{muatanCount}</p>
-            <p className="mt-1.5 text-[10px] font-bold text-slate-400">{muatanPct.toFixed(0)}% dari total trip</p>
+            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{muatanCount}</p>
+            <p className="mt-2 text-[10px] font-bold text-slate-400">{muatanPct.toFixed(0)}% dari total trip</p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Tanpa Muatan</p>
-            <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums leading-none">{tanpaMuatan}</p>
-            <p className="mt-1.5 text-[10px] font-bold text-slate-400">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
+            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{tanpaMuatan}</p>
+            <p className="mt-2 text-[10px] font-bold text-slate-400">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
-            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
-            <p className="mt-1.5 text-[10px] font-bold text-slate-400">
+            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-2" />
+            <p className="mt-2 text-[10px] font-bold text-slate-400">
               Rata-rata <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={avgRevenuePerTrip} className="inline font-black text-slate-500" /> / trip
             </p>
           </div>
