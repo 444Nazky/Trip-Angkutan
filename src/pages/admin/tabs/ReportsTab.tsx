@@ -4,7 +4,6 @@ import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Cale
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
 import { downloadXlsx } from '../../../services/xlsx'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
-import { StatCard, StatRow } from '../components/StatCard'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
 import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
@@ -26,10 +25,6 @@ function vehiclePhotoCaption(
   ].filter(Boolean).join(' - ')
   const unit = vehicleUnitLabel(trip.vehicles, vehicle)
   return `${trip.no_trip} - ${unit} - ${vehicle.no_polisi} - ${vehicle.vehicle_type} - ${reportGolongan(vehicle)}${metadata ? ` - ${metadata}` : ''}`
-}
-
-function formatRupiah(value: number): string {
-  return `Rp ${Math.round(value).toLocaleString('id-ID')}`
 }
 
 interface ReportsTabProps {
@@ -120,12 +115,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     setReportTrips(rows)
     setReportState('ready')
     setReportError(null)
-
-    // Dokumen pembatalan ikut difilter dengan rentang tanggal yang sama,
-    // supaya kartu "Total Trip" (berhasil + dibatalkan) tidak mencampur
-    // trip terfilter dengan pembatalan seluruh periode.
-    const cancelled = await fetchTripCancellations({ startDate: f.startDate, endDate: f.endDate })
-    if (cancelled) setCancellations(cancelled)
   }, [reportFilters])
 
   // Pemulihan otomatis: begitu sesi backend siap (event dari auth), muat ulang
@@ -143,11 +132,10 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       void loadReports(undefined, { silent: true })
-      void fetchTripCancellations({ startDate: reportFilters.startDate, endDate: reportFilters.endDate })
-        .then(c => { if (c) setCancellations(c) })
+      void fetchTripCancellations().then(c => { if (c) setCancellations(c) })
     }, 30_000)
     return () => window.clearInterval(timer)
-  }, [loadReports, reportFilters.startDate, reportFilters.endDate])
+  }, [loadReports])
 
   useEffect(() => {
     if (reportState === 'idle') {
@@ -158,7 +146,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       void loadReports()
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
-      // Dokumen pembatalan dimuat oleh loadReports() (rentang tanggal sama).
+      fetchTripCancellations().then(c => { if (c) setCancellations(c) }).catch(() => null)
     }
     // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
     // penambahan dependency tidak memicu fetch ulang saat filter berubah.
@@ -248,20 +236,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const muatanCount = reportTrips.filter(t => t.status_muatan === 'muatan').length
   const kosongCount = totalTrip - muatanCount
   const muatanPct = totalTrip ? (muatanCount / totalTrip) * 100 : 0
-
-  // Rincian untuk kartu KPI: unit bermuatan/kosong dihitung dari baris
-  // kendaraan (bukan dari status trip), jadi angkanya bisa berbeda.
-  const unitMuatan = reportTrips.reduce(
-    (s, t) => s + t.vehicles.filter(v => v.has_load).length, 0,
-  )
-  const unitKosong = Math.max(0, totalUnit - unitMuatan)
-  const avgPerTrip = totalTrip ? totalRevenue / totalTrip : 0
-  const avgPerUnit = totalUnit ? totalRevenue / totalUnit : 0
-
-  // Trip yang dibatalkan dihitung terpisah (dokumen pembatalan), jadi kartu
-  // "Total Trip" menampilkan total registrasi = berhasil + dibatalkan.
-  const canceledTripCount = cancellations.length
-  const registeredTripCount = totalTrip + canceledTripCount
 
   const reportDaily = Array.from(
     reportTrips.reduce((m, t) => {
@@ -372,51 +346,23 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       </div>
 
       {reportState === 'ready' && (
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 items-start">
-          <StatCard accent="#3B82F6" title="Total Trip" subtitle="registrasi trip terkirim" value={registeredTripCount}>
-            <StatRow label="Trip Berhasil" tone="success" value={`${totalTrip} trip`} />
-            <StatRow
-              label="Trip Dibatalkan"
-              value={`${canceledTripCount} trip`}
-              onClick={onOpenCancellations}
-            />
-          </StatCard>
-
-          <StatCard accent="#10B981" title="Muatan" subtitle="bermuatan vs kosong" value={muatanCount}>
-            <StatRow label="Trip Ada Muatan" tone="success" value={`${muatanCount} trip`} />
-            <StatRow label="Trip Tanpa Muatan" tone="muted" value={`${kosongCount} trip`} />
-            <StatRow label="Porsi bermuatan" tone="accent" value={`${Math.round(muatanPct)}%`} />
-          </StatCard>
-
-          <StatCard accent="#64748b" title="Unit" subtitle="total kendaraan tercatat" value={totalUnit}>
-            <StatRow label="Unit Bermuatan" tone="success" value={`${unitMuatan} unit`} />
-            <StatRow label="Unit Kosong" tone="muted" value={`${unitKosong} unit`} />
-            <StatRow
-              label="Rata-rata per trip"
-              tone="default"
-              value={totalTrip ? (totalUnit / totalTrip).toFixed(1) : '0'}
-            />
-          </StatCard>
-
-          <StatCard accent="#0F172A" title="Pendapatan" subtitle="tarif terkumpul pada rentang ini" value={
-            <CurrencyDisplay
-              revealed={revealed}
-              onToggleReveal={onToggleReveal}
-              amount={totalRevenue}
-              className="text-2xl font-black text-slate-900"
-            />
-          }>
-            <StatRow
-              label="Rata-rata per trip"
-              tone="default"
-              value={revealed ? formatRupiah(avgPerTrip) : 'Rp ••••••'}
-            />
-            <StatRow
-              label="Rata-rata per unit"
-              tone="default"
-              value={revealed ? formatRupiah(avgPerUnit) : 'Rp ••••••'}
-            />
-          </StatCard>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Muatan</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Unit</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{totalUnit}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
+            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-1" />
+          </div>
         </div>
       )}
 
