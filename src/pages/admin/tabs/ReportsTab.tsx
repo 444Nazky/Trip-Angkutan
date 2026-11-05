@@ -296,7 +296,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
               </option>
             ))}
           </select></div>
-        <span className="ml-auto text-[12px] text-slate-400 font-semibold">{totalTrip} trip</span>
       </div>
 
       {reportState === 'ready' && (
