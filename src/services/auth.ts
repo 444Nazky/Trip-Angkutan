@@ -355,15 +355,12 @@ export async function loginOffline(
     return { success: false, error: 'Tidak ada sesi aktif' }
   }
 
-  const ok = await verifyPinOffline(identifier, pin)
-  if (!ok) return { success: false, error: 'PIN tidak cocok' }
+  const verify = await checkOfflineCredential(identifier, pin)
+  if (!verify.ok) return { success: false, error: 'PIN tidak cocok' }
 
-  // id ter-resolve (bukan username yang diketik) supaya login-diam-diam nanti tepat
-  let resolvedId = String(identifier)
-  try {
-    const row = await findOfflineOfficer<OfflineOfficerRecord>(identifier)
-    if (row?.id) resolvedId = String(row.id)
-  } catch { /* database offline belum siap */ }
+  // id sudah ter-resolve saat verifikasi (bukan username yang diketik) — tidak
+  // perlu membaca roster sekali lagi hanya untuk mencari id petugas.
+  const resolvedId = verify.officerId
   storeLoginCredential({ kind: 'pin', officerId: resolvedId, pin })
 
   const officer = await buildOfflineSession(resolvedId)
@@ -746,21 +743,20 @@ export async function memberLogin(
   }
 }
 
-/**
- * Verifikasi PIN offline (dari credentials tersimpan).
- */
-export async function verifyPinOffline(
-  identifier: string,
-  pin?: string,
-): Promise<boolean> {
-  if (!identifier) return false
-  if (!pin) {
-    // Tanpa PIN: hanya cek ada credential tersimpan untuk petugas ini.
-    const cred = getCredentials()
-    return !!cred.officerId &&
-      (!!cred.pin || (!!getLoginCredential()?.pin && String(getLoginCredential()?.officerId) === String(cred.officerId)))
-  }
+interface OfflineVerify {
+  ok: boolean
+  officerId: string
+}
 
+// Hasil verifikasi PIN yang baru berhasil disimpan sebentar DI MEMORI (bukan
+// storage) supaya satu kali tekan "Masuk" tidak menghitung bcrypt dua kali saat
+// jalur online dan offline berjalan bersamaan.
+let lastOfflineVerify: { key: string; officerId: string; at: number } | null = null
+const OFFLINE_VERIFY_TTL_MS = 60_000
+const offlineVerifyKey = (identifier: string, pin: string) =>
+  `${String(identifier).toLowerCase()}\u0000${pin}`
+
+async function resolveOfflineCredential(identifier: string, pin: string): Promise<OfflineVerify> {
   let officerId = String(identifier)
   let resolved = false
   let inactive = false
@@ -775,25 +771,57 @@ export async function verifyPinOffline(
   const storedRecord = findStoredOfficerRecord(identifier)
   if (!resolved && storedRecord?.id) { officerId = String(storedRecord.id); resolved = true }
   if (storedRecord && storedRecord.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(storedRecord.status))) inactive = true
-  if (inactive) return false
+  if (inactive) return { ok: false, officerId }
 
   try { localStorage.removeItem('trip.memberCredential.v1') } catch {}
 
   try {
-    if (await verifyStoredPin(officerId, pin) || await verifyStoredPin(`member:${officerId}`, pin)) return true
+    if (await verifyStoredPin(officerId, pin) || await verifyStoredPin(`member:${officerId}`, pin)) {
+      return { ok: true, officerId }
+    }
   } catch { /* lanjut ke fallback legacy */ }
 
   const legacy = loadLegacyPinMap()
   const stored = legacy[officerId] ?? legacy[identifier]
   if (stored && (stored === pin || stored === `plain:${pin}`)) {
     await cachePin(officerId, pin)
-    return true
+    return { ok: true, officerId }
   }
 
   // TIDAK ada jalur PIN dari seedData: PIN default yang ter-bundle di klien adalah
   // temuan F001 (login offline "123456" tanpa server). Verifikasi hanya lewat
   // credential hasil sinkron server (verifyStoredPin di atas) atau server online.
-  return false
+  return { ok: false, officerId }
+}
+
+async function checkOfflineCredential(identifier: string, pin: string): Promise<OfflineVerify> {
+  const key = offlineVerifyKey(identifier, pin)
+  const cached = lastOfflineVerify
+  if (cached && cached.key === key && Date.now() - cached.at < OFFLINE_VERIFY_TTL_MS) {
+    return { ok: true, officerId: cached.officerId }
+  }
+  const result = await resolveOfflineCredential(identifier, pin)
+  if (result.ok) {
+    lastOfflineVerify = { key, officerId: result.officerId, at: Date.now() }
+  }
+  return result
+}
+
+/**
+ * Verifikasi PIN offline (dari credentials tersimpan).
+ */
+export async function verifyPinOffline(
+  identifier: string,
+  pin?: string,
+): Promise<boolean> {
+  if (!identifier) return false
+  if (!pin) {
+    // Tanpa PIN: hanya cek ada credential tersimpan untuk petugas ini.
+    const cred = getCredentials()
+    return !!cred.officerId &&
+      (!!cred.pin || (!!getLoginCredential()?.pin && String(getLoginCredential()?.officerId) === String(cred.officerId)))
+  }
+  return (await checkOfflineCredential(identifier, pin)).ok
 }
 
 

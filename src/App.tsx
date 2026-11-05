@@ -16,8 +16,11 @@ import { appUpdate } from "./services/appUpdate"
 function Shell() {
   const { loggedIn, login, logout, userType } = useApp()
 
-  // Check if this is admin mode (from URL query param ?admin=true)
-  const isAdminMode = typeof window !== 'undefined' && window.location.search.includes('admin=true')
+  // Admin mode: ?admin=true, atau halaman statistik server di /server.
+  const isAdminMode = typeof window !== 'undefined' && (
+    window.location.search.includes('admin=true') ||
+    /\/server\/?$/.test(window.location.pathname)
+  )
 
   useEffect(() => {
     if (!isAdminMode) {

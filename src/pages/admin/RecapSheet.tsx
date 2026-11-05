@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Download, RefreshCw, Table2 } from 'lucide-react'
 import { ensureAdminSession } from '../../services/auth'
-import { fetchTripReports, type ReportFilters, type ReportTrip } from '../../services/trips'
+import { fetchTripReports, OPERATIONAL_CATEGORIES, type ReportFilters, type ReportTrip } from '../../services/trips'
+import { fetchVehicleTypes, getStoredVehicleTypes } from '../../services/vehicleTypes'
 import { buildRecap, recapRouteKey, recapRouteLabel } from '../../services/recap'
 import { downloadXlsx } from '../../services/xlsx'
 
@@ -15,6 +16,8 @@ export default function RecapSheet() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [route, setRoute] = useState('')
+  const [golongan, setGolongan] = useState('')
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [lastSync, setLastSync] = useState('')
   const alive = useRef(true)
@@ -28,10 +31,20 @@ export default function RecapSheet() {
     const filters: ReportFilters = {
       ...(startDate && endDate ? { startDate, endDate } : {}),
     }
-    const data = await fetchTripReports(filters)
+    const [data, masterTypes] = await Promise.all([
+      fetchTripReports(filters),
+      fetchVehicleTypes().catch(() => null),
+    ])
     if (!alive.current) return
     if (data === null) { setState('offline'); return }
     setRows(data)
+    // Daftar master dipakai supaya rekap menampilkan SEMUA jenis kendaraan,
+    // termasuk yang 0 trip pada periode ini. Kalau server tidak menjawab,
+    // pakai cache perangkat; kalau cache kosong, pertahankan daftar lama.
+    const names = (masterTypes ?? getStoredVehicleTypes())
+      .filter(t => t.isActive !== false)
+      .map(t => t.name)
+    if (names.length > 0) setVehicleTypes(names)
     setState('ready')
     setLastSync(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))
   }, [startDate, endDate])
@@ -53,8 +66,9 @@ export default function RecapSheet() {
 
   const groups = useMemo(() => {
     const list = route ? rows.filter(trip => recapRouteKey(trip) === route) : rows
-    return buildRecap(list)
-  }, [rows, route])
+    const all = buildRecap(list, vehicleTypes)
+    return golongan ? all.filter(g => g.golongan === golongan) : all
+  }, [rows, route, vehicleTypes, golongan])
 
   const total = groups.reduce(
     (acc, g) => ({
@@ -86,6 +100,7 @@ export default function RecapSheet() {
     setStartDate('')
     setEndDate('')
     setRoute('')
+    setGolongan('')
   }
 
   return (
@@ -169,6 +184,15 @@ export default function RecapSheet() {
               </select>
             </label>
 
+            <label className="text-[11px] font-semibold text-slate-500">
+              Golongan
+              <select value={golongan} onChange={e => setGolongan(e.target.value)}
+                className="block mt-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white min-w-[150px]">
+                <option value="">Semua Golongan</option>
+                {OPERATIONAL_CATEGORIES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </label>
+
             <button onClick={resetFilters}
               className="px-3.5 py-2 rounded-lg border border-slate-300 text-slate-600 font-semibold text-xs hover:bg-slate-50">
               Reset
@@ -202,7 +226,7 @@ export default function RecapSheet() {
                     </td>
                   </tr>
                 </tbody>
-              ) : groups.length === 0 ? (
+              ) : !groups.some(g => g.rows.length > 0) ? (
                 <tbody>
                   <tr><td colSpan={6} className="p-10 text-center text-slate-400">Tidak ada data pada filter ini</td></tr>
                 </tbody>
@@ -229,11 +253,11 @@ export default function RecapSheet() {
                 </tbody>
               ))}
 
-              {groups.length > 0 && (
+              {groups.some(g => g.rows.length > 0) && (
                 <tfoot>
                   <tr className="bg-slate-100 font-bold text-slate-700">
                     <td colSpan={2} className="px-3 py-3 border border-slate-200 uppercase tracking-wide text-[11px]">
-                      Total All Golongan
+                      {golongan ? `Total ${golongan}` : 'Total All Golongan'}
                     </td>
                     <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.empty}</td>
                     <td className="px-3 py-3 border border-slate-200 text-center tabular-nums">{total.loaded}</td>

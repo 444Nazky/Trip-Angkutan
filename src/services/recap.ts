@@ -20,18 +20,23 @@ export interface RecapGroup {
 const GOLONGAN_ORDER = ['Internal', 'Eksternal', 'Lokal']
 
 /**
- * Urutan jenis kendaraan untuk tabel rekap.
+ * Baris rekap per golongan dan jenis kendaraan.
  *
- * Dulu daftar ini ditulis manual di frontend ('Mobil', 'Motor', 'Truck
- * Besar', ...) dan baris yang tidak ada di database ikut disuntikkan dengan
- * nilai nol - jadi rekap menampilkan jenis kendaraan yang tidak pernah ada
- * (dan ejaannya "Truck", berbeda dari database yang "Truk").
- *
- * Sekarang: hanya jenis yang benar-benar muncul di data trip yang
- * ditampilkan. Urutan diambil dari master jenis kendaraan di database
- * (lihat services/vehicleTypes.ts) kalau tersedia, kalau tidak diurutkan
- * berdasarkan nama.
+ * Jenis kendaraan tidak lagi ditulis manual di frontend (dulu 'Mobil',
+ * 'Motor', 'Truck Besar', ... sehingga ejaannya bisa beda dari database).
+ * Daftar jenis berasal dari master `vehicle-types` di database dan dikirim
+ * pemanggil lewat `vehicleTypes`: SEMUA jenis muncul di setiap golongan,
+ * termasuk yang belum punya trip (0 unit, Rp 0). Tanpa daftar master,
+ * fungsi ini tetap menampilkan jenis yang benar-benar ada di data trip.
  */
+
+/** Tambahkan jenis dari master yang belum ada di data trip dengan nilai nol. */
+function fillMasterTypes(jenisMap: Map<string, RecapRow>, masterTypes: string[]): void {
+  for (const jenis of masterTypes) {
+    if (jenisMap.has(jenis)) continue
+    jenisMap.set(jenis, { jenis, loaded: 0, empty: 0, total: 0, revenue: 0 })
+  }
+}
 
 export function recapRouteKey(trip: ReportTrip): string {
   const from = (trip.route_from_name || trip.route_from || '').trim()
@@ -45,8 +50,9 @@ export function recapRouteLabel(trip: ReportTrip): string {
   return [from, to].filter(Boolean).join(' - ')
 }
 
-export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
+export function buildRecap(trips: ReportTrip[], vehicleTypes: string[] = []): RecapGroup[] {
   const groups = new Map<string, Map<string, RecapRow>>()
+  const masterTypes = [...new Set(vehicleTypes.map(t => String(t).trim()).filter(Boolean))]
 
   for (const trip of trips) {
     for (const vehicle of trip.vehicles ?? []) {
@@ -63,10 +69,16 @@ export function buildRecap(trips: ReportTrip[]): RecapGroup[] {
     }
   }
 
+  // Tiga golongan operasional selalu tampil walau belum ada trip sama sekali,
+  // supaya rekap tidak kosong di periode/filter yang sepi.
+  for (const golongan of GOLONGAN_ORDER) {
+    if (!groups.has(golongan)) groups.set(golongan, new Map<string, RecapRow>())
+  }
+
   return [...groups.entries()]
     .map(([golongan, jenisMap]) => {
-      // Hanya jenis yang benar-benar ada di data trip. Tidak ada lagi
-      // baris kosong untuk jenis kendaraan yang tidak pernah dipakai.
+      // Semua jenis kendaraan dari master ikut tampil (0 trip tetap muncul).
+      fillMasterTypes(jenisMap, masterTypes)
       const rows = [...jenisMap.values()].sort((a, b) => a.jenis.localeCompare(b.jenis))
       return {
         golongan,

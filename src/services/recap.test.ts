@@ -71,4 +71,27 @@ describe('buildRecap', () => {
     expect(eksternal.rows[1]).toMatchObject({ loaded: 1, empty: 1, total: 2, revenue: 35000 })
     expect(eksternal.total).toBe(3)
   })
+
+  it('menampilkan semua jenis kendaraan dari master walau belum ada trip (0 unit)', () => {
+    const groups = buildRecap(
+      [trip({}, [vehicle({ id: 'V1', kategori: 'Internal', vehicle_type: 'Mobil' })])],
+      ['Motor', 'Mobil', 'Truk Besar'],
+    )
+
+    // Tiga golongan operasional tetap ada walau tanpa trip.
+    expect(groups.map(g => g.golongan)).toEqual(['Internal', 'Eksternal', 'Lokal'])
+    for (const group of groups) {
+      expect(group.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truk Besar'])
+    }
+
+    const eksternal = groups.find(g => g.golongan === 'Eksternal')!
+    expect(eksternal.total).toBe(0)
+    expect(eksternal.rows.every(r => r.total === 0 && r.revenue === 0)).toBe(true)
+
+    // Data trip tetap terhitung dan tidak terduplikasi oleh master.
+    const internal = groups.find(g => g.golongan === 'Internal')!
+    expect(internal.rows).toHaveLength(3)
+    expect(internal.total).toBe(1)
+    expect(internal.revenue).toBe(280000)
+  })
 })

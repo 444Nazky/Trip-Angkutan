@@ -19,6 +19,19 @@ interface LoginPageProps {
   onLogin: () => void
 }
 
+// WiFi yang tersambung tapi server kantor mati membuat login online menunggu
+// timeout penuh. Beri jaringan jendela singkat ini; kalau lewat, PIN lokal yang
+// sudah valid dipakai supaya petugas tetap bisa masuk segera.
+const OFFLINE_GRACE_MS = 2500
+
+function settleWithin(p: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, ms)
+    const done = () => { clearTimeout(timer); resolve() }
+    void p.then(done, done)
+  })
+}
+
 
 
 
@@ -92,7 +105,27 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       // ponytail: online-first — 401 server = kredensial salah, jangan ditutupi login offline.
       // Offline hanya fallback saat jaringan mati, bukan saat kredensial ditolak.
       if (navigator.onLine) {
-        const result = await memberLogin(u, p)
+        // ponytail: cek PIN lokal berjalan BERBARENGAN dengan login online.
+        // Kalau server lambat/tidak menjawab, petugas tidak perlu menunggu
+        // timeout — lewat OFFLINE_GRACE_MS langsung masuk mode offline.
+        let onlineSettled = false
+        const online = memberLogin(u, p).finally(() => { onlineSettled = true })
+        const offlineOk = await verifyPinOffline(u, p).catch(() => false)
+        if (offlineOk && !onlineSettled) {
+          await settleWithin(online, OFFLINE_GRACE_MS)
+        }
+        if (offlineOk && !onlineSettled) {
+          // Request online dibiarkan selesai di latar belakang: kalau ternyata
+          // berhasil, token & sesinya tetap terpasang untuk sinkronisasi.
+          if (await tryOfflineLogin(u, p)) {
+            void initializeSync()
+            onLogin()
+            void syncOfficersToLocal(true).catch(() => undefined)
+            void prefetchAllCriticalData().catch(() => undefined)
+            return
+          }
+        }
+        const result = await online
         if (result.success) {
           void initializeSync()
           void syncOfficersToLocal(true).catch(() => undefined)

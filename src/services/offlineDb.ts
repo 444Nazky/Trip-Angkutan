@@ -172,6 +172,8 @@ function lsOfficers(): OfficerRow[] {
 
 export async function saveOfficers(rows: OfficerRow[], migrating = false): Promise<void> {
   if (!rows?.length) return
+  // Roster berubah → cache baca berikutnya harus ambil data baru.
+  officersCache = null
   if (!migrating) await initOfflineDb()
   const now = Date.now()
   const toRow = (r: OfficerRow): OfficerRow => ({
@@ -223,23 +225,33 @@ export async function saveOfficers(rows: OfficerRow[], migrating = false): Promi
 
 
 
+// Roster dibaca ulang beberapa kali dalam satu login (cari petugas, resolve id,
+// bangun sesi). Simpan hasil baca terakhir di memori supaya login offline tidak
+// membayar query + JSON.parse yang sama berulang kali.
+let officersCache: unknown[] | null = null
+
 export async function listOfficers<T = OfficerRow>(): Promise<T[]> {
+  if (officersCache) return officersCache as T[]
   await initOfflineDb()
   if (backend === 'sqlite' && conn) {
     try {
       const res = await conn.query('SELECT payload FROM officers ORDER BY name ASC')
       const values = (res?.values ?? []) as Array<Record<string, unknown> | unknown[]>
-      return values
+      const list = values
         .map(v => {
           const cell = Array.isArray(v) ? v[0] : v?.['payload']
           try { return JSON.parse(String(cell)) as T } catch { return null }
         })
         .filter((v): v is T => v !== null)
+      officersCache = list
+      return list
     } catch (err) {
       console.warn('[offline-db] gagal baca SQLite:', err)
     }
   }
-  return lsOfficers().map(o => (o.payload as T) ?? (o as unknown as T))
+  const list = lsOfficers().map(o => (o.payload as T) ?? (o as unknown as T))
+  officersCache = list
+  return list
 }
 
 
@@ -351,7 +363,9 @@ export async function verifyPin(officerId: string, pin: string): Promise<boolean
   const stored = await getPinHash(officerId)
   if (!stored) return false
   if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
-    try { return bcrypt.compareSync(pin, stored) } catch { return false }
+    // compare async: bcryptjs mengerjakan hash bertahap, jadi UI (spinner login)
+    // tidak membeku selama verifikasi.
+    try { return await bcrypt.compare(pin, stored) } catch { return false }
   }
   if (stored.startsWith('sha256:') || stored.startsWith('fnv1a:')) {
     return stored === (await hashPin(officerId, pin))

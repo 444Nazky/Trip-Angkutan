@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Server, Landmark, Ban } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -108,16 +108,31 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   // Navigation: Laporan as primary, other management tabs
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
-    { key: 'reports', label: 'Laporan', Icon: BarChart2 },
-    { key: 'cancellations', label: 'Pembatalan Trip', Icon: Ban },
+    { key: 'reports', label: 'Dashboard', Icon: BarChart2 },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
     { key: 'plates', label: 'Master Plat', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
     { key: 'endpoint', label: 'Pengaturan', Icon: Settings },
-    { key: 'settings', label: 'Statistik Server', Icon: Server },
   ]
+
+  // Statistik Server tidak lagi tampil di sidebar. Halaman tetap ada dan
+  // dibuka lewat URL /server, mis. http://192.168.1.123:8000/server.
+  const serverStatsRoute = typeof window !== 'undefined' &&
+    /\/server\/?$/.test(window.location.pathname)
+  if (serverStatsRoute) {
+    return (
+      <div className="min-h-screen bg-slate-900">
+        {(serverState === 'offline' || serverState === 'auth') && serverError && (
+          <div className="m-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-[12px] text-red-300">
+            {serverState === 'auth' ? 'Login admin gagal' : 'Tidak bisa terhubung ke server'}: {serverError}
+          </div>
+        )}
+        <SettingsTab />
+      </div>
+    )
+  }
 
   return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
     <div className="flex bg-slate-900 min-h-screen">

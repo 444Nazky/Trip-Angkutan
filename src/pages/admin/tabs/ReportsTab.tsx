@@ -470,7 +470,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
               <th className="text-left px-4 py-2.5 border-b border-slate-200 w-8">#</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">No Trip</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Tanggal</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Jam</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Wilayah</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Asal</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Tujuan</th>

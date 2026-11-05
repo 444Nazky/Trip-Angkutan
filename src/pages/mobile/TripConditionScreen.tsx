@@ -84,8 +84,8 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               <Truck size={20} className={textColor('kosong', condition === 'kosong')} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kosong / Tidak Ada Muatan</p>
-              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan berjalan tanpa muatan — pilih rute bebas</p>
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kapal Kosong</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">Kapal berjalan tanpa muatan — pilih rute bebas</p>
 
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('kosong')}`}>
@@ -107,8 +107,8 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               <Package size={20} className={textColor('muatan', condition === 'muatan')} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Ada Angkutan</p>
-              <p className="text-[11px] text-slate-500 leading-relaxed">Kendaraan membawa muatan — pilihan rute bebas tanpa batasan</p>
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kapal dengan Muatan</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">Kapal membawa muatan — pilihan rute bebas tanpa batasan</p>
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('muatan')}`}>
               {condition === 'muatan' && <div className="w-2 h-2 rounded-full bg-white" />}
