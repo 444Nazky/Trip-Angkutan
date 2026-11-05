@@ -44,7 +44,49 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
-  const [openTripId, setOpenTripId] = useState<string | null>(null)
+  // Mode tampilan tabel trip (halaman dashboard saja; halaman detail
+  // kendaraan tidak terpengaruh):
+  //   'collapse' -> hanya header tanggal yang tampil (trip disembunyikan)
+  //   'header'   -> header tanggal + baris trip, detail kendaraan ditutup
+  //   'all'      -> semua terbuka termasuk detail tiap trip (default)
+  const [expandMode, setExpandMode] = useState<'collapse' | 'header' | 'all'>('all')
+  const [closedDates, setClosedDates] = useState<Set<string>>(new Set())
+  const [closedTrips, setClosedTrips] = useState<Set<string>>(new Set())
+  const [openTrips, setOpenTrips] = useState<Set<string>>(new Set())
+
+  const toggleId = (set: Set<string>, id: string) => {
+    const next = new Set(set)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  }
+  const tripDetailOpen = (id: string) =>
+    expandMode === 'all' ? !closedTrips.has(id) : openTrips.has(id)
+  const toggleTrip = (id: string) => {
+    if (expandMode === 'all') setClosedTrips(prev => toggleId(prev, id))
+    else setOpenTrips(prev => toggleId(prev, id))
+  }
+  const toggleDate = (date: string, allDates: string[]) => {
+    if (expandMode === 'collapse') {
+      // Dari keadaan serba tertutup: klik satu tanggal = buka hanya tanggal itu.
+      setClosedDates(new Set(allDates.filter(d => d !== date)))
+      setExpandMode('header')
+      return
+    }
+    setClosedDates(prev => toggleId(prev, date))
+  }
+  const expandTo = (mode: 'collapse' | 'header' | 'all') => {
+    setExpandMode(mode)
+    setClosedDates(new Set())
+    setClosedTrips(new Set())
+    setOpenTrips(new Set())
+  }
+  // Badge golongan per trip: gabungkan kategori operasional kendaraan di
+  // trip tsb (bisa campuran). Jujur dari data, bukan satu label global.
+  const tripGolongan = (t: ReportTrip): string => {
+    const gs = [...new Set((t.vehicles ?? []).map(v => reportGolongan(v)))]
+    return gs.length > 0 ? gs.join(' + ') : '-'
+  }
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
   const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[]; dermagas: ReportDermagaOption[]; routes: ReportRouteOption[] }>({ golongan: [], vehicleTypes: [], dermagas: [], routes: [] })
   const [viewingPhotos, setViewingPhotos] = useState<{ id: string; url: string; caption?: string }[] | null>(null)
@@ -175,7 +217,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
     if (next.startDate && !next.endDate) next = { ...next, endDate: today }
     if (next.endDate && !next.startDate) next = { ...next, startDate: '1970-01-01' }
     setReportFilters(next)
-    setOpenTripId(null)
     void loadReports(next)
   }
 
@@ -185,13 +226,11 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
     const start = dayKeyWib(new Date(Date.now() - (days - 1) * 86400000).toISOString())
     const next: ReportFilters = { ...reportFilters, startDate: start, endDate: today }
     setReportFilters(next)
-    setOpenTripId(null)
     void loadReports(next)
   }
 
   const clearReportFilters = () => {
     setReportFilters({})
-    setOpenTripId(null)
     void loadReports({})
   }
 
@@ -358,8 +397,29 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr className="bg-slate-50">
-              <th colSpan={11} className="px-4 py-3 border-b border-slate-200">
-                <div className="flex justify-end gap-2">
+              <th colSpan={12} className="px-4 py-3 border-b border-slate-200">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex gap-1.5">
+                    {([
+                      ['collapse', 'Collapse All'],
+                      ['header', 'Expand Header'],
+                      ['all', 'Expand All'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => expandTo(value)}
+                        aria-pressed={expandMode === value}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                          expandMode === value
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
                   <button onClick={onToggleReveal}
                     className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-blue-500 text-blue-600 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
                     {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -389,6 +449,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                     className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
                     <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
+                  </div>
                 </div>
               </th>
             </tr>
@@ -400,6 +461,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Asal</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Tujuan</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Muatan</th>
+              <th className="text-left px-3 py-2.5 border-b border-slate-200">Golongan</th>
               <th className="text-right px-3 py-2.5 border-b border-slate-200">Unit</th>
               <th className="text-left px-3 py-2.5 border-b border-slate-200">Foto</th>
               <th className="text-right px-4 py-2.5 border-b border-slate-200">Pendapatan</th>
@@ -409,7 +471,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
           <tbody>
             {reportState === 'offline' ? (
               <tr>
-                <td colSpan={11} className="p-8 text-center">
+                <td colSpan={12} className="p-8 text-center">
                   <p className="text-slate-500 font-semibold">Laporan tidak bisa dimuat</p>
                   <p className="text-[12px] text-slate-400 mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
                   <button
@@ -421,9 +483,9 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                 </td>
               </tr>
             ) : reportState !== 'ready' ? (
-              <tr><td colSpan={11} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
+              <tr><td colSpan={12} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
-              <tr><td colSpan={11} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
+              <tr><td colSpan={12} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
             ) : (() => {
               // Group trips by date for cleaner hierarchy
               const groupedByDate = reportTrips.reduce((acc, t) => {
@@ -442,18 +504,21 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                 const dayRevenue = dayTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
                 const dateObj = new Date(date + 'T00:00:00')
                 const formattedDate = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+                const dateVisible = expandMode !== 'collapse' && !closedDates.has(date)
 
                 return [
-                  // Date group header row
-                  <tr key={`date-${date}`} className="bg-slate-800 text-white">
+                  // Date group header row (klik = buka/tutup grup tanggal ini)
+                  <tr key={`date-${date}`} onClick={() => toggleDate(date, sortedDates)}
+                    className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors">
                     <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
                       <span className="flex items-center gap-1">
                         <Calendar size={14} className="text-slate-400" />
                         {formattedDate}
+                        <ChevronRight size={14} className={`text-slate-400 transition-transform ${dateVisible ? 'rotate-90' : ''}`} />
                       </span>
                       <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip - {dayTotal} unit)</span>
                     </td>
-                    <td colSpan={5} className="px-3 py-2.5 text-right">
+                    <td colSpan={6} className="px-3 py-2.5 text-right">
                       <span className="text-slate-300 text-xs">Total:</span>
                     </td>
                     <td colSpan={2} className="px-4 py-2.5 text-right font-black text-sm">
@@ -461,14 +526,14 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                     </td>
                     <td />
                   </tr>,
-                  // Trip rows for this date
-                  ...dayTrips.map((t) => {
-                    const open = openTripId === t.id
+                  // Trip rows for this date (hanya kalau grup tanggal terbuka)
+                  ...(dateVisible ? dayTrips.map((t) => {
+                    const open = tripDetailOpen(t.id)
                     const d = formatReportDateTime(t.created_at)
                     const currentIdx = globalIdx++
                     return (
                       <Fragment key={t.id}>
-                        <tr onClick={() => setOpenTripId(open ? null : t.id)}
+                        <tr onClick={() => toggleTrip(t.id)}
                           className={`cursor-pointer hover:bg-slate-50 transition-colors duration-150 ${open ? 'bg-blue-50/60' : currentIdx % 2 === 1 ? 'bg-slate-50/40' : ''}`}>
                           <td className="px-4 py-2.5 text-slate-400 tabular-nums align-middle">{currentIdx + 1}</td>
                           <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{t.no_trip}</td>
@@ -480,6 +545,17 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
                               {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
                             </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {(() => {
+                              const g = tripGolongan(t)
+                              const tone = g.includes('Internal')
+                                ? 'border-slate-800 text-slate-800'
+                                : g.includes('Eksternal')
+                                  ? 'border-slate-400 text-slate-600'
+                                  : 'border-slate-200 text-slate-500'
+                              return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${tone}`}>{g}</span>
+                            })()}
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums">{t.vehicle_count}</td>
                           <td className="px-3 py-2.5">
@@ -521,7 +597,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         </tr>
                         {open && (
                     <tr className="bg-slate-50/80">
-                      <td colSpan={11} className="px-4 py-3">
+                      <td colSpan={12} className="px-4 py-3">
                         <div className="text-[12px] text-slate-600 mb-3">
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
                           <span className="mr-4">Dermaga: {t.dermaga_name || '-'}</span>
@@ -611,14 +687,14 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                     )}
                 </Fragment>
                 )
-              })
+              }) : [])
               ]
             })
             })()}
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 font-bold text-slate-700">
-              <td colSpan={11} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
+              <td colSpan={12} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
                 Total {totalTrip} trip - {totalUnit} unit
                 <span className="ml-4">
                   <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-emerald-700 font-black" />

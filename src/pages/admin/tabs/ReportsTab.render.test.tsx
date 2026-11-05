@@ -176,11 +176,28 @@ describe('ReportsTab (render harness)', () => {
     expect(optionsText).toContain('Burung Sumatra')
   })
 
+  it('menampilkan detail trip tanpa klik (default Expand All)', async () => {
+    await renderReports()
+
+    // Default Expand All: detail trip langsung terbuka sejak load.
+    const body = container.textContent ?? ''
+    expect(body).toContain('D 1234 AB')
+    expect(body).toContain('D 5678 CD')
+    expect(body).toContain('Truck Besar')
+    expect(body).toContain('Golongan')
+  })
+
   it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {
     await renderReports()
 
-    // Baris trip diklik -> baris detail terbuka (tabel kendaraan per unit).
-    const tripRow = container.querySelector('tbody tr.cursor-pointer')
+    // Expand Header: detail trip tertutup; klik baris trip = terbuka.
+    const headerBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent === 'Expand Header')!
+    await act(async () => {
+      headerBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    const tripRow = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
+      .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
     await act(async () => {
       tripRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
@@ -217,10 +234,11 @@ describe('ReportsTab (render harness)', () => {
     const headerCells = headerRows[1]?.querySelectorAll('th').length ?? 0
 
     // Baris data trip (baris pertama di <tbody> setelah group tanggal).
-    const dataRow = container.querySelector('tbody tr.bg-blue-50\\/60, tbody tr.cursor-pointer')
+    const dataRow = Array.from(container.querySelectorAll('tbody tr'))
+      .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
     const dataCells = dataRow?.querySelectorAll('td').length ?? 0
 
-    expect(headerCells).toBe(11)
+    expect(headerCells).toBe(12)
     expect(dataCells).toBe(headerCells)
   })
 })
