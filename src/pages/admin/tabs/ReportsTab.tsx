@@ -9,6 +9,7 @@ import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
 import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
 import { locationDistanceText } from '../../../services/locationDistance'
+import { fetchVehicleTypes, getStoredVehicleTypes } from '../../../services/vehicleTypes'
 
 
 
@@ -50,6 +51,9 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const [viewingPhotos, setViewingPhotos] = useState<{ id: string; url: string; caption?: string }[] | null>(null)
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
+  // Master jenis kendaraan (/vehicle-types) - supaya breakdown menampilkan
+  // SEMUA jenis, termasuk yang belum punya trip pada filter ini.
+  const [vehicleTypeNames, setVehicleTypeNames] = useState<string[]>([])
   // Dokumen pembatalan trip (dari aplikasi mobile): trip yang dibatalkan
   // petugas WAJIB ada alasannya, jadi dokumennya ditampilkan di sini.
   const [cancellations, setCancellations] = useState<TripCancellation[]>([])
@@ -148,6 +152,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
       fetchTripCancellations().then(c => { if (c) setCancellations(c) }).catch(() => null)
+      fetchVehicleTypes()
+        .then(rows => {
+          const names = (rows ?? getStoredVehicleTypes())
+            .filter(t => t.isActive !== false)
+            .map(t => t.name)
+          if (names.length > 0) setVehicleTypeNames(names)
+        })
+        .catch(() => null)
     }
     // Semua kerja di dalam blok ini dijaga `reportState === 'idle'`, sehingga
     // penambahan dependency tidak memicu fetch ulang saat filter berubah.
@@ -364,7 +376,7 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       )}
 
       {reportState === 'ready' && totalTrip > 0 && (
-        <BreakdownSummaryCard reportTrips={reportTrips} revealed={revealed} onToggleReveal={onToggleReveal} />
+        <BreakdownSummaryCard reportTrips={reportTrips} vehicleTypes={vehicleTypeNames} revealed={revealed} onToggleReveal={onToggleReveal} />
       )}
 
       {viewingPhotos && createPortal((

@@ -2,8 +2,9 @@
  * Render harness — Breakdown Summary Card.
  *
  * Memeriksa agregasi kartu dengan data laporan tiruan: jumlah trip per
- * golongan/jenis, tarif, pecahan Ada/Tanpa Muatan, dan trip tanpa kendaraan
- * yang wajib disebutkan (bukan disembunyikan).
+ * golongan/jenis, tarif, pecahan Ada/Tanpa Muatan, jenis master yang belum
+ * punya trip tetap tampil, urutan kolom (Eksternal paling kanan), dan trip
+ * tanpa kendaraan yang wajib disebutkan (bukan disembunyikan).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -13,6 +14,8 @@ import { BreakdownSummaryCard } from './BreakdownSummaryCard'
 import type { ReportTrip, ReportVehicle } from '../../../services/trips'
 
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+
+const MASTER_TYPES = ['Motor', 'Mobil', 'Truk Kecil', 'Truk Besar', 'Truk Sedang', 'Truk Trailer']
 
 function vehicle(partial: Partial<ReportVehicle> & Pick<ReportVehicle, 'no_polisi' | 'vehicle_type'>): ReportVehicle {
   return {
@@ -66,10 +69,16 @@ describe('BreakdownSummaryCard', () => {
     container.remove()
   })
 
-  function renderCard() {
+  function renderCard(extra?: Partial<React.ComponentProps<typeof BreakdownSummaryCard>>) {
     act(() => {
       root = createRoot(container)
-      root.render(React.createElement(BreakdownSummaryCard, { reportTrips: trips, revealed: true, onToggleReveal: () => {} }))
+      root.render(React.createElement(BreakdownSummaryCard, {
+        reportTrips: trips,
+        vehicleTypes: MASTER_TYPES,
+        revealed: true,
+        onToggleReveal: () => {},
+        ...extra,
+      }))
     })
   }
 
@@ -82,6 +91,26 @@ describe('BreakdownSummaryCard', () => {
     expect(text).toContain('Rp 150')
     expect(text).toContain('Golongan: Internal')
     expect(text).toContain('1 trip tanpa data kendaraan')
+  })
+
+  it('menampilkan SEMUA jenis dari master walau belum punya trip (0 trip)', () => {
+    renderCard()
+    const text = container.textContent ?? ''
+    for (const name of MASTER_TYPES) {
+      expect(text).toContain(name)
+    }
+    // Jenis di luar master (Dump Truck, lawas) tetap tampil
+    expect(text).toContain('Dump Truck')
+  })
+
+  it('kolom Eksternal berada paling kanan', () => {
+    renderCard()
+    const cols = Array.from(container.querySelectorAll('.rounded-xl.border.border-slate-200.overflow-hidden > .bg-slate-50\\/80'))
+      .map(el => el.textContent ?? '')
+    expect(cols.length).toBe(3)
+    expect(cols[0]).toContain('Internal')
+    expect(cols[1]).toContain('Lokal')
+    expect(cols[2]).toContain('Eksternal')
   })
 
   it('mode jenis mengelompokkan per jenis kendaraan', () => {
