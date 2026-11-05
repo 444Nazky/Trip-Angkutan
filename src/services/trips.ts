@@ -158,6 +158,9 @@ export interface ReportTrip {
   region_name?: string | null
   region_code?: string | null
 
+  dermaga_name?: string | null
+  dermaga_code?: string | null
+  route_name?: string | null
   route_from_name?: string | null
   route_to_name?: string | null
   vehicle_count: number
@@ -228,6 +231,10 @@ export interface ReportFilters {
   golongan?: string
   vehicleType?: string
   route?: string
+  /** Filter per dermaga (uuid). */
+  dermagaId?: string
+  /** Filter per rute (uuid). */
+  routeId?: string
   status?: string
   muatan?: 'ada' | 'tanpa'
   q?: string
@@ -244,6 +251,8 @@ function toQuery(f?: ReportFilters): string {
   if (f.golongan) params.set('golongan', f.golongan)
   if (f.vehicleType) params.set('vehicleType', f.vehicleType)
   if (f.route) params.set('route', f.route)
+  if (f.dermagaId) params.set('dermagaId', f.dermagaId)
+  if (f.routeId) params.set('routeId', f.routeId)
   if (f.status) params.set('status', f.status)
   if (f.muatan) params.set('muatan', f.muatan)
   if (f.q) params.set('q', f.q)
@@ -261,9 +270,31 @@ export async function fetchTripReports(filters?: ReportFilters): Promise<ReportT
 
 
 
+export interface ReportDermagaOption {
+  id: string
+  name: string
+  code?: string | null
+  region_name?: string | null
+  region_code?: string | null
+}
+
+export interface ReportRouteOption {
+  id: string
+  name: string
+  route_from: string
+  route_to: string
+  dermaga_id?: string | null
+  dermaga_name?: string | null
+  dermaga_code?: string | null
+}
+
 export interface ReportFilterOptions {
   golongan: string[]
   vehicleTypes: string[]
+  /** Semua dermaga master, urut nama. */
+  dermagas?: ReportDermagaOption[]
+  /** Semua rute master, urut dermaga lalu asal/tujuan. */
+  routes?: ReportRouteOption[]
 }
 
 

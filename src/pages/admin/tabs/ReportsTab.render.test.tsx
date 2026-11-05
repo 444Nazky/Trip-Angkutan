@@ -80,6 +80,13 @@ vi.mock('../../../services/trips', async (importOriginal) => {
     fetchReportFilters: vi.fn(async () => ({
       golongan: ['Internal', 'Eksternal', 'Lokal'],
       vehicleTypes: ['Truck Besar'],
+      dermagas: [
+        { id: 'd-1', name: 'Badau D1', code: 'D1', region_name: 'BADAU', region_code: 'BADAU' },
+        { id: 'd-2', name: 'Empanang D1', code: 'D1', region_name: 'EMPANANG', region_code: 'EMPANANG' },
+      ],
+      routes: [
+        { id: 'r-1', name: 'SBDZ -> SJRE', route_from: 'SBDZ', route_to: 'SJRE', dermaga_id: 'd-1', dermaga_name: 'Badau D1' },
+      ],
     })),
     fetchTripReports: vi.fn(async () => reportTrips),
   }
@@ -88,6 +95,18 @@ vi.mock('../../../services/trips', async (importOriginal) => {
 vi.mock('../../../services/geofences', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/geofences')>()
   return { ...actual, fetchGeofenceRules: vi.fn(async () => []) }
+})
+
+vi.mock('../../../services/vehicleTypes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/vehicleTypes')>()
+  return {
+    ...actual,
+    fetchVehicleTypes: vi.fn(async () => [
+      { id: 'vt-1', name: 'Motor', key: 'motor', sortOrder: 1, isActive: true },
+      { id: 'vt-2', name: 'Burung Sumatra', key: 'burungsumatra', sortOrder: 7, isActive: true },
+    ]),
+    getStoredVehicleTypes: vi.fn(() => []),
+  }
 })
 
 vi.mock('../../../services/xlsx', () => ({ downloadXlsx: vi.fn() }))
@@ -136,6 +155,25 @@ describe('ReportsTab (render harness)', () => {
     // kendaraan muncul di baris detail ketika baris trip diklik.
     expect(headers).toContain('Unit')
     expect(headers).toContain('Foto')
+  })
+
+  it('menampilkan semua pilihan master di filter Dermaga, Rute, dan Jenis Kendaraan', async () => {
+    await renderReports()
+
+    const labels = Array.from(container.querySelectorAll('label'))
+      .map(l => l.textContent?.trim() ?? '')
+    expect(labels).toContain('Dermaga')
+    expect(labels).toContain('Rute')
+    expect(labels).toContain('Jenis Kendaraan')
+
+    const optionsText = Array.from(container.querySelectorAll('select option'))
+      .map(o => o.textContent?.trim() ?? '')
+    // Master yang belum dipakai trip mana pun tetap harus muncul.
+    expect(optionsText).toContain('Badau D1')
+    expect(optionsText).toContain('Empanang D1')
+    expect(optionsText.some(t => t.includes('SBDZ') && t.includes('SJRE') && t.includes('Badau D1'))).toBe(true)
+    expect(optionsText).toContain('Motor')
+    expect(optionsText).toContain('Burung Sumatra')
   })
 
   it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {

@@ -29,6 +29,9 @@ function normalizeLegacyCategory(raw: unknown): string | null {
   return null;
 }
 
+// Id dermaga/rute bertipe uuid di database — divalidasi sebelum dipakai query.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Status plat pada tabel vehicle_plates / plate_scans memakai huruf kecil.
 function normalizePlateStatus(raw: unknown): string | null {
   if (raw === null || raw === undefined) return null;
@@ -204,6 +207,8 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     if (!ctx) return json({ error: "Admin access required" }, 403);
     const range = dateRange(url);
     const regionId = url.searchParams.get("regionId");
+    const dermagaId = url.searchParams.get("dermagaId");
+    const routeId = url.searchParams.get("routeId");
     const status = url.searchParams.get("status");
     const golongan = url.searchParams.get("golongan");
     const vehicleType = url.searchParams.get("vehicleType");
@@ -211,20 +216,48 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     const muatan = url.searchParams.get("muatan"); // ada | tanpa (status muatan kendaraan)
     const q = (url.searchParams.get("q") || "").trim().toLowerCase();
 
+    if (dermagaId && !UUID_RE.test(dermagaId)) return json({ error: "dermagaId tidak valid" }, 400);
+    if (routeId && !UUID_RE.test(routeId)) return json({ error: "routeId tidak valid" }, 400);
+
     let query = db
       .from("trips")
-      .select("*, officers(name), regions(name, code)")
+      .select("*, officers(name), regions(name, code), dermagas(name, code), routes(name, route_from, route_to)")
       .order("created_at", { ascending: false })
       .limit(1000);
 
     if (range.start && range.end) query = query.gte("created_at", range.start).lte("created_at", range.end);
     if (regionId) query = query.eq("region_id", regionId);
+    if (dermagaId) query = query.eq("dermaga_id", dermagaId);
     if (status) query = query.eq("status_muatan", status);
 
-    const { data: trips, error } = await query;
+    const { data: fetchedTrips, error } = await query;
     if (error) throw error;
+    let trips = fetchedTrips ?? [];
 
-    const tripIds = (trips ?? []).map((t: any) => t.id);
+    // Filter Rute: trip lawas tidak punya route_id (kolom selalu NULL), jadi
+    // selain cocok lewat route_id, trip juga cocok lewat identitas rute yang
+    // benar-benar tersimpan: route_from + route_to + dermaga_id.
+    if (routeId) {
+      const { data: routeRows, error: routeError } = await db
+        .from("routes")
+        .select("id, route_from, route_to, dermaga_id")
+        .eq("id", routeId)
+        .limit(1);
+      if (routeError) throw routeError;
+      const route = (routeRows ?? [])[0];
+      if (!route) return json([]); // Rute tidak ada -> bukan error, memang tidak ada trip.
+      const from = String(route.route_from ?? "").trim().toUpperCase();
+      const to = String(route.route_to ?? "").trim().toUpperCase();
+      const dock = String(route.dermaga_id ?? "");
+      trips = trips.filter((t: any) => {
+        if (t.route_id) return String(t.route_id) === routeId;
+        return String(t.route_from ?? "").trim().toUpperCase() === from
+            && String(t.route_to ?? "").trim().toUpperCase() === to
+            && String(t.dermaga_id ?? "") === dock;
+      });
+    }
+
+    const tripIds = trips.map((t: any) => t.id);
     let vehicles: any[] = [];
 
     if (tripIds.length) {
@@ -257,7 +290,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     // lama; perubahan tarif hanya berlaku untuk trip selanjutnya.
     // Row lawas tanpa harga tersimpan -> pakai tarif terkini (fallback).
     const regionByTrip = new Map<string, string>(
-      (trips ?? []).map((t: any) => [t.id, String(t.region_id ?? "")]),
+      trips.map((t: any) => [t.id, String(t.region_id ?? "")]),
     );
 
     vehicles = await Promise.all(vehicles.map(async (v) => {
@@ -296,7 +329,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     // atau di tingkat kendaraan (plat, jenis, kategori).
     if (q) {
       const tripMeta = new Map<string, string[]>();
-      for (const t of (trips ?? []) as any[]) {
+      for (const t of trips as any[]) {
         tripMeta.set(t.id, [
           t.no_trip,
           t.officers?.name,
@@ -323,7 +356,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       vehiclesByTrip.get(v.trip_id)!.push(v);
     }
 
-    let result = (trips ?? []).map((t: any) => {
+    let result = trips.map((t: any) => {
       const tv = vehiclesByTrip.get(t.id) ?? [];
       // Semua foto: bukti trip + swafoto petugas + foto tiap kendaraan
       const allPhotos = [
@@ -337,6 +370,9 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
         officer_name: t.officers?.name,
         region_name: t.regions?.name,
         region_code: t.regions?.code,
+        dermaga_name: t.dermagas?.name ?? null,
+        dermaga_code: t.dermagas?.code ?? null,
+        route_name: t.routes?.name ?? null,
         vehicles: tv,
         vehicle_count: tv.length,
         trip_revenue: tv.reduce((s: number, v: any) => s + (v.tariff_amount || 0), 0),
@@ -368,35 +404,60 @@ export async function tripFilters(req: Request): Promise<Response> {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
 
-    // Opsi diturunkan dari data kendaraan yang benar-benar dipakai di lapangan,
-    // bukan dari master tarif (yang masih memakai Golongan I..V).
-    const { data: vehRows, error: vehError } = await db
-      .from("vehicles")
-      .select("golongan, vehicle_type")
-      .not("trip_id", "is", null)
-      .limit(5000);
-    if (vehError) throw vehError;
-
-    const foundTypes = new Set<string>();
-    for (const v of (vehRows ?? []) as any[]) {
-      if (v.vehicle_type) foundTypes.add(String(v.vehicle_type));
-    }
-
-    const { data: tariffs, error } = await db
-      .from("tariffs")
-      .select("golongan, vehicle_type")
+    // Opsi filter diambil dari MASTER data, bukan dari trip yang sudah
+    // terkirim: menu harus menampilkan semua pilihan yang sah meskipun belum
+    // ada satu pun trip dengan kategori itu (mis. jenis kendaraan yang belum
+    // pernah dipakai). Tidak ada opsi karangan — semua baris benar-benar ada
+    // di database.
+    const { data: typeRows, error: typeError } = await db
+      .from("vehicle_types")
+      .select("name")
       .eq("is_active", 1)
-      .order("golongan", { ascending: true });
-    if (error) throw error;
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (typeError) throw typeError;
+    const vehicleTypes = [...new Set((typeRows ?? [])
+      .map((t: any) => String(t.name ?? "").trim())
+      .filter(Boolean))];
 
-    const vehicleTypes = foundTypes.size > 0
-      ? [...foundTypes].sort()
-      : [...new Set((tariffs ?? []).map((t: any) => t.vehicle_type).filter(Boolean))].sort();
+    const { data: dermagaRows, error: dermagaError } = await db
+      .from("dermagas")
+      .select("id, name, code, regions(name, code)")
+      .order("name", { ascending: true });
+    if (dermagaError) throw dermagaError;
+    const dermagas = (dermagaRows ?? []).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      code: d.code,
+      region_name: d.regions?.name ?? null,
+      region_code: d.regions?.code ?? null,
+    }));
+
+    const { data: routeRows, error: routeError } = await db
+      .from("routes")
+      .select("id, name, route_from, route_to, dermaga_id, dermagas(name, code)")
+      .order("route_from", { ascending: true })
+      .order("route_to", { ascending: true });
+    if (routeError) throw routeError;
+    const routes = (routeRows ?? [])
+      .map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        route_from: r.route_from,
+        route_to: r.route_to,
+        dermaga_id: r.dermaga_id,
+        dermaga_name: r.dermagas?.name ?? null,
+        dermaga_code: r.dermagas?.code ?? null,
+      }))
+      .sort((a: any, b: any) =>
+        String(a.dermaga_name ?? "").localeCompare(String(b.dermaga_name ?? ""))
+        || String(a.route_from ?? "").localeCompare(String(b.route_from ?? ""))
+        || String(a.route_to ?? "").localeCompare(String(b.route_to ?? "")));
 
     // Selalu kembalikan tiga kategori operasional, urut Internal - Eksternal - Lokal.
     const golongan = OPERATIONAL_CATEGORIES.slice();
 
-    return json({ golongan, vehicleTypes });
+    return json({ golongan, vehicleTypes, dermagas, routes });
   } catch (error) {
     console.error("Filters error:", error);
     return json({ error: "Failed to fetch filter options" }, 500);

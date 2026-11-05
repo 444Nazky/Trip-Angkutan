@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
+import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation, type ReportDermagaOption, type ReportRouteOption } from '../../../services/trips'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { BreakdownSummaryCard } from '../components/BreakdownSummaryCard'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -46,7 +46,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   const [reportError, setReportError] = useState<string | null>(null)
   const [openTripId, setOpenTripId] = useState<string | null>(null)
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
-  const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[] }>({ golongan: [], vehicleTypes: [] })
+  const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[]; dermagas: ReportDermagaOption[]; routes: ReportRouteOption[] }>({ golongan: [], vehicleTypes: [], dermagas: [], routes: [] })
   const [viewingPhotos, setViewingPhotos] = useState<{ id: string; url: string; caption?: string }[] | null>(null)
 
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
@@ -142,7 +142,12 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   useEffect(() => {
     if (reportState === 'idle') {
       Promise.all([fetchReportFilters(), fetchTrips()]).then(([opts, trips]) => {
-        if (opts) setFilterOptions(opts)
+        if (opts) setFilterOptions({
+          golongan: opts.golongan ?? [],
+          vehicleTypes: opts.vehicleTypes ?? [],
+          dermagas: opts.dermagas ?? [],
+          routes: opts.routes ?? [],
+        })
         if (trips) onServerTripsChange(trips)
       })
       void loadReports()
@@ -152,7 +157,10 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         .then(rows => {
           const names = (rows ?? getStoredVehicleTypes())
             .filter(t => t.isActive !== false)
+            .slice()
+            .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
             .map(t => t.name)
+            .filter(Boolean)
           if (names.length > 0) setVehicleTypeNames(names)
         })
         .catch(() => null)
@@ -187,8 +195,13 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
     void loadReports({})
   }
 
-  const golonganOptions = filterOptions.golongan.length > 0 ? filterOptions.golongan : []
-  const jenisOptions = filterOptions.vehicleTypes.length > 0 ? filterOptions.vehicleTypes : []
+  // Jenis kendaraan: ambil dari master vehicle_types (semua pilihan sah),
+  // bukan dari trip yang sudah terkirim. Fallback ke opsi server bila master
+  // gagal dimuat.
+  const jenisOptions = vehicleTypeNames.length > 0 ? vehicleTypeNames : filterOptions.vehicleTypes
+  const golonganOptions = filterOptions.golongan
+  const dermagaOptions = filterOptions.dermagas
+  const routeOptions = filterOptions.routes
 
   const totalTrip = reportTrips.length
   const totalUnit = reportTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
@@ -267,7 +280,22 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
             <option value="">Semua</option>
             {jenisOptions.map(j => <option key={j} value={j}>{j}</option>)}
           </select></div>
-        <button onClick={clearReportFilters} className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-bold text-sm hover:bg-slate-50">Reset</button>
+        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dermaga</label>
+          <select value={reportFilters.dermagaId || ''} onChange={e => applyReportFilter({ dermagaId: e.target.value || undefined })}
+            className="border rounded-xl px-3 py-2 text-sm min-w-[150px] bg-white">
+            <option value="">Semua</option>
+            {dermagaOptions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select></div>
+        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Rute</label>
+          <select value={reportFilters.routeId || ''} onChange={e => applyReportFilter({ routeId: e.target.value || undefined })}
+            className="border rounded-xl px-3 py-2 text-sm min-w-[210px] bg-white">
+            <option value="">Semua</option>
+            {routeOptions.map(r => (
+              <option key={r.id} value={r.id}>
+                {r.route_from} → {r.route_to}{r.dermaga_name ? ` · ${r.dermaga_name}` : ''}
+              </option>
+            ))}
+          </select></div>
         <span className="ml-auto text-[12px] text-slate-400 font-semibold">{totalTrip} trip</span>
       </div>
 
@@ -497,6 +525,8 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                       <td colSpan={11} className="px-4 py-3">
                         <div className="text-[12px] text-slate-600 mb-3">
                           <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
+                          <span className="mr-4">Dermaga: {t.dermaga_name || '-'}</span>
+                          <span className="mr-4">Rute: {t.route_name || `${t.route_from || '-'} → ${t.route_to || '-'}`}</span>
                           <span>Kategori: {t.keterangan || '-'}</span>
                         </div>
                         {t.selfie_photo && (
