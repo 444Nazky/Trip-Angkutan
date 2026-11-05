@@ -343,12 +343,12 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
             <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Muatan</p>
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{muatanCount}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Unit</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">{totalUnit}</p>
+            <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Tanpa Muatan</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip - muatanCount}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
