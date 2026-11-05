@@ -1,8 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Camera, ChevronRight, Download, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
-import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportPlace, reportAsal, reportTujuan, reportRentang, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
-import { downloadXlsx } from '../../../services/xlsx'
+import { Camera, ChevronRight, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
+import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation } from '../../../services/trips'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
 import { BreakdownSummaryCard } from '../components/BreakdownSummaryCard'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
@@ -41,7 +40,7 @@ interface ReportsTabProps {
 
 
 
-export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleReveal, baseUrl = '', onOpenCancellations }: ReportsTabProps) {
+export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, baseUrl = '', onOpenCancellations }: ReportsTabProps) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
@@ -56,7 +55,21 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
   const [vehicleTypeNames, setVehicleTypeNames] = useState<string[]>([])
   // Dokumen pembatalan trip (dari aplikasi mobile): trip yang dibatalkan
   // petugas WAJIB ada alasannya, jadi dokumennya ditampilkan di sini.
+  // Hanya dokumen pada rentang tanggal yang sama dengan laporan, supaya
+  // jumlah di strip dan di kartu Total Trip cocok dengan /reports/trips.
   const [cancellations, setCancellations] = useState<TripCancellation[]>([])
+
+  const cancelFilters = useMemo(
+    () => ({ startDate: reportFilters.startDate, endDate: reportFilters.endDate }),
+    [reportFilters],
+  )
+  const loadCancellations = useCallback(() => {
+    fetchTripCancellations(cancelFilters)
+      .then(c => { if (c) setCancellations(c) })
+      .catch(() => null)
+  }, [cancelFilters])
+
+  useEffect(() => { loadCancellations() }, [loadCancellations])
 
   // Alasan yang paling SERING dipilih (bukan pembatalan terakhir) — dihitung
   // dari baris yang sudah dimuat supaya ringkasannya jujur.
@@ -137,10 +150,10 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       void loadReports(undefined, { silent: true })
-      void fetchTripCancellations().then(c => { if (c) setCancellations(c) })
+      loadCancellations()
     }, 30_000)
     return () => window.clearInterval(timer)
-  }, [loadReports])
+  }, [loadReports, loadCancellations])
 
   useEffect(() => {
     if (reportState === 'idle') {
@@ -151,7 +164,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
       void loadReports()
 
       fetchGeofenceRules().then(rules => { if (rules) setGeoRules(rules) }).catch(() => null)
-      fetchTripCancellations().then(c => { if (c) setCancellations(c) }).catch(() => null)
       fetchVehicleTypes()
         .then(rows => {
           const names = (rows ?? getStoredVehicleTypes())
@@ -191,55 +203,6 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
     void loadReports({})
   }
 
-  const handleExport = () => {
-    if (reportState !== 'ready' || reportTrips.length === 0) return showToast('Tidak ada data', 'error')
-    const now = new Date()
-    const stamped = formatReportDateTime(now.toISOString().slice(0, 19).replace('T', ' '), { withSeconds: true })
-    const dateSlug = now.toISOString().slice(0, 10)
-    const header = ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'Rute Asal', 'Rute Tujuan', 'Rute', 'Kendaraan', 'Petugas', 'Status Muatan', 'Kategori', 'Jumlah Unit', 'Total Tarif (Rp)']
-    const rentang = reportRentang(reportFilters)
-
-    const tripRows: (string | number | null)[][] = [
-      ['Laporan Trip Angkutan'],
-      ['Dicetak', stamped.full],
-      ['Rentang Tanggal', rentang],
-      ['Filter Golongan', reportFilters.golongan || 'Semua'],
-      ['Filter Jenis Kendaraan', reportFilters.vehicleType || 'Semua'],
-      ['Jumlah Trip', totalTrip],
-      [],
-      header,
-      ...reportTrips.map(t => {
-        const d = formatReportDateTime(t.created_at)
-        return [t.no_trip, d.date, d.time, reportPlace(t), reportAsal(t), reportTujuan(t),
-          `${t.route_from || '-'} → ${t.route_to || '-'}`,
-          t.vehicles.map(v => `${v.no_polisi} (${v.vehicle_type}, ${v.has_load ? 'Ada Muatan' : 'Kosong'})`).join(' | ') || '-',
-          t.officer_name || '-',
-          t.status_muatan === 'muatan' ? 'Ada Muatan' : 'Kosong',
-          t.keterangan && t.keterangan !== '-' ? t.keterangan : '-',
-          t.vehicle_count || 0, t.trip_revenue || 0]
-      }),
-    ]
-
-    const vehRows: (string | number | null)[][] = [
-      ['Detail Kendaraan per Trip'],
-      ['Rentang Tanggal', rentang],
-      [],
-      ['No Trip', 'Tanggal', 'Jam (WIB)', 'Tempat / Wilayah', 'No. Polisi', 'Jenis Kendaraan', 'Golongan', 'Beban', 'Tarif (Rp)'],
-      ...reportTrips.flatMap(t => {
-        const d = formatReportDateTime(t.created_at)
-        return t.vehicles.map(v => [t.no_trip, d.date, d.time, reportPlace(t), v.no_polisi, v.vehicle_type,
-          reportGolongan(v),
-          v.has_load ? 'Ada Muatan' : 'Kosong', v.tariff_amount || 0])
-      }),
-    ]
-
-    downloadXlsx(`laporan-trip-${dateSlug}.xlsx`, [
-      { name: 'Laporan Trip', rows: tripRows },
-      { name: 'Detail Kendaraan', rows: vehRows },
-    ])
-    showToast('Laporan Excel (.xlsx) diunduh')
-  }
-
   const golonganOptions = filterOptions.golongan.length > 0 ? filterOptions.golongan : []
   const jenisOptions = filterOptions.vehicleTypes.length > 0 ? filterOptions.vehicleTypes : []
 
@@ -276,19 +239,14 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
           </button>
 
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
-            title="Buka spreadsheet live yang tersinkron langsung dari database"
+            title="Buka detail kendaraan per trip - tersinkron langsung dari database"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
-            <Table2 size={15} /> Buka Spreadsheet
+            <Table2 size={15} /> Detail Kendaraan
           </button>
           <button onClick={() => window.open(`${window.location.pathname}#/sheet`, '_blank')} disabled={reportState !== 'ready'}
-            title="Buka spreadsheet di tab baru" aria-label="Buka spreadsheet di tab baru"
+            title="Buka detail kendaraan di tab baru" aria-label="Buka detail kendaraan di tab baru"
             className="border border-slate-200 text-slate-600 px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
             <ExternalLink size={15} />
-          </button>
-          <button onClick={handleExport} disabled={reportState !== 'ready'}
-            title="Unduh berkas .xlsx (cara lama, opsional)"
-            className="border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
-            <Download size={15} /> .xlsx
           </button>
         </div>
       </div>
@@ -353,6 +311,11 @@ export function ReportsTab({ onServerTripsChange, showToast, revealed, onToggleR
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
             <p className="text-2xl font-black text-slate-900 mt-1">{totalTrip}</p>
+            <p className="mt-1 text-[10px] font-bold text-slate-400">
+              Trip Berhasil: {totalTrip} Trip
+              <span className="mx-1.5 text-slate-200">|</span>
+              Trip Dibatalkan: {cancellations.length} Trip
+            </p>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center">
             <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
