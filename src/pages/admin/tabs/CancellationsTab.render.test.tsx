@@ -65,6 +65,27 @@ const CANCEL_ROWS = [
     officer_name: 'Petugas Dua',
     region_code: 'CRB',
   },
+  // Dokumen kedua Petugas Satu pada TANGGAL yang sama (2026-11-01) —
+  // harus tetap masuk satu grup tanggal.
+  {
+    id: 'c-3',
+    no_cancel: 'CNL20261101CCCCCC',
+    officer_id: 'officer-a',
+    reason: 'Kendaraan tidak ditemukan',
+    note: null,
+    route_from: 'SJRE',
+    route_to: 'CRB',
+    route_code: 'SJRE-CRB',
+    condition: 'kosong',
+    vehicle_count: 1,
+    photo_count: 0,
+    vehicles: [{ plate: 'E 1111 AA', type: 'Motor', category: 'Internal', load: 'empty', tariff: 10000 }],
+    started_at: '2026-11-01T03:00:00.000Z',
+    cancelled_at: '2026-11-01T04:00:00.000Z',
+    created_at: '2026-11-01T04:00:00.000Z',
+    officer_name: 'Petugas Satu',
+    region_code: 'CRB',
+  },
 ]
 
 const CANCEL_SUMMARY = {
@@ -166,35 +187,35 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toContain('Petugas Satu')
   })
 
-  it('mengelompokkan satu grup per petugas, berisi trip (tanggal) lalu kendaraan', async () => {
+  it('satu grup per petugas, satu grup per tanggal (dokumen sedate digabung)', async () => {
     await renderTab()
 
-    // 1 petugas = 1 grup (tidak lagi dipecah per alasan).
+    // 1 petugas = 1 grup (tidak dipecah per alasan maupun per dokumen).
     const officerTexts = Array.from(container.querySelectorAll('[data-testid="cancel-group-header"]'))
       .map(el => el.textContent ?? '')
     expect(officerTexts.length).toBe(2)
     expect(officerTexts.some(t => t.includes('Petugas Satu'))).toBe(true)
     expect(officerTexts.some(t => t.includes('Petugas Dua'))).toBe(true)
-    // Alasan tidak lagi menempel di header petugas.
-    expect(officerTexts.every(t => !t.includes('Pelanggan membatalkan') && !t.includes('Data masuk salah'))).toBe(true)
 
-    // Tiap trip = folder berlabel tanggal, memuat alasan trip itu.
-    const tripTexts = Array.from(container.querySelectorAll('[data-testid="cancel-trip-header"]'))
+    // 2 dokumen Petugas Satu pada 2026-11-01 tetap jadi SATU grup tanggal.
+    const dateTexts = Array.from(container.querySelectorAll('[data-testid="cancel-date-header"]'))
       .map(el => el.textContent ?? '')
-    expect(tripTexts.length).toBe(2)
-    expect(tripTexts.some(t => t.includes('01-11-2026') && t.includes('Pelanggan membatalkan'))).toBe(true)
-    expect(tripTexts.some(t => t.includes('02-11-2026') && t.includes('Data masuk salah'))).toBe(true)
+    expect(dateTexts.length).toBe(2)
+    expect(dateTexts.some(t => t.includes('01-11-2026') && t.includes('2 trip') && t.includes('3 unit'))).toBe(true)
+    expect(dateTexts.some(t => t.includes('02-11-2026') && t.includes('1 trip') && t.includes('1 unit'))).toBe(true)
 
-    // 3 kendaraan dari 2 trip.
+    // 4 kendaraan dari 3 dokumen pembatalan.
     const vehicleRows = Array.from(container.querySelectorAll('[data-testid="cancel-vehicle-row"]'))
-    expect(vehicleRows.length).toBe(3)
+    expect(vehicleRows.length).toBe(4)
 
     const body = container.textContent ?? ''
     expect(body).toContain('CNL20261101AAAAAA')
+    expect(body).toContain('CNL20261101CCCCCC')
     expect(body).toContain('CNL20261102BBBBBB')
     expect(body).toContain('B 1234 XY')
     expect(body).toContain('B 5678 ZA')
     expect(body).toContain('D 9999 ZZ')
+    expect(body).toContain('E 1111 AA')
     expect(body).toContain('Truk Kecil')
     // Waktu batal memakai format "YYYY-MM-DD HH:MM WIB".
     expect(body).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} WIB/)
@@ -219,22 +240,22 @@ describe('CancellationsTab (render harness)', () => {
     await renderTab()
 
     expect(container.querySelectorAll('[data-testid="cancel-group-header"]').length).toBe(2)
-    expect(container.querySelectorAll('[data-testid="cancel-trip-header"]').length).toBe(2)
-    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(3)
+    expect(container.querySelectorAll('[data-testid="cancel-date-header"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(4)
 
     await act(async () => {
       button('Collapse All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     // Hanya header petugas yang tersisa.
     expect(container.querySelectorAll('[data-testid="cancel-group-header"]').length).toBe(2)
-    expect(container.querySelectorAll('[data-testid="cancel-trip-header"]').length).toBe(0)
+    expect(container.querySelectorAll('[data-testid="cancel-date-header"]').length).toBe(0)
     expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(0)
 
     await act(async () => {
       button('Expand All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(container.querySelectorAll('[data-testid="cancel-trip-header"]').length).toBe(2)
-    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(3)
+    expect(container.querySelectorAll('[data-testid="cancel-date-header"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(4)
   })
 
   it('mengirim filter alasan ke server saat alasan dipilih', async () => {

@@ -95,27 +95,28 @@ interface CancelVehicleRow {
   vehicle: CancelVehicle | null
 }
 
-interface CancelTripGroup {
-  /** id dokumen pembatalan — satu dokumen = satu trip. */
+interface CancelDateGroup {
+  /** Tanggal (YYYY-MM-DD) — semua pembatalan tanggal ini digabung. */
   key: string
-  cancel: TripCancellation
+  /** Jumlah dokumen/trip pembatalan pada tanggal ini. */
+  tripCount: number
   rows: CancelVehicleRow[]
 }
 
 interface CancelOfficerGroup {
   key: string
   officer: string
-  /** Total unit kendaraan seluruh trip petugas ini. */
+  /** Total unit kendaraan seluruh tanggal petugas ini. */
   unitCount: number
-  trips: CancelTripGroup[]
+  dates: CancelDateGroup[]
 }
 
-/** Tanggal trip (YYYY-MM-DD): tanggal mulai, mundur ke tanggal batal. */
+/** Tanggal pembatalan (YYYY-MM-DD): tanggal mulai, mundur ke tanggal batal. */
 function tripDateKey(c: TripCancellation): string {
   return dayKeyWib(c.started_at ?? c.cancelled_at)
 }
 
-/** "2026-11-22" -> "22-11-2026" (label folder trip). */
+/** "2026-11-22" -> "22-11-2026" (label folder tanggal). */
 function toDmy(date: string): string {
   const [y, m, d] = date.split('-')
   if (!y || !m || !d) return date
@@ -123,12 +124,12 @@ function toDmy(date: string): string {
 }
 
 /**
- * Kelompokkan pembatalan menurut "Petugas → Trip → kendaraan".
+ * Kelompokkan pembatalan menurut "Petugas → Tanggal → kendaraan".
  *
- * Satu petugas = satu grup; di dalamnya tiap dokumen pembatalan jadi satu
- * grup trip (dilabeli tanggal), dan satu baris tabel = satu kendaraan.
- * Dokumen tanpa rincian kendaraan tetap tampil satu baris (kolom kendaraan
- * "-") supaya tidak ada pembatalan yang hilang dari daftar.
+ * Satu petugas = satu grup; di dalamnya semua pembatalan pada TANGGAL yang
+ * sama digabung jadi satu grup tanggal (berapa pun dokumennya), dan satu baris
+ * tabel = satu kendaraan. Dokumen tanpa rincian kendaraan tetap tampil satu
+ * baris (kolom kendaraan "-") supaya tidak ada pembatalan yang hilang.
  */
 function buildOfficerGroups(rows: TripCancellation[]): CancelOfficerGroup[] {
   const byOfficer = new Map<string, CancelOfficerGroup>()
@@ -136,9 +137,17 @@ function buildOfficerGroups(rows: TripCancellation[]): CancelOfficerGroup[] {
     const officer = c.officer_name?.trim() || 'Tanpa nama'
     let group = byOfficer.get(officer)
     if (!group) {
-      group = { key: officer, officer, unitCount: 0, trips: [] }
+      group = { key: officer, officer, unitCount: 0, dates: [] }
       byOfficer.set(officer, group)
     }
+
+    const date = tripDateKey(c)
+    let day = group.dates.find(d => d.key === date)
+    if (!day) {
+      day = { key: date, tripCount: 0, rows: [] }
+      group.dates.push(day)
+    }
+    day.tripCount += 1
 
     const vehicles = c.vehicles && c.vehicles.length > 0 ? c.vehicles : [null]
     const tripRows: CancelVehicleRow[] = vehicles.map((vehicle, i) => ({
@@ -146,18 +155,23 @@ function buildOfficerGroups(rows: TripCancellation[]): CancelOfficerGroup[] {
       cancel: c,
       vehicle,
     }))
-    group.trips.push({ key: c.id, cancel: c, rows: tripRows })
+    day.rows.push(...tripRows)
     group.unitCount += tripRows.length
   }
 
-  // Petugas: unit terbanyak dulu, lalu nama. Trip: terbaru dulu, lalu no. dokumen.
+  // Petugas: unit terbanyak dulu, lalu nama. Tanggal: terbaru dulu.
   return [...byOfficer.values()]
     .sort((a, b) => b.unitCount - a.unitCount || a.officer.localeCompare(b.officer))
     .map(g => ({
       ...g,
-      trips: [...g.trips].sort((a, b) =>
-        tripDateKey(b.cancel).localeCompare(tripDateKey(a.cancel))
-        || a.cancel.no_cancel.localeCompare(b.cancel.no_cancel)),
+      dates: [...g.dates]
+        .sort((a, b) => b.key.localeCompare(a.key))
+        .map(d => ({
+          ...d,
+          rows: [...d.rows].sort((a, b) =>
+            a.cancel.no_cancel.localeCompare(b.cancel.no_cancel)
+            || String(a.vehicle?.plate ?? '').localeCompare(String(b.vehicle?.plate ?? ''))),
+        })),
     }))
 }
 
@@ -185,14 +199,14 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
   /** Baris kendaraan yang rinciannya dibuka (klik baris). */
   const [expanded, setExpanded] = useState<string | null>(null)
   /**
-   * Buka/tutup dua level: petugas → trip.
+   * Buka/tutup dua level: petugas → tanggal.
    *   'collapse' -> hanya header petugas
    *   'all'      -> semua terbuka sampai kendaraan (default)
    * Klik individual menimpa mode; override hilang saat Collapse/Expand All.
    */
   const [expandMode, setExpandMode] = useState<'collapse' | 'all'>('all')
   const [officerOpenOverrides, setOfficerOpenOverrides] = useState<Record<string, boolean>>({})
-  const [tripOpenOverrides, setTripOpenOverrides] = useState<Record<string, boolean>>({})
+  const [dateOpenOverrides, setDateOpenOverrides] = useState<Record<string, boolean>>({})
 
   /** Rentang tanggal hasil dari preset yang dipilih. */
   const dateRange = useMemo(() => {
@@ -292,8 +306,8 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
   const golonganList = useMemo(() => {
     const seen = new Set<string>()
     for (const g of groups) {
-      for (const trip of g.trips) {
-        for (const row of trip.rows) {
+      for (const day of g.dates) {
+        for (const row of day.rows) {
           const cat = row.vehicle?.category?.trim()
           if (cat) seen.add(cat)
         }
@@ -326,15 +340,15 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
   const officerCount = summary?.byOfficer?.length ?? groups.length
 
   const officerIsOpen = (key: string) => officerOpenOverrides[key] ?? (expandMode !== 'collapse')
-  const tripIsOpen = (key: string) => tripOpenOverrides[key] ?? (expandMode === 'all')
+  const dateIsOpen = (key: string) => dateOpenOverrides[key] ?? (expandMode === 'all')
   const toggleOfficer = (key: string) =>
     setOfficerOpenOverrides(prev => ({ ...prev, [key]: !officerIsOpen(key) }))
-  const toggleTrip = (key: string) =>
-    setTripOpenOverrides(prev => ({ ...prev, [key]: !tripIsOpen(key) }))
+  const toggleDate = (key: string) =>
+    setDateOpenOverrides(prev => ({ ...prev, [key]: !dateIsOpen(key) }))
   const setAllGroups = (open: boolean) => {
     setExpandMode(open ? 'all' : 'collapse')
     setOfficerOpenOverrides({})
-    setTripOpenOverrides({})
+    setDateOpenOverrides({})
   }
 
   return (
@@ -562,38 +576,38 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
                               <span className="text-[13px] font-black">{group.officer}</span>
                             </span>
                             <span className="text-[11px] font-semibold text-[var(--admin-text-inverse-muted)]">
-                              {group.trips.length} trip · {group.unitCount} unit
+                              {group.dates.reduce((s, d) => s + d.tripCount, 0)} trip · {group.unitCount} unit
                             </span>
                           </span>
                         </td>
                       </tr>
 
-                      {officerOpen && group.trips.map(trip => {
-                        const c = trip.cancel
-                        const tripOpen = tripIsOpen(trip.key)
+                      {officerOpen && group.dates.map(day => {
+                        const dateOpen = dateIsOpen(day.key)
                         return (
-                          <Fragment key={trip.key}>
-                            {/* Header trip (folder tanggal) */}
+                          <Fragment key={day.key}>
+                            {/* Header tanggal (folder) — semua trip tanggal ini */}
                             <tr
-                              onClick={() => toggleTrip(trip.key)}
-                              data-testid="cancel-trip-header"
+                              onClick={() => toggleDate(day.key)}
+                              data-testid="cancel-date-header"
                               className="cursor-pointer bg-[var(--admin-surface-sunken)] transition-colors hover:bg-[var(--admin-surface-hover)]"
                             >
                               <td colSpan={6} className="pl-10 pr-3 py-2">
                                 <span className="flex flex-wrap items-center gap-2">
                                   <span className="flex items-center gap-1.5">
                                     <ChevronRight size={12}
-                                      className={`text-[var(--admin-text-faint)] transition-transform ${tripOpen ? 'rotate-90' : ''}`} />
-                                    <span className="text-[12px] font-black text-[var(--admin-text)]">{toDmy(tripDateKey(c))}</span>
-                                    <span className="font-mono text-[10px] text-[var(--admin-text-muted)]">{c.no_cancel}</span>
+                                      className={`text-[var(--admin-text-faint)] transition-transform ${dateOpen ? 'rotate-90' : ''}`} />
+                                    <span className="text-[12px] font-black text-[var(--admin-text)]">{toDmy(day.key)}</span>
                                   </span>
-                                  <span className="text-[10px] text-[var(--admin-text-muted)]">· {c.reason}</span>
-                                  <span className="text-[10px] font-semibold text-[var(--admin-text-muted)]">{trip.rows.length} unit</span>
+                                  <span className="text-[10px] font-semibold text-[var(--admin-text-muted)]">
+                                    {day.tripCount} trip · {day.rows.length} unit
+                                  </span>
                                 </span>
                               </td>
                             </tr>
 
-                            {tripOpen && trip.rows.map(row => {
+                            {dateOpen && day.rows.map(row => {
+                              const c = row.cancel
                               const v = row.vehicle
                               const isOpen = expanded === row.key
                               return (
