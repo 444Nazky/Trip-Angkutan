@@ -145,19 +145,16 @@ describe('ReportsTab (render harness)', () => {
     await act(async () => {})
   }
 
-  it('menampilkan kolom kendaraan pada header tabel', async () => {
+  it('menampilkan kolom Unit dan Foto pada header tabel', async () => {
     await renderReports()
 
     const headers = Array.from(container.querySelectorAll('thead th'))
       .map(th => th.textContent?.trim() ?? '')
 
-    expect(headers).toContain('No Trip')
-    expect(headers).toContain('Petugas')
-    expect(headers).toContain('No. Polisi')
-    expect(headers).toContain('Jenis')
-    expect(headers).toContain('Golongan')
+    // Kolom "Unit" = jumlah kendaraan per trip; rincian plat dan jenis
+    // kendaraan muncul di baris detail ketika baris trip diklik.
     expect(headers).toContain('Unit')
-    expect(headers).toContain('Tarif')
+    expect(headers).toContain('Foto')
   })
 
   it('menampilkan semua pilihan master di filter Dermaga, Rute, dan Jenis Kendaraan', async () => {
@@ -179,67 +176,44 @@ describe('ReportsTab (render harness)', () => {
     expect(optionsText).toContain('Burung Sumatra')
   })
 
-  it('default Expand Header: baris kendaraan langsung tampil tanpa klik', async () => {
+  it('menampilkan detail trip tanpa klik (default Expand All)', async () => {
     await renderReports()
+
+    // Default Expand All: detail trip langsung terbuka sejak load.
+    const body = container.textContent ?? ''
+    expect(body).toContain('D 1234 AB')
+    expect(body).toContain('D 5678 CD')
+    expect(body).toContain('Truck Besar')
+    expect(body).toContain('Golongan')
+  })
+
+  it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {
+    await renderReports()
+
+    // Expand Header: detail trip tertutup; klik baris trip = terbuka.
+    const headerBtn = Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent === 'Expand Header')!
+    await act(async () => {
+      headerBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    const tripRow = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
+      .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
+    await act(async () => {
+      tripRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
 
     const body = container.textContent ?? ''
     expect(body).toContain('D 1234 AB')
     expect(body).toContain('D 5678 CD')
     expect(body).toContain('Truck Besar')
-    // Semua kendaraan digabung, dikelompokkan menjadi 3 bagian golongan
-    expect(body).toContain('Golongan: Eksternal')
-    expect(body).toContain('Golongan: Internal')
-    expect(body).toContain('Golongan: Lokal')
   })
 
-  it('Collapse All: hanya baris grup; klik grup menampilkan kendaraan grup itu saja', async () => {
+  it('menampilkan strip thumbnail seluruh foto (swafoto, bukti trip, kendaraan)', async () => {
     await renderReports()
 
-    const collapseBtn = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent === 'Collapse All')!
-    await act(async () => {
-      collapseBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    let body = container.textContent ?? ''
-    expect(body).toContain('Golongan: Eksternal')
-    expect(body).toContain('Golongan: Internal')
-    expect(body).not.toContain('D 1234 AB')
-    expect(body).not.toContain('D 5678 CD')
+    const images = Array.from(container.querySelectorAll('tbody img'))
+    const sources = images.map(img => img.getAttribute('src') ?? '')
 
-    // Klik header grup Internal -> hanya kendaraan Internal tampil
-    const golRow = Array.from(container.querySelectorAll('tbody tr'))
-      .find(r => (r.textContent ?? '').includes('Golongan: Internal'))!
-    await act(async () => {
-      golRow.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    body = container.textContent ?? ''
-    expect(body).toContain('D 5678 CD')
-    expect(body).not.toContain('D 1234 AB')
-  })
-
-  it('Expand All menampilkan semua kendaraan (sama seperti Expand Header)', async () => {
-    await renderReports()
-
-    const allBtn = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent === 'Expand All')!
-    await act(async () => {
-      allBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    const body = container.textContent ?? ''
-    expect(body).toContain('D 1234 AB')
-    expect(body).toContain('D 5678 CD')
-  })
-
-  it('tombol Foto menampilkan semua foto (swafoto, bukti trip, kendaraan)', async () => {
-    await renderReports()
-
-    const fotoBtn = Array.from(container.querySelectorAll('button'))
-      .find(b => (b.textContent ?? '').trim().startsWith('Foto'))!
-    await act(async () => {
-      fotoBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    const imgs = Array.from(document.querySelectorAll('img'))
-    const sources = imgs.map(img => img.getAttribute('src') ?? '')
     expect(sources.some(s => s.includes('swafoto.jpg'))).toBe(true)
     expect(sources.some(s => s.includes('bukti-trip.jpg'))).toBe(true)
     expect(sources.some(s => s.includes('kendaraan-1.jpg'))).toBe(true)
@@ -264,7 +238,7 @@ describe('ReportsTab (render harness)', () => {
       .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
     const dataCells = dataRow?.querySelectorAll('td').length ?? 0
 
-    expect(headerCells).toBe(13)
+    expect(headerCells).toBe(12)
     expect(dataCells).toBe(headerCells)
   })
 })
