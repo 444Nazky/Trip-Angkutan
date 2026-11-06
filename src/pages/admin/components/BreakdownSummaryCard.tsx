@@ -183,10 +183,10 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
             : 'Belum ada data pada rentang ini.'}
         </p>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-5 items-stretch">
         {columns.map(col => (
-          <div key={col.key} data-testid="breakdown-column" className="rounded-xl border border-[var(--admin-border)] overflow-hidden">
-            <div data-testid="breakdown-column-header" className="flex items-start justify-between gap-3 px-4 py-3 bg-[var(--admin-surface-muted)] border-b border-[var(--admin-border)]">
+          <div key={col.key} data-testid="breakdown-column" className="flex h-full flex-col rounded-xl border border-[var(--admin-border)] overflow-hidden">
+            <div data-testid="breakdown-column-header" className="shrink-0 flex items-start justify-between gap-3 px-4 py-3 bg-[var(--admin-surface-muted)] border-b border-[var(--admin-border)]">
               <p className="text-[13px] font-black text-[var(--admin-text-soft)]">
                 {mode === 'golongan' ? 'Golongan' : 'Jenis'}: {col.key}
               </p>
@@ -195,7 +195,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
                 <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={col.revenue} className="text-[11px] font-semibold text-[var(--admin-text-faint)]" />
               </div>
             </div>
-            <div className="divide-y divide-[var(--admin-border-subtle)] max-h-72 overflow-y-auto overscroll-contain">
+            <div className="divide-y divide-[var(--admin-border-subtle)] h-72 min-h-0 overflow-y-auto overscroll-contain">
               {col.rows.map(row => {
                 const revenueRelevant = (mode === 'golongan' ? col.key : row.key) === 'Eksternal'
                 return (
