@@ -312,6 +312,32 @@ html[data-admin][data-theme='dark'] {
 
 html[data-admin][data-theme='dark'] body {
   background-color: #0b1220;
+  color: var(--admin-text);
+}
+
+/* Global color tokens from styles (Tailwind build) masih dipakai beberapa
+   komponen admin sebagai warna teks akhir lewat var(--text-primary) dll.
+   Override di sini supaya mode gelap benar-benar mengubah warna teks. */
+html[data-admin][data-theme='dark'] {
+  --text-primary: #e6edf7;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+}
+
+html[data-admin][data-theme='dark'] .text-primary { color: var(--text-primary); }
+html[data-admin][data-theme='dark'] .text-secondary { color: var(--text-secondary); }
+html[data-admin][data-theme='dark'] .text-muted { color: var(--text-muted); }
+html[data-admin][data-theme='dark'] h1,
+html[data-admin][data-theme='dark'] h2,
+html[data-admin][data-theme='dark'] h3,
+html[data-admin][data-theme='dark'] h4,
+html[data-admin][data-theme='dark'] h5,
+html[data-admin][data-theme='dark'] h6 {
+  color: var(--text-primary);
+}
+html[data-admin][data-theme='dark'] p {
+  color: var(--text-secondary);
 }
 
 /* Ukuran tampilan (Kecil/Sedang/Besar/Sangat Besar) — nilai --admin-zoom
