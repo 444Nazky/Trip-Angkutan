@@ -594,7 +594,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
                                   {isOpen && (
                                     <tr>
                                       <td colSpan={7} className="bg-[var(--admin-surface-muted)] px-10 py-2 text-[11px] text-[var(--admin-text-muted)]">
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Alasan:</span> {c.reason}
+                                        <span className="font-bold text-[var(--admin-text-soft)]">alasan =</span> {c.reason}
                                       </td>
                                     </tr>
                                   )}

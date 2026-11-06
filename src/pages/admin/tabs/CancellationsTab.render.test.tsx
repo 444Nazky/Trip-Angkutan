@@ -274,14 +274,14 @@ describe('CancellationsTab (render harness)', () => {
   it('klik baris hanya menampilkan alasan singkat (tanpa detail rinci)', async () => {
     await renderTab()
 
-    expect(container.textContent).not.toContain('Alasan:')
+    expect(container.textContent).not.toContain('alasan =')
 
     await act(async () => {
       vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     const body = container.textContent ?? ''
-    expect(body).toContain('Alasan:')
+    expect(body).toContain('alasan =')
     expect(body).toContain('Pelanggan membatalkan')
     // Detail rinci lama sudah dihapus.
     expect(body).not.toContain('Keterangan petugas:')

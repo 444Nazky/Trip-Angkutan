@@ -364,7 +364,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
               <p className="font-mono text-[11px] text-slate-400">{t.id}</p>
               {t.canceled && (
                 <p className="mt-1 text-[10px] leading-relaxed text-red-600">
-                  Alasan: {t.cancelReason || '-'}
+                  alasan = {t.cancelReason || '-'}
                   {t.cancelId && pendingCancels.includes(t.cancelId)
                     ? ' · dokumen pembatalan menunggu dikirim'
                     : t.cancelId && deliveredCancels[t.cancelId]

@@ -152,7 +152,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             <p className="text-[12px] font-bold text-red-700">Trip Dibatalkan</p>
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-red-700/90">
-            Alasan: {t.cancelReason || '-'}
+            alasan = {t.cancelReason || '-'}
           </p>
           <p className="mt-1 text-[10px] leading-relaxed text-red-600/80">
             {cancelState === 'sent'
