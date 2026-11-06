@@ -195,7 +195,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
                 <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={col.revenue} className="text-[11px] font-semibold text-[var(--admin-text-faint)]" />
               </div>
             </div>
-            <div className="divide-y divide-[var(--admin-border-subtle)]">
+            <div className="divide-y divide-[var(--admin-border-subtle)] max-h-72 overflow-y-auto overscroll-contain">
               {col.rows.map(row => {
                 const revenueRelevant = (mode === 'golongan' ? col.key : row.key) === 'Eksternal'
                 return (
