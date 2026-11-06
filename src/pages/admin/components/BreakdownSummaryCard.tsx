@@ -149,13 +149,13 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
   )
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-      <div className="flex items-center justify-between gap-3 flex-wrap px-5 pt-5 pb-4 border-b border-slate-100">
+    <div className="bg-[var(--admin-surface)] rounded-2xl border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)]">
+      <div className="flex items-center justify-between gap-3 flex-wrap px-5 pt-5 pb-4 border-b border-[var(--admin-border-subtle)]">
         <div>
-          <h4 className="font-black text-slate-900 text-[15px]">Breakdown Summary Card</h4>
-          <p className="text-[11px] text-slate-400">Trip, muatan, dan tarif per golongan &amp; jenis kendaraan - mengikuti filter laporan yang sama.</p>
+          <h4 className="font-black text-[var(--admin-text)] text-[15px]">Breakdown Summary Card</h4>
+          <p className="text-[11px] text-[var(--admin-text-faint)]">Trip, muatan, dan tarif per golongan &amp; jenis kendaraan - mengikuti filter laporan yang sama.</p>
         </div>
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 text-[11px] font-bold">
+        <div className="flex gap-1 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-1 text-[11px] font-bold">
           {([
             ['golongan', 'Golongan → Jenis Kendaraan'],
             ['jenis', 'Jenis Kendaraan → Golongan'],
@@ -166,8 +166,8 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
               aria-pressed={mode === value}
               className={`px-3 py-1.5 rounded-lg transition-colors ${
                 mode === value
-                  ? 'bg-white text-blue-600 border border-blue-200 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 border border-transparent'
+                  ? 'bg-[var(--admin-surface)] text-[var(--admin-accent-text)] border border-[var(--admin-accent-border)] shadow-sm'
+                  : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text-soft)] border border-transparent'
               }`}
             >
               {label}
@@ -177,7 +177,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
       </div>
 
       {columns.length === 0 ? (
-        <p className="px-5 py-8 text-center text-[12px] text-slate-400">
+        <p className="px-5 py-8 text-center text-[12px] text-[var(--admin-text-faint)]">
           {unclassified > 0
             ? `${unclassified} trip tanpa data kendaraan tidak bisa dikelompokkan.`
             : 'Belum ada data pada rentang ini.'}
@@ -185,42 +185,42 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-5 items-start">
         {columns.map(col => (
-          <div key={col.key} className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-start justify-between gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200">
-              <p className="text-[13px] font-black text-slate-800">
+          <div key={col.key} data-testid="breakdown-column" className="rounded-xl border border-[var(--admin-border)] overflow-hidden">
+            <div data-testid="breakdown-column-header" className="flex items-start justify-between gap-3 px-4 py-3 bg-[var(--admin-surface-muted)] border-b border-[var(--admin-border)]">
+              <p className="text-[13px] font-black text-[var(--admin-text-soft)]">
                 {mode === 'golongan' ? 'Golongan' : 'Jenis'}: {col.key}
               </p>
               <div className="text-right">
-                <p className="text-[12px] font-black text-blue-600 leading-tight">{col.trips} Trip</p>
-                <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={col.revenue} className="text-[11px] font-semibold text-slate-400" />
+                <p className="text-[12px] font-black text-[var(--admin-accent-text)] leading-tight">{col.trips} Trip</p>
+                <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={col.revenue} className="text-[11px] font-semibold text-[var(--admin-text-faint)]" />
               </div>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[var(--admin-border-subtle)]">
               {col.rows.map(row => {
                 const revenueRelevant = (mode === 'golongan' ? col.key : row.key) === 'Eksternal'
                 return (
                   <div key={row.key} className="px-4 py-2.5">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-[12px] font-bold text-slate-700 truncate" title={row.key}>{row.key}</p>
-                      <p className="text-[11px] font-black text-slate-800 tabular-nums whitespace-nowrap">
-                        {row.trips} Trip <span className="text-slate-400 font-semibold">({row.pct.toFixed(1)}%)</span>
+                      <p className="text-[12px] font-bold text-[var(--admin-text-soft)] truncate" title={row.key}>{row.key}</p>
+                      <p className="text-[11px] font-black text-[var(--admin-text)] tabular-nums whitespace-nowrap">
+                        {row.trips} Trip <span className="text-[var(--admin-text-faint)] font-semibold">({row.pct.toFixed(1)}%)</span>
                       </p>
                     </div>
-                    <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full rounded-full bg-blue-600" style={{ width: row.trips > 0 ? `${Math.max(2, row.pct)}%` : '0%' }} />
+                    <div className="mt-1.5 h-1.5 rounded-full bg-[var(--admin-surface-sunken)] overflow-hidden">
+                      <div className="h-full rounded-full bg-[var(--admin-accent)]" style={{ width: row.trips > 0 ? `${Math.max(2, row.pct)}%` : '0%' }} />
                     </div>
                     {revenueRelevant && row.trips > 0 && (
-                      <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-100 bg-slate-50/60 p-2">
+                      <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-muted)] p-2">
                         {([
-                          { label: 'Ada Muatan', count: row.ada, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200', bar: 'bg-emerald-500' },
-                          { label: 'Tanpa Muatan', count: row.tanpa, tone: 'text-slate-500 bg-slate-100 border-slate-200', bar: 'bg-slate-400' },
+                          { label: 'Ada Muatan', count: row.ada, tone: 'text-[var(--admin-success-text)] bg-[var(--admin-success-soft)] border-[var(--admin-success-border)]', bar: 'bg-[var(--admin-success)]' },
+                          { label: 'Tanpa Muatan', count: row.tanpa, tone: 'text-[var(--admin-text-muted)] bg-[var(--admin-surface-sunken)] border-[var(--admin-border)]', bar: 'bg-[var(--admin-neutral)]' },
                         ]).map(({ label, count, tone, bar }) => (
                           <div key={label}>
                             <div className="flex items-center justify-between gap-2">
                               <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${tone}`}>{label}</span>
-                              <span className="text-[10px] font-bold text-slate-600 tabular-nums">{count} Trip</span>
+                              <span className="text-[10px] font-bold text-[var(--admin-text-muted)] tabular-nums">{count} Trip</span>
                             </div>
-                            <div className="mt-1 h-1 rounded-full bg-slate-200/70 overflow-hidden">
+                            <div className="mt-1 h-1 rounded-full bg-[var(--admin-border)] overflow-hidden">
                               <div className={`h-full rounded-full ${bar}`} style={{ width: row.trips > 0 ? `${Math.max(2, (count / row.trips) * 100)}%` : '0%' }} />
                             </div>
                           </div>
@@ -237,7 +237,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
       )}
 
       {unclassified > 0 && columns.length > 0 && (
-        <p className="px-5 pb-4 text-[10px] text-slate-400">
+        <p className="px-5 pb-4 text-[10px] text-[var(--admin-text-faint)]">
           {unclassified} trip tanpa data kendaraan tidak ikut dihitung di atas.
         </p>
       )}

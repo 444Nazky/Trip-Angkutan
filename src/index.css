@@ -124,6 +124,80 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    ADMIN DASHBOARD — Smooth tab transitions and UI animations
    ═════════════════════════════════════════════════════════════════════════ */
+/* ==========================================================================
+   ADMIN DASHBOARD - DESIGN TOKENS
+   Sumber tunggal warna admin dashboard. Semua kartu, tabel, badge, dan
+   tombol di halaman Dashboard memakai token ini, bukan kelas Tailwind
+   hardcode (blue-600/slate-xxx), supaya warna antar kartu selalu selaras.
+
+   Token aksen (--admin-accent & friends) TIDAK ditulis di sini: nilainya
+   datang dari services/theme.ts (ACCENT_PALETTE) yang menulisnya ke
+   <html> saat applyTheme() jalan. Nilai di bawah hanya fallback supaya
+   halaman tetap tampil dengan warna yang benar sebelum tema diterapkan.
+
+   CATATAN: var(--admin-*) hanya sah di area admin - semua token
+   didefinisikan di bawah selector `html[data-admin]`.
+   ========================================================================== */
+html[data-admin] {
+  /* - Aksen (fallback biru; ditimpa oleh theme.ts) - */
+  --admin-accent: #2563eb;
+  --admin-accent-hover: #1d4ed8;
+  --admin-accent-soft: #eff6ff;
+  --admin-accent-border: #bfdbfe;
+  --admin-accent-text: #1d4ed8;
+  --admin-accent-contrast: #ffffff;
+
+  /* - Permukaan (surface) - */
+  --admin-bg: #f8fafc;             /* latar halaman */
+  --admin-surface: #ffffff;        /* kartu, panel, tabel */
+  --admin-surface-muted: #f8fafc;  /* header bar, header tabel */
+  --admin-surface-sunken: #f1f5f9; /* sub-header, baris tabel kecil */
+  --admin-surface-hover: #f1f5f9;  /* hover baris/konten */
+
+  /* - Garis (border) - */
+  --admin-border: #e2e8f0;         /* kartu, tabel */
+  --admin-border-subtle: #f1f5f9;  /* pemisah di dalam kartu */
+  --admin-border-strong: #cbd5e1;  /* header tabel, garis tebal */
+
+  /* - Teks - */
+  --admin-text: #0f172a;           /* judul, angka besar */
+  --admin-text-soft: #334155;      /* teks isi, label tabel */
+  --admin-text-muted: #64748b;     /* label sekunder */
+  --admin-text-faint: #94a3b8;     /* keterangan, placeholder */
+  --admin-text-inverse: #ffffff;   /* teks di atas permukaan gelap/aksen */
+  --admin-text-inverse-muted: #cbd5e1;
+  --admin-text-inverse-faint: #94a3b8;
+
+  /* - Permukaan gelap (header tabel kelompok) - */
+  --admin-surface-inverse: #1e293b;
+  --admin-surface-inverse-hover: #334155;
+  --admin-border-inverse: #475569;
+  --admin-chip-inverse-bg: rgba(71, 85, 105, 0.45);
+
+  /* - Status - */
+  --admin-success: #059669;
+  --admin-success-soft: #ecfdf5;
+  --admin-success-border: #a7f3d0;
+  --admin-success-text: #047857;
+  --admin-success-on-dark: #6ee7b9; /* nominal hijau di atas header gelap */
+  --admin-warning: #d97706;
+  --admin-warning-soft: #fffbeb;
+  --admin-warning-border: #fde68a;
+  --admin-warning-text: #b45309;
+  --admin-danger: #dc2626;
+  --admin-danger-soft: #fef2f2;
+  --admin-danger-border: #fecaca;
+  --admin-danger-text: #b91c1c;
+  --admin-neutral: #94a3b8;         /* bar "tanpa muatan" */
+
+  /* - Bentuk (shape) - */
+  --admin-radius-sm: 8px;
+  --admin-radius: 12px;
+  --admin-radius-lg: 16px;
+  --admin-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --admin-shadow-pop: 0 4px 12px rgba(15, 23, 42, 0.10);
+}
+
 @keyframes admin-fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

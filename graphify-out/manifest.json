@@ -160,8 +160,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/AdminDashboard.tsx": {
-    "mtime": 1793858299.682934,
-    "ast_hash": "5624ac107f9243e1a2d1a83706accfdc",
+    "mtime": 1793929471.9874532,
+    "ast_hash": "f8d6411a5f6125fa8b45a6bfaf11ddd3",
     "semantic_hash": ""
   },
   "src/pages/admin/ReportSheet.tsx": {
@@ -170,13 +170,13 @@
     "semantic_hash": ""
   },
   "src/pages/admin/components/CurrencyDisplay.tsx": {
-    "mtime": 1793265226.2684627,
-    "ast_hash": "367d9fb9eb8f032ace506d3c854f8367",
+    "mtime": 1793929316.9826763,
+    "ast_hash": "328ed769e7ae8221458c781c55432fbd",
     "semantic_hash": ""
   },
   "src/pages/admin/components/PhotoViewer.tsx": {
-    "mtime": 1793330742.729951,
-    "ast_hash": "917b25955ac88da7869b7a76ba81d9c3",
+    "mtime": 1793929634.0241985,
+    "ast_hash": "61cf2c18da2198c11c7c2c81e042bc0b",
     "semantic_hash": ""
   },
   "src/pages/admin/components/types.ts": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.tsx": {
-    "mtime": 1793863281.8934233,
-    "ast_hash": "46376f77dd157bd523d2aa2eb09f4fc6",
+    "mtime": 1793931113.3198454,
+    "ast_hash": "c74fb5188e2f75004c12d572936690bc",
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/RoutesTab.tsx": {
@@ -475,13 +475,13 @@
     "semantic_hash": ""
   },
   "src/services/theme.ts": {
-    "mtime": 1793265226.2738137,
-    "ast_hash": "150ad1ce9f63c0636ae2476d7b706e46",
+    "mtime": 1793929296.9311414,
+    "ast_hash": "a412c144c34872347efa534352325da0",
     "semantic_hash": ""
   },
   "src/services/trips.ts": {
-    "mtime": 1793600399.020226,
-    "ast_hash": "255241ae3ccf1d185a845deff37df9cd",
+    "mtime": 1793870801.322781,
+    "ast_hash": "3dc30683d9b9bcd8b3f8660e7feed51a",
     "semantic_hash": ""
   },
   "src/services/updateFlow.test.ts": {
@@ -2015,8 +2015,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/tabs/ReportsTab.render.test.tsx": {
-    "mtime": 1793323716.9299805,
-    "ast_hash": "345d9816f179a7b2ac9c2db6779c26cf",
+    "mtime": 1793931004.1952076,
+    "ast_hash": "b8894f85a4a0eb7ab5bb6b848571a035",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.test.tsx": {
@@ -2121,8 +2121,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793587630.9890344,
-    "ast_hash": "44d739644a652e0f0b896ec31aee3786",
+    "mtime": 1793931070.9364398,
+    "ast_hash": "b616d9a286e8aec877563dcfcf38f6e2",
     "semantic_hash": ""
   },
   "docs/NETWORK-INCIDENT-2026-10-23.md": {
@@ -2276,8 +2276,8 @@
     "semantic_hash": ""
   },
   "server/api/handlers/reports.ts": {
-    "mtime": 1793323716.913752,
-    "ast_hash": "4463629e72f356aac3f6d7b9b566c7f4",
+    "mtime": 1793871003.699304,
+    "ast_hash": "799c39e99195a03e1f49ab0dae85f2a7",
     "semantic_hash": ""
   },
   "server/api/handlers/routes.ts": {
@@ -6585,9 +6585,14 @@
     "ast_hash": "98abd1b784f810eb300607c64110f066",
     "semantic_hash": ""
   },
-  "src/pages/admin/components/StatCard.tsx": {
-    "mtime": 1793863166.9590142,
-    "ast_hash": "f647d1d5d112b2070e33d3f2339c6d0b",
+  "src/pages/admin/components/BreakdownSummaryCard.test.tsx": {
+    "mtime": 1793929553.4414032,
+    "ast_hash": "1a1d6e456375fd17fd501e721905a0e6",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/components/BreakdownSummaryCard.tsx": {
+    "mtime": 1793929550.105368,
+    "ast_hash": "2c448536449746905db4a84a1f6c82f3",
     "semantic_hash": ""
   }
 }

@@ -53,23 +53,23 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
 
   if (photos.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-        <Camera size={48} className="mx-auto text-slate-300 mb-3" />
-        <p className="text-slate-500 font-semibold">Tidak ada foto dokumentasi</p>
-        <p className="text-slate-400 text-sm mt-1">Foto dari mobile tampil di sini</p>
+      <div className="bg-[var(--admin-surface)] rounded-2xl p-12 text-center shadow-[var(--admin-shadow-card)]">
+        <Camera size={48} className="mx-auto text-[var(--admin-border-strong)] mb-3" />
+        <p className="text-[var(--admin-text-muted)] font-semibold">Tidak ada foto dokumentasi</p>
+        <p className="text-[var(--admin-text-faint)] text-sm mt-1">Foto dari mobile tampil di sini</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-[var(--admin-surface)] rounded-2xl shadow-[var(--admin-shadow-card)] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--admin-border-subtle)] bg-[var(--admin-surface-muted)]">
         <div>
-          <p className="font-bold text-slate-800">Foto Dokumentasi</p>
-          <p className="text-xs text-slate-500">{photos.length} foto</p>
+          <p className="font-bold text-[var(--admin-text-soft)]">Foto Dokumentasi</p>
+          <p className="text-xs text-[var(--admin-text-muted)]">{photos.length} foto</p>
         </div>
-        <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-200 text-slate-500 transition-colors">
+        <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--admin-surface-sunken)] text-[var(--admin-text-muted)] transition-colors">
           <X size={20} />
         </button>
       </div>
@@ -81,7 +81,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
             key={photo.id}
             type="button"
             onClick={() => setLightboxPhoto(photo)}
-            className="relative aspect-video bg-slate-100 rounded-xl overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-blue-500 transition-opacity duration-200 hover:opacity-80"
+            className="relative aspect-video bg-[var(--admin-surface-sunken)] rounded-xl overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-[var(--admin-accent)] transition-opacity duration-200 hover:opacity-80"
           >
             <img
               src={getSrc(photo.url)}
@@ -90,7 +90,7 @@ export function PhotoViewer({ photos, onClose, baseUrl = '' }: PhotoViewerProps)
               onError={e => {
                 const target = e.target as HTMLImageElement
                 target.style.display = 'none'
-                target.parentElement!.classList.add('bg-slate-200')
+                target.parentElement!.classList.add('bg-[var(--admin-surface-sunken)]')
               }}
             />
             {photo.caption && (

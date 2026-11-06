@@ -178,4 +178,45 @@ Master jenis kendaraan (satu-satunya daftar yang sah):
 - `PUT /api/officers/:id` (baru) = ubah nama/username petugas. Dulu kolom
   "Nama" di form edit admin bisa diedit tapi TIDAK PERNAH dikirim ke server
   (UI bilang "diupdate", database tetap nama lama).
+
+Token desain admin dashboard (sumber tunggal warna):
+
+- Semua token didefinisikan di `src/index.css` di bawah selector
+  `html[data-admin]` (halaman admin selalu punya atribut itu - lihat
+  `scripts/organize-build.mjs`). Token di luar selector itu TIDAK ADA,
+  jadi jangan pakai `var(--admin-*)` di halaman mobile.
+- Token inti: `--admin-surface` (kartu), `--admin-surface-muted`,
+  `--admin-surface-sunken`, `--admin-border`, `--admin-border-subtle`,
+  `--admin-text` / `-soft` / `-muted` / `-faint`, `--admin-success`,
+  `--admin-warning`, `--admin-danger`, `--admin-surface-inverse` (header
+  tabel kelompok yang gelap), `--admin-shadow-card`.
+- Token AKSIK (`--admin-accent`, `-hover`, `-soft`, `-border`, `-text`,
+  `-contrast`) TIDAK ditulis di CSS sebagai sumber utama: nilainya datang
+  dari `ACCENT_PALETTE` di `src/services/theme.ts`, ditulis ke `<html>`
+  oleh `applyTheme()`. CSS hanya menyimpan fallback biru supaya halaman
+  tidak berkedip warna salah sebelum tema diterapkan.
+- Cara pakai di TSX: `bg-[var(--admin-surface)]`,
+  `text-[var(--admin-text-muted)]`, `border-[var(--admin-border)]`,
+  `shadow-[var(--admin-shadow-card)]`. JANGAN pakai modifier opacity
+  (`bg-[var(--x)]/60`) - Tailwind tidak bisa mengapalkan nilai `var()`.
+- Cakupan sekarang: halaman Dashboard (tab "Dashboard" = `ReportsTab`) +
+  komponennya (`BreakdownSummaryCard`, `CurrencyDisplay`, `PhotoViewer`).
+  Tab admin lain masih pakai kelas Tailwind langsung.
+- Tabel laporan memakai hierarki DUA LEVEL: tanggal → golongan → kendaraan
+  (`buildDateGroups()` di `src/pages/admin/tabs/ReportsTab.tsx`).
+  Trip tidak lagi jadi baris sendiri: semua kendaraan dari semua trip pada
+  tanggal yang sama digabung per golongan, jadi membuka satu grup = seluruh
+  kendaraan golongan itu (Internal → Eksternal → Lokal, urutan `GOL_ORDER`).
+  Mode buka/tutup: `collapse` (hanya header tanggal), `header` (header
+  tanggal + header golongan, kendaraan tertutup - DEFAULT), `all` (semua
+  kendaraan tampil). Override per item disimpan di `dateOpenOverrides` /
+  `golOpenOverrides` (key golongan = `<tanggal>|<golongan>`) sehingga klik
+  individual menimpa mode. Hook test: `data-testid="report-date-header"`,
+  `"report-gol-header"` (punya `data-gol`), `"report-vehicle-row"`.
+- `CurrencyDisplay` sengaja TIDAK memaksa warna nominal: warna_mewarisi
+  `className` pemanggil (dulu dipaksa emerald-600 sehingga nominal di
+  header tabel gelap jadi hijau tua yang kontrasnya buruk).
+- Test: `BreakdownSummaryCard.test.tsx` mencari kolom lewat
+  `[data-testid="breakdown-column-header"]` (bukan selector kelas warna),
+  jadi perubahan warna tidak lagi_break test.
 <!-- project-notes:end -->

@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation, type ReportDermagaOption, type ReportRouteOption } from '../../../services/trips'
@@ -38,54 +38,163 @@ interface ReportsTabProps {
   onOpenCancellations?: () => void
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Pengelompokan tabel laporan
+//
+//   06-11-2026/
+//   ├── Internal/   → semua kendaraan golongan Internal pada tanggal itu
+//   ├── Eksternal/  → semua kendaraan golongan Eksternal pada tanggal itu
+//   └── Lokal/      → semua kendaraan golongan Lokal pada tanggal itu
+//
+// Trip TIDAK lagi jadi baris sendiri: semua kendaraannya digabung ke dalam
+// grup golongan, jadi satu baris = satu kendaraan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Urutan grup golongan (dipakai juga di kartu breakdown: Internal di atas).
+const GOL_ORDER = ['Internal', 'Eksternal', 'Lokal']
+
+function golRank(g: string): number {
+  const i = GOL_ORDER.indexOf(g)
+  return i === -1 ? GOL_ORDER.length : i
+}
+
+interface VehicleRow {
+  trip: ReportTrip
+  vehicle: ReportTrip['vehicles'][number]
+}
+
+interface GolGroup {
+  key: string
+  rows: VehicleRow[]
+  trips: number
+  units: number
+  revenue: number
+  /** Ringkasan jumlah unit per jenis kendaraan di dalam grup ini. */
+  summary: string
+}
+
+interface DateGroup {
+  date: string
+  label: string
+  weekday: string
+  tripCount: number
+  units: number
+  revenue: number
+  gols: GolGroup[]
+  tripsWithoutVehicles: number
+}
+
+/** "2026-11-06" -> "06-11-2026" (format folder sesuai urutan tanggal). */
+function dateFolderLabel(date: string): string {
+  const [y, m, d] = date.split('-')
+  if (!y || !m || !d) return date
+  return `${d}-${m}-${y}`
+}
+
+function dateWeekday(date: string): string {
+  const obj = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(obj.getTime())) return ''
+  return obj.toLocaleDateString('id-ID', { weekday: 'long' })
+}
+
+/**
+ * Bangun hierarki tanggal → golongan → kendaraan dari daftar trip.
+ * Semua kendaraan dari seluruh trip pada tanggal yang sama digabung per
+ * golongan, jadi membuka satu grup = seluruh kendaraan golongan itu.
+ */
+function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
+  const byDate = new Map<string, { trips: ReportTrip[]; rows: VehicleRow[] }>()
+  for (const t of trips) {
+    const date = dayKeyWib(t.created_at)
+    let group = byDate.get(date)
+    if (!group) { group = { trips: [], rows: [] }; byDate.set(date, group) }
+    group.trips.push(t)
+    for (const vehicle of t.vehicles ?? []) group.rows.push({ trip: t, vehicle })
+  }
+
+  return [...byDate.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, group]) => {
+      const byGol = new Map<string, VehicleRow[]>()
+      for (const row of group.rows) {
+        const key = reportGolongan(row.vehicle)
+        if (!byGol.has(key)) byGol.set(key, [])
+        byGol.get(key)!.push(row)
+      }
+      // Golongan baku selalu tampil (meski 0 unit) supaya strukturnya
+      // konsisten; golongan di luar master ikut tampil di akhir.
+      const keys = [...new Set([...GOL_ORDER, ...byGol.keys()])]
+        .sort((a, b) => golRank(a) - golRank(b) || a.localeCompare(b))
+
+      const gols: GolGroup[] = keys.map(key => {
+        const rows = [...(byGol.get(key) ?? [])].sort((a, b) =>
+          a.trip.no_trip.localeCompare(b.trip.no_trip)
+          || String(a.vehicle.id ?? '').localeCompare(String(b.vehicle.id ?? '')))
+        // Ringkasan jenis kendaraan: "Truck Besar: 2 unit | Motor: 1 unit".
+        const perType = new Map<string, number>()
+        for (const row of rows) {
+          const type = (row.vehicle.vehicle_type ?? '').trim() || '-'
+          perType.set(type, (perType.get(type) ?? 0) + 1)
+        }
+        const summary = [...perType.entries()]
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .map(([type, count]) => `${type}: ${count} unit`)
+          .join(' | ')
+        return {
+          key,
+          rows,
+          trips: new Set(rows.map(r => String(r.trip.id))).size,
+          units: rows.length,
+          revenue: rows.reduce((s, r) => s + (Number(r.vehicle.tariff_amount) || 0), 0),
+          summary,
+        }
+      })
+
+      return {
+        date,
+        label: dateFolderLabel(date),
+        weekday: dateWeekday(date),
+        tripCount: group.trips.length,
+        units: group.rows.length,
+        revenue: group.rows.reduce((s, r) => s + (Number(r.vehicle.tariff_amount) || 0), 0),
+        gols,
+        tripsWithoutVehicles: group.trips.filter(t => (t.vehicles ?? []).length === 0).length,
+      }
+    })
+}
+
 
 
 export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, baseUrl = '', onOpenCancellations }: ReportsTabProps) {
   const [reportTrips, setReportTrips] = useState<ReportTrip[]>([])
   const [reportState, setReportState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
-  // Mode tampilan tabel trip (halaman dashboard saja; halaman detail
-  // kendaraan tidak terpengaruh):
-  //   'collapse' -> hanya header tanggal yang tampil (trip disembunyikan)
-  //   'header'   -> header tanggal + baris trip, detail kendaraan ditutup
-  //   'all'      -> semua terbuka termasuk detail tiap trip (default)
-  const [expandMode, setExpandMode] = useState<'collapse' | 'header' | 'all'>('all')
-  const [closedDates, setClosedDates] = useState<Set<string>>(new Set())
-  const [closedTrips, setClosedTrips] = useState<Set<string>>(new Set())
-  const [openTrips, setOpenTrips] = useState<Set<string>>(new Set())
+  // Mode tampilan tabel laporan (halaman dashboard saja; halaman detail
+  // kendaraan tidak terpengaruh). Ada dua level: tanggal → golongan.
+  //   'collapse' -> hanya header tanggal (isi tanggal tersembunyi)
+  //   'header'   -> header tanggal + header golongan, kendaraan tertutup (default)
+  //   'all'      -> semua terbuka, semua kendaraan tampil
+  // Klik individual pada header tanggal / golongan menimpa mode tersebut.
+  const [expandMode, setExpandMode] = useState<'collapse' | 'header' | 'all'>('header')
+  // Override per item: true = dipaksa terbuka, false = dipaksa tertutup.
+  // Key golongan = "<tanggal>|<golongan>".
+  const [dateOpenOverrides, setDateOpenOverrides] = useState<Record<string, boolean>>({})
+  const [golOpenOverrides, setGolOpenOverrides] = useState<Record<string, boolean>>({})
 
-  const toggleId = (set: Set<string>, id: string) => {
-    const next = new Set(set)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  }
-  const tripDetailOpen = (id: string) =>
-    expandMode === 'all' ? !closedTrips.has(id) : openTrips.has(id)
-  const toggleTrip = (id: string) => {
-    if (expandMode === 'all') setClosedTrips(prev => toggleId(prev, id))
-    else setOpenTrips(prev => toggleId(prev, id))
-  }
-  const toggleDate = (date: string, allDates: string[]) => {
-    if (expandMode === 'collapse') {
-      // Dari keadaan serba tertutup: klik satu tanggal = buka hanya tanggal itu.
-      setClosedDates(new Set(allDates.filter(d => d !== date)))
-      setExpandMode('header')
-      return
-    }
-    setClosedDates(prev => toggleId(prev, date))
-  }
+  const dateIsOpen = (date: string) =>
+    dateOpenOverrides[date] ?? (expandMode !== 'collapse')
+  const golIsOpen = (key: string) =>
+    golOpenOverrides[key] ?? (expandMode === 'all')
+
+  const toggleDate = (date: string) =>
+    setDateOpenOverrides(prev => ({ ...prev, [date]: !dateIsOpen(date) }))
+  const toggleGol = (key: string) =>
+    setGolOpenOverrides(prev => ({ ...prev, [key]: !golIsOpen(key) }))
+
   const expandTo = (mode: 'collapse' | 'header' | 'all') => {
     setExpandMode(mode)
-    setClosedDates(new Set())
-    setClosedTrips(new Set())
-    setOpenTrips(new Set())
-  }
-  // Badge golongan per trip: gabungkan kategori operasional kendaraan di
-  // trip tsb (bisa campuran). Jujur dari data, bukan satu label global.
-  const tripGolongan = (t: ReportTrip): string => {
-    const gs = [...new Set((t.vehicles ?? []).map(v => reportGolongan(v)))]
-    return gs.length > 0 ? gs.join(' + ') : '-'
+    setDateOpenOverrides({})
+    setGolOpenOverrides({})
   }
   const [reportFilters, setReportFilters] = useState<ReportFilters>({})
   const [filterOptions, setFilterOptions] = useState<{ golongan: string[]; vehicleTypes: string[]; dermagas: ReportDermagaOption[]; routes: ReportRouteOption[] }>({ golongan: [], vehicleTypes: [], dermagas: [], routes: [] })
@@ -255,79 +364,82 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   // angka di dasbor (termasuk breakdown) belum tentu penuh - beri tahu operator.
   const reportTruncated = reportTrips.length >= 1000
 
+  // Hierarki tabel: tanggal → golongan → kendaraan.
+  const dateGroups = useMemo(() => buildDateGroups(reportTrips), [reportTrips])
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Laporan Trip</h3>
-          <p className="text-slate-500 text-[12px]">Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
+          <h3 className="font-black text-[var(--admin-text)] text-lg">Laporan Trip</h3>
+          <p className="text-[var(--admin-text-muted)] text-[12px]">Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 ${
-            reportState === 'ready' ? 'text-slate-600' : reportState === 'offline' ? 'text-amber-700 border-amber-200' : 'text-slate-500'
+          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[var(--admin-border)] ${
+            reportState === 'ready' ? 'text-[var(--admin-text-muted)]' : reportState === 'offline' ? 'text-[var(--admin-warning-text)] border-[var(--admin-warning-border)]' : 'text-[var(--admin-text-faint)]'
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${reportState === 'ready' ? 'bg-emerald-500' : reportState === 'offline' ? 'bg-amber-500' : 'bg-slate-400 animate-pulse'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${reportState === 'ready' ? 'bg-[var(--admin-success)]' : reportState === 'offline' ? 'bg-[var(--admin-warning)]' : 'bg-[var(--admin-neutral)] animate-pulse'}`} />
             {reportState === 'ready' ? 'Tersambung' : reportState === 'offline' ? 'Gagal memuat' : 'Memuat...'}
           </span>
           {reportState === 'offline' && reportError && (
-            <span className="text-[11px] font-semibold text-red-600 max-w-[280px] truncate" title={reportError}>
+            <span className="text-[11px] font-semibold text-[var(--admin-danger-text)] max-w-[280px] truncate" title={reportError}>
               {reportError}
             </span>
           )}
           <button onClick={() => void loadReports()} disabled={reportState === 'loading'}
-            className="border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 disabled:opacity-50">
+            className="border border-[var(--admin-border)] text-[var(--admin-text-soft)] px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-[var(--admin-surface-hover)] disabled:opacity-50">
             Refresh
           </button>
 
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
             title="Buka detail kendaraan per trip - tersinkron langsung dari database"
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">
+            className="bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-[var(--admin-accent-hover)] disabled:opacity-50">
             <Table2 size={15} /> Detail Kendaraan
           </button>
           <button onClick={() => window.open(`${window.location.pathname}#/sheet`, '_blank')} disabled={reportState !== 'ready'}
             title="Buka detail kendaraan di tab baru" aria-label="Buka detail kendaraan di tab baru"
-            className="border border-slate-200 text-slate-600 px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50">
+            className="border border-[var(--admin-border)] text-[var(--admin-text-muted)] px-2.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-[var(--admin-surface-hover)] disabled:opacity-50">
             <ExternalLink size={15} />
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dari</label>
+      <div className="bg-[var(--admin-surface)] rounded-2xl p-4 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] flex flex-wrap items-end gap-4">
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Dari</label>
           <input type="date" value={reportFilters.startDate || ''} onChange={e => applyReportFilter({ startDate: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Sampai</label>
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm bg-[var(--admin-surface)] text-[var(--admin-text-soft)]" /></div>
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Sampai</label>
           <input type="date" value={reportFilters.endDate || ''} onChange={e => applyReportFilter({ endDate: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm bg-white" /></div>
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm bg-[var(--admin-surface)] text-[var(--admin-text-soft)]" /></div>
         <div className="flex gap-1.5">
           {[{ label: 'Hari Ini', days: 1 }, { label: '7 Hari', days: 7 }, { label: '30 Hari', days: 30 }].map(p => (
             <button key={p.label} onClick={() => applyDatePreset(p.days)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-500 hover:bg-slate-50">
+              className="px-3 py-1.5 rounded-lg border border-[var(--admin-border)] text-[11px] font-bold text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]">
               {p.label}
             </button>
           ))}
         </div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Golongan</label>
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Golongan</label>
           <select value={reportFilters.golongan || ''} onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[140px] bg-white">
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm min-w-[140px] bg-[var(--admin-surface)] text-[var(--admin-text-soft)]">
             <option value="">Semua</option>
             {golonganOptions.map(g => <option key={g} value={g}>{g}</option>)}
           </select></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Jenis Kendaraan</label>
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Jenis Kendaraan</label>
           <select value={reportFilters.vehicleType || ''} onChange={e => applyReportFilter({ vehicleType: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[150px] bg-white">
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm min-w-[150px] bg-[var(--admin-surface)] text-[var(--admin-text-soft)]">
             <option value="">Semua</option>
             {jenisOptions.map(j => <option key={j} value={j}>{j}</option>)}
           </select></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Dermaga</label>
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Dermaga</label>
           <select value={reportFilters.dermagaId || ''} onChange={e => applyReportFilter({ dermagaId: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[150px] bg-white">
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm min-w-[150px] bg-[var(--admin-surface)] text-[var(--admin-text-soft)]">
             <option value="">Semua</option>
             {dermagaOptions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select></div>
-        <div><label className="text-[11px] font-bold text-slate-500 block mb-1.5">Rute</label>
+        <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Rute</label>
           <select value={reportFilters.routeId || ''} onChange={e => applyReportFilter({ routeId: e.target.value || undefined })}
-            className="border rounded-xl px-3 py-2 text-sm min-w-[210px] bg-white">
+            className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm min-w-[210px] bg-[var(--admin-surface)] text-[var(--admin-text-soft)]">
             <option value="">Semua</option>
             {routeOptions.map(r => (
               <option key={r.id} value={r.id}>
@@ -339,44 +451,44 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
 
       {reportState === 'ready' && (
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Total Trip</p>
-            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{totalTrip}</p>
-            <p className="mt-1 text-[10px] font-bold text-slate-400">
+          <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Total Trip</p>
+            <p className="text-2xl font-black text-[var(--admin-text)] mt-2 tabular-nums leading-none">{totalTrip}</p>
+            <p className="mt-1 text-[10px] font-bold text-[var(--admin-text-faint)]">
               Trip Berhasil: {totalTrip} Trip
-              <span className="mx-1.5 text-slate-200">|</span>
+              <span className="mx-1.5 text-[var(--admin-border-strong)]">|</span>
               Trip Dibatalkan: {cancellations.length} Trip
             </p>
             <button
               onClick={() => onOpenCancellations?.()}
               disabled={!onOpenCancellations}
-              className="mt-2 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              className="mt-2 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-[var(--admin-border)] text-[var(--admin-text-muted)] transition-colors hover:bg-[var(--admin-surface-hover)] disabled:opacity-50"
             >
               Buka Pemantauan
             </button>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Bermuatan</p>
-            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{muatanCount}</p>
-            <p className="mt-2 text-[10px] font-bold text-slate-400">{muatanPct.toFixed(0)}% dari total trip</p>
+          <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Trip Bermuatan</p>
+            <p className="text-2xl font-black text-[var(--admin-text)] mt-2 tabular-nums leading-none">{muatanCount}</p>
+            <p className="mt-2 text-[10px] font-bold text-[var(--admin-text-faint)]">{muatanPct.toFixed(0)}% dari total trip</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Trip Tanpa Muatan</p>
-            <p className="text-2xl font-black text-slate-900 mt-2 tabular-nums leading-none">{tanpaMuatan}</p>
-            <p className="mt-2 text-[10px] font-bold text-slate-400">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
+          <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Trip Tanpa Muatan</p>
+            <p className="text-2xl font-black text-[var(--admin-text)] mt-2 tabular-nums leading-none">{tanpaMuatan}</p>
+            <p className="mt-2 text-[10px] font-bold text-[var(--admin-text-faint)]">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <p className="text-slate-400 text-[11px] font-semibold uppercase">Pendapatan</p>
-            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-slate-900 mt-2" />
-            <p className="mt-2 text-[10px] font-bold text-slate-400">
-              Rata-rata <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={avgRevenuePerTrip} className="inline font-black text-slate-500" /> / trip
+          <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Pendapatan</p>
+            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-2xl font-black text-[var(--admin-text)] mt-2" />
+            <p className="mt-2 text-[10px] font-bold text-[var(--admin-text-faint)]">
+              Rata-rata <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={avgRevenuePerTrip} className="inline font-black text-[var(--admin-text-muted)]" /> / trip
             </p>
           </div>
         </div>
       )}
 
       {reportTruncated && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-800">
+        <p className="rounded-xl border border-[var(--admin-warning-border)] bg-[var(--admin-warning-soft)] px-4 py-2 text-[11px] font-semibold text-[var(--admin-warning-text)]">
           Menampilkan 1000 trip terbaru dari server. Persempit rentang tanggal agar angka di dasbor dan breakdown akurat.
         </p>
       )}
@@ -393,11 +505,11 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         </div>
       ), document.body)}
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-[var(--admin-surface)] rounded-2xl border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] overflow-hidden">
         <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr className="bg-slate-50">
-              <th colSpan={12} className="px-4 py-3 border-b border-slate-200">
+            <tr className="bg-[var(--admin-surface-muted)]">
+              <th colSpan={10} className="px-4 py-3 border-b border-[var(--admin-border)]">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex gap-1.5">
                     {([
@@ -411,8 +523,8 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         aria-pressed={expandMode === value}
                         className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
                           expandMode === value
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                            ? 'border-[var(--admin-accent)] bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]'
+                            : 'border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]'
                         }`}
                       >
                         {label}
@@ -421,7 +533,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                   </div>
                   <div className="flex gap-2">
                   <button onClick={onToggleReveal}
-                    className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-blue-500 text-blue-600 bg-white' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'}`}>
+                    className={`px-3.5 py-2 rounded-lg border font-semibold text-sm flex items-center gap-2 ${revealed ? 'border-[var(--admin-accent-border)] text-[var(--admin-accent-text)] bg-[var(--admin-surface)]' : 'border-[var(--admin-border)] text-[var(--admin-text-muted)] bg-[var(--admin-surface)] hover:bg-[var(--admin-surface-hover)]'}`}>
                     {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
                     {revealed ? 'Hide' : 'Show'} Nominal
                   </button>
@@ -446,258 +558,208 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                     setViewingPhotos(photos)
                   }}
                     disabled={reportState !== 'ready'}
-                    className="bg-blue-600 text-white px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
+                    className="bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-[var(--admin-accent-hover)]">
                     <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
                   </div>
                 </div>
               </th>
             </tr>
-            <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
-              <th className="text-left px-4 py-2.5 border-b border-slate-200 w-8">#</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">No Trip</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Jam</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Wilayah</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Asal</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Rute Tujuan</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Muatan</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Golongan</th>
-              <th className="text-right px-3 py-2.5 border-b border-slate-200">Unit</th>
-              <th className="text-left px-3 py-2.5 border-b border-slate-200">Foto</th>
-              <th className="text-right px-4 py-2.5 border-b border-slate-200">Pendapatan</th>
-              <th className="border-b border-slate-200 w-8" />
+            <tr className="bg-[var(--admin-surface-sunken)] text-[10px] uppercase tracking-wide text-[var(--admin-text-muted)]">
+              <th className="text-left pl-10 pr-3 py-2.5 border-b border-[var(--admin-border)]">No Trip</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Jam</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Wilayah</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Rute</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Petugas</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">No. Polisi</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Jenis Kendaraan</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Muatan</th>
+              <th className="text-right px-3 py-2.5 border-b border-[var(--admin-border)]">Tarif</th>
+              <th className="text-left px-4 py-2.5 border-b border-[var(--admin-border)]">Foto</th>
             </tr>
           </thead>
           <tbody>
             {reportState === 'offline' ? (
               <tr>
-                <td colSpan={12} className="p-8 text-center">
-                  <p className="text-slate-500 font-semibold">Laporan tidak bisa dimuat</p>
-                  <p className="text-[12px] text-slate-400 mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
+                <td colSpan={10} className="p-8 text-center">
+                  <p className="text-[var(--admin-text-muted)] font-semibold">Laporan tidak bisa dimuat</p>
+                  <p className="text-[12px] text-[var(--admin-text-faint)] mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
                   <button
                     onClick={() => void loadReports()}
-                    className="mt-3 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50"
+                    className="mt-3 border border-[var(--admin-border)] text-[var(--admin-text-soft)] px-3.5 py-2 rounded-lg font-semibold text-sm hover:bg-[var(--admin-surface-hover)]"
                   >
                     Coba Lagi
                   </button>
                 </td>
               </tr>
             ) : reportState !== 'ready' ? (
-              <tr><td colSpan={12} className="p-8 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
+              <tr><td colSpan={10} className="p-8 text-center text-[var(--admin-text-faint)] animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
-              <tr><td colSpan={12} className="p-8 text-center text-slate-400">Belum ada trip</td></tr>
-            ) : (() => {
-              // Group trips by date for cleaner hierarchy
-              const groupedByDate = reportTrips.reduce((acc, t) => {
-                const date = dayKeyWib(t.created_at)
-                if (!acc[date]) acc[date] = []
-                acc[date].push(t)
-                return acc
-              }, {} as Record<string, typeof reportTrips>)
+              <tr><td colSpan={10} className="p-8 text-center text-[var(--admin-text-faint)]">Belum ada trip</td></tr>
+            ) : (
+              // Hierarki: tanggal → golongan → kendaraan.
+              dateGroups.flatMap(group => {
+                const dateOpen = dateIsOpen(group.date)
+                const rows: ReactNode[] = []
 
-              const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
-              let globalIdx = 0
-
-              return sortedDates.flatMap(date => {
-                const dayTrips = groupedByDate[date]
-                const dayTotal = dayTrips.reduce((s, t) => s + (t.vehicle_count || 0), 0)
-                const dayRevenue = dayTrips.reduce((s, t) => s + (t.trip_revenue || 0), 0)
-                const dateObj = new Date(date + 'T00:00:00')
-                const formattedDate = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-                const dateVisible = expandMode !== 'collapse' && !closedDates.has(date)
-
-                return [
-                  // Date group header row (klik = buka/tutup grup tanggal ini)
-                  <tr key={`date-${date}`} onClick={() => toggleDate(date, sortedDates)}
-                    className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors">
-                    <td colSpan={3} className="px-4 py-2.5 font-bold text-sm">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={14} className="text-slate-400" />
-                        {formattedDate}
-                        <ChevronRight size={14} className={`text-slate-400 transition-transform ${dateVisible ? 'rotate-90' : ''}`} />
+                // Header tanggal (klik = buka/tutup isi tanggal ini)
+                rows.push(
+                  <tr key={`date-${group.date}`} onClick={() => toggleDate(group.date)}
+                    data-testid="report-date-header"
+                    className="bg-[var(--admin-surface-inverse)] text-[var(--admin-text-inverse)] cursor-pointer hover:bg-[var(--admin-surface-inverse-hover)] transition-colors">
+                    <td colSpan={6} className="px-4 py-2.5">
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <span className="flex items-center gap-1.5">
+                          <Calendar size={14} className="text-[var(--admin-text-inverse-faint)]" />
+                          <span className="font-black text-sm tracking-wide">{group.label}</span>
+                          <span className="text-[11px] text-[var(--admin-text-inverse-muted)] capitalize">{group.weekday}</span>
+                          <ChevronRight size={14} className={`text-[var(--admin-text-inverse-faint)] transition-transform ${dateOpen ? 'rotate-90' : ''}`} />
+                        </span>
+                        <span className="text-[11px] font-semibold text-[var(--admin-text-inverse-muted)]">
+                          {group.tripCount} trip · {group.units} unit
+                        </span>
                       </span>
-                      <span className="ml-3 text-slate-300 text-xs font-normal">({dayTrips.length} trip - {dayTotal} unit)</span>
                     </td>
-                    <td colSpan={6} className="px-3 py-2.5 text-right">
-                      <span className="text-slate-300 text-xs">Total:</span>
+                    <td colSpan={4} className="px-4 py-2.5 text-right font-black text-sm whitespace-nowrap">
+                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={group.revenue} className="text-[var(--admin-success-on-dark)]" />
                     </td>
-                    <td colSpan={2} className="px-4 py-2.5 text-right font-black text-sm">
-                      <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={dayRevenue} className="text-emerald-300" />
-                    </td>
-                    <td />
-                  </tr>,
-                  // Trip rows for this date (hanya kalau grup tanggal terbuka)
-                  ...(dateVisible ? dayTrips.map((t) => {
-                    const open = tripDetailOpen(t.id)
-                    const d = formatReportDateTime(t.created_at)
-                    const currentIdx = globalIdx++
-                    return (
-                      <Fragment key={t.id}>
-                        <tr onClick={() => toggleTrip(t.id)}
-                          className={`cursor-pointer hover:bg-slate-50 transition-colors duration-150 ${open ? 'bg-blue-50/60' : currentIdx % 2 === 1 ? 'bg-slate-50/40' : ''}`}>
-                          <td className="px-4 py-2.5 text-slate-400 tabular-nums align-middle">{currentIdx + 1}</td>
-                          <td className="px-3 py-2.5 font-mono font-semibold text-slate-700">{t.no_trip}</td>
-                          <td className="px-3 py-2.5 text-slate-500 text-xs">{d.time}</td>
-                          <td className="px-3 py-2.5 text-slate-700">{t.region_name || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-600">{t.route_from_name || t.route_from || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-600">{t.route_to_name || t.route_to || '-'}</td>
-                          <td className="px-3 py-2.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${t.status_muatan === 'muatan' ? 'border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
-                              {t.status_muatan === 'muatan' ? 'Ada' : 'Kosong'}
+                  </tr>
+                )
+
+                if (!dateOpen) return rows
+
+                // Header golongan per tanggal (klik = buka/tutup seluruh
+                // kendaraan golongan itu)
+                for (const gol of group.gols) {
+                  const golKey = `${group.date}|${gol.key}`
+                  const golOpen = golIsOpen(golKey)
+                  rows.push(
+                    <tr key={`gol-${golKey}`} onClick={() => toggleGol(golKey)}
+                      data-testid="report-gol-header"
+                      data-gol={gol.key}
+                      className="bg-[var(--admin-surface-sunken)] cursor-pointer hover:bg-[var(--admin-surface-hover)] transition-colors">
+                      <td colSpan={6} className="pl-10 pr-3 py-2">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span className="flex items-center gap-1.5">
+                            <ChevronRight size={13} className={`text-[var(--admin-text-faint)] transition-transform ${golOpen ? 'rotate-90' : ''}`} />
+                            <span className="text-[13px] font-black text-[var(--admin-text)]">{gol.key}</span>
+                          </span>
+                          <span className="text-[10px] font-bold text-[var(--admin-text-faint)]">
+                            {gol.trips} trip · {gol.units} unit
+                          </span>
+                          {gol.summary && (
+                            <span title={gol.summary}
+                              className="max-w-[420px] truncate text-[10px] font-semibold text-[var(--admin-text-muted)] bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded px-2 py-0.5">
+                              Rincian: {gol.summary}
                             </span>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            {(() => {
-                              const g = tripGolongan(t)
-                              const tone = g.includes('Internal')
-                                ? 'border-slate-800 text-slate-800'
-                                : g.includes('Eksternal')
-                                  ? 'border-slate-400 text-slate-600'
-                                  : 'border-slate-200 text-slate-500'
-                              return <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${tone}`}>{g}</span>
-                            })()}
-                          </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{t.vehicle_count}</td>
-                          <td className="px-3 py-2.5">
-                            {(() => {
-                              const thumbs = [
-                                ...(t.selfie_photo ? [{ id: `selfie-${t.id}`, url: t.selfie_photo, caption: `${t.no_trip} - Swafoto petugas` }] : []),
-                                ...(t.foto_kosong_path ? [{ id: `trip-${t.id}`, url: t.foto_kosong_path, caption: `${t.no_trip} - Bukti trip` }] : []),
-                                ...t.vehicles.filter(v => v.foto_path).map(v => ({ id: `vehicle-${v.id}`, url: v.foto_path as string, caption: vehiclePhotoCaption(t, v, geoRules) })),
-                              ]
-                              if (thumbs.length === 0) return <span className="text-[11px] text-slate-400">-</span>
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={e => { e.stopPropagation(); setViewingPhotos(thumbs) }}
-                                  className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-blue-400"
-                                  aria-label={`Lihat ${thumbs.length} foto ${t.no_trip}`}
-                                >
-                                  {thumbs.slice(0, 3).map(p => (
-                                    <img
-                                      key={p.id}
-                                      src={resolvePhotoUrl(p.url, baseUrl)}
-                                      alt=""
-                                      loading="lazy"
-                                      className="h-9 w-9 rounded-md object-cover ring-1 ring-slate-200"
-                                    />
-                                  ))}
-                                  <span className="text-[10px] font-semibold text-slate-500">{thumbs.length}</span>
-                                </button>
-                              )
-                            })()}
-                          </td>
-                          <td className="px-4 py-2.5 text-right">
-                            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={t.trip_revenue || 0} />
-                            {(t.vehicles ?? []).length > 0 && (t.vehicles ?? []).every(v => String(v.tarif_source ?? '') === 'internal') && (
-                              <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Internal - tidak ditagih</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2.5 text-center text-slate-400"><ChevronRight size={14} className="mx-auto" /></td>
-                        </tr>
-                        {open && (
-                    <tr className="bg-slate-50/80">
-                      <td colSpan={12} className="px-4 py-3">
-                        <div className="text-[12px] text-slate-600 mb-3">
-                          <span className="font-semibold mr-4">Petugas: {t.officer_name || '-'}</span>
-                          <span className="mr-4">Dermaga: {t.dermaga_name || '-'}</span>
-                          <span className="mr-4">Rute: {t.route_name || `${t.route_from || '-'} → ${t.route_to || '-'}`}</span>
-                          <span>Kategori: {t.keterangan || '-'}</span>
-                        </div>
-                        {t.selfie_photo && (
-                          <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-200 bg-white max-w-xl">
-                            <button
-                              type="button"
-                              onClick={() => setViewingPhotos([{
-                                id: `selfie-${t.id}`,
-                                url: t.selfie_photo!,
-                                caption: `${t.no_trip} - Swafoto petugas`,
-                              }])}
-                              className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
-                              aria-label={`Lihat swafoto petugas ${t.no_trip}`}
-                            >
-                              <img src={resolvePhotoUrl(t.selfie_photo, baseUrl)} alt="" className="w-full h-full object-cover" />
-                            </button>
-                            <span className="text-[12px] font-semibold text-slate-700">Swafoto petugas</span>
-                          </div>
-                        )}
-                        {t.foto_kosong_path && (
-                          <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-slate-200 bg-white max-w-xl">
-                            <button
-                              type="button"
-                              onClick={() => setViewingPhotos([{
-                                id: `trip-${t.id}`,
-                                url: t.foto_kosong_path!,
-                                caption: `${t.no_trip} - Bukti trip`,
-                              }])}
-                              className="w-16 h-12 shrink-0 overflow-hidden rounded-lg bg-slate-100"
-                              aria-label={`Lihat foto bukti trip ${t.no_trip}`}
-                            >
-                              <img src={resolvePhotoUrl(t.foto_kosong_path, baseUrl)} alt="" className="w-full h-full object-cover" />
-                            </button>
-                            <span className="text-[12px] font-semibold text-slate-700">Foto bukti trip</span>
-                          </div>
-                        )}
-                        {t.vehicles.length > 0 && (
-                          <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
-                          <table className="w-full min-w-[680px] text-[13px] bg-white">
-                            <thead className="bg-slate-100 text-[10px] uppercase text-slate-500">
-                              <tr><th className="text-left p-3">Foto</th><th className="text-left p-3">Plat</th><th className="text-left p-3">Jenis</th><th className="text-left p-3">Kategori</th><th className="text-left p-3">Muatan</th><th className="text-right p-3">Tarif</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {t.vehicles.map((v, i) => (
-                                <tr key={`${v.no_polisi}-${i}`}>
-                                  <td className="p-3">
-                                    {v.foto_path ? (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => setViewingPhotos([{
-                                            id: `vehicle-${v.id}`,
-                                            url: v.foto_path!,
-                                            caption: vehiclePhotoCaption(t, v, geoRules),
-                                          }])}
-                                          className="block w-16 h-12 sm:w-20 sm:h-14 overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          aria-label={`Lihat foto kendaraan ${v.no_polisi}`}
-                                        >
-                                          <img src={resolvePhotoUrl(v.foto_path, baseUrl)} alt={`Kendaraan ${v.no_polisi}`} className="w-full h-full object-cover" />
-                                        </button>
-                                        <span className="block mt-1 text-[9px] font-black uppercase text-slate-500">
-                                          {vehicleUnitLabel(t.vehicles, v)}
-                                        </span>
-                                      </>
-                                    ) : <span className="text-[10px] text-slate-400">Tidak ada foto</span>}
-                                  </td>
-                                  <td className="p-3 font-mono font-bold">{v.no_polisi}</td>
-                                  <td className="p-3">{v.vehicle_type}</td>
-                                  <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-semibold border ${reportGolongan(v) === 'Internal' ? 'border-slate-800 text-slate-800' : reportGolongan(v) === 'Eksternal' ? 'border-slate-400 text-slate-600' : 'border-slate-200 text-slate-500'}`}>{reportGolongan(v)}</span></td>
-                                  <td className="p-3">{v.has_load ? 'Ada Muatan' : 'Kosong'}</td>
-                                  <td className="p-3 text-right">
-                                    <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={v.tariff_amount || 0} />
-                                    <span className="block text-[9px] font-normal text-slate-400 mt-0.5">{tarifSourceLabel(v.tarif_source)}</span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          </div>
-                        )}
+                          )}
+                        </span>
+                      </td>
+                      <td colSpan={4} className="px-4 py-2 text-right whitespace-nowrap">
+                        <span className="text-[11px] font-bold text-[var(--admin-text-muted)] mr-3">{gol.units} unit</span>
+                        <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={gol.revenue} className="text-[var(--admin-success-text)] font-black text-[12px]" />
                       </td>
                     </tr>
-                    )}
-                </Fragment>
-                )
-              }) : [])
-              ]
-            })
-            })()}
+                  )
+
+                  if (!golOpen) continue
+
+                  // Seluruh kendaraan golongan ini pada tanggal tersebut
+                  for (const { trip, vehicle } of gol.rows) {
+                    const d = formatReportDateTime(trip.created_at)
+                    const hasLoad = Number(vehicle.has_load) > 0
+                    rows.push(
+                      <tr key={`${group.date}-${gol.key}-${vehicle.id ?? trip.id}-${vehicle.no_polisi}`}
+                        data-testid="report-vehicle-row"
+                        className="border-b border-[var(--admin-border-subtle)] hover:bg-[var(--admin-surface-hover)] transition-colors">
+                        <td className="pl-10 pr-3 py-2.5 font-mono font-semibold text-[var(--admin-text-soft)]">{trip.no_trip}</td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
+                          {trip.route_from_name || trip.route_from || '-'} → {trip.route_to_name || trip.route_to || '-'}
+                        </td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{trip.officer_name || '-'}</td>
+                        <td className="px-3 py-2.5 font-mono text-[var(--admin-text-soft)]">{vehicle.no_polisi}</td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{vehicle.vehicle_type}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                            hasLoad
+                              ? 'border-[var(--admin-success-border)] text-[var(--admin-success-text)] bg-[var(--admin-success-soft)]'
+                              : 'border-[var(--admin-border)] text-[var(--admin-text-faint)]'
+                          }`}>
+                            {hasLoad ? 'Ada Muatan' : 'Tanpa Muatan'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right whitespace-nowrap text-[var(--admin-text-soft)]">
+                          <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={vehicle.tariff_amount || 0} />
+                          <span className="block text-[9px] font-normal text-[var(--admin-text-faint)]">{tarifSourceLabel(vehicle.tarif_source)}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {(() => {
+                            // Foto kendaraan + bukti trip (swafoto & foto
+                            // kosong). Klik membuka semua foto trip tsb.
+                            const thumbs = [
+                              ...(vehicle.foto_path ? [{
+                                id: `vehicle-${vehicle.id}`,
+                                url: vehicle.foto_path as string,
+                                caption: vehiclePhotoCaption(trip, vehicle, geoRules),
+                              }] : []),
+                              ...(trip.selfie_photo ? [{
+                                id: `selfie-${trip.id}`,
+                                url: trip.selfie_photo,
+                                caption: `${trip.no_trip} - Swafoto petugas`,
+                              }] : []),
+                              ...(trip.foto_kosong_path ? [{
+                                id: `trip-${trip.id}`,
+                                url: trip.foto_kosong_path,
+                                caption: `${trip.no_trip} - Bukti trip`,
+                              }] : []),
+                            ]
+                            if (thumbs.length === 0) {
+                              return <span className="text-[10px] text-[var(--admin-text-faint)]">-</span>
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setViewingPhotos(thumbs)}
+                                className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-[var(--admin-accent)]"
+                                aria-label={`Lihat ${thumbs.length} foto ${trip.no_trip}`}
+                              >
+                                {thumbs.slice(0, 3).map(p => (
+                                  <img
+                                    key={p.id}
+                                    src={resolvePhotoUrl(p.url, baseUrl)}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-9 w-9 rounded-md object-cover ring-1 ring-[var(--admin-border)]"
+                                  />
+                                ))}
+                                {thumbs.length > 3 && (
+                                  <span className="text-[10px] font-bold text-[var(--admin-text-muted)]">+{thumbs.length - 3}</span>
+                                )}
+                              </button>
+                            )
+                          })()}
+                        </td>
+                      </tr>
+                    )
+                  }
+                }
+                return rows
+              })
+            )}
           </tbody>
           <tfoot>
-            <tr className="bg-slate-100 font-bold text-slate-700">
-              <td colSpan={12} className="px-4 py-3 border-t-2 border-slate-300 text-right text-[12px]">
+            <tr className="bg-[var(--admin-surface-sunken)] font-bold text-[var(--admin-text-soft)]">
+              <td colSpan={10} className="px-4 py-3 border-t-2 border-[var(--admin-border-strong)] text-right text-[12px]">
                 Total {totalTrip} trip - {totalUnit} unit
+                {reportTrips.some(t => (t.vehicles ?? []).length === 0) && (
+                  <span className="ml-3 text-[10px] font-semibold text-[var(--admin-text-faint)]">
+                    ({reportTrips.filter(t => (t.vehicles ?? []).length === 0).length} trip tanpa data kendaraan tidak tampil)
+                  </span>
+                )}
                 <span className="ml-4">
-                  <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-emerald-700 font-black" />
+                  <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={totalRevenue} className="text-[var(--admin-success-text)] font-black" />
                 </span>
               </td>
             </tr>

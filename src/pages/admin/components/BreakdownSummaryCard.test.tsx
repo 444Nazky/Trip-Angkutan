@@ -105,7 +105,7 @@ describe('BreakdownSummaryCard', () => {
 
   it('kolom Eksternal berada paling kanan', () => {
     renderCard()
-    const cols = Array.from(container.querySelectorAll('.rounded-xl.border.border-slate-200.overflow-hidden > .bg-slate-50\\/80'))
+    const cols = Array.from(container.querySelectorAll('[data-testid="breakdown-column-header"]'))
       .map(el => el.textContent ?? '')
     expect(cols.length).toBe(3)
     expect(cols[0]).toContain('Internal')

@@ -129,6 +129,15 @@ describe('ReportsTab (render harness)', () => {
     container.remove()
   })
 
+  /** Buka grup golongan (default 'Expand Header' = kendaraan masih tertutup). */
+  async function openGolongan(gol: string) {
+    const header = Array.from(container.querySelectorAll('[data-testid="report-gol-header"]'))
+      .find(el => el.getAttribute('data-gol') === gol)!
+    await act(async () => {
+      header.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+  }
+
   async function renderReports() {
     await act(async () => {
       root.render(
@@ -145,15 +154,17 @@ describe('ReportsTab (render harness)', () => {
     await act(async () => {})
   }
 
-  it('menampilkan kolom Unit dan Foto pada header tabel', async () => {
+  it('menampilkan kolom kendaraan pada header tabel', async () => {
     await renderReports()
 
-    const headers = Array.from(container.querySelectorAll('thead th'))
+    const headers = Array.from(container.querySelectorAll('thead tr')[1]?.querySelectorAll('th') ?? [])
       .map(th => th.textContent?.trim() ?? '')
 
-    // Kolom "Unit" = jumlah kendaraan per trip; rincian plat dan jenis
-    // kendaraan muncul di baris detail ketika baris trip diklik.
-    expect(headers).toContain('Unit')
+    // Satu baris = satu kendaraan, jadi kolom unit per trip tidak ada lagi.
+    expect(headers).toContain('No Trip')
+    expect(headers).toContain('No. Polisi')
+    expect(headers).toContain('Muatan')
+    expect(headers).toContain('Tarif')
     expect(headers).toContain('Foto')
   })
 
@@ -176,40 +187,65 @@ describe('ReportsTab (render harness)', () => {
     expect(optionsText).toContain('Burung Sumatra')
   })
 
-  it('menampilkan detail trip tanpa klik (default Expand All)', async () => {
+  it('default Expand Header: tanggal + golongan tampil, kendaraan tertutup', async () => {
     await renderReports()
 
-    // Default Expand All: detail trip langsung terbuka sejak load.
     const body = container.textContent ?? ''
-    expect(body).toContain('D 1234 AB')
-    expect(body).toContain('D 5678 CD')
-    expect(body).toContain('Truck Besar')
-    expect(body).toContain('Golongan')
+    // Header tanggal (folder) dan header golongan tampil sejak load.
+    expect(body).toContain('22-10-2026')
+    expect(body).toContain('Internal')
+    expect(body).toContain('Eksternal')
+    expect(body).toContain('Lokal')
+    // Baris kendaraan baru muncul setelah grup golongan diklik.
+    expect(body).not.toContain('D 1234 AB')
+    expect(body).not.toContain('D 5678 CD')
   })
 
-  it('menampilkan plat + jenis kendaraan per unit pada baris detail trip', async () => {
+  it('membuka satu grup golongan menampilkan seluruh kendaraan golongan itu', async () => {
     await renderReports()
 
-    // Expand Header: detail trip tertutup; klik baris trip = terbuka.
-    const headerBtn = Array.from(container.querySelectorAll('button'))
-      .find(b => b.textContent === 'Expand Header')!
-    await act(async () => {
-      headerBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    const tripRow = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
-      .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
-    await act(async () => {
-      tripRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
+    const golHeader = (gol: string) => Array.from(container.querySelectorAll('[data-testid="report-gol-header"]'))
+      .find(el => el.getAttribute('data-gol') === gol)!
 
-    const body = container.textContent ?? ''
+    await act(async () => {
+      golHeader('Eksternal').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    let body = container.textContent ?? ''
+    // Hanya kendaraan golongan Eksternal yang tampil.
     expect(body).toContain('D 1234 AB')
+    expect(body).not.toContain('D 5678 CD')
+
+    await act(async () => {
+      golHeader('Internal').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    body = container.textContent ?? ''
     expect(body).toContain('D 5678 CD')
     expect(body).toContain('Truck Besar')
+  })
+
+  it('Collapse All menyembunyikan isi tanggal, Expand All menampilkannya', async () => {
+    await renderReports()
+
+    const button = (label: string) => Array.from(container.querySelectorAll('button'))
+      .find(b => b.textContent === label)!
+
+    await act(async () => {
+      button('Collapse All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    // Hanya header tanggal yang tersisa.
+    expect(container.querySelectorAll('[data-testid="report-gol-header"]').length).toBe(0)
+    expect(container.querySelectorAll('[data-testid="report-vehicle-row"]').length).toBe(0)
+
+    await act(async () => {
+      button('Expand All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(container.querySelectorAll('[data-testid="report-gol-header"]').length).toBe(3)
+    expect(container.querySelectorAll('[data-testid="report-vehicle-row"]').length).toBe(2)
   })
 
   it('menampilkan strip thumbnail seluruh foto (swafoto, bukti trip, kendaraan)', async () => {
     await renderReports()
+    await openGolongan('Eksternal')
 
     const images = Array.from(container.querySelectorAll('tbody img'))
     const sources = images.map(img => img.getAttribute('src') ?? '')
@@ -228,17 +264,17 @@ describe('ReportsTab (render harness)', () => {
 
   it('jumlah kolom header sama dengan jumlah sel baris data', async () => {
     await renderReports()
+    await openGolongan('Eksternal')
 
     // Baris header kolom (baris kedua <thead>).
     const headerRows = container.querySelectorAll('thead tr')
     const headerCells = headerRows[1]?.querySelectorAll('th').length ?? 0
 
-    // Baris data trip (baris pertama di <tbody> setelah group tanggal).
-    const dataRow = Array.from(container.querySelectorAll('tbody tr'))
-      .find(r => (r.textContent ?? '').includes('TRP-2026-001'))
+    // Baris kendaraan (baris data di <tbody>).
+    const dataRow = container.querySelector('[data-testid="report-vehicle-row"]')
     const dataCells = dataRow?.querySelectorAll('td').length ?? 0
 
-    expect(headerCells).toBe(12)
+    expect(headerCells).toBe(10)
     expect(dataCells).toBe(headerCells)
   })
 })
