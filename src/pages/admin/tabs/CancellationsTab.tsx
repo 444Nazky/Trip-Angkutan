@@ -95,54 +95,70 @@ interface CancelVehicleRow {
   vehicle: CancelVehicle | null
 }
 
-interface CancelGroup {
+interface CancelTripGroup {
+  /** id dokumen pembatalan — satu dokumen = satu trip. */
   key: string
-  officer: string
-  reason: string
-  /** Jumlah dokumen pembatalan di grup ini. */
-  count: number
+  cancel: TripCancellation
   rows: CancelVehicleRow[]
 }
 
+interface CancelOfficerGroup {
+  key: string
+  officer: string
+  /** Total unit kendaraan seluruh trip petugas ini. */
+  unitCount: number
+  trips: CancelTripGroup[]
+}
+
+/** Tanggal trip (YYYY-MM-DD): tanggal mulai, mundur ke tanggal batal. */
+function tripDateKey(c: TripCancellation): string {
+  return dayKeyWib(c.started_at ?? c.cancelled_at)
+}
+
+/** "2026-11-22" -> "22-11-2026" (label folder trip). */
+function toDmy(date: string): string {
+  const [y, m, d] = date.split('-')
+  if (!y || !m || !d) return date
+  return `${d}-${m}-${y}`
+}
+
 /**
- * Kelompokkan pembatalan menurut "Petugas → Alasan Terbanyak".
+ * Kelompokkan pembatalan menurut "Petugas → Trip → kendaraan".
  *
- * Setiap dokumen bisa berisi beberapa kendaraan, dan satu baris tabel =
- * satu kendaraan. Dokumen tanpa rincian kendaraan tetap tampil satu baris
- * (kolom kendaraan "-") supaya tidak ada pembatalan yang hilang dari daftar.
+ * Satu petugas = satu grup; di dalamnya tiap dokumen pembatalan jadi satu
+ * grup trip (dilabeli tanggal), dan satu baris tabel = satu kendaraan.
+ * Dokumen tanpa rincian kendaraan tetap tampil satu baris (kolom kendaraan
+ * "-") supaya tidak ada pembatalan yang hilang dari daftar.
  */
-function buildCancelGroups(rows: TripCancellation[]): CancelGroup[] {
-  const map = new Map<string, CancelGroup>()
+function buildOfficerGroups(rows: TripCancellation[]): CancelOfficerGroup[] {
+  const byOfficer = new Map<string, CancelOfficerGroup>()
   for (const c of rows) {
     const officer = c.officer_name?.trim() || 'Tanpa nama'
-    const reason = c.reason?.trim() || 'Tanpa alasan'
-    const key = `${officer}|${reason}`
-    let group = map.get(key)
-    if (!group) { group = { key, officer, reason, count: 0, rows: [] }; map.set(key, group) }
-    group.count += 1
+    let group = byOfficer.get(officer)
+    if (!group) {
+      group = { key: officer, officer, unitCount: 0, trips: [] }
+      byOfficer.set(officer, group)
+    }
 
     const vehicles = c.vehicles && c.vehicles.length > 0 ? c.vehicles : [null]
-    vehicles.forEach((vehicle, i) => {
-      group.rows.push({
-        key: `${c.id}-${i}-${vehicle?.plate ?? 'tanpa-kendaraan'}`,
-        cancel: c,
-        vehicle,
-      })
-    })
+    const tripRows: CancelVehicleRow[] = vehicles.map((vehicle, i) => ({
+      key: `${c.id}-${i}-${vehicle?.plate ?? 'tanpa-kendaraan'}`,
+      cancel: c,
+      vehicle,
+    }))
+    group.trips.push({ key: c.id, cancel: c, rows: tripRows })
+    group.unitCount += tripRows.length
   }
 
-  // Petugas: pembatalan terbanyak dulu. Di dalamnya: alasan yang paling sering.
-  const byOfficer = new Map<string, CancelGroup[]>()
-  for (const group of map.values()) {
-    const list = byOfficer.get(group.officer) ?? []
-    list.push(group)
-    byOfficer.set(group.officer, list)
-  }
-  const officerTotal = (list: CancelGroup[]) => list.reduce((s, g) => s + g.count, 0)
-
-  return [...byOfficer.entries()]
-    .sort((a, b) => officerTotal(b[1]) - officerTotal(a[1]) || a[0].localeCompare(b[0]))
-    .flatMap(([, list]) => [...list].sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)))
+  // Petugas: unit terbanyak dulu, lalu nama. Trip: terbaru dulu, lalu no. dokumen.
+  return [...byOfficer.values()]
+    .sort((a, b) => b.unitCount - a.unitCount || a.officer.localeCompare(b.officer))
+    .map(g => ({
+      ...g,
+      trips: [...g.trips].sort((a, b) =>
+        tripDateKey(b.cancel).localeCompare(tripDateKey(a.cancel))
+        || a.cancel.no_cancel.localeCompare(b.cancel.no_cancel)),
+    }))
 }
 
 /**
@@ -168,9 +184,15 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
   const [error, setError] = useState<string | null>(null)
   /** Baris kendaraan yang rinciannya dibuka (klik baris). */
   const [expanded, setExpanded] = useState<string | null>(null)
-  /** Grup (petugas → alasan) yang ditutupi manual. */
-  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set())
-  const [allGroupsOpen, setAllGroupsOpen] = useState(true)
+  /**
+   * Buka/tutup dua level: petugas → trip.
+   *   'collapse' -> hanya header petugas
+   *   'all'      -> semua terbuka sampai kendaraan (default)
+   * Klik individual menimpa mode; override hilang saat Collapse/Expand All.
+   */
+  const [expandMode, setExpandMode] = useState<'collapse' | 'all'>('all')
+  const [officerOpenOverrides, setOfficerOpenOverrides] = useState<Record<string, boolean>>({})
+  const [tripOpenOverrides, setTripOpenOverrides] = useState<Record<string, boolean>>({})
 
   /** Rentang tanggal hasil dari preset yang dipilih. */
   const dateRange = useMemo(() => {
@@ -263,16 +285,18 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
 
   // ── Angka untuk kartu ringkasan ───────────────────────────────────────────
   const total = summary?.total ?? rows.length
-  const groups = useMemo(() => buildCancelGroups(rows), [rows])
-  const vehicleTotal = summary?.vehicleCount ?? groups.reduce((s, g) => s + g.rows.length, 0)
+  const groups = useMemo(() => buildOfficerGroups(rows), [rows])
+  const vehicleTotal = summary?.vehicleCount ?? groups.reduce((s, g) => s + g.unitCount, 0)
 
   // Golongan yang muncul pada kendaraan yang dibatalkan.
   const golonganList = useMemo(() => {
     const seen = new Set<string>()
     for (const g of groups) {
-      for (const row of g.rows) {
-        const cat = row.vehicle?.category?.trim()
-        if (cat) seen.add(cat)
+      for (const trip of g.trips) {
+        for (const row of trip.rows) {
+          const cat = row.vehicle?.category?.trim()
+          if (cat) seen.add(cat)
+        }
       }
     }
     return [...seen].sort((a, b) => {
@@ -301,18 +325,16 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
   }, [groups])
   const officerCount = summary?.byOfficer?.length ?? groups.length
 
-  const groupIsOpen = (key: string) => (allGroupsOpen ? !closedGroups.has(key) : closedGroups.has(key))
-  const toggleGroup = (key: string) => {
-    setClosedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+  const officerIsOpen = (key: string) => officerOpenOverrides[key] ?? (expandMode !== 'collapse')
+  const tripIsOpen = (key: string) => tripOpenOverrides[key] ?? (expandMode === 'all')
+  const toggleOfficer = (key: string) =>
+    setOfficerOpenOverrides(prev => ({ ...prev, [key]: !officerIsOpen(key) }))
+  const toggleTrip = (key: string) =>
+    setTripOpenOverrides(prev => ({ ...prev, [key]: !tripIsOpen(key) }))
   const setAllGroups = (open: boolean) => {
-    setAllGroupsOpen(open)
-    setClosedGroups(new Set())
+    setExpandMode(open ? 'all' : 'collapse')
+    setOfficerOpenOverrides({})
+    setTripOpenOverrides({})
   }
 
   return (
@@ -472,7 +494,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--admin-border)] px-4 py-3">
           <div>
             <h4 className="text-[13px] font-black text-[var(--admin-text)]">
-              Daftar Rincian Trip Dibatalkan (Petugas → Alasan Terbanyak)
+              Daftar Rincian Trip Dibatalkan (Petugas → Trip)
             </h4>
             <p className="text-[11px] text-[var(--admin-text-muted)]">
               Satu baris = satu kendaraan. Klik baris untuk melihat keterangan, tarif, dan foto draft.
@@ -482,7 +504,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
             <button
               onClick={() => setAllGroups(false)}
               className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-colors ${
-                !allGroupsOpen
+                expandMode === 'collapse'
                   ? 'border-[var(--admin-accent)] bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]'
                   : 'border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]'
               }`}
@@ -492,7 +514,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
             <button
               onClick={() => setAllGroups(true)}
               className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-colors ${
-                allGroupsOpen
+                expandMode === 'all'
                   ? 'border-[var(--admin-accent)] bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)]'
                   : 'border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]'
               }`}
@@ -523,12 +545,12 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
               </thead>
               <tbody>
                 {groups.map(group => {
-                  const open = groupIsOpen(group.key)
+                  const officerOpen = officerIsOpen(group.key)
                   return (
                     <Fragment key={group.key}>
-                      {/* Header grup: Petugas → Alasan */}
+                      {/* Header petugas */}
                       <tr
-                        onClick={() => toggleGroup(group.key)}
+                        onClick={() => toggleOfficer(group.key)}
                         data-testid="cancel-group-header"
                         className="cursor-pointer bg-[var(--admin-surface-inverse)] text-[var(--admin-text-inverse)] transition-colors hover:bg-[var(--admin-surface-inverse-hover)]"
                       >
@@ -536,94 +558,120 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
                           <span className="flex flex-wrap items-center gap-2">
                             <span className="flex items-center gap-1.5">
                               <ChevronRight size={13}
-                                className={`text-[var(--admin-text-inverse-faint)] transition-transform ${open ? 'rotate-90' : ''}`} />
+                                className={`text-[var(--admin-text-inverse-faint)] transition-transform ${officerOpen ? 'rotate-90' : ''}`} />
                               <span className="text-[13px] font-black">{group.officer}</span>
-                              <span className="text-[11px] text-[var(--admin-text-inverse-muted)]">· {group.reason}</span>
                             </span>
                             <span className="text-[11px] font-semibold text-[var(--admin-text-inverse-muted)]">
-                              {group.count} trip · {group.rows.length} unit
+                              {group.trips.length} trip · {group.unitCount} unit
                             </span>
                           </span>
                         </td>
                       </tr>
 
-                      {open && group.rows.map(row => {
-                        const c = row.cancel
-                        const v = row.vehicle
-                        const isOpen = expanded === row.key
+                      {officerOpen && group.trips.map(trip => {
+                        const c = trip.cancel
+                        const tripOpen = tripIsOpen(trip.key)
                         return (
-                          <Fragment key={row.key}>
+                          <Fragment key={trip.key}>
+                            {/* Header trip (folder tanggal) */}
                             <tr
-                              onClick={() => setExpanded(isOpen ? null : row.key)}
-                              onKeyDown={event => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault()
-                                  setExpanded(isOpen ? null : row.key)
-                                }
-                              }}
-                              tabIndex={0}
-                              aria-expanded={isOpen}
-                              data-testid="cancel-vehicle-row"
-                              className="cursor-pointer border-b border-[var(--admin-border-subtle)] transition-colors hover:bg-[var(--admin-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-accent)]"
+                              onClick={() => toggleTrip(trip.key)}
+                              data-testid="cancel-trip-header"
+                              className="cursor-pointer bg-[var(--admin-surface-sunken)] transition-colors hover:bg-[var(--admin-surface-hover)]"
                             >
-                              <td className="pl-10 pr-3 py-2.5 font-mono text-[11px] font-bold text-[var(--admin-text-soft)]">{c.no_cancel}</td>
-                              <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--admin-text-muted)]">
-                                {cancelTimeLabel(c.cancelled_at)}
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <span className={`rounded px-2 py-0.5 text-[10px] font-semibold border ${golBadgeClass(v?.category)}`}>
-                                  {v?.category?.trim() || '-'}
+                              <td colSpan={6} className="pl-10 pr-3 py-2">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="flex items-center gap-1.5">
+                                    <ChevronRight size={12}
+                                      className={`text-[var(--admin-text-faint)] transition-transform ${tripOpen ? 'rotate-90' : ''}`} />
+                                    <span className="text-[12px] font-black text-[var(--admin-text)]">{toDmy(tripDateKey(c))}</span>
+                                    <span className="font-mono text-[10px] text-[var(--admin-text-muted)]">{c.no_cancel}</span>
+                                  </span>
+                                  <span className="text-[10px] text-[var(--admin-text-muted)]">· {c.reason}</span>
+                                  <span className="text-[10px] font-semibold text-[var(--admin-text-muted)]">{trip.rows.length} unit</span>
                                 </span>
                               </td>
-                              <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{v?.type?.trim() || '-'}</td>
-                              <td className="px-3 py-2.5 font-mono text-[var(--admin-text-soft)]">{v?.plate?.trim() || '-'}</td>
-                              <td className="px-3 py-2.5 text-[var(--admin-text-soft)]">{c.officer_name || '-'}</td>
                             </tr>
 
-                            {isOpen && (
-                              <tr>
-                                <td colSpan={6} className="bg-[var(--admin-surface-muted)] px-10 py-3">
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    <div className="space-y-1 text-[11px] text-[var(--admin-text-muted)]">
-                                      <p>
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Alasan:</span> {c.reason}
-                                      </p>
-                                      {c.note && (
-                                        <p>
-                                          <span className="font-bold text-[var(--admin-text-soft)]">Keterangan petugas:</span> {c.note}
-                                        </p>
-                                      )}
-                                      <p>
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Rute:</span>{' '}
-                                        {[c.route_from, c.route_to].filter(Boolean).join(' → ') || c.route_code || '-'}
-                                      </p>
-                                      <p>
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Muatan saat batal:</span>{' '}
-                                        {c.condition === 'muatan' ? 'Muatan' : c.condition === 'kosong' ? 'Kosong' : '-'}
-                                      </p>
-                                    </div>
-                                    <div className="space-y-1 text-[11px] text-[var(--admin-text-muted)]">
-                                      {v && (
-                                        <p>
-                                          <span className="font-bold text-[var(--admin-text-soft)]">Kendaraan:</span>{' '}
-                                          {v.type || '-'} · {v.plate || '-'} · {v.category || '-'}
-                                          {v.load ? ` · ${v.load}` : ''}
-                                        </p>
-                                      )}
-                                      <p>
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Tarif (Rp):</span>{' '}
-                                        {Number(v?.tariff ?? 0).toLocaleString('id-ID')}
-                                      </p>
-                                      <p>
-                                        <span className="font-bold text-[var(--admin-text-soft)]">Wilayah:</span>{' '}
-                                        {c.region_code || '-'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <CancelPhotos photos={c.photos} count={c.photo_count} />
-                                </td>
-                              </tr>
-                            )}
+                            {tripOpen && trip.rows.map(row => {
+                              const v = row.vehicle
+                              const isOpen = expanded === row.key
+                              return (
+                                <Fragment key={row.key}>
+                                  <tr
+                                    onClick={() => setExpanded(isOpen ? null : row.key)}
+                                    onKeyDown={event => {
+                                      if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault()
+                                        setExpanded(isOpen ? null : row.key)
+                                      }
+                                    }}
+                                    tabIndex={0}
+                                    aria-expanded={isOpen}
+                                    data-testid="cancel-vehicle-row"
+                                    className="cursor-pointer border-b border-[var(--admin-border-subtle)] transition-colors hover:bg-[var(--admin-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-accent)]"
+                                  >
+                                    <td className="pl-14 pr-3 py-2.5 font-mono text-[11px] font-bold text-[var(--admin-text-soft)]">{c.no_cancel}</td>
+                                    <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--admin-text-muted)]">
+                                      {cancelTimeLabel(c.cancelled_at)}
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      <span className={`rounded px-2 py-0.5 text-[10px] font-semibold border ${golBadgeClass(v?.category)}`}>
+                                        {v?.category?.trim() || '-'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{v?.type?.trim() || '-'}</td>
+                                    <td className="px-3 py-2.5 font-mono text-[var(--admin-text-soft)]">{v?.plate?.trim() || '-'}</td>
+                                    <td className="px-3 py-2.5 text-[var(--admin-text-soft)]">{c.officer_name || '-'}</td>
+                                  </tr>
+
+                                  {isOpen && (
+                                    <tr>
+                                      <td colSpan={6} className="bg-[var(--admin-surface-muted)] px-10 py-3">
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                          <div className="space-y-1 text-[11px] text-[var(--admin-text-muted)]">
+                                            <p>
+                                              <span className="font-bold text-[var(--admin-text-soft)]">Alasan:</span> {c.reason}
+                                            </p>
+                                            {c.note && (
+                                              <p>
+                                                <span className="font-bold text-[var(--admin-text-soft)]">Keterangan petugas:</span> {c.note}
+                                              </p>
+                                            )}
+                                            <p>
+                                              <span className="font-bold text-[var(--admin-text-soft)]">Rute:</span>{' '}
+                                              {[c.route_from, c.route_to].filter(Boolean).join(' → ') || c.route_code || '-'}
+                                            </p>
+                                            <p>
+                                              <span className="font-bold text-[var(--admin-text-soft)]">Muatan saat batal:</span>{' '}
+                                              {c.condition === 'muatan' ? 'Muatan' : c.condition === 'kosong' ? 'Kosong' : '-'}
+                                            </p>
+                                          </div>
+                                          <div className="space-y-1 text-[11px] text-[var(--admin-text-muted)]">
+                                            {v && (
+                                              <p>
+                                                <span className="font-bold text-[var(--admin-text-soft)]">Kendaraan:</span>{' '}
+                                                {v.type || '-'} · {v.plate || '-'} · {v.category || '-'}
+                                                {v.load ? ` · ${v.load}` : ''}
+                                              </p>
+                                            )}
+                                            <p>
+                                              <span className="font-bold text-[var(--admin-text-soft)]">Tarif (Rp):</span>{' '}
+                                              {Number(v?.tariff ?? 0).toLocaleString('id-ID')}
+                                            </p>
+                                            <p>
+                                              <span className="font-bold text-[var(--admin-text-soft)]">Wilayah:</span>{' '}
+                                              {c.region_code || '-'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <CancelPhotos photos={c.photos} count={c.photo_count} />
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              )
+                            })}
                           </Fragment>
                         )
                       })}
