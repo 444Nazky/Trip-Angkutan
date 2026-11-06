@@ -1,5 +1,5 @@
 /**
- * Tes URL endpoint update (OTA) — dulu salah arah dan bikin update gagal total:
+ * Tes URL endpoint update APK — dulu salah arah dan bikin update gagal total:
  *   1. Path dobel (baseUrl sudah berakhiran /api) → server 404.
  *   2. URL unduh APK di-prefix api.baseUrl padahal server sudah kirim absolute.
  */

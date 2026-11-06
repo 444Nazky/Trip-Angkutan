@@ -86,7 +86,7 @@ if (Deno.env.get("ADMIN_AUTH_DISABLED") === undefined) {
 
 // ── Pre-flight: direktori penyimpanan berkas ─────────────────────────────────
 //
-// Server menyimpan berkas (foto trip, APK, bundel OTA) di STORAGE_DIR, yang di
+// Server menyimpan berkas (foto trip dan APK) di STORAGE_DIR, yang di
 // dalam container berupa bind-mount dari host (`./data/storage`).
 //
 // Dua hal bisa menggagalkan penulisan berkas:
@@ -133,8 +133,7 @@ async function prepareStorageDir(): Promise<boolean> {
       `[api-intranet] PERINGATAN: direktori penyimpanan ${STORAGE_DIR} tidak bisa ditulis: ` +
         `${error instanceof Error ? error.message : error}`,
     );
-    console.error(
-      `[api-intranet] Unggahan foto trip, APK, dan bundel OTA AKAN GAGAL sampai ini diperbaiki.`,
+    console.error(        `[api-intranet] Unggahan foto trip dan APK AKAN GAGAL sampai ini diperbaiki.`,
     );
     console.error(
       `[api-intranet] Perbaikan di PC kantor: sudo chown -R 1000:1000 <folder>/data/storage`,

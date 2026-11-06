@@ -3,7 +3,7 @@
  * check-endpoint-consistency.mjs — Penjaga "split-brain" endpoint.
  *
  * GEJALA YANG DIHINDARI:
- *   Aplikasi mobile (APK/OTA) mengirim trip ke server A, sementara dashboard
+ *   Aplikasi mobile (APK) mengirim trip ke server A, sementara dashboard
  *   admin membaca server B. Petugas melihat "berhasil terkirim", tapi trip
  *   tidak pernah muncul di dashboard — dan tidak ada pesan error sama sekali.
  *

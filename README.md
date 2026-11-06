@@ -80,7 +80,7 @@ it into a priced, exportable record on the supervisor's desk.
   endpoint and the office intranet server. The mobile app switches between
   them at runtime from *Profile → Server*, and a shared `JWT_SECRET` keeps
   sessions valid across the switch.
-- **Media stays local.** Trip photos, OTA bundles, and the APK are written to
+- **Media stays local.** Trip photos and the APK are written to
   an object store on the API host, persisted in a Docker volume, and served
   back by the API itself.
 - **Deployments cannot half-work.** The build verifies every chunk reference in
@@ -143,7 +143,7 @@ it into a priced, exportable record on the supervisor's desk.
                  ┌──────────────────────────┐
                  │   Deno API (server/api)  │
                  │  auth · trips · tariffs  │
-                 │  plates · reports · OTA  │
+                 │  plates · reports · apk  │
                  │  metrics · rate limiting │
                  └────────────┬─────────────┘
                               │  PostgREST
@@ -160,7 +160,7 @@ it into a priced, exportable record on the supervisor's desk.
 | Build | Angular application builder (esbuild) | output normalised into `www/`, verified before deploy |
 | API | Deno + `Deno.serve` | REST, JWT auth, bcrypt, rate limiting, CORS hardening |
 | Data | PostgreSQL 16 + PostgREST 12 | idempotent SQL migrations in `server/db/migrations/` |
-| Storage | local object store on the API host (trip photos, APK, OTA bundles) | served by the API, persisted in a Docker volume |
+| Storage | local object store on the API host (trip photos and APK) | served by the API, persisted in a Docker volume |
 | Packaging | Docker Compose | `web`, `api-intranet`, `db`, `rest` |
 
 ---
