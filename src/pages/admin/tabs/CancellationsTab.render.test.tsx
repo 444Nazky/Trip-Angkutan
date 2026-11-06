@@ -50,7 +50,7 @@ const CANCEL_ROWS = [
     id: 'c-2',
     no_cancel: 'CNL20261102BBBBBB',
     officer_id: 'officer-b',
-    reason: 'Data masuk salah',
+    reason: 'saya lupa melanjutkan draft',
     note: null,
     route_from: 'CRB',
     route_to: 'SBDZ',
@@ -92,7 +92,7 @@ const CANCEL_SUMMARY = {
   total: 2,
   byReason: [
     { reason: 'Pelanggan membatalkan', count: 1 },
-    { reason: 'Data masuk salah', count: 1 },
+    { reason: 'saya lupa melanjutkan draft', count: 1 },
   ],
   byDay: [
     { day: '2026-11-01', count: 1 },
@@ -271,19 +271,32 @@ describe('CancellationsTab (render harness)', () => {
     expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(4)
   })
 
-  it('klik baris hanya menampilkan alasan singkat (tanpa detail rinci)', async () => {
+  it('klik baris menampilkan alasan ketikan petugas, bukan label pilihan', async () => {
     await renderTab()
 
     expect(container.textContent).not.toContain('alasan =')
 
+    const expandedText = () =>
+      Array.from(container.querySelectorAll('tbody tr'))
+        .find(tr => tr.textContent?.includes('alasan ='))?.textContent ?? ''
+
+    // Dokumen baru: alasan diketik manual, tampil apa adanya.
+    await act(async () => {
+      vehicleRow('D 9999 ZZ').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(expandedText()).toContain('alasan =')
+    expect(expandedText()).toContain('saya lupa melanjutkan draft')
+
+    // Dokumen versi lama: pilihan baku tersimpan di `reason`, kalimat petugas
+    // ada di `note` — yang tampil harus kalimat petugasnya.
     await act(async () => {
       vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
+    expect(expandedText()).toContain('Kapal ditunda oleh pelanggan')
+    expect(expandedText()).not.toContain('Pelanggan membatalkan')
 
-    const body = container.textContent ?? ''
-    expect(body).toContain('alasan =')
-    expect(body).toContain('Pelanggan membatalkan')
     // Detail rinci lama sudah dihapus.
+    const body = container.textContent ?? ''
     expect(body).not.toContain('Keterangan petugas:')
     expect(body).not.toContain('Muatan saat batal:')
     expect(body).not.toContain('Tarif (Rp):')
