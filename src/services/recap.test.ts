@@ -42,9 +42,9 @@ describe('buildRecap', () => {
       ]),
     ])
 
-    expect(groups.map(g => g.golongan)).toEqual(['Internal', 'Eksternal', 'Lokal'])
+    expect(groups.map(g => g.golongan)).toEqual(['Internal', 'Lokal', 'Eksternal'])
 
-    const eksternal = groups[1]
+    const eksternal = groups[2]
     expect(eksternal.loaded).toBe(2)
     expect(eksternal.empty).toBe(1)
     expect(eksternal.total).toBe(3)
@@ -79,7 +79,7 @@ describe('buildRecap', () => {
     )
 
     // Tiga golongan operasional tetap ada walau tanpa trip.
-    expect(groups.map(g => g.golongan)).toEqual(['Internal', 'Eksternal', 'Lokal'])
+    expect(groups.map(g => g.golongan)).toEqual(['Internal', 'Lokal', 'Eksternal'])
     for (const group of groups) {
       expect(group.rows.map(r => r.jenis)).toEqual(['Mobil', 'Motor', 'Truk Besar'])
     }

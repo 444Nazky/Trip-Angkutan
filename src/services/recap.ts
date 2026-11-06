@@ -17,7 +17,8 @@ export interface RecapGroup {
   revenue: number
 }
 
-const GOLONGAN_ORDER = ['Internal', 'Eksternal', 'Lokal']
+// Urutan tampil rekap mengikuti desain: Internal, Lokal, Eksternal.
+export const GOLONGAN_ORDER = ['Internal', 'Lokal', 'Eksternal']
 
 /**
  * Baris rekap per golongan dan jenis kendaraan.
