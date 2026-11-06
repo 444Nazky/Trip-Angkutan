@@ -217,7 +217,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           )}
 
           {tab === 'cancellations' && (
-            <CancellationsTab showToast={showToast} />
+            <CancellationsTab showToast={showToast} onClose={() => setTab('reports')} />
           )}
 
           {tab === 'tariff' && (

@@ -3,11 +3,13 @@
  *
  * Halaman ini memantau trip yang dibatalkan petugas beserta ALASANNYA.
  * Yang diuji:
- *   1. dokumen pembatalan tampil lengkap dengan alasan & keterangan,
- *   2. kartu statistik memakai angka ringkasan dari server,
- *   3. kartu grafik per alasan / per petugas sudah dihapus (rangkuman saja),
+ *   1. panel "Detail & Klasifikasi Pembatalan Trip" tampil,
+ *   2. empat kartu ringkasan memakai angka ringkasan dari server,
+ *   3. daftar rincian dikelompokkan "Petugas → Alasan" dan satu baris =
+ *      satu kendaraan,
  *   4. filter alasan benar-benar dikirim ke server (bukan hanya di UI),
- *   5. rincian kendaraan terbuka saat baris diklik.
+ *   5. rincian kendaraan (keterangan, tarif, foto) terbuka saat baris diklik,
+ *   6. tombol Collapse All / Expand All mengatur grup.
  *
  * Semua sumber jaringan dimock; tidak ada panggilan jaringan sungguhan.
  */
@@ -123,55 +125,103 @@ describe('CancellationsTab (render harness)', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 0)) })
   }
 
-  it('menampilkan judul halaman dan filter rentang', async () => {
+  const button = (label: string) =>
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.trim() === label)!
+
+  const vehicleRow = (plate: string) =>
+    Array.from(container.querySelectorAll('[data-testid="cancel-vehicle-row"]'))
+      .find(el => el.textContent?.includes(plate))!
+
+  it('menampilkan panel detail & klasifikasi beserta filter rentang', async () => {
     await renderTab()
 
     const body = container.textContent ?? ''
-    expect(body).toContain('Pembatalan Trip')
+    expect(body).toContain('Detail & Klasifikasi Pembatalan Trip')
     expect(body).toContain('Rentang')
     expect(body).toContain('Hari Ini')
     expect(body).toContain('30 Hari')
     expect(body).toContain('Semua')
   })
 
-  it('menampilkan dokumen pembatalan beserta alasan dan keterangannya', async () => {
+  it('menampilkan empat kartu ringkasan sesuai angka server', async () => {
     await renderTab()
+
+    const body = container.textContent ?? ''
+    expect(body).toContain('Total Pembatalan')
+    expect(body).toContain('Golongan & Jenis Kendaraan')
+    expect(body).toContain('Alasan Teratas')
+    expect(body).toContain('Petugas')
+
+    // Total 2 pembatalan, 3 kendaraan, alasan teratas 1, 2 petugas.
+    const tiles = Array.from(container.querySelectorAll('.text-xl')).map(el => el.textContent?.trim())
+    expect(tiles).toContain('2Trip')
+    expect(tiles).toContain('3Unit')
+    expect(tiles).toContain('1Pelanggan membatalkan')
+    expect(tiles).toContain('2Orang')
+
+    // Keterangan kartu: total transaksi, golongan yang ada, nama petugas.
+    expect(body).toContain('Total transaksi dibatalkan')
+    expect(body).toContain('Internal & Lokal')
+    expect(body).toContain('Kapal ditunda oleh pelanggan')
+    expect(body).toContain('Petugas Satu')
+  })
+
+  it('mengelompokkan rincian per petugas dan alasan, satu baris per kendaraan', async () => {
+    await renderTab()
+
+    const headerTexts = Array.from(container.querySelectorAll('[data-testid="cancel-group-header"]'))
+      .map(el => el.textContent ?? '')
+    expect(headerTexts.length).toBe(2)
+    // Urutan antar-petugas tidak dipatok (seri jumlah), cukup pastikan
+    // tiap grup memuat petugas + alasan yang benar.
+    expect(headerTexts.some(t => t.includes('Petugas Satu') && t.includes('Pelanggan membatalkan'))).toBe(true)
+    expect(headerTexts.some(t => t.includes('Petugas Dua') && t.includes('Data masuk salah'))).toBe(true)
+
+    // 3 kendaraan dari 2 dokumen pembatalan.
+    const vehicleRows = Array.from(container.querySelectorAll('[data-testid="cancel-vehicle-row"]'))
+    expect(vehicleRows.length).toBe(3)
 
     const body = container.textContent ?? ''
     expect(body).toContain('CNL20261101AAAAAA')
-    expect(body).toContain('Pelanggan membatalkan')
-    expect(body).toContain('Kapal ditunda oleh pelanggan')
     expect(body).toContain('CNL20261102BBBBBB')
-    expect(body).toContain('Data masuk salah')
-    // Petugas & rute ikut terbaca.
-    expect(body).toContain('Petugas Satu')
-    expect(body).toContain('SJRE → SBDZ')
+    expect(body).toContain('B 1234 XY')
+    expect(body).toContain('B 5678 ZA')
+    expect(body).toContain('D 9999 ZZ')
+    expect(body).toContain('Truk Kecil')
+    // Waktu batal memakai format "YYYY-MM-DD HH:MM WIB".
+    expect(body).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} WIB/)
   })
 
-  it('menampilkan kartu statistik dari ringkasan server', async () => {
+  it('kolom tabel sesuai judul: No Trip, Waktu Batal, Golongan, Jenis, No. Polski, Petugas', async () => {
     await renderTab()
 
-    const body = container.textContent ?? ''
-    expect(body).toContain('Total pembatalan')
-    expect(body).toContain('Kendaraan dibatalkan')
-    expect(body).toContain('Alasan teratas')
-    expect(body).toContain('Petugas terlibat')
-    // Total 2 pembatalan, 3 kendaraan, 2 petugas.
-    expect(body).toContain('Total pembatalan')
-    const tiles = Array.from(container.querySelectorAll('.text-xl')).map(el => el.textContent?.trim())
-    expect(tiles).toContain('2')
-    expect(tiles).toContain('3')
+    const headers = Array.from(container.querySelectorAll('thead th'))
+      .map(th => th.textContent?.trim() ?? '')
+    expect(headers).toEqual([
+      'No Trip / Info Group',
+      'Waktu Batal',
+      'Golongan',
+      'Jenis Kendaraan',
+      'No. Polisi',
+      'Petugas Autorisasi',
+    ])
   })
 
-  it('tidak lagi menampilkan kartu grafik per alasan dan per petugas', async () => {
+  it('Collapse All menutupi grup, Expand All membukanya', async () => {
     await renderTab()
 
-    const body = container.textContent ?? ''
-    expect(body).not.toContain('Pembatalan per alasan')
-    expect(body).not.toContain('Petugas paling sering membatalkan')
-    // Ringkasan tetap tersedia lewat kartu statistik & tabel dokumen.
-    expect(body).toContain('Alasan teratas')
-    expect(body).toContain('Petugas terlibat')
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(3)
+
+    await act(async () => {
+      button('Collapse All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(container.querySelectorAll('[data-testid="cancel-group-header"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(0)
+
+    await act(async () => {
+      button('Expand All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(3)
   })
 
   it('mengirim filter alasan ke server saat alasan dipilih', async () => {
@@ -191,29 +241,27 @@ describe('CancellationsTab (render harness)', () => {
     expect(called.some(u => u.includes('reason=Data+masuk+salah'))).toBe(true)
   })
 
-  it('membuka rincian kendaraan saat baris dokumen diklik', async () => {
+  it('membuka rincian kendaraan saat baris diklik', async () => {
     await renderTab()
 
-    const rows = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
-    expect(rows.length).toBe(2)
-
+    // Baris milik dokumen Petugas Satu (punya keterangan + foto).
     await act(async () => {
-      rows[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     const body = container.textContent ?? ''
-    expect(body).toContain('Rincian trip yang dibatalkan')
-    expect(body).toContain('B 1234 XY')
-    expect(body).toContain('B 5678 ZA')
-    expect(body).toContain('Truk Kecil')
+    expect(body).toContain('Keterangan petugas:')
+    expect(body).toContain('Kapal ditunda oleh pelanggan')
+    expect(body).toContain('Tarif (Rp):')
+    expect(body).toContain('75.000')
   })
 
   it('menampilkan foto draft dan peringatan dokumen versi lama', async () => {
     await renderTab()
 
-    const rows = Array.from(container.querySelectorAll('tbody tr.cursor-pointer'))
+    // Baris milik dokumen Petugas Satu (punya foto) terbuka untuk cek thumbnail.
     await act(async () => {
-      rows[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     const body = container.textContent ?? ''
@@ -228,9 +276,9 @@ describe('CancellationsTab (render harness)', () => {
       .find(src => src.includes('/files/trip-photos/swafoto.jpg'))
     expect(swafoto).toMatch(/^https?:\/\/[^/]+\/files\/trip-photos\/swafoto\.jpg$/)
 
-    // Dokumen lama hanya menyimpan jumlah foto tanpa URL.
+    // Dokumen lama hanya menyimpan jumlah foto tanpa URL (Petugas Dua).
     await act(async () => {
-      rows[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      vehicleRow('D 9999 ZZ').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(container.textContent).toContain('dikirim aplikasi versi lama')
   })

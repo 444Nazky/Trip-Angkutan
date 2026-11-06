@@ -71,8 +71,7 @@ export function hasDraftContent(d: Draft | null | undefined): boolean {
  * menit. Jadi mengunci layar bukan berarti iniciada trip.
  *
  * Pengecualian trip KOSONG: alur trip kosong memang tidak pernah menambah
- * kendaraan (Rute → Foto Bukti → Ringkasan), jadi isian minimum-nya adalah
- * foto bukti trip.
+ * kendaraan (Rute → Ringkasan), jadi isian minimum-nya adalah swafoto petugas.
  *
  * Dipakai sebagai sumber kebenaran tunggal oleh store (penyimpanan + TTL),
  * Beranda (kunci tombol Mulai Trip), dan Riwayat (kartu draft) supaya ketiga
@@ -82,8 +81,8 @@ export function hasCountedDraft(d: Draft | null | undefined): boolean {
   if (!d) return false
   // Kalau sudah ada kendaraan, sudah pasti Trip Muatan: draft terhitung.
   if ((d.vehicles?.length ?? 0) > 0) return true
-  // Trip kosong tidak pernah menambah kendaraan: isian minimumnya foto bukti.
-  if (d.condition === 'kosong') return !!d.photoUrl
+  // Trip kosong tidak pernah menambah kendaraan: isian minimumnya swafoto.
+  if (d.condition === 'kosong') return !!d.selfieUrl
   return false
 }
 

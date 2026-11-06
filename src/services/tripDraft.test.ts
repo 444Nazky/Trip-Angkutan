@@ -121,9 +121,10 @@ describe('aturan draft hanya terhitung bila ada isian minimal', () => {
     expect(hasCountedDraft({ ...baseDraft, vehicles: [vehicle] })).toBe(true)
   })
 
-  it('trip kosong dihitung lewat foto bukti', () => {
+  it('trip kosong baru dihitung setelah swafoto petugas tersedia', () => {
     expect(hasCountedDraft({ ...baseDraft, condition: 'kosong' })).toBe(false)
-    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong', photoUrl: 'data:image/jpeg;base64,aaa' })).toBe(true)
+    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong', photoUrl: 'data:image/jpeg;base64,aaa' })).toBe(false)
+    expect(hasCountedDraft({ ...baseDraft, condition: 'kosong', selfieUrl: 'data:image/jpeg;base64,aaa' })).toBe(true)
   })
 
   it('trip kosong dengan kendaraan (anomali data) tetap terhitung', () => {

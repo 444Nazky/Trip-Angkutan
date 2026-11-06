@@ -302,7 +302,7 @@ function mergeVehicleList(
  * Susun ulang isi antrean supaya TIDAK PERNAH kehilangan kendaraan atau foto.
  *
  * kembalikan: trip (dengan kendaraan + foto), daftar foto kendaraan (sejajar
- * dengan `trip.vehicles`), dan foto bukti trip.
+ * dengan `trip.vehicles`), dan foto bukti trip jika masih ada dari versi lama.
  */
 function mergeQueuedTrip(
   next: Trip,
@@ -968,11 +968,11 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       })
     }
 
-    if (tripPhotoIdx === null || vehicles.some(v => v.photoIndex === null)) {
+    if ((tripPhotoIdx === null && selfieIdx === null) || vehicles.some(v => v.photoIndex === null)) {
       return {
         syncId,
         success: false,
-        error: 'Foto dokumentasi tidak lengkap — ambil ulang dari Riwayat',
+        error: 'Swafoto petugas atau foto kendaraan tidak lengkap — ambil ulang dari Riwayat',
         code: 'PHOTO_MISSING',
         permanent: true,
       }

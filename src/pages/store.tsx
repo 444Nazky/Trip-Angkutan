@@ -15,7 +15,7 @@ import {
 } from '../services/sync'
 import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
 import { api } from '../services/api'
-import { dbAll, dbClear, dbGet, dbPutMany, initLocalDb } from '../services/localDb'
+import { dbAll, dbClear, dbDelete, dbGet, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '../services/officers'
 import { TARIFF_UPDATED_EVENT } from '../services/masterTariffs'
 import { prefetchAllCriticalData } from '../services/prefetch'
@@ -28,7 +28,7 @@ import {
   type DraftInfo,
 } from '../services/tripDraft'
 import { getCachedSettings, pullAppSettings } from '../services/appSettings'
-import { buildCancelDocument, queueCancelDocument } from '../services/tripCancel'
+import { buildCancelDocument, queueCancelDocument, readDeliveredCancels } from '../services/tripCancel'
 import type { MobileScreen } from './types'
 import type { Officer } from './types'
 
@@ -645,6 +645,40 @@ export async function persistTrips(trips: Trip[]): Promise<void> {
 }
 
 
+/** Riwayat lokal dihapus otomatis setelah 7 hari (server tetap menyimpan datanya). */
+export const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Pisahkan trip yang sudah boleh dihapus dari riwayat perangkat.
+ *
+ * Data yang BELUM pasti sampai ke server tidak pernah dihapus:
+ * - trip normal hanya dibuang kalau `synced === true`
+ * - trip DIBATALKAN hanya dibuang kalau dokumen pembatalannya sudah
+ *   dikonfirmasi server (cancelId ada di `deliveredCancels`)
+ * Trip lebih muda dari 7 hari dan trip tanpa tanggal valid selalu dipertahankan.
+ */
+export function pruneExpiredTrips(
+  trips: Trip[],
+  deliveredCancels: Record<string, unknown>,
+  now: number = Date.now(),
+): { kept: Trip[]; dropped: Trip[] } {
+  const kept: Trip[] = []
+  const dropped: Trip[] = []
+  for (const t of trips) {
+    const ts = Date.parse(t.completedAt ?? '') || 0
+    if (!ts || now - ts < HISTORY_TTL_MS) { kept.push(t); continue }
+    if (t.canceled) {
+      if (t.cancelId && deliveredCancels[t.cancelId]) dropped.push(t)
+      else kept.push(t)
+      continue
+    }
+    if (t.synced === true) dropped.push(t)
+    else kept.push(t)
+  }
+  return { kept, dropped }
+}
+
+
 export function mergeTrips(a: Trip[], b: Trip[]): Trip[] {
   const byId = new Map<string, Trip>()
   for (const t of [...a, ...b]) {
@@ -888,6 +922,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       prev ? { ...prev, expiresAt: prev.createdAt + draftTtlMs } : prev
     ))
   }, [draftTtlMs])
+  // Id trip yang dibuang prune di dalam setState (updater harus murni) —
+  // barisnya di IndexedDB dihapus di efek terpisah setelah commit.
+  const prunedIdsRef = useRef<string[]>([])
   const tripsRef = useRef<Trip[]>(trips)
   useEffect(() => { tripsRef.current = trips }, [trips])
   const [tripsLoaded, setTripsLoaded] = useState(false)
@@ -925,6 +962,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!alive) return
       const full = await recoverPhotosFromQueue(normalizeTrips(stored))
       if (!alive) return
+      // Bukti pembatalan yang sudah diterima server — menentukan trip
+      // dibatalkan yang boleh ikut terhapus dari riwayat lokal.
+      let deliveredCancels: Record<string, unknown> = {}
+      try { deliveredCancels = await readDeliveredCancels() } catch { /* anggap belum ada yang terkonfirmasi */ }
+      if (!alive) return
       setTrips(prev => {
         const prevById = new Map(prev.map(t => [String(t.id), t]))
         const fullIds = new Set(full.map(t => t.id))
@@ -932,17 +974,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Hidrasi hanya boleh MENAMBAH foto — tidak pernah menguranginya.
         const merged = mergeTrips(full, onlyLocal)
           .map(t => withStoredPhotos(t, prevById.get(String(t.id))))
-        if (merged.length === prev.length) {
-          const same = merged.every((t, i) => t === prev[i]
+        // Auto-clear riwayat > 7 hari (hanya yang sudah pasti sampai server).
+        const { kept, dropped } = pruneExpiredTrips(merged, deliveredCancels)
+        if (dropped.length) {
+          prunedIdsRef.current.push(...dropped.map(t => t.id))
+          return kept
+        }
+        if (kept.length === prev.length) {
+          const same = kept.every((t, i) => t === prev[i]
             || (t.updatedAt === prev[i]?.updatedAt && samePhotoPresence(t, prev[i])))
           if (same) return prev
         }
-        return merged
+        return kept
       })
       setTripsLoaded(true)
     })()
     return () => { alive = false }
   }, [])
+
+  // Hapus baris trip yang dibuang auto-clear dari IndexedDB (updater setState
+  // tidak boleh punya efek samping). `trips` sengaja jadi dependensi: efek ini
+  // jalan setelah commit, saat prunedIdsRef sudah terisi.
+  useEffect(() => {
+    if (!prunedIdsRef.current.length) return
+    const ids = [...new Set(prunedIdsRef.current)]
+    prunedIdsRef.current = []
+    for (const id of ids) void dbDelete('trips', id)
+  }, [trips])
 
   useEffect(() => {
     const onStorage = () => {
@@ -1182,8 +1240,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void addToSyncQueue(tripWithSync, photoList, tripPhotoEntry)
   }, [])
   const finishEmptyTrip = useCallback(() => {
-    if (!draft.photoUrl) {
-      console.warn('[trip] finishEmptyTrip dipanggil tanpa foto bukti — dibatalkan')
+    if (!draft.selfieUrl) {
+      console.warn('[trip] finishEmptyTrip dipanggil tanpa swafoto petugas — dibatalkan')
       return
     }
     const now = new Date()
@@ -1229,10 +1287,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [draft, officer.name, officer.id, commitTrip])
   const finishMuatanTrip = useCallback(() => {
     if (draft.condition !== 'muatan') return
-    if (!draft.photoUrl) {
-      console.warn('[trip] finishMuatanTrip ditolak: foto bukti trip belum diambil')
-      return
-    }
     if (!draft.selfieUrl) {
       console.warn('[trip] finishMuatanTrip ditolak: swafoto petugas belum diambil')
       return

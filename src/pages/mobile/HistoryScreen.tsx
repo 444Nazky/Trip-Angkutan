@@ -121,7 +121,7 @@ interface HistoryScreenProps {
 
 export default function HistoryScreen({ go }: HistoryScreenProps) {
   const { trips, setDetailTripId, officer, draft, draftInfo, draftLocked, draftTtlMinutes, cancelDraft } = useApp()
-  const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong'>('all')
+  const [filter, setFilter] = useState<'all' | 'muatan' | 'kosong' | 'dibatalkan'>('all')
 
   // Antrean sync = sumber status pengiriman (bukan `trip.synced` saja),
   // supaya trip yang ditolak server tampil "Gagal", bukan "Terkirim".
@@ -180,7 +180,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
     })
   const filtered = filter === 'all'
     ? myTrips
-    : myTrips.filter(t => filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong')
+    : filter === 'dibatalkan'
+      ? myTrips.filter(t => t.canceled)
+      : myTrips.filter(t => (filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong'))
 
   const canceledCount = myTrips.filter(t => t.canceled).length
   const syncedCount = myTrips.filter(t => !t.canceled && stateOf(t.id, t.synced) === 'synced').length
@@ -312,8 +314,8 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
       />
 
       {/* Filter */}
-      <div className="flex gap-2">
-        {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong']] as [typeof filter, string][]).map(([k, l]) => (
+      <div className="flex gap-2 flex-wrap">
+        {([['all', 'Semua'], ['muatan', 'Muatan'], ['kosong', 'Kosong'], ['dibatalkan', 'Dibatalkan']] as [typeof filter, string][]).map(([k, l]) => (
           <button
             key={k}
             onClick={() => setFilter(k)}
@@ -333,7 +335,9 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <p className="text-[12px] text-slate-400 leading-relaxed">
               {filter === 'all'
                 ? 'Trip yang Anda catat akan muncul di sini'
-                : `Trip dengan status "${filter === 'muatan' ? 'Ada Muatan' : 'Kosong'}" akan muncul di sini`}
+                : filter === 'dibatalkan'
+                  ? 'Trip yang dibatalkan petugas akan muncul di sini'
+                  : `Trip dengan status "${filter === 'muatan' ? 'Ada Muatan' : 'Kosong'}" akan muncul di sini`}
             </p>
           </div>
         )}
@@ -374,9 +378,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
               </div>
             </div>
           </button>
-        ))}
-      </div>
+         ))}
+       </div>
 
-    </div>
-  )
-}
+       <p className="text-[10px] text-slate-400 text-center">
+         Riwayat trip yang sudah terkirim lebih dari 7 hari dihapus otomatis dari perangkat ini.
+       </p>
+     </div>
+   )
+ }

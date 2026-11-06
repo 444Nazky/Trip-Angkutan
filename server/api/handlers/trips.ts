@@ -540,16 +540,21 @@ export async function completeTrip(req: Request): Promise<Response> {
       : validPhotoIndex(payload.selfieIndex, files.length);
 
     if (
-      tripPhotoIndex === null || tripPhotoIndex === undefined ||
+      tripPhotoIndex === undefined ||
       vehiclePhotoIndexes.some((i: number | null | undefined) => i === null || i === undefined)
     ) {
-      return json({ error: "Semua foto dokumentasi wajib disertakan" }, 400);
+      return json({ error: "Foto kendaraan tidak lengkap atau index foto bukti tidak valid" }, 400);
     }
     if (selfieIndex === undefined) {
       return json({ error: "Index foto swafoto tidak valid" }, 400);
     }
+    if (tripPhotoIndex === null && selfieIndex === null) {
+      return json({ error: "Swafoto petugas atau foto bukti trip wajib disertakan" }, 400);
+    }
 
-    const usedIndexes = [tripPhotoIndex, ...vehiclePhotoIndexes];
+    const usedIndexes: number[] = [];
+    if (tripPhotoIndex !== null) usedIndexes.push(tripPhotoIndex);
+    usedIndexes.push(...vehiclePhotoIndexes as number[]);
     if (selfieIndex !== null) usedIndexes.push(selfieIndex);
     if (new Set(usedIndexes).size !== files.length) {
       return json({ error: "Payload harus menyertakan seluruh foto dokumentasi tepat satu kali" }, 400);
@@ -575,10 +580,10 @@ export async function completeTrip(req: Request): Promise<Response> {
       route_from: payload.routeFrom ? shortText(payload.routeFrom) : null,
       route_to: payload.routeTo ? shortText(payload.routeTo) : null,
       keterangan: payload.keterangan ? longText(payload.keterangan) : null,
-      foto_kosong_path: photoPaths[tripPhotoIndex!],
-      foto_captured_at: payload.tripPhotoCapturedAt || null,
-      foto_latitude: numericCoordinate(payload.tripPhotoLatitude),
-      foto_longitude: numericCoordinate(payload.tripPhotoLongitude),
+      foto_kosong_path: tripPhotoIndex === null ? null : photoPaths[tripPhotoIndex],
+      foto_captured_at: tripPhotoIndex === null ? null : (payload.tripPhotoCapturedAt || null),
+      foto_latitude: tripPhotoIndex === null ? null : numericCoordinate(payload.tripPhotoLatitude),
+      foto_longitude: tripPhotoIndex === null ? null : numericCoordinate(payload.tripPhotoLongitude),
       started_at: payload.startedAt || null,
       completed_at: payload.completedAt || null,
     };

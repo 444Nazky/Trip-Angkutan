@@ -343,6 +343,31 @@ describe('antrean sinkron', () => {
     expect(body!.getAll('photos')).toHaveLength(2)
   })
 
+  it('trip kosong dengan swafoto saja terkirim tanpa foto bukti terpisah', async () => {
+    const trip = makeTrip({
+      load: 'Kosong',
+      photo: false,
+      photoUrl: undefined,
+      selfieUrl: IMG,
+      vehicles: [],
+    })
+    await addToSyncQueue(trip, [], undefined)
+    h.api.postOk = true
+    await processSyncQueue({ retryAll: true })
+
+    const body = h.api.lastBody
+    expect(body).toBeTruthy()
+    const payload = JSON.parse(String(body!.get('payload'))) as {
+      tripPhotoIndex: number | null
+      selfieIndex: number | null
+      vehicles: unknown[]
+    }
+    expect(payload.tripPhotoIndex).toBeNull()
+    expect(payload.selfieIndex).toBe(0)
+    expect(payload.vehicles).toHaveLength(0)
+    expect(body!.getAll('photos')).toHaveLength(1)
+  })
+
   it('foto hilang → payload cacat TIDAK dikirim & item ditandai butuh perhatian', async () => {
     const trip = makeTrip({
       photoUrl: undefined,

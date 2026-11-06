@@ -517,6 +517,28 @@ Deno.test("petugas tanpa region: trip tetap tersimpan (region_id null)", async (
   assertEquals(trips[0].region_id, null, "region_id harus null, bukan string kosong");
 });
 
+Deno.test("trip kosong dengan swafoto saja tersimpan tanpa foto bukti terpisah", async () => {
+  resetTables();
+  const { completeTrip } = await loadHandler();
+  const { signToken } = await import("../_shared.ts");
+  const token = await signToken({ officerId: OFFICER_ID, regionId: REGION_ID, role: "officer" });
+  const payload = {
+    ...basePayload("TRP-2026-SELFIE-ONLY"),
+    statusMuatan: "kosong",
+    tripPhotoIndex: null,
+    selfieIndex: 0,
+    vehicles: [],
+  };
+
+  const res = await completeTrip(requestFor(payload, 1, DERMAGA_ID, token));
+  const body = await res.json();
+
+  assertEquals(res.status, 201, `harus 201, dapat ${res.status}: ${JSON.stringify(body)}`);
+  assertEquals(TABLES.trips.rows.length, 1);
+  assertEquals(TABLES.trips.rows[0].foto_kosong_path, null);
+  assert(TABLES.trips.rows[0].selfie_path, "swafoto petugas harus tersimpan");
+});
+
 Deno.test("id dermaga bukan UUID: trip tetap tersimpan (dermaga_id null)", async () => {
   resetTables();
   const { completeTrip } = await loadHandler();
