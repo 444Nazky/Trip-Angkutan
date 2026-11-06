@@ -265,3 +265,86 @@ html[data-admin] {
     transform: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN DASHBOARD — MODE GELAP
+   Hanya berlaku di halaman admin (organize-build menambahkan `data-admin`
+   pada <html> admin saja), jadi aplikasi mobile tidak ikut berubah.
+   Nilai token menimpa palet terang di atas; aksen tetap datang dari
+   services/theme.ts (sudah disesuaikan untuk latar gelap).
+   ═════════════════════════════════════════════════════════════════════════ */
+html[data-admin][data-theme='dark'] {
+  color-scheme: dark;
+
+  --admin-bg: #0b1220;
+  --admin-surface: #111c2e;
+  --admin-surface-muted: #16233a;
+  --admin-surface-sunken: #0f1a2b;
+  --admin-surface-hover: #1a2a42;
+
+  --admin-border: #24344d;
+  --admin-border-subtle: #1b2a40;
+  --admin-border-strong: #33475f;
+
+  --admin-text: #e6edf7;
+  --admin-text-soft: #cbd5e1;
+  --admin-text-muted: #94a3b8;
+  --admin-text-faint: #7c8ca3;
+
+  --admin-surface-inverse: #1e293b;
+  --admin-surface-inverse-hover: #334155;
+  --admin-border-inverse: #475569;
+
+  --admin-success-soft: rgba(5, 150, 105, 0.16);
+  --admin-success-border: rgba(16, 185, 129, 0.42);
+  --admin-success-text: #6ee7b9;
+  --admin-warning-soft: rgba(217, 119, 6, 0.18);
+  --admin-warning-border: rgba(245, 158, 11, 0.42);
+  --admin-warning-text: #fbbf24;
+  --admin-danger-soft: rgba(220, 38, 38, 0.18);
+  --admin-danger-border: rgba(239, 68, 68, 0.42);
+  --admin-danger-text: #fca5a5;
+  --admin-neutral: #64748b;
+
+  --admin-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.30);
+  --admin-shadow-pop: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+html[data-admin][data-theme='dark'] body {
+  background-color: #0b1220;
+}
+
+/* Ukuran tampilan (Kecil/Sedang/Besar/Sangat Besar) — nilai --admin-zoom
+   ditulis services/theme.ts. Zoom di <html> berperilaku seperti zoom browser,
+   jadi seluruh dashboard ikut membesar/mengecil tanpa memotong layout. */
+html[data-admin] {
+  zoom: var(--admin-zoom, 1);
+}
+
+/* Halaman admin yang masih memakai kelas Tailwind langsung (Petugas, Plat,
+   Rute, Dermaga, Tarif, Pengaturan, Rekap, Laporan) ikut digelapkan di sini.
+   Cakupannya hanya halaman admin karena `data-admin` hanya ada di sana. */
+html[data-admin][data-theme='dark'] .bg-white { background-color: #111c2e; }
+/* Kotak logo di sidebar harus tetap putih supaya logo terbaca. */
+html[data-admin][data-theme='dark'] aside .bg-white { background-color: #ffffff; }
+html[data-admin][data-theme='dark'] .bg-slate-50 { background-color: #0b1220; }
+html[data-admin][data-theme='dark'] .bg-slate-100 { background-color: #16233a; }
+html[data-admin][data-theme='dark'] .bg-slate-200 { background-color: #1e2f47; }
+html[data-admin][data-theme='dark'] .bg-slate-50\/40 { background-color: rgba(148, 163, 184, 0.06); }
+
+html[data-admin][data-theme='dark'] .text-slate-900,
+html[data-admin][data-theme='dark'] .text-slate-800 { color: #e6edf7; }
+html[data-admin][data-theme='dark'] .text-slate-700,
+html[data-admin][data-theme='dark'] .text-slate-600 { color: #cbd5e1; }
+html[data-admin][data-theme='dark'] .text-slate-500 { color: #94a3b8; }
+html[data-admin][data-theme='dark'] .text-slate-400 { color: #7c8ca3; }
+
+html[data-admin][data-theme='dark'] .border-slate-200 { border-color: #24344d; }
+html[data-admin][data-theme='dark'] .border-slate-300 { border-color: #33475f; }
+html[data-admin][data-theme='dark'] .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1b2a40;
+}
+html[data-admin][data-theme='dark'] .hover\:bg-slate-50:hover,
+html[data-admin][data-theme='dark'] .hover\:bg-slate-100:hover {
+  background-color: #1a2a42;
+}

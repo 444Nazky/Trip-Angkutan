@@ -95,6 +95,21 @@ export function loadTheme(): AdminTheme {
 
 
 
+/** '#2563eb' -> [37, 99, 235] */
+function hexToRgb(hex: string): [number, number, number] {
+  const raw = hex.replace('#', '').trim()
+  const full = raw.length === 3 ? raw.split('').map(c => c + c).join('') : raw
+  const n = Number.parseInt(full, 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/** Campur warna dengan putih; dipakai agar aksen tetap terbaca di latar gelap. */
+function lighten(hex: string, ratio: number): string {
+  const [r, g, b] = hexToRgb(hex)
+  const mix = (c: number) => Math.round(c + (255 - c) * ratio)
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
+}
+
 export function applyTheme(theme: AdminTheme) {
   if (typeof document === 'undefined') return
   const el = document.documentElement
@@ -104,11 +119,13 @@ export function applyTheme(theme: AdminTheme) {
   // Token aksen ditulis ke <html> supaya seluruh halaman admin (kartu,
   // tombol, tabel) memakai warna yang sama dari satu sumber.
   const palette = ACCENT_PALETTE[theme.accent] ?? ACCENT_PALETTE[DEFAULT_THEME.accent]
+  const dark = theme.mode === 'dark'
+  const [ar, ag, ab] = hexToRgb(palette.base)
   el.style.setProperty('--admin-accent', palette.base)
-  el.style.setProperty('--admin-accent-hover', palette.hover)
-  el.style.setProperty('--admin-accent-soft', palette.soft)
-  el.style.setProperty('--admin-accent-border', palette.border)
-  el.style.setProperty('--admin-accent-text', palette.text)
+  el.style.setProperty('--admin-accent-hover', dark ? lighten(palette.base, 0.15) : palette.hover)
+  el.style.setProperty('--admin-accent-soft', dark ? `rgba(${ar}, ${ag}, ${ab}, 0.18)` : palette.soft)
+  el.style.setProperty('--admin-accent-border', dark ? `rgba(${ar}, ${ag}, ${ab}, 0.5)` : palette.border)
+  el.style.setProperty('--admin-accent-text', dark ? lighten(palette.base, 0.45) : palette.text)
   el.style.setProperty('--admin-accent-contrast', palette.contrast)
 }
 
