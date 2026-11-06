@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -34,6 +34,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [, setServerTrips] = useState<BackendTrip[]>([])
   const [plates, setPlates] = useState<PlateRecord[]>([])
+  // Sidebar jadi drawer di layar kecil: tertutup default, dibuka lewat tombol menu.
+  const [navOpen, setNavOpen] = useState(false)
 
 
   const [sheetMode, setSheetMode] = useState<'sheet' | 'rekap' | ''>(() => {
@@ -135,25 +137,60 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   return sheetMode === 'rekap' ? <RecapSheet /> : sheetMode === 'sheet' ? <ReportSheet /> : (
-    <div className="flex bg-slate-900 min-h-screen">
-        <div className="w-64 bg-[#0F172A] min-h-screen flex flex-col shrink-0 fixed left-0 top-0">
-  <div className="p-6 border-b border-slate-800">
-    <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-900">
+      {/* Bar atas khusus layar kecil: tombol menu + tab aktif. */}
+      <header className="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-[#0F172A] border-b border-slate-800">
+        <button
+          onClick={() => setNavOpen(true)}
+          aria-label="Buka menu navigasi"
+          aria-expanded={navOpen}
+          className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800"
+        >
+          <Menu size={18} />
+        </button>
+        <img src="/assets/karyamasv.svg" alt="Logo" className="w-7 h-7 rounded bg-white object-contain p-0.5" />
+        <div className="min-w-0">
+          <p className="text-white font-black text-[13px] truncate">Dashboard Trip</p>
+          <p className="text-slate-500 text-[10px] truncate">{navItems.find(i => i.key === tab)?.label ?? 'Karyamas Plantation'}</p>
+        </div>
+      </header>
 
-      <div className="w-11 h-11 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
-        <img src="/assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
-      </div>
+      {/* Latar gelap saat drawer terbuka (hanya layar kecil). */}
+      {navOpen && (
+        <div
+          onClick={() => setNavOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          aria-hidden="true"
+        />
+      )}
 
-      <div>
-        <p className="text-white font-black text-[14px]">Dashboard Trip</p>
-        <p className="text-slate-500 text-[10px]">Karyamas Plantation</p>
-      </div>
-    </div>
-  </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 max-w-[80vw] bg-[#0F172A] flex flex-col transform transition-transform duration-200 lg:translate-x-0 ${
+          navOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-5 sm:p-6 border-b border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 shrink-0 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-lg">
+              <img src="/assets/karyamasv.svg" alt="Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-white font-black text-[14px] truncate">Dashboard Trip</p>
+              <p className="text-slate-500 text-[10px] truncate">Karyamas Plantation</p>
+            </div>
+            <button
+              onClick={() => setNavOpen(false)}
+              aria-label="Tutup menu"
+              className="lg:hidden w-8 h-8 shrink-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
 
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           {navItems.map(({ key, label, Icon }) => (
-            <button key={key} onClick={() => setTab(key)}
+            <button key={key} onClick={() => { setTab(key); setNavOpen(false) }}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-[13px] admin-nav-item transition-all duration-150 ${
                 tab === key ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}>
@@ -166,10 +203,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <LogOut size={14} />Logout
           </button>
         </div>
-      </div>
+      </aside>
 
-      <div className="flex-1 ml-64 bg-[var(--admin-bg)] min-h-screen">
-        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-8 max-w-[1400px] admin-tab-content'}>
+      <main className="lg:ml-64 bg-[var(--admin-bg)] min-h-screen min-w-0">
+        <div className={tab === 'settings' ? 'admin-tab-content' : 'p-4 sm:p-6 lg:p-8 max-w-[1400px] admin-tab-content'}>
           {(serverState === 'offline' || serverState === 'auth') && serverError && (
             <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
@@ -256,10 +293,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <SettingsTab />
           )}
         </div>
-      </div>
+      </main>
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg ${
+        <div className={`fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-[60] px-4 py-3 rounded-xl text-sm font-semibold shadow-lg ${
           toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
         }`}>
           {toast.msg}

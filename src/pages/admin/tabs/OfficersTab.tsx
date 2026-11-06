@@ -360,7 +360,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       {addOff && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Tambah Petugas</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})}
                 className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
@@ -401,7 +401,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       {editOffIdx !== null && editOff && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-lg">
           <h3 className="font-bold mb-4">Edit Petugas</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={editOff.name} onChange={e => setEditOff({...editOff, name: e.target.value})}
                 className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
@@ -460,7 +460,8 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
               <Lock size={14} className="text-slate-400" />
               {region === 'LAINNYA' ? 'Lainnya' : region} ({groupOfficers.length} petugas)
             </div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-sm">
               <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wide">
                 <tr><th className="text-left p-4 border-b border-slate-200">Nama</th><th className="text-left p-4 border-b border-slate-200">Dermaga</th><th className="text-left p-4 border-b border-slate-200">Rute</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-left p-4 border-b border-slate-200">Aksi</th></tr>
               </thead>
@@ -502,6 +503,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )
       })}

@@ -506,7 +506,8 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
       ), document.body)}
 
       <div className="bg-[var(--admin-surface)] rounded-2xl border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] overflow-hidden">
-        <table className="w-full border-collapse text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px] border-collapse text-[13px]">
           <thead>
             <tr className="bg-[var(--admin-surface-muted)]">
               <th colSpan={10} className="px-4 py-3 border-b border-[var(--admin-border)]">
@@ -765,6 +766,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     </div>
   )

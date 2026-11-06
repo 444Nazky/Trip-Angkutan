@@ -96,7 +96,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-3xl">
         <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
-        <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
             <input value={plateForm.plate}
               onChange={e => setPlateForm({ ...plateForm, plate: formatPlateNumber(sanitizePlateInput(e.target.value)) })}
@@ -129,7 +129,8 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wide">
             <tr><th className="text-left p-4 border-b border-slate-200">No. Plat</th><th className="text-left p-4 border-b border-slate-200">Pemilik</th><th className="text-left p-4 border-b border-slate-200">Region Asal</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-right p-4 border-b border-slate-200">Aksi</th></tr>
           </thead>
@@ -155,6 +156,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

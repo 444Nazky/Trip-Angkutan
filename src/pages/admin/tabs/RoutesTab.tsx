@@ -367,7 +367,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-4xl">
         <h3 className="font-bold mb-4">{editRouteId ? 'Edit Rute' : 'Tambah Rute Baru'}</h3>
-        <div className="grid grid-cols-6 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
           <div className="col-span-2">
             <label className="text-[11px] text-slate-500 block mb-1">Dermaga *</label>
             <select value={routeForm.dermaga_id} onChange={e => setRouteForm({ ...routeForm, dermaga_id: e.target.value })}
@@ -585,7 +585,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-slate-600 block mb-1 flex items-center gap-2">
                         Latitude
