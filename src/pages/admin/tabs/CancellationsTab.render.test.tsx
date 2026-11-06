@@ -153,7 +153,7 @@ describe('CancellationsTab (render harness)', () => {
     Array.from(container.querySelectorAll('[data-testid="cancel-vehicle-row"]'))
       .find(el => el.textContent?.includes(plate))!
 
-  it('menampilkan panel detail & klasifikasi beserta filter rentang', async () => {
+  it('panel detail & klasifikasi dengan filter rentang saja', async () => {
     await renderTab()
 
     const body = container.textContent ?? ''
@@ -162,6 +162,11 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toContain('Hari Ini')
     expect(body).toContain('30 Hari')
     expect(body).toContain('Semua')
+
+    // Filter yang dihapus: 90 Hari, dropdown alasan, dan kotak cari.
+    expect(body).not.toContain('90 Hari')
+    expect(container.querySelector('select')).toBeNull()
+    expect(container.querySelector('input')).toBeNull()
   })
 
   it('menampilkan empat kartu ringkasan sesuai angka server', async () => {
@@ -221,7 +226,7 @@ describe('CancellationsTab (render harness)', () => {
     expect(body).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} WIB/)
   })
 
-  it('kolom tabel sesuai judul: No Trip, Waktu Batal, Golongan, Jenis, No. Polski, Petugas', async () => {
+  it('kolom tabel sesuai judul, termasuk kolom Foto', async () => {
     await renderTab()
 
     const headers = Array.from(container.querySelectorAll('thead th'))
@@ -233,10 +238,11 @@ describe('CancellationsTab (render harness)', () => {
       'Jenis Kendaraan',
       'No. Polisi',
       'Petugas Autorisasi',
+      'Foto',
     ])
   })
 
-  it('Collapse All menutupi grup, Expand All membukanya', async () => {
+  it('Collapse All / Expand Header / Expand All mengatur level buka', async () => {
     await renderTab()
 
     expect(container.querySelectorAll('[data-testid="cancel-group-header"]').length).toBe(2)
@@ -252,68 +258,50 @@ describe('CancellationsTab (render harness)', () => {
     expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(0)
 
     await act(async () => {
+      button('Expand Header').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    // Header petugas + tanggal tampil, kendaraan masih tertutup.
+    expect(container.querySelectorAll('[data-testid="cancel-date-header"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(0)
+
+    await act(async () => {
       button('Expand All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(container.querySelectorAll('[data-testid="cancel-date-header"]').length).toBe(2)
     expect(container.querySelectorAll('[data-testid="cancel-vehicle-row"]').length).toBe(4)
   })
 
-  it('mengirim filter alasan ke server saat alasan dipilih', async () => {
-    await renderTab()
-    fetchMock.mockClear()
-
-    const select = container.querySelector('select') as HTMLSelectElement | null
-    expect(select).toBeTruthy()
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
-      setter?.call(select, 'Data masuk salah')
-      select?.dispatchEvent(new Event('change', { bubbles: true }))
-    })
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
-
-    const called = fetchMock.mock.calls.map(c => String(c[0]))
-    expect(called.some(u => u.includes('reason=Data+masuk+salah'))).toBe(true)
-  })
-
-  it('membuka rincian kendaraan saat baris diklik', async () => {
+  it('klik baris hanya menampilkan alasan singkat (tanpa detail rinci)', async () => {
     await renderTab()
 
-    // Baris milik dokumen Petugas Satu (punya keterangan + foto).
+    expect(container.textContent).not.toContain('Alasan:')
+
     await act(async () => {
       vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     const body = container.textContent ?? ''
-    expect(body).toContain('Keterangan petugas:')
-    expect(body).toContain('Kapal ditunda oleh pelanggan')
-    expect(body).toContain('Tarif (Rp):')
-    expect(body).toContain('75.000')
+    expect(body).toContain('Alasan:')
+    expect(body).toContain('Pelanggan membatalkan')
+    // Detail rinci lama sudah dihapus.
+    expect(body).not.toContain('Keterangan petugas:')
+    expect(body).not.toContain('Muatan saat batal:')
+    expect(body).not.toContain('Tarif (Rp):')
   })
 
-  it('menampilkan foto draft dan peringatan dokumen versi lama', async () => {
+  it('menampilkan foto draft di kolom Foto + penanda dokumen versi lama', async () => {
     await renderTab()
 
-    // Baris milik dokumen Petugas Satu (punya foto) terbuka untuk cek thumbnail.
-    await act(async () => {
-      vehicleRow('B 1234 XY').dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-
-    const body = container.textContent ?? ''
-    expect(body).toContain('Foto draft')
-    expect(body).toContain('Swafoto petugas')
-    const images = Array.from(container.querySelectorAll('img'))
-    expect(images.map(img => img.getAttribute('src'))).toContain('http://server/foto-kondisi.jpg')
+    const srcs = Array.from(container.querySelectorAll('tbody img'))
+      .map(img => img.getAttribute('src') ?? '')
+    expect(srcs).toContain('http://server/foto-kondisi.jpg')
 
     // Path relatif dari server (mis. "/files/trip-photos/...") harus diarahkan
     // ke origin API, bukan origin halaman admin (port berbeda).
-    const swafoto = images.map(img => img.getAttribute('src') ?? '')
-      .find(src => src.includes('/files/trip-photos/swafoto.jpg'))
+    const swafoto = srcs.find(src => src.includes('/files/trip-photos/swafoto.jpg'))
     expect(swafoto).toMatch(/^https?:\/\/[^/]+\/files\/trip-photos\/swafoto\.jpg$/)
 
-    // Dokumen lama hanya menyimpan jumlah foto tanpa URL (Petugas Dua).
-    await act(async () => {
-      vehicleRow('D 9999 ZZ').dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    expect(container.textContent).toContain('dikirim aplikasi versi lama')
+    // Dokumen lama hanya menyimpan jumlah foto tanpa URL → tampil "1 foto".
+    expect(container.textContent).toContain('1 foto')
   })
 })
