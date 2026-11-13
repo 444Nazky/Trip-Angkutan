@@ -121,7 +121,10 @@ export function applyTheme(theme: AdminTheme) {
   const palette = ACCENT_PALETTE[theme.accent] ?? ACCENT_PALETTE[DEFAULT_THEME.accent]
   const dark = theme.mode === 'dark'
   const [ar, ag, ab] = hexToRgb(palette.base)
-  el.style.setProperty('--admin-accent', palette.base)
+  // Di latar gelap aksen dasar (terutama "Hitam") terlalu menyatu dengan
+  // sidebar/permukaan gelap. Dinaikkan sedikit agar item aktif tetap terlihat,
+  // tanpa mengubah aksen mode terang.
+  el.style.setProperty('--admin-accent', dark ? lighten(palette.base, 0.12) : palette.base)
   el.style.setProperty('--admin-accent-hover', dark ? lighten(palette.base, 0.15) : palette.hover)
   el.style.setProperty('--admin-accent-soft', dark ? `rgba(${ar}, ${ag}, ${ab}, 0.18)` : palette.soft)
   el.style.setProperty('--admin-accent-border', dark ? `rgba(${ar}, ${ag}, ${ab}, 0.5)` : palette.border)

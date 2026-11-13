@@ -374,3 +374,47 @@ html[data-admin][data-theme='dark'] .hover\:bg-slate-50:hover,
 html[data-admin][data-theme='dark'] .hover\:bg-slate-100:hover {
   background-color: #1a2a42;
 }
+
+/* Sisa kelas yang masih dipakai halaman admin: teks gelap, latar terang, dan
+   garis tipis. Tanpa ini beberapa label/input tetap hitam di mode gelap. */
+html[data-admin][data-theme='dark'] .text-slate-950,
+html[data-admin][data-theme='dark'] .text-black { color: #e6edf7; }
+html[data-admin][data-theme='dark'] .bg-slate-300 { background-color: #26384f; }
+html[data-admin][data-theme='dark'] .border-slate-100 { border-color: #1b2a40; }
+html[data-admin][data-theme='dark'] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #24344d;
+}
+html[data-admin][data-theme='dark'] input,
+html[data-admin][data-theme='dark'] select,
+html[data-admin][data-theme='dark'] textarea {
+  color: #e6edf7;
+}
+html[data-admin][data-theme='dark'] input::placeholder,
+html[data-admin][data-theme='dark'] textarea::placeholder {
+  color: #64748b;
+}
+
+/* ── Aksen tema di seluruh dashboard ───────────────────────────────────────
+   Banyak halaman admin masih memakai kelas biru Tailwind langsung. Di area
+   admin kelas itu dipetakan ke token aksen, jadi mengganti warna tema
+   (termasuk item sidebar yang aktif) langsung berlaku di semua halaman. */
+html[data-admin] .bg-blue-500,
+html[data-admin] .bg-blue-600 { background-color: var(--admin-accent); }
+html[data-admin] .hover\:bg-blue-700:hover { background-color: var(--admin-accent-hover); }
+html[data-admin] .bg-blue-50,
+html[data-admin] .bg-blue-100,
+html[data-admin] .hover\:bg-blue-50:hover,
+html[data-admin] .hover\:bg-blue-100:hover { background-color: var(--admin-accent-soft); }
+html[data-admin] .text-blue-500,
+html[data-admin] .text-blue-600,
+html[data-admin] .text-blue-700,
+html[data-admin] .hover\:text-blue-600:hover { color: var(--admin-accent-text); }
+html[data-admin] .border-blue-100,
+html[data-admin] .border-blue-200,
+html[data-admin] .border-blue-300,
+html[data-admin] .border-blue-500,
+html[data-admin] .border-blue-600,
+html[data-admin] .focus\:border-blue-500:focus { border-color: var(--admin-accent-border); }
+html[data-admin] .ring-blue-100,
+html[data-admin] .focus\:ring-blue-100:focus,
+html[data-admin] .focus\:ring-blue-500:focus { --tw-ring-color: var(--admin-accent-border); }

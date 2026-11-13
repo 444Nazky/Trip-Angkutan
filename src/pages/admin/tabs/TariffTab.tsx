@@ -822,23 +822,28 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
             <table className="w-full min-w-[720px] border-collapse text-[13px]">
               <thead>
                 <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
-                  <th className="border border-slate-200 px-4 py-2 text-left font-semibold">
+                  <th rowSpan={2} className="border border-slate-200 px-4 py-2 text-left font-semibold align-middle">
                     Jenis Kendaraan
                   </th>
-                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th rowSpan={2} className="border border-slate-200 px-2 py-2 text-center font-semibold align-middle">
                     Internal
                   </th>
-                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th rowSpan={2} className="border border-slate-200 px-2 py-2 text-center font-semibold align-middle">
                     Lokal
                   </th>
-                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th colSpan={2} className="border border-slate-200 px-2 py-2 text-center font-semibold">
+                    Eksternal
+                  </th>
+                  <th rowSpan={2} className="border border-slate-200 px-2 py-2 text-center font-semibold align-middle">
+                    Aksi
+                  </th>
+                </tr>
+                <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
+                  <th className="border border-slate-200 px-2 py-1.5 text-center font-semibold">
                     Ada Muatan
                   </th>
-                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
+                  <th className="border border-slate-200 px-2 py-1.5 text-center font-semibold">
                     Kosong
-                  </th>
-                  <th className="border border-slate-200 px-2 py-2 text-center font-semibold">
-                    Aksi
                   </th>
                 </tr>
               </thead>
