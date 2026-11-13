@@ -703,4 +703,65 @@ describe('validasi end trip terhadap titik tujuan', () => {
     expect(res.blocked).toBe(true)
     expect(res.reason).toContain('Titik tujuan')
   })
+
+  it('titik awal & tujuan pada koordinat sama tetap presisi per peran', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    const LAT = -0.85
+    const LON = 108.83
+    const sameSpotStart: GeofencePoint = {
+      ...START,
+      id: 'geo-same-start',
+      latitude: LAT,
+      longitude: LON,
+      radiusMeters: 100,
+    }
+    const sameSpotEnd: GeofencePoint = {
+      ...END,
+      id: 'geo-same-end',
+      latitude: LAT,
+      longitude: LON,
+      radiusMeters: 100,
+    }
+    saveGeofencePoints([sameSpotStart, sameSpotEnd])
+
+    const pos = { latitude: LAT, longitude: LON }
+
+    // Fase awal hanya memakai titik awal, meski titik tujuan ada di koordinat sama.
+    const startSnap = await getActiveGeofenceSnapshot(pos, undefined, 'start')
+    expect(startSnap.valid).toBe(true)
+    expect(startSnap.activePoint?.id).toBe('geo-same-start')
+    expect(await validateRouteForCurrentLocation('SJRE-SBDZ', pos)).toMatchObject({
+      valid: true,
+      activePoint: { id: 'geo-same-start' },
+    })
+
+    // Fase tujuan/submit hanya memakai titik tujuan, tetap di koordinat sama.
+    const endSnap = await getActiveGeofenceSnapshot(pos, undefined, 'end')
+    expect(endSnap.valid).toBe(true)
+    expect(endSnap.activePoint?.id).toBe('geo-same-end')
+    expect(await validateTripEndForCurrentLocation('SJRE-SBDZ', pos)).toMatchObject({
+      valid: true,
+      activePoint: { id: 'geo-same-end' },
+    })
+  })
+
+  it('dua titik awal rute berbeda pada koordinat sama tetap memilih rute yang diminta', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }, { code: 'AAAA-BBBB' }]
+    const LAT = -0.85
+    const LON = 108.83
+    saveGeofencePoints([
+      { ...START, id: 'geo-same-a', allowedRoutes: ['SJRE-SBDZ'], latitude: LAT, longitude: LON },
+      { ...START, id: 'geo-same-b', allowedRoutes: ['AAAA-BBBB'], latitude: LAT, longitude: LON },
+    ])
+
+    const pos = { latitude: LAT, longitude: LON }
+    expect(await validateRouteForCurrentLocation('SJRE-SBDZ', pos)).toMatchObject({
+      valid: true,
+      activePoint: { id: 'geo-same-a' },
+    })
+    expect(await validateRouteForCurrentLocation('AAAA-BBBB', pos)).toMatchObject({
+      valid: true,
+      activePoint: { id: 'geo-same-b' },
+    })
+  })
 })

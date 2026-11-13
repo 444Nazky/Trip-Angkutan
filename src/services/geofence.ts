@@ -512,12 +512,16 @@ export interface ActiveSnapshot {
 
 /**
  * Pilih titik yang benar-benar ditempati petugas.
- * Urutan: titik milik dermaga terpilih dulu, lalu jarak terdekat.
+ * Urutan: titik milik dermaga terpilih dulu, peran eksplisit sesuai tahap
+ * (start/end) bila diminta, lalu jarak terdekat. Dengan begitu beberapa titik
+ * di lokasi/radius sama (mis. titik awal & tujuan pada koordinat identik untuk
+ * testing) tetap terdeteksi presisi sesuai perannya, bukan hanya 1 lokasi.
  */
 function pickPointAt(
   points: GeofencePoint[],
   pos: { latitude: number; longitude: number },
   dockId?: string | null,
+  phase?: GeofencePhase,
 ): GeofencePoint | null {
   const scored = points
     .map(p => {
@@ -529,10 +533,17 @@ function pickPointAt(
         dockMatch = !p.dermagaId || !isUuid(p.dermagaId) || p.dermagaId === dockId
       }
       const dockPriority = !dockId || dockMatch ? 0 : (p.dermagaId && isUuid(p.dermagaId) ? 2 : 1)
-      return { point: p, dist, inRange, dockPriority }
+      const role = normalizeGeofenceRole(p.pointType)
+      const explicitRolePriority = phase && role === phase ? 0 : 1
+      return { point: p, dist, inRange, dockPriority, explicitRolePriority }
     })
     .filter(s => s.inRange)
-    .sort((a, b) => a.dockPriority - b.dockPriority || a.dist - b.dist)
+    .sort(
+      (a, b) =>
+        a.dockPriority - b.dockPriority ||
+        a.explicitRolePriority - b.explicitRolePriority ||
+        a.dist - b.dist,
+    )
   return scored[0]?.point ?? null
 }
 
@@ -602,7 +613,7 @@ export async function getActiveGeofenceSnapshot(
     return { valid: false, activePoint: null, blocked: true, reason: 'GPS tidak tersedia' }
   }
 
-  const activePoint = pickPointAt(points, pos, dockId)
+  const activePoint = pickPointAt(points, pos, dockId, phase)
   if (!activePoint) {
     return { valid: false, activePoint: null, blocked: true }
   }
@@ -660,35 +671,65 @@ export function routeMatchesPoint(
 /**
  * Validasi LOKASI AWAL: rute hanya bisa dipakai kalau petugas berada di titik
  * awal (atau titik 'both') yang mengizinkan rute tersebut.
+ *
+ * Kandidat dipilih per rute + peran + posisi (bukan 1 titik global), supaya
+ * beberapa titik geofence di lokasi/radius sama tetap terdeteksi presisi.
  */
 export async function validateRouteForCurrentLocation(
   routeCode: string,
   gpsPosition?: { latitude: number; longitude: number },
-  dockId?: string | null
+  dockId?: string | null,
 ): Promise<RouteValidationResult> {
-  const snap = await getActiveGeofenceSnapshot(gpsPosition, dockId, 'start')
-
-  if (snap.configMissing) {
+  const scoped = scopedGeofencePoints(getStoredGeofencePoints())
+  if (scoped.length === 0) {
     return { valid: false, blocked: true, configMissing: true }
   }
 
-  if (!snap.valid || !snap.activePoint) {
+  const startCapable = scoped
+    .filter(point => geofenceRoleServes(point.pointType, 'start'))
+    .filter(point => routeMatchesPoint(point, routeCode))
+
+  // Tidak ada titik awal yang mengizinkan rute ini sama sekali.
+  if (startCapable.length === 0) {
+    const snap = await getActiveGeofenceSnapshot(gpsPosition, dockId, 'start')
+    if (snap.configMissing) {
+      return { valid: false, blocked: true, configMissing: true }
+    }
+    if (!snap.valid || !snap.activePoint) {
+      // Belum ada titik awal untuk tahap ini, atau GPS/posisi tidak valid.
+      if (snap.blocked && snap.reason) {
+        return { valid: false, blocked: true, activePoint: null, reason: snap.reason }
+      }
+      if (scoped.some(point => geofenceRoleServes(point.pointType, 'start'))) {
+        return { valid: false, blocked: true, activePoint: null }
+      }
+      return {
+        valid: false,
+        blocked: true,
+        activePoint: null,
+        reason: 'Titik awal (input) belum diatur admin.',
+      }
+    }
+    const allowed = snap.activePoint.allowedRoutes.join(', ')
+    return {
+      valid: false,
+      blocked: true,
+      activePoint: snap.activePoint,
+      reason: `Rute ${routeCode} tidak diizinkan di titik ${snap.activePoint.name}. Rute yang diizinkan: ${allowed}`,
+    }
+  }
+
+  const pos = await resolvePosition(gpsPosition)
+  if (!pos) {
+    return { valid: false, blocked: true, activePoint: null, reason: 'GPS tidak tersedia' }
+  }
+
+  const activePoint = pickPointAt(pointsForDock(startCapable, dockId), pos, dockId, 'start')
+  if (!activePoint) {
     return { valid: false, blocked: true, activePoint: null }
   }
 
-  const point = snap.activePoint
-
-  if (routeMatchesPoint(point, routeCode)) {
-    return { valid: true, activePoint: point }
-  }
-
-  const allowed = point.allowedRoutes.join(', ')
-  return {
-    valid: false,
-    blocked: true,
-    activePoint: point,
-    reason: `Rute ${routeCode} tidak diizinkan di titik ${point.name}. Rute yang diizinkan: ${allowed}`,
-  }
+  return { valid: true, activePoint }
 }
 
 /**
@@ -732,7 +773,7 @@ export async function validateTripEndForCurrentLocation(
     return { valid: false, blocked: true, activePoint: null, reason: 'GPS tidak tersedia' }
   }
 
-  const activePoint = pickPointAt(pointsForDock(candidates, dockId), pos, dockId)
+  const activePoint = pickPointAt(pointsForDock(candidates, dockId), pos, dockId, 'end')
   if (!activePoint) {
     return { valid: false, blocked: true, activePoint: null }
   }
