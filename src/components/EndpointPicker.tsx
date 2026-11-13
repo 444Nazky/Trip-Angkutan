@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Cloud, RefreshCw, Server } from 'lucide-react'
+import { Cloud, Pencil, RefreshCw, Server } from 'lucide-react'
+import ServerProfileEditor from './ServerProfileEditor'
 import {
   applyEndpointInput,
   apiBaseCandidateLabel,
@@ -25,6 +26,11 @@ interface Props {
    * cukup tombol "Simpan & Terapkan" + "Tes Koneksi".
    */
   showExtraActions?: boolean
+  /**
+   * Tampilkan kolom URL manual. Halaman server mobile memakai `false`: URL
+   * diubah lewat ikon pensil pada kartu server utama.
+   */
+  showManualInput?: boolean
 }
 
 type Status = { kind: 'idle' | 'checking' | 'ok' | 'warn' | 'fail'; msg: string }
@@ -47,10 +53,11 @@ function messageFor(r: Awaited<ReturnType<typeof probeServerHealth>>): Status {
   return { kind: 'fail', msg: `Server tidak merespon (${r.ms} ms)${r.detail && r.detail !== 'Failed to fetch' ? ` — ${r.detail}` : ''}. URL lama tetap dipakai.` }
 }
 
-export default function EndpointPicker({ onApplied, withHeader = true, showExtraActions = true }: Props) {
+export default function EndpointPicker({ onApplied, withHeader = true, showExtraActions = true, showManualInput = true }: Props) {
   const [url, setUrl] = useState(() => resolveApiBaseUrl())
   const [status, setStatus] = useState<Status>({ kind: 'idle', msg: '' })
   const [busy, setBusy] = useState(false)
+  const [editingServer, setEditingServer] = useState(false)
 
   const activeUrl = resolveApiBaseUrl()
   const candidates = apiBaseCandidates()
@@ -123,10 +130,20 @@ export default function EndpointPicker({ onApplied, withHeader = true, showExtra
       {withHeader && (
         <div>
           <h3 className="text-lg font-bold text-slate-800 mb-1">Pilih Endpoint</h3>
-          <p className="text-xs text-slate-500">
-            Alamat server intranet kantor yang dipakai aplikasi. Tidak ada endpoint cloud.
-          </p>
+          <p className="text-xs text-slate-500">Server intranet yang dipakai aplikasi.</p>
         </div>
+      )}
+
+      {editingServer && (
+        <ServerProfileEditor
+          onCancel={() => setEditingServer(false)}
+          onSaved={profile => {
+            setEditingServer(false)
+            setUrl(profile.url)
+            onApplied?.(profile.url)
+            setStatus({ kind: 'ok', msg: 'Server diperbarui.' })
+          }}
+        />
       )}
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -134,47 +151,61 @@ export default function EndpointPicker({ onApplied, withHeader = true, showExtra
           const selected = c.url === activeUrl
           const isCloud = !isIntranetBaseUrl(c.url)
           return (
-            <button
-              key={c.url}
-              type="button"
-              onClick={() => { setStatus({ kind: 'idle', msg: '' }); setUrl(c.url) }}
-              className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-                selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
-            >
-              <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isCloud ? 'bg-sky-100 text-sky-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                {isCloud ? <Cloud size={16} /> : <Server size={16} />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-bold text-slate-800">
-                  {c.label}
-                  {selected && <span className="ml-2 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">Aktif</span>}
+            <div key={c.url} className="relative">
+              <button
+                type="button"
+                onClick={() => { setStatus({ kind: 'idle', msg: '' }); setUrl(c.url) }}
+                className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 pr-10 text-left transition-colors ${
+                  selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isCloud ? 'bg-sky-100 text-sky-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                  {isCloud ? <Cloud size={16} /> : <Server size={16} />}
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-500">{c.url}</span>
-                {c.hint && <span className="mt-0.5 block text-[10px] text-slate-400">{c.hint}</span>}
-              </span>
-            </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-slate-800">
+                    {c.label}
+                    {selected && <span className="ml-2 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">Aktif</span>}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">{c.url}</span>
+                  {c.hint && <span className="mt-0.5 block text-[10px] text-slate-400">{c.hint}</span>}
+                </span>
+              </button>
+              {c.editable && (
+                <button
+                  type="button"
+                  onClick={() => setEditingServer(true)}
+                  aria-label="Edit server"
+                  title="Ubah nama & URL server"
+                  className="absolute right-2 top-2 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-blue-600"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+            </div>
           )
         })}
       </div>
 
-      <div>
-        <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">URL manual</label>
-        <input
-          type="url"
-          value={url}
-          onChange={e => { setStatus({ kind: 'idle', msg: '' }); setUrl(e.target.value) }}
-          placeholder="http://192.168.1.123:3000/api"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500"
-        />
-        <p className="mt-1 text-[10px] text-slate-400">
-          Aktif sekarang: <span className="font-semibold text-slate-600">{activeUrl}</span>
-          {apiBaseCandidateLabel(activeUrl) ? ` (${apiBaseCandidateLabel(activeUrl)})` : ''}
-        </p>
-      </div>
+      {showManualInput && (
+        <div>
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">URL manual</label>
+          <input
+            type="url"
+            value={url}
+            onChange={e => { setStatus({ kind: 'idle', msg: '' }); setUrl(e.target.value) }}
+            placeholder="http://192.168.1.123:3000/api"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500"
+          />
+          <p className="mt-1 text-[10px] text-slate-400">
+            Aktif: <span className="font-semibold text-slate-600">{activeUrl}</span>
+            {apiBaseCandidateLabel(activeUrl) ? ` (${apiBaseCandidateLabel(activeUrl)})` : ''}
+          </p>
+        </div>
+      )}
 
       {status.msg !== '' && (
         <div className={`rounded-lg px-3 py-2 ${status.kind === 'ok' ? 'bg-emerald-50' : status.kind === 'warn' ? 'bg-amber-50' : status.kind === 'fail' ? 'bg-red-50' : 'bg-slate-100'}`}>
@@ -220,8 +251,7 @@ export default function EndpointPicker({ onApplied, withHeader = true, showExtra
       </div>
 
       <p className="text-[10px] leading-relaxed text-slate-400">
-        Antrian data offline tetap tersimpan dan dikirim ke endpoint yang sedang aktif setelah server
-        intranet bisa dihubungi kembali.
+        Antrian offline tersimpan. Dikirim otomatis saat server terhubung.
       </p>
     </div>
   )

@@ -9,6 +9,7 @@ import { environment } from '../environments/environment'
 
 const TOKEN_KEY = 'trip.auth.token.v2'
 const API_URL_OVERRIDE_KEY = 'trip.api.baseUrl'
+const SERVER_PROFILE_KEY = 'trip.server.profile.v1'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,12 +67,18 @@ export interface Route {
 
 // ─── URL resolution ───────────────────────────────────────────────────────────────
 
-function getBaseUrl(): string {
+function readUrlOverride(): string {
   try {
-    const override = localStorage.getItem(API_URL_OVERRIDE_KEY)
-    if (override?.trim()) return normalizeUrl(override)
-  } catch {}
-  return normalizeUrl(defaultApiBaseUrl())
+    return localStorage.getItem(API_URL_OVERRIDE_KEY)?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function getBaseUrl(): string {
+  const override = readUrlOverride()
+  if (override) return normalizeUrl(override)
+  return normalizeUrl(getServerProfile().url)
 }
 
 /**
@@ -468,6 +475,60 @@ export interface ApiBaseCandidate {
   url: string
   label: string
   hint?: string
+  /** true = nama & URL entri ini bisa diubah lewat ikon pensil. */
+  editable?: boolean
+}
+
+/** Nama bawaan server intranet kantor. */
+export const DEFAULT_SERVER_LABEL = 'Intranet Kantor (LAN)'
+
+export interface ServerProfile {
+  label: string
+  url: string
+}
+
+function defaultServerUrl(): string {
+  return intranetApiBaseUrl() || defaultApiBaseUrl()
+}
+
+/**
+ * Profil server utama (nama + URL) yang bisa diubah pengguna.
+ *
+ * Disimpan di localStorage sehingga halaman login dan halaman server di
+ * aplikasi mobile selalu menampilkan informasi yang sama.
+ */
+export function getServerProfile(): ServerProfile {
+  try {
+    const raw = localStorage.getItem(SERVER_PROFILE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { label?: unknown; url?: unknown }
+      const label = String(parsed.label ?? '').trim() || DEFAULT_SERVER_LABEL
+      const url = String(parsed.url ?? '').trim()
+      return { label, url: normalizeUrl(url || defaultServerUrl()) }
+    }
+  } catch { /* storage tidak tersedia */ }
+  return { label: DEFAULT_SERVER_LABEL, url: normalizeUrl(defaultServerUrl()) }
+}
+
+/**
+ * Simpan nama + URL server utama. Kalau entri ini yang sedang aktif, endpoint
+ * aktif ikut dipindah ke URL baru supaya tidak ada dua pengaturan berbeda.
+ */
+export function saveServerProfile(input: { label: string; url: string }): EndpointValidation {
+  const label = String(input.label ?? '').trim() || DEFAULT_SERVER_LABEL
+  const check = validateEndpointInput(input.url)
+  if (!check.ok) return check
+
+  const previous = getServerProfile()
+  try {
+    localStorage.setItem(SERVER_PROFILE_KEY, JSON.stringify({ label, url: check.url }))
+  } catch {
+    return { ok: false, msg: 'Pengaturan tidak bisa disimpan di perangkat ini.' }
+  }
+
+  const override = readUrlOverride()
+  if (!override || normalizeUrl(override) === previous.url) setApiBaseUrl(check.url)
+  return check
 }
 
 /** URL backend intranet (PC kantor, port 3000). */
@@ -495,22 +556,21 @@ export function isIntranetBaseUrl(url: string): boolean {
 }
 
 export function apiBaseCandidates(): ApiBaseCandidate[] {
-  // Intranet lebih dulu karena ia endpoint DEFAULT sistem.
+  // Server utama lebih dulu karena ia endpoint DEFAULT sistem.
   const candidates: ApiBaseCandidate[] = []
-  const intranet = intranetApiBaseUrl()
-  if (intranet) {
-    candidates.push({
-      url: intranet,
-      label: 'Intranet Kantor (LAN)',
-      hint: 'Default sistem. Server lokal di PC kantor (port 3000), tidak butuh internet.',
-    })
-  }
+  const profile = getServerProfile()
+  candidates.push({
+    url: profile.url,
+    label: profile.label,
+    hint: 'Server utama. Bisa diganti nama & URL-nya.',
+    editable: true,
+  })
   const intranetHttps = intranetHttpsApiBaseUrl()
   if (intranetHttps) {
     candidates.push({
       url: intranetHttps,
       label: 'Intranet Kantor (HTTPS)',
-      hint: 'Server lokal dengan TLS. Dipakai saat aplikasi dibuka lewat https (mixed content).',
+      hint: 'Server lokal dengan TLS.',
     })
   }
   return candidates

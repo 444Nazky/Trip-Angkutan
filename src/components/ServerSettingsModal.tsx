@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Cloud, Server, X } from 'lucide-react'
+import { Cloud, Pencil, Server, X } from 'lucide-react'
+import ServerProfileEditor from './ServerProfileEditor'
 import {
   applyEndpointInput,
   apiBaseCandidateLabel,
   apiBaseCandidates,
-  defaultApiBaseUrl,
   isIntranetBaseUrl,
   probeServerHealth,
   resolveApiBaseUrl,
@@ -69,6 +69,7 @@ function statusFromProbe(
 export default function ServerSettingsModal({ onClose }: Props) {
   const [url, setUrl] = useState(resolveApiBaseUrl())
   const [status, setStatus] = useState<Status>({ kind: 'idle', msg: '' })
+  const [editingServer, setEditingServer] = useState(false)
 
   const activeUrl = resolveApiBaseUrl()
   const candidates = apiBaseCandidates()
@@ -141,52 +142,60 @@ export default function ServerSettingsModal({ onClose }: Props) {
         </button>
       </div>
 
-      {/* Pilihan endpoint server intranet kantor (LAN). */}
+      {editingServer && (
+        <div className="mt-3">
+          <ServerProfileEditor
+            onCancel={() => setEditingServer(false)}
+            onSaved={profile => {
+              setEditingServer(false)
+              setUrl(profile.url)
+              setStatus({ kind: 'ok', msg: 'Server diperbarui.' })
+            }}
+          />
+        </div>
+      )}
+
+      {/* Pilihan server intranet kantor (LAN). */}
       <div className="mt-3 grid grid-cols-1 gap-2">
         {candidates.map((c) => {
           const selected = c.url === activeUrl
           const isCloud = !isIntranetBaseUrl(c.url)
           return (
-            <button
-              key={c.url}
-              type="button"
-              onClick={() => pickPreset(c.url)}
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
-                selected
-                  ? 'border-[#1B3D6D] bg-[#1B3D6D]/5'
-                  : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
-            >
-              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isCloud ? 'bg-sky-50 text-sky-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                {isCloud ? <Cloud size={13} /> : <Server size={13} />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-semibold text-slate-800">
-                  {c.label}
-                  {selected && <span className="ml-1.5 text-[10px] font-medium text-[#1B3D6D]">- dipakai</span>}
+            <div key={c.url} className="relative">
+              <button
+                type="button"
+                onClick={() => pickPreset(c.url)}
+                className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 pr-9 text-left transition-colors ${
+                  selected
+                    ? 'border-[#1B3D6D] bg-[#1B3D6D]/5'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isCloud ? 'bg-sky-50 text-sky-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                  {isCloud ? <Cloud size={13} /> : <Server size={13} />}
                 </span>
-                <span className="block truncate text-[10px] text-slate-400">{c.url}</span>
-                {c.hint && <span className="block text-[10px] text-slate-400">{c.hint}</span>}
-              </span>
-            </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-semibold text-slate-800">
+                    {c.label}
+                    {selected && <span className="ml-1.5 text-[10px] font-medium text-[#1B3D6D]">- dipakai</span>}
+                  </span>
+                  <span className="block truncate text-[10px] text-slate-400">{c.url}</span>
+                </span>
+              </button>
+              {c.editable && (
+                <button
+                  type="button"
+                  onClick={() => setEditingServer(true)}
+                  aria-label="Edit server"
+                  title="Ubah nama & URL server"
+                  className="absolute right-1.5 top-1.5 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-[#1B3D6D]"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
           )
         })}
-      </div>
-
-      <div className="mt-3">
-        <input
-          type="url"
-          value={url}
-          onChange={e => { setStatus({ kind: 'idle', msg: '' }); setUrl(e.target.value) }}
-          placeholder="http://192.168.1.123:3000/api"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1B3D6D] transition-colors"
-        />
-        <p className="mt-1 text-[10px] text-slate-400">
-          Default: {defaultApiBaseUrl()}
-        </p>
       </div>
 
       {status.msg !== '' && (
@@ -225,8 +234,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
       </div>
 
       <p className="mt-3 text-[10px] leading-relaxed text-slate-400">
-        Ganti endpoint anytime. Antrian data offline tetap tersimpan dan dikirim ke server yang sedang aktif.
-        Kalau server tidak bisa dihubungi, periksa alamat dan pastikan server kantor menyala.
+        Antrian offline tersimpan. Dikirim otomatis saat server terhubung.
       </p>
     </div>
   )

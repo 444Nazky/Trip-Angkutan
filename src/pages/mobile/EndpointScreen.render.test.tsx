@@ -60,4 +60,16 @@ describe('halaman server (mobile)', () => {
     expect(container.textContent).not.toContain('Reset ke Default')
     expect(container.textContent).not.toContain('Simpan tanpa tes')
   })
+
+  it('tidak menampilkan input URL manual, tapi punya tombol edit server', async () => {
+    await act(async () => {
+      root.render(<EndpointScreen go={() => {}} />)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(container.textContent).not.toContain('URL manual')
+    expect(container.querySelector('[aria-label="Edit server"]')).not.toBeNull()
+  })
 })
