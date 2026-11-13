@@ -20,11 +20,7 @@ if (updateDisabled()) {
 
 
 
-// Pembaruan aplikasi SELALU lewat paket APK penuh.
-//
-// DULU ada dua kanal: bundel modul web (OTA) dan paket APK. Kanal OTA sudah
-// dihapus seluruhnya — sekarang satu-satunya cara memperbarui aplikasi adalah
-// memasang APK baru dari server intranet.
+// Pembaruan aplikasi selalu lewat paket APK penuh dari server intranet.
 export type AppUpdateKind = 'apk'
 
 

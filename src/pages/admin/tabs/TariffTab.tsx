@@ -665,7 +665,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         <div>
           <h3 className="text-lg font-black text-slate-900">Master Tarif Jenis Kendaraan</h3>
           <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
-            Kelola tarif untuk setiap jenis kendaraan pada setiap region.
+            Tarif per jenis kendaraan dan region.
           </p>
         </div>
         <span
@@ -726,8 +726,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           <div>
             <h4 className="text-[13px] font-bold text-slate-800">Master Jenis Kendaraan</h4>
             <p className="text-[11px] text-slate-500">
-              Daftar ini disimpan di database dan dipakai bersama oleh dashboard admin dan
-              aplikasi petugas - jadi pilihan di kedua aplikasi selalu sama.
+              Dipakai bersama dashboard admin dan aplikasi petugas.
             </p>
           </div>
           <div className="flex w-full max-w-md gap-2 sm:w-auto">
@@ -754,8 +753,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         <div className="mt-3 flex flex-wrap gap-2">
           {masterTypes.length === 0 && (
             <p className="text-[11px] text-slate-400">
-              Belum ada jenis kendaraan di master. Tambahkan lewat kolom di atas - jenis ini
-              langsung tersimpan ke database dan langsung muncul di aplikasi petugas.
+              Belum ada jenis kendaraan. Tambahkan lewat kolom di atas.
             </p>
           )}
           {masterTypes.map((t) => {
@@ -786,8 +784,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
         {unregisteredTypes.length > 0 && (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
             Ada baris tarif untuk jenis yang belum terdaftar di master:{' '}
-            <b>{unregisteredTypes.map((t) => t.label).join(', ')}</b>. Daftarkan dulu supaya jenis ini
-            muncul sebagai pilihan yang sama di aplikasi petugas.
+            <b>{unregisteredTypes.map((t) => t.label).join(', ')}</b>. Daftarkan agar tersedia di aplikasi petugas.
           </p>
         )}
       </div>
@@ -1022,9 +1019,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                   ))}
                 </select>
                 <span className="mt-1 block text-[10.5px] text-slate-400">
-                  Daftar jenis diambil dari master di database. Tambah jenis baru lewat panel
-                  &ldquo;Master Jenis Kendaraan&rdquo; di atas supaya langsung tersedia di aplikasi
-                  petugas.
+                  Tambah jenis baru lewat panel &ldquo;Master Jenis Kendaraan&rdquo; di atas.
                 </span>
               </Field>
 
@@ -1057,7 +1052,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                     />
                     {form.regionId === ALL_REGIONS && (
                       <span className="mt-1 block text-[10.5px] text-slate-400">
-                        Tarif lokal berlaku per wilayah dan jenis kendaraan — isi per region.
+                        Tarif lokal diisi per region.
                       </span>
                     )}
                   </Field>
@@ -1097,8 +1092,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
 
               {editTarget && (
                 <p className="text-[10.5px] leading-relaxed text-slate-400">
-                  Jenis dikunci saat mengedit. Pilih <b>Semua Region</b> untuk menerapkan tarif ini ke
-                  semua region yang memakai jenis tersebut. Klik Batal untuk menambah baris baru.
+                  Jenis dikunci saat edit. Pilih <b>Semua Region</b> untuk menerapkan ke semua region.
                 </p>
               )}
             </div>
@@ -1109,22 +1103,12 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
       {/* Keterangan singkat */}
       <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500 shadow-sm">
         <p>
-          Tiap region punya baris tarifnya sendiri. Region yang belum punya baris untuk suatu jenis
-          kendaraan tampil <b className="text-slate-700">Rp 0</b> — isi selnya untuk menetapkan
-          harga. Sel lokal yang masih 0 memakai tarif lokal wilayah.
+          Tiap region punya baris tarif sendiri. Sel kosong tampil <b className="text-slate-700">Rp 0</b> — isi untuk menetapkan harga.
+          Lokal 0 memakai tarif wilayah; <b className="text-slate-700">internal</b> selalu Rp 0.
         </p>
         <p>
-          <b className="text-slate-700">lokal</b> — harga per jenis kendaraan; isi 0 untuk memakai
-          tarif lokal wilayah.
-          <b className="text-slate-700"> internal</b> terkunci Rp 0 — kendaraan internal tidak
-          ditagih. Titik <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" /> =
-          baris tarif region ini sudah tersimpan.
-        </p>
-        <p>
-          Pilih <b className="text-slate-700">Semua Region</b> di form tarif untuk menulis satu
-          harga ke banyak region sekaligus — tidak perlu mengulang per region. Tombol{' '}
-          <Trash2 size={11} className="inline text-red-600" /> menghapus baris tarif kendaraan
-          tersebut pada region itu saja.
+          Pilih <b className="text-slate-700">Semua Region</b> untuk menulis satu harga ke banyak region.{' '}
+          <Trash2 size={11} className="inline text-red-600" /> menghapus baris pada region itu saja.
         </p>
       </div>
     </div>

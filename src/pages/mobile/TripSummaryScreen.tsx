@@ -326,8 +326,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
               <Ban size={14} className="mt-0.5 shrink-0" />
               <span>
-                Draft sudah lewat {draftTtlMinutes} menit. Isian tidak bisa diedit atau ditambah
-                kendaraannya lagi — tinggal kirim trip ini atau batalkan dengan alasan.
+                Draft terkunci ({draftTtlMinutes} menit). Kirim trip atau batalkan.
               </span>
             </div>
           )}

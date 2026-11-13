@@ -467,7 +467,6 @@ Prefix yang dipakai kode — berguna saat menelusuri `adb logcat` atau log aplik
 |---|---|
 | `[Update]` | `updateService.ts` (unduh, hash, state) |
 | `[Version]` | `reportVersionToServer` (laporan versi ke server) |
-| `[OTA]` | kanal modul web (`ota.ts`) — kanal cadangan |
 | `[Profile]` | `ProfileScreen.tsx` (cek & apply) |
 | `ApkInstaller` | `ApkInstallerPlugin.java` (Android logcat) |
 

@@ -89,8 +89,7 @@ pembaruan saat internet mati.
 |---|---|
 | `src/services/updateService.ts` | State machine update APK: cek versi → unduh → verifikasi hash → install. Sumber kebenaran versi lokal = `App.getInfo()` (App Info Android), bukan localStorage. |
 | `src/services/apkInstaller.ts` | Adapter ke plugin native. Menormalisasi `file://` → path absolut, memanggil `ApkInstaller.install()`, guarded `isNativeAndroid()`. |
-| `src/services/appUpdate.ts` | Controller Above UI: menggabungkan kanal APK & modul, menyimpan `AppUpdateState`, mencegah proses ganda (promise `_checking`). |
-| `src/services/ota.ts` | Kanal **modul web** (cadangan). Dipakai hanya bila kanal APK tidak menyediakan paket baru. |
+| `src/services/appUpdate.ts` | Controller Above UI: menyimpan `AppUpdateState`, mencegah proses ganda (promise `_checking`). |
 | `src/components/UpdateNotifier.tsx` | Hook `useAppUpdate()` untuk UI status. Komponen notifier *default export* **tidak di-mount** di mana pun → **tidak ada auto-check** (lihat §6). |
 | `src/pages/mobile/ProfileScreen.tsx` | Halaman Profil — **satu-satunya** pemicu manual: tombol "Cek & Perbarui Aplikasi" / "Perbarui Sekarang". |
 | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` | Plugin Capacitor native: membuat `content://` URI via `FileProvider`, memanggil installer paket sistem. |
@@ -374,8 +373,7 @@ di bawah tombol, memberi instruksi eksplisit — satu tombol, tanpa menebak.
 
 ## 10. Kenapa Arsitektur Ini
 
-* **Satu endpoint, satu sumber kebenaran** (tabel `app_versions`), tanpa
-  risiko manifest modul yang hilang seperti pada OTA lawas.
+* **Satu endpoint, satu sumber kebenaran** (tabel `app_versions`).
 * **Full package (bukan delta)** → tidak ada state patch parsial yang bisa
   rusak, dan tidak ada cache lawas di WebView yang menuntut "Clear Data".
 * **SHA-256 diverifikasi sebelum installer ditawarkan** → paket rusak atau
@@ -389,11 +387,7 @@ di bawah tombol, memberi instruksi eksplisit — satu tombol, tanpa menebak.
 
 ## 11. Catatan & Kendala Aktual
 
-* Kanal modul web (`src/services/ota.ts`, `/ota-manifest`, `/publish-ota`,
-  tabel `ota_bundles`, berkas `version.json` versi `1.0.5+…`) **masih hidup**
-  sebagai kanal cadangan dan hanya dipanggil bila kanal APK tidak
-  menyediakan paket baru. **Jangan** menaikkan versi APK ke nilai `version.json`
-  — keduanya dua garis versi yang terpisah.
+* Hanya ada satu kanal pembaruan: **APK penuh**. Tidak ada kanal modul web.
 * `app_versions.version` **wajib** semver murni (`1.0.3`, tanpa `+timestamp`)
   karena `publish-version` menolak format lain.
 * APK harus ditandatangani **keystore yang sama** dengan versi yang terpasang
@@ -412,7 +406,7 @@ di bawah tombol, memberi instruksi eksplisit — satu tombol, tanpa menebak.
 | Topik | Lokasi |
 |---|---|
 | Handler versi | `server/api/handlers/appVersion.ts` |
-| Routing endpoint | `server/api/index.ts` (bagian "app update / OTA") |
+| Routing endpoint | `server/api/index.ts` (bagian "app update") |
 | Penyimpanan berkas lokal | `server/api/_db.ts` (`serveStoredFile`, `db.storage`) |
 | Server intranet (Deno) | `server/api/local_server.ts` |
 | State machine update | `src/services/updateService.ts` |
@@ -422,5 +416,5 @@ di bawah tombol, memberi instruksi eksplisit — satu tombol, tanpa menebak.
 | Plugin native | `android/app/src/main/java/com/plantation/tripangkut/ApkInstallerPlugin.java` |
 | Manifest & FileProvider | `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/res/xml/file_paths.xml` |
 | Versi build | `android/app/build.gradle` (`versionCode` / `versionName`), `package.json` |
-| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/publish-apk-republish.mjs`, `scripts/sync-version.mjs`, `scripts/publish-ota-server.mjs` |
+| Skrip rilis | `scripts/publish-apk.mjs`, `scripts/publish-apk-republish.mjs`, `scripts/sync-version.mjs` |
 | Dokumen lain | `user guide/workflow.md`, `user guide/cheatsheet.md` |

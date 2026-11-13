@@ -51,7 +51,7 @@ async function getDeviceId(): Promise<string> {
  * LAPORKAN VERSI KE BACKEND
  *
  * PENTING: Mobile HARUS memanggil fungsi ini setiap:
- * 1. Setelah OTA update BERHASIL diinstall
+ * 1. Setelah APK update berhasil dipasang
  * 2. Saat startup aplikasi
  *
  * Ini memastikan server selalu tahu versi yang benar-benar terinstall

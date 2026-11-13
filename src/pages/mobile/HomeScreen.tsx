@@ -185,7 +185,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
             <div className="rounded-2xl bg-white/15 border border-white/25 px-4 py-3.5 text-center">
               <p className="text-white font-black text-[13px]">Hubungi Admin</p>
               <p className="text-blue-100 text-[11px] leading-snug mt-1">
-                Akun ini belum memiliki akses dermaga — trip belum bisa dimulai.
+                Akun belum punya akses dermaga.
               </p>
             </div>
           )}

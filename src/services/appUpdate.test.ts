@@ -6,7 +6,7 @@
  *   2. Kalau ada APK baru, status "ready" dan satu tombol langsung memasang.
  *   3. Kalau APK terpasang sudah yang terbaru, tombol berhenti di
  *      "up-to-date" tanpa aksi.
- *   4. Kanal OTA (bundel modul web) sudah dihapus — tidak boleh ada lagi.
+ *   4. Tidak ada kanal pembaruan modul web terpisah.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -153,8 +153,7 @@ describe('alur pembaruan tunggal (APK penuh)', () => {
     expect(first.status).toBe('ready')
   })
 
-  it('tidak ada lagi kanal modul web (OTA)', () => {
-    // Kanal OTA dihapus: tidak ada status 'module' yang bisa muncul.
+  it('tidak ada kanal pembaruan modul web terpisah', () => {
     expect(appUpdate.state.kind).not.toBe('module')
   })
 })

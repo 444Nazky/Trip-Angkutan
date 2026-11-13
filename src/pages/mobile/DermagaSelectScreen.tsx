@@ -54,7 +54,7 @@ export default function DermagaSelectScreen({ dermagas, onSelected, onCancel }: 
         </div>
         <h2 className="text-white font-black text-[18px] mb-0.5">Pilih Dermaga</h2>
         <p className="text-slate-400 text-[12px]">
-          Anda memiliki akses ke {dermagas.length} dermaga. Pilih dermaga untuk sesi ini.
+          Pilih satu dari {dermagas.length} dermaga untuk sesi ini.
         </p>
       </div>
 

@@ -469,7 +469,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         <div>
           <h3 className="text-lg font-black text-slate-900">Master Dermaga</h3>
           <p className="mt-0.5 max-w-2xl text-[12px] text-slate-500">
-            Tambah / ubah nama / hapus dermaga — wilayah tetap, setiap perubahan langsung ditulis ke database.
+            Tambah, ubah, atau hapus dermaga per wilayah.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -510,8 +510,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
       {officers === null && state === 'ready' && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
-          Daftar petugas tidak bisa dimuat, jadi jumlah petugas pada konfirmasi hapus dermaga tidak bisa dipastikan.
-          Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
+          Daftar petugas gagal dimuat. Tekan <span className="font-bold">Muat ulang</span> untuk mencoba lagi.
         </div>
       )}
 
@@ -524,7 +523,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
           <div>
             <h3 className="font-bold text-slate-800">Tambah Dermaga</h3>
             <p className="text-[11px] text-slate-500">
-              Dermaga baru langsung tersimpan ke database dan dipakai aplikasi petugas.
+              Langsung tersimpan ke database.
             </p>
           </div>
         </div>
@@ -607,7 +606,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
           <div>
             <h3 className="text-[13px] font-bold text-slate-800">Daftar Dermaga</h3>
             <p className="text-[11px] text-slate-500">
-              Dikelompokkan per wilayah · {visibleCount} dari {dermagas.length} dermaga ditampilkan
+              {visibleCount} dari {dermagas.length} dermaga
             </p>
           </div>
           <div className="relative w-full sm:w-64">
@@ -637,7 +636,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
               {state === 'offline' && (
                 <tr>
                   <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-500">
-                    Server tidak bisa dihubungi, jadi data wilayah & dermaga belum bisa ditampilkan. Tekan
+                    Server tidak bisa dihubungi. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
                 </tr>

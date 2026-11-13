@@ -48,15 +48,14 @@ export function AppearancePanel() {
         <div className="min-w-0 flex-1">
           <h3 className="text-[14px] font-bold text-[var(--admin-text)]">Tampilan</h3>
           <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--admin-text-muted)]">
-            Atur mode gelap, ukuran teks, dan warna aksen dashboard. Pengaturan
-            disimpan di perangkat ini dan langsung berlaku.
+            Mode warna, ukuran teks, dan aksen. Tersimpan di perangkat ini.
           </p>
         </div>
         <button
           onClick={reset}
           disabled={isDefault}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--admin-border)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--admin-text-muted)] transition-colors hover:bg-[var(--admin-surface-hover)] hover:text-[var(--admin-text-soft)] disabled:cursor-not-allowed disabled:opacity-40"
-          title="Kembalikan tampilan ke bawaan (terang, ukuran sedang, aksen biru)"
+          title="Kembalikan tampilan bawaan"
         >
           <RotateCcw size={12} /> Reset
         </button>

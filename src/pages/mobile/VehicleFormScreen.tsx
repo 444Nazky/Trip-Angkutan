@@ -234,9 +234,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       {draftLocked && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
           <Ban size={14} className="mt-0.5 shrink-0" />
-          <span>
-            Draft sudah lewat {draftTtlMinutes} menit — kendaraan tidak bisa ditambah atau diubah lagi.
-            Tinggal kirim trip ini dari Ringkasan atau batalkan dengan alasan.
+          <span>              Draft terkunci ({draftTtlMinutes} menit). Kirim trip dari Ringkasan atau batalkan.
           </span>
         </div>
       )}
@@ -293,8 +291,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </div>
           {vehicleTypes.length === 0 && (
             <p className="mt-1.5 text-[11px] text-amber-600">
-              Belum ada daftar jenis kendaraan di perangkat. Sambungkan ke server sekali untuk
-              menarik master jenis kendaraan.
+              Jenis kendaraan belum tersedia. Sambungkan ke server untuk menarik master.
             </p>
           )}
 

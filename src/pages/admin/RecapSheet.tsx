@@ -118,7 +118,7 @@ export default function RecapSheet() {
           <div className="mr-auto">
             <h1 className="font-bold text-slate-900 text-[16px] leading-tight">Rekap Trip</h1>
             <p className="text-[11px] text-slate-500">
-              Ringkasan kendaraan dan pendapatan per golongan dan jenis kendaraan
+              Kendaraan & pendapatan per golongan dan jenis
               {lastSync && <> - terakhir {lastSync} WIB</>}
             </p>
           </div>
@@ -211,7 +211,7 @@ export default function RecapSheet() {
 
         {rows.length >= 1000 && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
-            Server mengirim 1000 trip terbaru saja. Rekap bisa belum mencakup seluruh periode - persempit rentang tanggal agar total akurat.
+            1000 trip terbaru saja. Persempit rentang tanggal agar total akurat.
           </div>
         )}
 

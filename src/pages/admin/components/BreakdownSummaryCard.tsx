@@ -153,7 +153,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
       <div className="flex items-center justify-between gap-3 flex-wrap px-5 pt-5 pb-4 border-b border-[var(--admin-border-subtle)]">
         <div>
           <h4 className="font-black text-[var(--admin-text)] text-[15px]">Breakdown Summary Card</h4>
-          <p className="text-[11px] text-[var(--admin-text-faint)]">Trip, muatan, dan tarif per golongan &amp; jenis kendaraan - mengikuti filter laporan yang sama.</p>
+          <p className="text-[11px] text-[var(--admin-text-faint)]">Trip, muatan, dan tarif sesuai filter laporan.</p>
         </div>
         <div className="flex gap-1 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-1 text-[11px] font-bold">
           {([
@@ -238,7 +238,7 @@ export function BreakdownSummaryCard({ reportTrips, vehicleTypes = [], revealed,
 
       {unclassified > 0 && columns.length > 0 && (
         <p className="px-5 pb-4 text-[10px] text-[var(--admin-text-faint)]">
-          {unclassified} trip tanpa data kendaraan tidak ikut dihitung di atas.
+          {unclassified} trip tanpa data kendaraan tidak dihitung.
         </p>
       )}
     </div>

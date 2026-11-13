@@ -71,7 +71,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
             <div className="min-w-0 flex-1">
               <h4 className="text-xs font-bold text-slate-800">Menyelesaikan pemasangan…</h4>
               <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                Setujui dialog pemasangan Android. Versi baru terhitung setelah aplikasi hidup kembali.
+                Setujui pemasangan di Android, lalu buka aplikasi kembali.
               </p>
             </div>
           </div>
@@ -102,7 +102,7 @@ export default function UpdateNotifier({ autoCheck = true }: UpdateNotifierProps
           </div>
           <h3 className="text-lg font-bold text-slate-800">Pembaruan Wajib</h3>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Versi <span className="font-semibold text-indigo-600">{state.version}</span> diperlukan agar aplikasi tetap berjalan optimal.
+            Versi <span className="font-semibold text-indigo-600">{state.version}</span> wajib dipasang.
           </p>
           {state.notes && (
             <div className="mt-4 max-h-32 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50 p-3 text-left text-[11px] text-slate-600">

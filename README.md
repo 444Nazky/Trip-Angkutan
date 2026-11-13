@@ -192,7 +192,7 @@ it into a priced, exportable record on the supervisor's desk.
 | Area | Stack |
 |---|---|
 | Frontend | React 19, TypeScript 6, Tailwind CSS 3, lucide-react, hand-rolled SVG charts |
-| Mobile | Capacitor 8 (Android), Capacitor SQLite, Tesseract.js (OCR), service worker + OTA updater |
+| Mobile | Capacitor 8 (Android), Capacitor SQLite, Tesseract.js (OCR), service worker + APK updater |
 | Backend | Deno, standard `Request`/`Response` handlers, JWT (24 h), bcrypt, custom rate limiter |
 | Database | PostgreSQL 16, PostgREST 12, SQL migrations |
 | Infrastructure | Docker Compose, health checks, persistent volumes, idempotent migrations |
@@ -206,12 +206,12 @@ it into a priced, exportable record on the supervisor's desk.
 src/                     React app: mobile shell + admin dashboard
   pages/mobile/          officer screens (trip flow, camera, geofence, history)
   pages/admin/           admin shell, tabs, report sheet & recap views
-  services/              api, auth, sync, offline db, OCR, OTA, geofence, xlsx
+  services/              api, auth, sync, offline db, OCR, geofence, xlsx
   theme/                 design tokens shared by both shells
 server/
   api/                   Deno API: handlers, metrics, system telemetry
   db/                    schema.sql + timestamped SQL migrations
-scripts/                 build helpers, OTA publisher, screenshot capture
+scripts/                 build helpers, APK publisher, screenshot capture
 docs/                    deployment notes, incident reports, screenshots, media
 android/                 Capacitor Android project
 admin-www/               built admin dashboard served on port 8000

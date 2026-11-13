@@ -73,9 +73,8 @@ export function AppSettingsPanel({ showToast }: SettingsPanelProps) {
         <div className="min-w-0 flex-1">
           <h3 className="text-[14px] font-bold text-slate-900">Batas Umur Draft Trip</h3>
           <p className="mt-0.5 text-[12px] leading-relaxed text-slate-500">
-            Berapa lama draft trip boleh diisi di aplikasi mobile. Setelah lewat,
-            isian draft dikunci — petugas hanya bisa mengirim trip atau membatalkannya
-            dengan alasan. Nilai dihitung sejak draft dibuat, bukan sejak terakhir diubah.
+            Batas waktu pengisian draft. Lewat batas, draft hanya bisa dikirim atau
+            dibatalkan. Dihitung sejak draft dibuat.
           </p>
         </div>
       </div>
@@ -107,8 +106,7 @@ export function AppSettingsPanel({ showToast }: SettingsPanelProps) {
       </div>
 
       <p className="mt-3 text-[11px] text-slate-400">
-        Nilai yang berlaku di perangkat petugas diambil saat aplikasi dibuka.
-        Perangkat offline memakai nilai terakhir yang berhasil ditarik.
+        Berlaku saat aplikasi dibuka. Perangkat offline memakai nilai terakhir.
       </p>
     </div>
   )

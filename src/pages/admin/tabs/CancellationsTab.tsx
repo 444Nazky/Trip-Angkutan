@@ -349,8 +349,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
               Detail &amp; Klasifikasi Pembatalan Trip
             </h3>
             <p className="mt-0.5 max-w-2xl text-[12px] text-[var(--admin-text-muted)]">
-              Trip yang dibatalkan petugas beserta alasannya — setiap pembatalan
-              menghasilkan dokumen, jadi tidak ada trip yang hilang tanpa jejak.
+              Trip yang dibatalkan petugas beserta alasannya.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

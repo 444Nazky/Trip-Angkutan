@@ -1,9 +1,7 @@
 // Handler update aplikasi: metadata rilis di tabel `app_versions`, berkas APK
 // di direktori lokal `apks`.
 //
-// TIDAK ADA lagi kanal OTA (bundel modul web): pembaruan aplikasi kini
-// SELALU lewat paket APK penuh. Endpoint & tabel `ota_bundles` sudah
-// dihapus.
+// Pembaruan aplikasi SELALU lewat paket APK penuh (tanpa OTA).
 import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
 const APK_BUCKET = "apks";

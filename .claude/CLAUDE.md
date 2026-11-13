@@ -18,7 +18,7 @@ Satu-satunya endpoint adalah **server intranet kantor**:
   menambahkan host publik sebagai default atau cadangan.
 - **Database**: PostgreSQL lokal di container `trip-db`, diakses server API
   lewat PostgREST lokal (`http://rest:3000`). Tidak ada database cloud.
-- **Berkas** (foto trip, APK, bundel OTA) disimpan di disk host
+- **Berkas** (foto trip, APK) disimpan di disk host
   (`./data/storage` -> `/data/storage`), path-nya RELATIF (`/files/...`).
 - `scripts/check-endpoint-consistency.mjs` menggagalkan build kalau
   `apiBaseUrl`/`intranetApiBaseUrl` tidak menunjuk host LAN, atau kalau bundle
@@ -188,25 +188,20 @@ graphify update .  # Setelah modifikasi code
    (`--allow-net` dkk). Kalau diberi, perintah gagal diam-diam (`|| true`) dan
    cache tetap kosong -> server baru bisa start setelah mengunduh dari internet.
    Perintah yang benar: `deno cache --node-modules-dir=none api/local_server.ts`.
-10. **Bundel OTA gagal diunduh setelah petugas pilih endpoint intranet**:
-    URL storage (`/storage/v1/object/public/ota/...`) SELALU milik host Supabase
-    cloud. Kalau origin-nya ikut `api.baseUrl` yang aktif, unduhan diarahkan ke
-    port 3000 yang tidak melayani `/storage` -> 404. Pakai
-    `supabaseProjectOrigin()` (src/services/api.ts) untuk URL storage.
-11. **Banner "LAN:" di log server intranet kosong**: `Deno.networkInterfaces()`
+10. **Banner "LAN:" di log server intranet kosong**: `Deno.networkInterfaces()`
     butuh izin `--allow-sys`. Tanpa itu fungsinya melempar "Requires sys access
     to networkInterfaces" yang Tertangkap try/catch -> daftar IP kosong tanpa
     error yang mencolok. Catatan: `deno eval` memberi izin otomatis, jadi
     tes dengan `deno eval` TIDAK bisairms hal ini - harus `deno run`.
-12. **`docker compose up` gagal "container name is already in use"**:
+11. **`docker compose up` gagal "container name is already in use"**:
     container `trip-web` milik project compose LAIN (checkout lama) masih
     hidup. `restart-all-ubuntu.sh` sudah membersihkan container `trip-web` /
     `trip-api` sebelum `up` supaya restart selalu idempotent.
-13. **Server intranet crash-loop**: `JWT_SECRET` kosong tidak lagi mematikan
+12. **Server intranet crash-loop**: `JWT_SECRET` kosong tidak lagi mematikan
     server (cuma warning), tapi `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
     kosong tetap bikin container exit. Compose pakai `restart: on-failure:5`
     supaya container terlihat "Exited (1)", bukan spam restart terus.
-14. **Data tidak terkirim dari aplikasi native (gejala "mixed content")**:
+13. **Data tidak terkirim dari aplikasi native (gejala "mixed content")**:
    aplikasi native (Capacitor/Android WebView) memuat halaman dari origin
    LOKAL `https://localhost`. `validateEndpointInput()` (src/services/api.ts)
    DULU menolak `http://192.168.1.123:3000` begitu protokol halaman `https:`,
@@ -219,18 +214,18 @@ graphify update .  # Setelah modifikasi code
    `android/app/src/main/assets/capacitor.config.json` (file inilah yang
    dibaca runtime - `npx cap copy` menulis ulang isinya).
    `res/xml/network_security_config.xml` tetap `cleartextTrafficPermitted`.
-15. **`CORS_ORIGIN` mematikan aplikasi native**: origin `https://localhost`
+14. **`CORS_ORIGIN` mematikan aplikasi native**: origin `https://localhost`
    (WebView) tidak ada di daftar browser biasa, jadi server membalas 403
    "Origin tidak diizinkan" dan TIDAK ADA data yang bisa dikirim. Origin
    native (`https://localhost`, `capacitor://localhost`, `http://localhost`,
    `https://127.0.0.1`) sekarang SELALU diizinkan di `withCors()`
    (supabase/functions/api/index.ts).
-16. **HTTPS untuk server intranet (opsional)**: set `TLS_CERT_FILE` +
+15. **HTTPS untuk server intranet (opsional)**: set `TLS_CERT_FILE` +
    `TLS_KEY_FILE` (lihat `supabase/functions/api/.env.example`) supaya
    `local_server.ts` serves HTTPS di port 3000. Sertifikat self-signed harus
    diinstall di perangkat petugas. Kandidat endpoint-nya muncul otomatis
    kalau `intranetHttpsApiBaseUrl` diisi di `src/environments/environment.ts`.
-17. **Deno memblokir baca `/proc`**: `Deno.readTextFile("/proc/meminfo")` dan
+16. **Deno memblokir baca `/proc`**: `Deno.readTextFile("/proc/meminfo")` dan
    `Deno.open("/proc/stat")` gagal dengan "Requires all access to ..." ->
    hanya boleh kalau server jalan dengan `--allow-all`. Server intranet TIDAK
    memakai `--allow-all`, jadi `server/api/_system.ts` membaca /proc lewat
@@ -240,13 +235,13 @@ graphify update .  # Setelah modifikasi code
    admin tampil nol (bukan error). Catatan: `deno eval` memberi izin penuh
    otomatis, jadi tes dengan `deno eval` TIDAK bisa mendeteksi masalah izin
    ini - harus `deno run` / `deno test`.
-18. **Grafik request per menit kosong**: `server/api/_metrics.ts` dulu hanya
+17. **Grafik request per menit kosong**: `server/api/_metrics.ts` dulu hanya
    mengirim bucket menit yang ADA request-nya, jadi deretnya bolong-bolong
    dan grafik di dashboard terlihat kosong. Sekarang `snapshot()` selalu
    mengirim 60 bucket kontinu (lama -> baru, jarak tepat 1 menit, menit sepi
    diisi 0). Kalau grafik masih kosong, cek `metrics.buckets` dari
    `/api/server-stats`, bukan UI.
-19. **Harga trip lama ikut berubah saat tarif diedit**: laporan
+18. **Harga trip lama ikut berubah saat tarif diedit**: laporan
    (`server/api/handlers/reports.ts`) dulu MENGHITUNG ULANG tarif setiap
    kendaraan dengan master/region yang berlaku saat laporan dibuka, jadi
    perubahan tarif di admin ikut mengubah trip lama (mis. tarif 50.000 ->
@@ -289,8 +284,6 @@ graphify update .  # Setelah modifikasi code
   endpoint langsung berlaku tanpa reload aplikasi.
 - `setApiBaseUrlOverride()` tidak reload halaman lagi.
 - Antrean data offline (IndexedDB) tetap aman: yang dikirim ke server aktif.
-- Bundel OTA & file APK tetap di Supabase Storage (butuh internet). Endpoint
-  intranet mengurangi ketergantungan internet untuk operasi harian, bukan
-  menghilangkan sama sekali.
+- File APK update disimpan di storage server intranet (`/files/apks/`).
 - `restart-all-ubuntu.sh` memakai `set -uo pipefail` (bukan `-e`): build admin
   yang gagal tidak boleh mematikan mobile + API intranet.

@@ -504,30 +504,23 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-snug text-slate-600">
-                <p>
-                  Rute hanya butuh <span className="font-bold text-slate-800">dua titik</span>:{' '}
-                  <span className="font-bold text-slate-800">Titik Awal</span> tempat petugas input kendaraan
-                  dan <span className="font-bold text-slate-800">Titik Tujuan</span> tempat petugas submit /
-                  end trip.
-                </p>
-                <p className="mt-1">
-                  Contoh SJRE → SBDZ: titik di SJRE menjadi Titik Awal, titik di SBDZ menjadi Titik Tujuan.
-                  Klik ikon pensil pada kartu titik untuk mengubah lokasinya.
-                </p>
-              </div>
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-snug text-slate-600">
+                <span className="font-bold text-slate-800">Titik Awal</span> untuk input kendaraan,{' '}
+                <span className="font-bold text-slate-800">Titik Tujuan</span> untuk submit trip.
+                Contoh: SJRE → SBDZ.
+              </p>
 
               {([
                 {
                   role: 'start' as const,
                   title: 'Titik Awal',
-                  hint: 'Lokasi petugas input kendaraan (mis. SJRE).',
+                  hint: 'Input kendaraan (mis. SJRE).',
                   point: startSlotPoint,
                 },
                 {
                   role: 'end' as const,
                   title: 'Titik Tujuan',
-                  hint: 'Lokasi petugas submit / end trip (mis. SBDZ).',
+                  hint: 'Submit trip (mis. SBDZ).',
                   point: endSlotPoint,
                 },
               ]).map(slot => (
@@ -571,14 +564,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
                   {slot.point ? (
                     <>
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <p className="font-semibold text-slate-900">{slot.point.locationName}</p>
-                        {slot.point.pointType === 'both' && (
-                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
-                            Titik lama (awal & tujuan)
-                          </span>
-                        )}
-                      </div>
+                      <p className="mt-2 font-semibold text-slate-900">{slot.point.locationName}</p>
                       <p className="text-xs text-slate-500 font-mono mt-1">
                         {slot.point.latitude}, {slot.point.longitude} · {slot.point.radiusMeters}m
                       </p>
@@ -598,10 +584,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </>
                   ) : (
                     <p className="mt-2 text-xs text-amber-800">
-                      Belum diatur.{' '}
-                      {slot.role === 'end'
-                        ? 'Tanpa titik tujuan, petugas tidak bisa submit trip.'
-                        : 'Tanpa titik awal, petugas tidak bisa memilih rute.'}
+                      Belum diatur — petugas tidak bisa {slot.role === 'end' ? 'submit trip' : 'memilih rute'}.
                     </p>
                   )}
                 </div>
@@ -635,7 +618,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </div>
                   ))}
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Hapus titik yang tidak dipakai supaya rute hanya punya Titik Awal dan Titik Tujuan.
+                    Hapus titik yang tidak dipakai.
                   </p>
                 </div>
               )}
@@ -680,8 +663,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       </button>
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      Tempel URL pendek (maps.app.goo.gl) atau URL penuh Google Maps — koordinat terisi otomatis. Bila gagal,
-                      tekan <span className="font-semibold">Isi Otomatis</span> atau isi koordinat manual di bawah.
+                      Tempel link Google Maps — koordinat terisi otomatis.
                     </p>
                   </div>
 
@@ -756,15 +738,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     <p className="font-bold">{GEOFENCE_ROLE_LABEL[activeGeofence.pointType]}</p>
                     <p className="mt-0.5">
                       {activeGeofence.pointType === 'end'
-                        ? 'Titik ini dipakai saat petugas submit / end trip. Letakkan di lokasi tujuan rute (mis. SBDZ).'
+                        ? 'Dipakai saat petugas submit trip (mis. SBDZ).'
                         : activeGeofence.pointType === 'start'
-                          ? 'Titik ini dipakai saat petugas input kendaraan. Letakkan di lokasi awal rute (mis. SJRE).'
-                          : 'Titik lama berlaku untuk awal dan tujuan. Simpan lewat kartu Titik Awal / Titik Tujuan agar perannya jelas.'}
+                          ? 'Dipakai saat petugas input kendaraan (mis. SJRE).'
+                          : 'Berlaku untuk awal dan tujuan.'}
                     </p>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">Radius (meter) <span className="font-normal text-slate-400">— default 100 meter</span></label>
+                  <div>                      <label className="text-xs font-semibold text-slate-600 block mb-1">Radius (meter) <span className="font-normal text-slate-400">— bawaan 100</span></label>
                     <input
                       type="number"
                       min={1}
@@ -776,7 +757,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">
-                      Radius aman zona geofence untuk pengukuran jarak akurat di aplikasi mobile.
+                      Jarak toleransi dari titik ini.
                     </p>
                   </div>
 

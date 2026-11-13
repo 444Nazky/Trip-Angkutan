@@ -372,7 +372,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-black text-[var(--admin-text)] text-lg">Laporan Trip</h3>
-          <p className="text-[var(--admin-text-muted)] text-[12px]">Data trip, kendaraan, dan tarif. Kendaraan Internal tidak ditagih (Rp 0).</p>
+          <p className="text-[var(--admin-text-muted)] text-[12px]">Data trip, kendaraan, dan tarif. Internal tidak ditagih.</p>
         </div>
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[var(--admin-border)] ${
@@ -392,7 +392,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
           </button>
 
           <button onClick={() => { window.location.hash = '#/sheet' }} disabled={reportState !== 'ready'}
-            title="Buka detail kendaraan per trip - tersinkron langsung dari database"
+            title="Detail kendaraan per trip"
             className="bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-[var(--admin-accent-hover)] disabled:opacity-50">
             <Table2 size={15} /> Detail Kendaraan
           </button>
@@ -489,7 +489,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
 
       {reportTruncated && (
         <p className="rounded-xl border border-[var(--admin-warning-border)] bg-[var(--admin-warning-soft)] px-4 py-2 text-[11px] font-semibold text-[var(--admin-warning-text)]">
-          Menampilkan 1000 trip terbaru dari server. Persempit rentang tanggal agar angka di dasbor dan breakdown akurat.
+          1000 trip terbaru saja. Persempit rentang tanggal agar angka akurat.
         </p>
       )}
 

@@ -6,7 +6,7 @@
 > Digabung supaya tidak ada dua sumber yang bisa saling berbeda.
 >
 > Dokumen pendamping: `README.md` (PRD + spesifikasi fitur), `OFFLINE-FIRST-ARCHITECTURE.md`
-> (detail strategi offline), `OTA-UPDATE-SYSTEM.md` (sistem pembaruan), `Structure.md`
+> (detail strategi offline), `Structure.md`
 > (peta direktori), `ALUR_APLIKASI.md` (alur per layar).
 
 ## 1. System Overview
@@ -151,8 +151,7 @@ Detail lengkap: `OFFLINE-FIRST-ARCHITECTURE.md`.
 - **Development**: Backend `npm start`; Mobile `npm start` (dev server); Admin `php -S`.
 - **Production**:
   - Backend: proses manager (PM2) / layanan container.
-  - Mobile: build → `npx cap sync android` → rilis APK (pembaruan berikutnya lewat OTA,
-    lihat `OTA-UPDATE-SYSTEM.md`).
+  - Mobile: build → `npx cap sync android` → rilis APK penuh.
   - Admin: salin build ke web server CodeIgniter (`www/`).
 
 ## 10. Error Handling

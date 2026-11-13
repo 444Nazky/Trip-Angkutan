@@ -268,7 +268,7 @@ fi
 
 # ── Direktori penyimpanan berkas ──────────────────────────────────────────────
 #
-# Berkas (foto trip, APK, bundel OTA) disimpan di ./data/storage yang di-mount
+# Berkas (foto trip, APK) disimpan di ./data/storage yang di-mount
 # ke container API lewat bind-mount.
 #
 # Container API berjalan sebagai user non-root `deno` (uid 1000 di dalam

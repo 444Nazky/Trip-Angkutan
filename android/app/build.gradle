@@ -27,10 +27,9 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.1.6 - Admin menampilkan teks alasan pembatalan yang diketik
-        // petugas, dan sisa kanal OTA sudah dihapus (pembaruan hanya APK penuh).
-        versionCode 26
-        versionName "1.1.6"
+        // Rilis 1.1.7 - UI/teks dirapikan, geofence diperjelas, pembaruan APK penuh.
+        versionCode 27
+        versionName "1.1.7"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

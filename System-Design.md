@@ -17,7 +17,7 @@ Trip Angkutan adalah sistem manajemen angkutan yang terdiri dari:
   - Vehicle input (2-step process)
   - Camera capture for documentation
   - Offline-first architecture with sync queue
-  - Update aplikasi mandiri (APK/OTA lewat Supabase Storage)
+  - Update aplikasi mandiri (APK penuh lewat server)
 
 ### 2.2 Backend API (Supabase Edge Function "api")
 - **Endpoint Structure**: RESTful API dengan JWT custom (HS256, TTL 90 hari)
@@ -29,7 +29,6 @@ Trip Angkutan adalah sistem manajemen angkutan yang terdiri dari:
   - `/region-tariffs` - Tariff configuration
   - `/reports/*` - Reporting and analytics
   - `/app-version`, `/app-download/:version`, `/apk-list` - Distribusi APK
-  - `/ota-manifest`, `/ota-versions` - OTA bundel modul
 
 ### 2.3 Admin Dashboard (embedded)
 - **Tertanam**: `src/pages/admin/` di codebase yang sama, login mode admin

@@ -377,8 +377,8 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Satu baris untuk satu unit kendaraan, dikelompokkan per tanggal - refresh otomatis tiap 15 detik
-              {lastSync && <> - terakhir {lastSync} WIB</>}
+              Satu baris per kendaraan · refresh 15 detik
+              {lastSync && <> · {lastSync} WIB</>}
             </p>
           </div>
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
@@ -598,7 +598,7 @@ export default function ReportSheet() {
 
         <p className="text-[11px] text-slate-400 mt-3 flex items-center gap-1.5">
           <ExternalLink size={12} />
-          Data diambil langsung dari database. Tombol Rekap menampilkan ringkasan per golongan dan jenis kendaraan.
+          Data langsung dari database. Rekap merangkum per golongan & jenis.
         </p>
       </main>
     </div>

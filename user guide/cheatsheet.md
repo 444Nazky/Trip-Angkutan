@@ -29,15 +29,6 @@ curl -s "http://192.168.1.123:3000/api/app-version?current=1.0.2"
 #    → latestVersion: "1.0.3", updateAvailable: true
 ```
 
-> **Penting — `version.json` JANGAN diubah untuk rilis paket APK.**
-> `version.json` adalah manifest **kanal modul web** (OTS), bukan versi APK.
-> Nilainya dikelola `scripts/publish-ota-server.mjs`. Mengubahnya ke versi APK
-> akan **menurunkan** versi modul dan membuat kanal cadangan tidak pernah
-> menawarkan pembaruan. `sync-version.mjs` sekarang tidak menyentuh berkas itu
-> (kecuali bila dipanggil dengan `--module`).
-
----
-
 ## 2. Naikkan Versi
 
 ```bash
@@ -191,17 +182,6 @@ Opsi:
 > Server intranet biasanya berjalan dengan `ADMIN_AUTH_DISABLED=1`, sehingga
 > request tanpa token tetap dianggap admin. Kalau tidak, pakai `--token`.
 
-### 4.3 Kanal modul web (opsional, bukan jalur rilis APK)
-
-```bash
-npm run ota:publish -- --notes="…"
-# atau
-node scripts/publish-ota-server.mjs --notes="…"
-```
-
-Kanal ini Publish bundel web (`www/`) dan **tidak berkaitan** dengan versi
-paket APK. Jangan dipakai untuk uji tombol update versi ini.
-
 ---
 
 ## 5. Skema JSON — Endpoint Cek Versi
@@ -273,7 +253,6 @@ Accept: application/json
 | `/device-versions` | GET | Rekap versi perangkat (butuh admin) |
 | `/publish-version` | POST | Publikasi rilis (butuh `x-publish-secret`) |
 | `/admin/import` | POST | Impor massal (dipakai `publish-apk-republish.mjs`) |
-| `/ota-manifest`, `/ota-versions`, `/publish-ota` | GET/POST | Kanal modul web — kanal cadangan |
 
 Berkas APK disajikan di luar prefix `/api`:
 `GET http://192.168.1.123:3000/files/<bucket>/<path>` → `apks/app-<versi>.apk`.
@@ -373,7 +352,6 @@ curl -s http://192.168.1.123:3000/api/server-stats | python3 -m json.tool | head
 | Versi sudah ada di `app_versions` | Publish `500`, hash di DB tetap yang lama → `HASH_MISMATCH` di perangkat | Pakai `publish-apk-republish.mjs` (bukan `publish-apk.mjs`) |
 | `versionCode` tidak naik | `INSTALL_FAILED_VERSION_DOWNGRADE` | Naikkan `versionCode` (1.0.3 = 12 > 1.0.2 = 11) |
 | `sync-version.mjs` menyentuh baris komentar | `versionCode` tidak berubah | Sudah diperbaiki; verifikasi dengan `grep versionCode android/app/build.gradle` |
-| `version.json` ditulis dengan versi APK | Versi modul turun → kanal OTA tidak pernah menawarkan update | Jangan sentuh `version.json` untuk rilis APK |
 | Nama berkas APK tidak `app-<versi>.apk` | Unduhan 404 | Simpan sebagai `apks/app-<versi>.apk` di disk server |
 | `versionName` di dalam APK ≠ versi yang dipublikasikan | Versi di HP tidak pernah naik; popup update muncul selamanya | Cek dengan `aapt2 dump badging`; skrip publish menolak otomatis bila beda |
 | Sertifikat tanda tangan berbeda | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Pakai keystore `android/app/tripangkut.keystore` yang sama |
@@ -431,7 +409,7 @@ curl -s http://192.168.1.123:3000/api/server-stats | python3 -m json.tool | head
 | Topik | Lokasi |
 |---|---|
 | Handler versi server | `server/api/handlers/appVersion.ts` |
-| Routing endpoint | `server/api/index.ts` (bagian "app update / OTA") |
+| Routing endpoint | `server/api/index.ts` (bagian "app update") |
 | Penyimpanan berkas lokal | `server/api/_db.ts` (`serveStoredFile`, `db.storage`) |
 | Server intranet (Deno) | `server/api/local_server.ts` |
 | State machine update | `src/services/updateService.ts` |

@@ -459,13 +459,13 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
               <p className="font-semibold mb-1">Belum ada titik geofence tersimpan.</p>
-              <p>Sinkronkan untuk menarik data dari server, atau tambah manual.</p>
+              <p>Sinkronkan atau tambah titik manual.</p>
               {diag && (
                 <p className="mt-2 text-[11px] text-amber-700">
                   Sync: {diag.received} titik, {diag.active} aktif, {diag.scoped} cocok
                   {diag.assignedCodes.length > 0 ? ` (${diag.assignedCodes.join(', ')})` : ''}.
                   {diag.received > 0 && diag.scoped === 0
-                    ? ' Minta admin daftarkan titik untuk rute ini.'
+                    ? ' Minta admin daftarkan titik rute ini.'
                     : ''}
                 </p>
               )}

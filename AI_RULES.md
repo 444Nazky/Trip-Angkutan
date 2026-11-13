@@ -16,18 +16,15 @@
 - **URL cloud**: `https://bmiruktfruunegtbydyw.supabase.co/functions/v1/api`
 - **URL intranet**: `http://192.168.1.123:3000/api` (PC kantor, port 3000)
 - **Database**: Supabase PostgreSQL (dari kedua endpoint)
-- **Storage**: Supabase Storage buckets (`apks`, `ota`)
+- **Storage**: berkas APK di storage server intranet (`/files/apks/`)
 - Mobile memilih endpoint lewat "Pengaturan Server" (Profil / Login)
 - Admin dashboard tetap memakai Supabase cloud
 
 Router, rate limit, cache, dan CORS SAMA untuk keduanya - `index.ts` mengekspor
 `handleRequest`, dipakai oleh Edge Runtime (cloud) dan `local_server.ts` (intranet).
 
-**ATURAN**: URL storage (`/storage/v1/object/public/...` untuk bundel OTA & APK)
-SELALU memakai host Supabase cloud - pakai `supabaseProjectOrigin()` dari
-`src/services/api.ts`, JANGAN turunkan dari `api.baseUrl` yang sedang aktif.
-Kalau ikut `api.baseUrl`, begitu petugas pilih endpoint intranet, unduhan OTA
-mengarah ke port 3000 yang tidak melayani `/storage` -> 404.
+**ATURAN**: unduhan APK memakai path relatif dari server update (`/app-download/...`
+-> `/files/apks/...`). Pembaruan hanya lewat APK penuh.
 
 `api.baseUrl` bersifat LIVE (bukan konstanta modul) supaya ganti endpoint
 langsung berlaku tanpa reload aplikasi.

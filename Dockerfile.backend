@@ -41,7 +41,7 @@ EXPOSE 3000
 # --allow-net   : serve request lokal + fetch ke PostgREST (http://rest:3000)
 # --allow-env   : baca POSTGREST_URL / STORAGE_DIR / JWT_SECRET / dll
 # --allow-read  : baca file handler + berkas di STORAGE_DIR
-# --allow-write : tulis berkas (foto trip, APK, bundel OTA) ke STORAGE_DIR
+# --allow-write : tulis berkas (foto trip, APK) ke STORAGE_DIR
 # --allow-sys  : Deno.networkInterfaces() untuk mencetak IP LAN di banner.
 #                TANPA flag ini fungsi itu melempar "Requires sys access" dan
 #                daftar IP LAN selalu kosong (tanpa error yang mencolok).
