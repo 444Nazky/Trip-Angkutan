@@ -131,9 +131,9 @@ export default function ServerSettingsModal({ onClose }: Props) {
           <Server size={14} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-slate-800">Pengaturan Server</p>
+          <p className="text-[13px] font-semibold text-slate-800">Pilih Endpoint</p>
           <p className="truncate text-[10px] text-slate-400">
-            Aktif: {activeUrl}
+            Server intranet yang digunakan: {activeUrl}
             {apiBaseCandidateLabel(activeUrl) ? ` (${apiBaseCandidateLabel(activeUrl)})` : ''}
           </p>
         </div>

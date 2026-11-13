@@ -187,7 +187,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <button
             type="button"
             onClick={() => setShowServer(true)}
-            aria-label="Pengaturan Server"
+            aria-label="Pilih Endpoint"
             className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white transition-colors"
           >
             <Settings size={20} />
