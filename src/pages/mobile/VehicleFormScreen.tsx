@@ -4,15 +4,12 @@ import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
 import {
-
-
-
-
   formatPlateNumber,
   validatePlate,
   sanitizePlateInput,
   PLATE_REGEX_STRICT,
 } from '../../utils/plateFormatter'
+import { loadChoiceApplies } from '../../utils/vehicleLoad'
 
 
 
@@ -76,6 +73,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const categoryOk = !!category && category !== CATEGORY_PLACEHOLDER
   const isFormComplete = !!photoTaken && plateOk && typeOk && categoryOk
 
+  // Kondisi kendaraan hanya ditanyakan untuk truk eksternal (lihat
+  // utils/vehicleLoad.ts). Di luar itu tombol Muatan/Kosong tidak dirender.
+  const loadApplies = loadChoiceApplies(category, vehicleType)
+
   const filledCount = [!!photoTaken, plateOk, typeOk, categoryOk].filter(Boolean).length
 
   const runCheck = async (p: string) => {
@@ -87,8 +88,14 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     setCheckLoading(false)
   }
 
-  const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) =>
-    patchDraft({ vehicleForm: { ...draft.vehicleForm, ...p } })
+  const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) => {
+    const next = { ...draft.vehicleForm, ...p }
+    // Saat kategori/jenis berubah ke kombinasi yang tidak memakai pilihan
+    // muatan, nilai 'empty' lama tidak boleh ikut tersimpan tanpa bisa dilihat
+    // petugas — kembalikan ke bawaan (muatan).
+    if (!loadChoiceApplies(next.category, next.type)) next.load = 'loaded'
+    patchDraft({ vehicleForm: next })
+  }
 
   // `setField` menutup `draft.vehicleForm`, jadi identitasnya berubah setiap
   // render. Effect OCR di bawah hanya boleh dipicu oleh `draft.ocrResult`;
@@ -161,8 +168,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       type: vehicleType,
       category,
       golongan: golonganFor(vehicleType),
-      load: vehicleLoad,
-      tariff: vehicleTariff(vehicleType, category, vehicleLoad),
+      // Pilihan muatan hanya dipakai bila tombolnya memang tampil; di luar
+      // itu kondisi kendaraan dicatat sebagai bawaan (muatan).
+      load: loadApplies ? vehicleLoad : 'loaded' as const,
+      tariff: vehicleTariff(vehicleType, category, loadApplies ? vehicleLoad : 'loaded'),
       photoUrl: draft.vPhotoUrl,
       photoCapturedAt: draft.vPhotoCapturedAt,
       photoLatitude: draft.vPhotoLatitude,
@@ -232,8 +241,87 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         </div>
       )}
 
-      {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk */}
+      {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk.
+          Urutan mengikuti alur petugas: kategori dulu (dasar tarif), lalu jenis
+          (menentukan golongan), foto bukti, dan nomor plat paling akhir. */}
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+        {/* Kategori — wajib */}
+        <div className="px-4 py-3.5">
+          <label htmlFor="v-category" className="text-[13px] font-medium text-slate-600 block mb-2">
+            Kategori <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <select
+              id="v-category"
+              value={categoryOk ? category : ''}
+              onChange={e => setField({ category: e.target.value })}
+              disabled={draftLocked}
+              className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
+                categoryOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
+              }`}
+            >
+              <option value="">{CATEGORY_PLACEHOLDER}</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
+          </div>
+        </div>
+
+        {/* Jenis Kendaraan — wajib */}
+        <div className="px-4 py-3.5">
+          <label htmlFor="v-type" className="text-[13px] font-medium text-slate-600 block mb-2">
+            Jenis Kendaraan <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <select
+              id="v-type"
+              value={typeOk ? vehicleType : ''}
+              onChange={e => setField({ type: e.target.value })}
+              disabled={draftLocked}
+              className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
+                typeOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
+              }`}
+            >
+              <option value="">{TYPE_PLACEHOLDER}</option>
+              {vehicleTypes.map(vt => (
+                <option key={vt} value={vt}>{vt}</option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
+          </div>
+          {vehicleTypes.length === 0 && (
+            <p className="mt-1.5 text-[11px] text-amber-600">
+              Belum ada daftar jenis kendaraan di perangkat. Sambungkan ke server sekali untuk
+              menarik master jenis kendaraan.
+            </p>
+          )}
+
+          {/* Grup kondisi kendaraan: hanya untuk Eksternal + truk/trip. */}
+          {loadApplies && (
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500">Kondisi kendaraan</span>
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="group" aria-label="Kondisi kendaraan">
+                {([['loaded', 'Muatan'], ['empty', 'Kosong']] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setField({ load: value })}
+                    disabled={draftLocked}
+                    aria-pressed={vehicleLoad === value}
+                    className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${
+                      vehicleLoad === value ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Foto Dokumentasi */}
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between mb-2">
@@ -266,7 +354,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <span className="w-11 h-11 rounded-lg bg-slate-100 flex items-center justify-center">
                   <Camera size={18} className="text-slate-500" />
                 </span>
-                <span className="text-sm text-slate-600">Ambil foto dari kamera</span>
+                <span className="text-sm text-slate-600">Foto kendaraan dari depan</span>
               </>
             )}
           </button>
@@ -294,22 +382,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               spellCheck={false}
               className="min-w-0 flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
             />
-            <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="group" aria-label="Kondisi kendaraan">
-              {([['loaded', 'Muatan'], ['empty', 'Kosong']] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setField({ load: value })}
-                  disabled={draftLocked}
-                  aria-pressed={vehicleLoad === value}
-                  className={`px-2.5 py-2 text-[11px] font-semibold rounded-md transition-colors ${
-                    vehicleLoad === value ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
           {(checkLoading || check?.found) && (
@@ -332,60 +404,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             </div>
           )}
         </div>
-
-        {/* Jenis Kendaraan — wajib */}
-        <div className="px-4 py-3.5">
-          <label htmlFor="v-type" className="text-[13px] font-medium text-slate-600 block mb-2">
-            Jenis Kendaraan <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <select
-              id="v-type"
-              value={typeOk ? vehicleType : ''}
-              onChange={e => setField({ type: e.target.value })}
-              disabled={draftLocked}
-              className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
-                typeOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
-              }`}
-            >
-              <option value="">{TYPE_PLACEHOLDER}</option>
-              {vehicleTypes.map(vt => (
-                <option key={vt} value={vt}>{vt}</option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
-          </div>
-          {vehicleTypes.length === 0 && (
-            <p className="mt-1.5 text-[11px] text-amber-600">
-              Belum ada daftar jenis kendaraan di perangkat. Sambungkan ke server sekali untuk
-              menarik master jenis kendaraan.
-            </p>
-          )}
-        </div>
-
-        {/* Kategori — wajib */}
-        <div className="px-4 py-3.5">
-          <label htmlFor="v-category" className="text-[13px] font-medium text-slate-600 block mb-2">
-            Kategori <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <select
-              id="v-category"
-              value={categoryOk ? category : ''}
-              onChange={e => setField({ category: e.target.value })}
-              disabled={draftLocked}
-              className={`w-full appearance-none bg-slate-50 border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 ${
-                categoryOk ? 'border-slate-200 text-slate-900' : 'border-slate-300 text-slate-400'
-              }`}
-            >
-              <option value="">{CATEGORY_PLACEHOLDER}</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
-          </div>
-        </div>
       </div>
 
       {/* Tombol Simpan — terkunci sampai 4/4 */}
@@ -400,15 +418,15 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       >
         {draftLocked
           ? 'Draft Kedaluwarsa'
-          : !photoTaken
-          ? 'Ambil Foto Dahulu'
-          : !plateOk
-            ? 'Isi Nomor Plat'
+          : !categoryOk
+            ? 'Pilih Kategori'
             : !typeOk
               ? 'Pilih Jenis Kendaraan'
-              : !categoryOk
-                ? 'Pilih Kategori'
-                : isEditing ? 'Perbarui Kendaraan' : 'Simpan Kendaraan'}
+              : !photoTaken
+                ? 'Ambil Foto Kendaraan'
+                : !plateOk
+                  ? 'Isi Nomor Plat'
+                  : isEditing ? 'Perbarui Kendaraan' : 'Simpan Kendaraan'}
       </button>
       {isEditing && (
         <button
@@ -433,7 +451,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                   {unitLabel(draft.vehicles, i)}
                 </span>
                 <span className="font-mono font-bold text-[13px] text-slate-800">{v.plate}</span>
-                <span className="text-xs text-slate-500">{v.category} · {v.load === 'empty' ? 'Kosong' : 'Muatan'}</span>
+                <span className="text-xs text-slate-500">
+                  {v.category}
+                  {loadChoiceApplies(v.category, v.type) ? ` · ${v.load === 'empty' ? 'Kosong' : 'Muatan'}` : ''}
+                </span>
                 {/* Edit sebelum submit — perbaiki atau buang kendaraan ini */}
                 <button
                   onClick={() => editDraftVehicle(i)}
@@ -487,10 +508,12 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 <span className="text-slate-500">Kategori</span>
                 <span>{category}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Kondisi</span>
-                <span>{vehicleLoad === 'empty' ? 'Tanpa Muatan' : 'Ada Muatan'}</span>
-              </div>
+              {loadApplies && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Kondisi</span>
+                  <span>{vehicleLoad === 'empty' ? 'Tanpa Muatan' : 'Ada Muatan'}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
