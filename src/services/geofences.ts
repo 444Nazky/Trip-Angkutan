@@ -1,10 +1,13 @@
 import { api, toActionResult, failureReason, type ActionResult } from './api'
+import { normalizeGeofenceRole, type GeofencePointRole } from '../utils/geofenceRole'
 
 
 
 export interface GeofenceRule {
   id: string
   locationName: string
+  /** Titik awal (input kendaraan), titik tujuan (end trip), atau keduanya. */
+  pointType?: GeofencePointRole
   /** Dermaga pemilik titik. Wajib dikirim agar titik TIDAK berlaku untuk semua
    *  dermaga (NULL = "berlaku umum"), yang dulu membuat daftar geofence petugas
    *  saling bercampur antar dermaga. */
@@ -26,6 +29,7 @@ export async function fetchGeofenceRules(): Promise<GeofenceRule[] | null> {
   if (!rules) return null
   return rules.map(r => ({
     ...r,
+    pointType: normalizeGeofenceRole(r.pointType),
     allowedRouteCodes: Array.isArray(r.allowedRouteCodes) ? r.allowedRouteCodes : String(r.allowedRouteCodes ?? '').split(',').filter(Boolean),
     allowedDirections: Array.isArray(r.allowedDirections) ? r.allowedDirections : String(r.allowedDirections ?? '').split(',').filter(Boolean),
   }))
@@ -38,6 +42,7 @@ export async function createGeofenceRule(
 ): Promise<ActionResult<string>> {
   const res = await api.post<{ id: string }>('/geofences', {
     locationName: data.locationName,
+    pointType: normalizeGeofenceRole(data.pointType),
     // ponytail: dermagaId WAJIB ikut. Dulu field ini tidak pernah dikirim sehingga
     // setiap titik tersimpan dermaga_id = NULL ("berlaku umum") → semua dermaga
     // mendapat semua titik, radius saling tumpang tindih, dan filter per-dermaga
@@ -82,6 +87,7 @@ export async function deleteGeofenceRule(id: string): Promise<ActionResult> {
 export interface RouteGeofencePoint {
   id: string
   locationName: string
+  pointType?: GeofencePointRole
   dermagaId?: string | null
   latitude: number
   longitude: number

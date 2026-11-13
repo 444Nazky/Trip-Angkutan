@@ -1,3 +1,5 @@
+import type { GeofencePointRole } from '../../../utils/geofenceRole'
+
 export type AdminTab =
   | 'reports'
   | 'cancellations'
@@ -66,6 +68,8 @@ export interface RouteFormState {
 export interface GeofencePoint {
   id?: string
   locationName: string
+  /** Titik awal (input kendaraan), titik tujuan (end trip), atau keduanya. */
+  pointType: GeofencePointRole
   latitude: string
   longitude: string
   radiusMeters: string

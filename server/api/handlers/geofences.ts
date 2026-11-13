@@ -56,6 +56,18 @@ export async function resolveDermagaId(raw: unknown): Promise<string> {
   return data?.id ?? value;
 }
 
+/**
+ * Peran titik geofence: titik awal (input kendaraan) atau titik tujuan
+ * (submit / end trip). Nilai tak dikenal disimpan sebagai 'both' agar data
+ * lama / klien lama tetap valid.
+ */
+export function normalizePointType(value: unknown): "start" | "end" | "both" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "start" || raw === "awal" || raw === "input") return "start";
+  if (raw === "end" || raw === "tujuan" || raw === "submit") return "end";
+  return "both";
+}
+
 export function shape(rows: any[] | null): unknown[] {
   return (rows ?? []).map((r) => ({
     id: r.id,
@@ -69,6 +81,7 @@ export function shape(rows: any[] | null): unknown[] {
     allowedDirections: String(r.allowed_directions ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     description: r.description ?? "",
     enabled: r.enabled === undefined || r.enabled === null ? true : Number(r.enabled) !== 0,
+    pointType: normalizePointType(r.point_type),
   }));
 }
 
@@ -165,6 +178,7 @@ export async function createGeofence(req: Request): Promise<Response> {
         allowed_directions: Array.isArray(body.allowedDirections) ? body.allowedDirections.join(",") : String(body.allowedDirections ?? ""),
         description: body.description ? String(body.description) : "",
         enabled: body.enabled === undefined || body.enabled === null ? 1 : (body.enabled ? 1 : 0),
+        point_type: normalizePointType(body.pointType),
       })
       .select("id")
       .single();
@@ -213,6 +227,7 @@ export async function updateGeofence(req: Request, id: string): Promise<Response
       updateData.allowed_directions = Array.isArray(b.allowedDirections) ? b.allowedDirections.join(",") : String(b.allowedDirections);
     }
     if (b.description !== undefined) updateData.description = String(b.description ?? "");
+    if (b.pointType !== undefined) updateData.point_type = normalizePointType(b.pointType);
     if (b.dermagaId !== undefined) updateData.dermaga_id = b.dermagaId ? String(b.dermagaId) : null;
     if (b.enabled !== undefined) updateData.enabled = b.enabled ? 1 : 0;
 

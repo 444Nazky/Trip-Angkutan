@@ -4,6 +4,7 @@ import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check } from 'luc
 import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
 import { fetchGeofencePointsForRoute, createRouteGeofencePoint, updateGeofenceRule, deleteGeofenceRule } from '../../../services/geofences'
 import { isShortMapsLink, parseMapsUrl, resolveMapsShortLink, osmEmbeddedMapUrl, googleMapsLink, type ParsedGeo } from '../../../services/geo'
+import { GEOFENCE_ROLE_LABEL, type GeofencePointRole } from '../../../utils/geofenceRole'
 import type { RouteRow, RouteDermaga, RouteFormState, GeofencePoint } from '../components/types'
 import { emptyRouteForm } from '../components/types'
 
@@ -141,6 +142,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     const mapped: GeofencePoint[] = points.map(p => ({
       id: p.id,
       locationName: p.locationName,
+      pointType: p.pointType ?? 'both',
       latitude: String(p.latitude),
       longitude: String(p.longitude),
       radiusMeters: String(p.radiusMeters),
@@ -170,6 +172,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     setActiveGeofence({
       id: undefined,
       locationName: '',
+      pointType: 'both',
       latitude: '',
       longitude: '',
       radiusMeters: '100',
@@ -262,7 +265,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
   const saveGeofencePoint = async (routeCode: string) => {
     if (!activeGeofence) return
-    const { id, locationName, latitude, longitude, radiusMeters, description } = activeGeofence
+    const { id, locationName, pointType, latitude, longitude, radiusMeters, description } = activeGeofence
 
     if (!locationName.trim()) {
       showToast('Nama lokasi wajib diisi', 'error')
@@ -299,6 +302,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     const routeDermagaId = currentRouteForGeofence?.dermaga_id ?? null
     const data = {
       locationName: locationName.trim(),
+      pointType,
       latitude: Number(lat),
       longitude: Number(lon),
       radiusMeters: Number(rad),
@@ -490,6 +494,18 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-snug text-slate-600">
+                <p>
+                  <span className="font-bold text-slate-800">Titik Awal</span> dipakai saat petugas input
+                  kendaraan. <span className="font-bold text-slate-800">Titik Tujuan</span> dipakai saat
+                  petugas submit / end trip.
+                </p>
+                <p className="mt-1">
+                  Contoh rute SJRE → SBDZ: titik di SJRE berperan Titik Awal, titik di SBDZ berperan Titik
+                  Tujuan. Tanpa titik tujuan, trip tidak bisa dikirim.
+                </p>
+              </div>
+
               {geofencePoints.length === 0 && !activeGeofence && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 text-center">
                   Belum ada titik geofence untuk rute ini.<br />
@@ -501,7 +517,18 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                 <div key={point.id || idx} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <p className="font-semibold text-slate-900">{point.locationName}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900">{point.locationName}</p>
+                        <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${
+                          point.pointType === 'end'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : point.pointType === 'start'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {GEOFENCE_ROLE_LABEL[point.pointType]}
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-500 font-mono mt-1">
                         {point.latitude}, {point.longitude} · {point.radiusMeters}m
                       </p>
@@ -644,6 +671,30 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       placeholder="cth: Dermaga Badau - Titik A"
                       className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                      Peran Titik
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {(['start', 'end', 'both'] as const).map((role: GeofencePointRole) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setActiveGeofence(prev => prev ? { ...prev, pointType: role } : null)}
+                          className={`px-2 py-2 text-[11px] font-semibold rounded-xl border transition-colors ${activeGeofence.pointType === role
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          {GEOFENCE_ROLE_LABEL[role]}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Letakkan Titik Tujuan di lokasi tujuan rute (mis. SBDZ). Petugas hanya bisa
+                      submit trip saat berada di titik tujuan ini.
+                    </p>
                   </div>
 
                   <div>

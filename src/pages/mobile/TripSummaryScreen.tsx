@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { ChevronLeft, Truck, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
-import { validateRouteForCurrentLocation } from '../../services/geofence'
+import { validateTripEndForCurrentLocation } from '../../services/geofence'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
 
@@ -68,6 +68,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     closeConfirmDialog()
   }, [pendingAction, closeConfirmDialog])
 
+  // Submit (end trip) divalidasi terhadap titik TUJUAN, bukan titik awal:
+  // contoh input di SJRE lalu submit di SBDZ — petugas harus sudah berada di
+  // titik geofence SBDZ. Titik tujuan diatur admin di Master Rute → Geofence.
   useEffect(() => {
     if (!draft.routeCode) return
     let alive = true
@@ -77,7 +80,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
       // Clear previous error with debounce to let GPS settle
       if (errorTimeout) clearTimeout(errorTimeout)
       setGeofenceError(null)
-      validateRouteForCurrentLocation(draft.routeCode!)
+      validateTripEndForCurrentLocation(draft.routeCode!)
         .then(result => {
           if (!alive) return
           // Debounce error display - give GPS time to stabilize
@@ -106,8 +109,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   // tidak diizinkan di titik Y. Rute yang diizinkan: ...") dipotong jadi satu
   // kalimat.
   const formatGeofenceError = (result: { reason?: string; activePoint?: { name?: string } | null }) => {
-    if (result.activePoint) return 'Rute ini tidak sesuai area Anda.'
-    return 'Anda sedang berada di luar area bertugas.'
+    if (result.reason?.includes('belum diatur admin')) return 'Titik tujuan trip ini belum diatur admin.'
+    if (result.activePoint) return 'Anda belum berada di titik tujuan trip ini.'
+    return 'Anda belum berada di titik tujuan trip ini.'
   }
 
   useEffect(() => {
@@ -137,7 +141,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
   const handleSubmit = async () => {
     if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
-    const result = await validateRouteForCurrentLocation(draft.routeCode!)
+    const result = await validateTripEndForCurrentLocation(draft.routeCode!)
     if (!result.valid) {
       setGeofenceBlocked(result.blocked === true)
       setGeofenceError(formatGeofenceError(result))
@@ -331,7 +335,10 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           {geofenceError && (
             <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[11px] ${geofenceBlocked ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
               <AlertCircle size={14} className="shrink-0" />
-              <span>{geofenceBlocked ? 'Anda sedang berada di luar area bertugas' : 'Rute ini tidak sesuai area Anda'}</span>
+              <span>
+                {geofenceError}
+                {route.to ? ` (tujuan: ${route.to})` : ''}
+              </span>
             </div>
           )}
 

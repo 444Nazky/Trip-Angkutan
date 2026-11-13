@@ -26,6 +26,7 @@ import {
   forceSyncGeofencesFromBackend,
   getActiveGeofenceSnapshot,
   validateRouteForCurrentLocation,
+  validateTripEndForCurrentLocation,
   getCurrentPosition,
   resetGpsFixCache,
   GEOFENCE_UPDATED_EVENT,
@@ -613,5 +614,93 @@ describe('radius tumpang tindih antar-dermaga (kasus Dewi: pilih D1 di lokasi D1
 
     const wrong = await validateRouteForCurrentLocation('AAAA-BBBB', undefined, D1_UUID)
     expect(wrong.valid).toBe(false)
+  })
+})
+
+describe('validasi end trip terhadap titik tujuan', () => {
+  const START: GeofencePoint = {
+    id: 'geo-start',
+    name: 'SJRE Titik Awal',
+    latitude: -0.85,
+    longitude: 108.83,
+    radiusMeters: 100,
+    allowedRoutes: ['SJRE-SBDZ'],
+    pointType: 'start',
+    enabled: true,
+  }
+  const END: GeofencePoint = {
+    id: 'geo-end',
+    name: 'SBDZ Titik Tujuan',
+    latitude: -0.9,
+    longitude: 108.9,
+    radiusMeters: 100,
+    allowedRoutes: ['SJRE-SBDZ'],
+    pointType: 'end',
+    enabled: true,
+  }
+
+  it('submit hanya valid saat petugas berada di titik tujuan', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    saveGeofencePoints([START, END])
+
+    const atStart = await validateTripEndForCurrentLocation('SJRE-SBDZ', {
+      latitude: START.latitude,
+      longitude: START.longitude,
+    })
+    expect(atStart.valid).toBe(false)
+    expect(atStart.blocked).toBe(true)
+
+    const atEnd = await validateTripEndForCurrentLocation('SJRE-SBDZ', {
+      latitude: END.latitude,
+      longitude: END.longitude,
+    })
+    expect(atEnd.valid).toBe(true)
+    expect(atEnd.activePoint?.id).toBe('geo-end')
+  })
+
+  it('input kendaraan tidak memakai titik tujuan', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    saveGeofencePoints([END])
+
+    const res = await validateRouteForCurrentLocation('SJRE-SBDZ', {
+      latitude: END.latitude,
+      longitude: END.longitude,
+    })
+    expect(res.blocked).toBe(true)
+  })
+
+  it('titik lama tanpa peran (both) tetap bisa dipakai submit', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    saveGeofencePoints([{ ...POINT, id: 'geo-legacy' }])
+
+    const res = await validateTripEndForCurrentLocation('SJRE-SBDZ', {
+      latitude: POINT.latitude,
+      longitude: POINT.longitude,
+    })
+    expect(res.valid).toBe(true)
+    expect(res.activePoint?.id).toBe('geo-legacy')
+  })
+
+  it('titik tujuan untuk rute lain tidak meloloskan submit', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    saveGeofencePoints([{ ...END, allowedRoutes: ['LAIN-XYZ'] }])
+
+    const res = await validateTripEndForCurrentLocation('SJRE-SBDZ', {
+      latitude: END.latitude,
+      longitude: END.longitude,
+    })
+    expect(res.blocked).toBe(true)
+  })
+
+  it('hanya titik awal → pesan jelas bahwa titik tujuan belum diatur', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    saveGeofencePoints([START])
+
+    const res = await validateTripEndForCurrentLocation('SJRE-SBDZ', {
+      latitude: START.latitude,
+      longitude: START.longitude,
+    })
+    expect(res.blocked).toBe(true)
+    expect(res.reason).toContain('Titik tujuan')
   })
 })

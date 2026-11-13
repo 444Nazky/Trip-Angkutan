@@ -6,6 +6,12 @@
 import { api } from './api'
 import { getStoredDermaga, getStoredOfficer, getStoredRoutes } from './auth'
 import { Geolocation } from '@capacitor/geolocation'
+import {
+  geofenceRoleServes,
+  normalizeGeofenceRole,
+  type GeofencePhase,
+  type GeofencePointRole,
+} from '../utils/geofenceRole'
 
 export const GEOFENCE_UPDATED_EVENT = 'trip:geofence-updated'
 
@@ -19,6 +25,8 @@ export interface GeofencePoint {
   radiusMeters: number
   allowedRoutes: string[]
   dermagaId?: string | null
+  /** Titik awal / tujuan / keduanya. Data lama tanpa nilai = 'both'. */
+  pointType?: GeofencePointRole
   enabled: boolean
   strictEnforceOutsideArea?: boolean
 }
@@ -32,6 +40,7 @@ export interface PartialGeofencePoint {
   radiusMeters?: number
   allowedRoutes?: string[]
   dermagaId?: string | null
+  pointType?: GeofencePointRole
   enabled?: boolean
   strictEnforceOutsideArea?: boolean
 }
@@ -92,6 +101,7 @@ export function getStoredGeofencePoints(): GeofencePoint[] {
             ? point['allowed_route_codes'].map(String)
             : [],
       dermagaId: (point.dermagaId ?? null) as string | null,
+      pointType: normalizeGeofenceRole(point.pointType ?? point['point_type']),
       enabled: point.enabled !== false,
       strictEnforceOutsideArea: point.strictEnforceOutsideArea !== false,
     })).filter(point => point.id && Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
@@ -399,6 +409,7 @@ function saveSyncedRows(rows: GeofenceRaw[], cached: GeofencePoint[]): SyncResul
     radiusMeters: point.radiusMeters,
     allowedRoutes: point.allowedRoutes,
     dermagaId: point.dermagaId ?? null,
+    pointType: point.pointType ?? 'both',
     enabled: point.enabled,
   }))
   const oldSerialized = JSON.stringify(canonical(cached))
@@ -446,6 +457,8 @@ interface GeofenceRaw {
   allowedRouteCodes?: string[]
   dermaga_id?: string
   dermagaId?: string
+  point_type?: string
+  pointType?: string
   enabled?: boolean
 }
 
@@ -461,7 +474,8 @@ function mapGeofence(g: GeofenceRaw): GeofencePoint | null {
     longitude: lon,
     radiusMeters: Number(g.radius_meters ?? g.radiusMeters) || 100,
     allowedRoutes: Array.isArray(routes) ? routes.map(String).filter(Boolean) : [],
-      dermagaId: g.dermaga_id || g.dermagaId || null,
+    dermagaId: g.dermaga_id || g.dermagaId || null,
+    pointType: normalizeGeofenceRole(g.point_type ?? g.pointType),
     enabled: g.enabled === undefined || g.enabled === null || g.enabled !== false,
     strictEnforceOutsideArea: true,
   }
@@ -497,42 +511,14 @@ export interface ActiveSnapshot {
 }
 
 /**
- * Dapatkan titik geofence aktif berdasarkan lokasi GPS saat ini.
- * Kalau dockId disediakan → hanya titik milik dermaga tsb.
+ * Pilih titik yang benar-benar ditempati petugas.
+ * Urutan: titik milik dermaga terpilih dulu, lalu jarak terdekat.
  */
-export async function getActiveGeofenceSnapshot(
-  gpsPosition?: { latitude: number; longitude: number },
-  dockId?: string | null
-): Promise<ActiveSnapshot> {
-  const cached = getCachedGpsFix()
-  const availablePoints = scopedGeofencePoints(getStoredGeofencePoints())
-  let points = availablePoints
-
-  if (dockId) {
-    const exactDock = availablePoints.filter(point => point.dermagaId === dockId)
-    const shared = availablePoints.filter(point => !point.dermagaId || !isUuid(point.dermagaId))
-    points = exactDock.length ? [...exactDock, ...shared] : shared
-    // Titik bisa saja tertaut ke dermaga lain (data admin berubah / petugas
-    // memilih dermaga berbeda). Jangan langsung menyimpulkan "konfigurasi
-    // kosong": nilai dulu posisi sebenarnya, lalu UI menampilkan status
-    // "di luar area bertugas" (mismatch) apa adanya. Dulu kondisi ini memicu
-    // sync berulang dan memblokir petugas yang sudah berdiri di titiknya.
-    if (!points.length) points = availablePoints
-  }
-
-  if (points.length === 0) {
-    return { valid: false, activePoint: null, blocked: true, configMissing: true }
-  }
-
-  const freshPosition = gpsPosition ?? (cached
-    ? undefined
-    : await getCurrentPosition().then(fix => fix ? { latitude: fix.lat, longitude: fix.lng } : undefined))
-  const pos = freshPosition || cached
-  if (!pos) {
-    return { valid: false, activePoint: null, blocked: true, reason: 'GPS tidak tersedia' }
-  }
-
-  // Urutkan: dermaga match duluan, lalu jarak terdekat
+function pickPointAt(
+  points: GeofencePoint[],
+  pos: { latitude: number; longitude: number },
+  dockId?: string | null,
+): GeofencePoint | null {
   const scored = points
     .map(p => {
       const dist = haversineDistance(pos.latitude, pos.longitude, p.latitude, p.longitude)
@@ -543,16 +529,84 @@ export async function getActiveGeofenceSnapshot(
         dockMatch = !p.dermagaId || !isUuid(p.dermagaId) || p.dermagaId === dockId
       }
       const dockPriority = !dockId || dockMatch ? 0 : (p.dermagaId && isUuid(p.dermagaId) ? 2 : 1)
-      return { point: p, dist, inRange, dockMatch, dockPriority }
+      return { point: p, dist, inRange, dockPriority }
     })
     .filter(s => s.inRange)
     .sort((a, b) => a.dockPriority - b.dockPriority || a.dist - b.dist)
+  return scored[0]?.point ?? null
+}
 
-  if (scored.length === 0) {
-    return { valid: false, activePoint: null, blocked: true }
+async function resolvePosition(
+  gpsPosition?: { latitude: number; longitude: number },
+): Promise<{ latitude: number; longitude: number } | null> {
+  if (gpsPosition) return gpsPosition
+  const cached = getCachedGpsFix()
+  if (cached) return { latitude: cached.latitude, longitude: cached.longitude }
+  const fix = await getCurrentPosition()
+  return fix ? { latitude: fix.lat, longitude: fix.lng } : null
+}
+
+function pointsForDock(points: GeofencePoint[], dockId?: string | null): GeofencePoint[] {
+  if (!dockId) return points
+  const exactDock = points.filter(point => point.dermagaId === dockId)
+  const shared = points.filter(point => !point.dermagaId || !isUuid(point.dermagaId))
+  const scoped = exactDock.length ? [...exactDock, ...shared] : shared
+  // Titik bisa saja tertaut ke dermaga lain (data admin berubah / petugas
+  // memilih dermaga berbeda). Jangan langsung menyimpulkan "konfigurasi
+  // kosong": nilai dulu posisi sebenarnya, lalu UI menampilkan status
+  // "di luar area bertugas" (mismatch) apa adanya. Dulu kondisi ini memicu
+  // sync berulang dan memblokir petugas yang sudah berdiri di titiknya.
+  return scoped.length ? scoped : points
+}
+
+/**
+ * Dapatkan titik geofence aktif berdasarkan lokasi GPS saat ini.
+ *
+ * `phase` membatasi titik sesuai perannya:
+ *  - 'start' → titik awal + titik 'both' (dipakai saat memilih rute/input)
+ *  - 'end'   → titik tujuan + titik 'both' (dipakai saat submit/end trip)
+ *  - tanpa phase → semua titik (dipakai layar yang hanya menampilkan posisi)
+ * Kalau dockId disediakan → hanya titik milik dermaga tsb.
+ */
+export async function getActiveGeofenceSnapshot(
+  gpsPosition?: { latitude: number; longitude: number },
+  dockId?: string | null,
+  phase?: GeofencePhase,
+): Promise<ActiveSnapshot> {
+  const scoped = scopedGeofencePoints(getStoredGeofencePoints())
+  const phasePoints = phase
+    ? scoped.filter(point => geofenceRoleServes(point.pointType, phase))
+    : scoped
+
+  if (scoped.length > 0 && phasePoints.length === 0) {
+    // Konfigurasi ADA, hanya belum ada titik untuk tahap ini. Jangan ditandai
+    // configMissing: itu memicu sinkron ulang terus dan menyembunyikan sebab
+    // sebenarnya (admin belum mengatur titik tujuan).
+    return {
+      valid: false,
+      activePoint: null,
+      blocked: true,
+      reason: phase === 'end'
+        ? 'Titik tujuan (end trip) belum diatur admin.'
+        : 'Titik awal (input) belum diatur admin.',
+    }
   }
 
-  return { valid: true, activePoint: scored[0].point }
+  const points = pointsForDock(phasePoints, dockId)
+  if (points.length === 0) {
+    return { valid: false, activePoint: null, blocked: true, configMissing: true }
+  }
+
+  const pos = await resolvePosition(gpsPosition)
+  if (!pos) {
+    return { valid: false, activePoint: null, blocked: true, reason: 'GPS tidak tersedia' }
+  }
+
+  const activePoint = pickPointAt(points, pos, dockId)
+  if (!activePoint) {
+    return { valid: false, activePoint: null, blocked: true }
+  }
+  return { valid: true, activePoint }
 }
 
 // ─── Purge ─────────────────────────────────────────────────────────────────────
@@ -576,14 +630,43 @@ export interface RouteValidationResult {
 }
 
 /**
- * Validasi apakah rute tertentu bisa dipakai di lokasi petugas saat ini.
+ * Apakah titik mengizinkan rute ini.
+ *
+ * Normalisasi kode rute (hyphen/arrow/spasi) dipakai di semua jalur, termasuk
+ * arah terbalik untuk rute pulang-pergi ("SBDZ-SJRE" == "SJRE-SBDZ").
+ */
+export function routeMatchesPoint(
+  point: Pick<GeofencePoint, 'allowedRoutes'>,
+  routeCode: string,
+): boolean {
+  const normalizedRouteCode = normalizeRouteCode(routeCode)
+  const normalizedAllowed = point.allowedRoutes.map(normalizeRouteCode)
+  const directMatch = normalizedAllowed.includes(normalizedRouteCode)
+  const reverseCode = normalizedRouteCode.split('-').reverse().join('-')
+  const reverseMatch = normalizedAllowed.includes(reverseCode)
+
+  console.debug('[geofence] Route match:', {
+    requestedCode: routeCode,
+    normalizedCode: normalizedRouteCode,
+    reverseCode,
+    allowedCodes: point.allowedRoutes,
+    directMatch,
+    reverseMatch,
+  })
+
+  return directMatch || reverseMatch
+}
+
+/**
+ * Validasi LOKASI AWAL: rute hanya bisa dipakai kalau petugas berada di titik
+ * awal (atau titik 'both') yang mengizinkan rute tersebut.
  */
 export async function validateRouteForCurrentLocation(
   routeCode: string,
   gpsPosition?: { latitude: number; longitude: number },
   dockId?: string | null
 ): Promise<RouteValidationResult> {
-  const snap = await getActiveGeofenceSnapshot(gpsPosition, dockId)
+  const snap = await getActiveGeofenceSnapshot(gpsPosition, dockId, 'start')
 
   if (snap.configMissing) {
     return { valid: false, blocked: true, configMissing: true }
@@ -595,30 +678,7 @@ export async function validateRouteForCurrentLocation(
 
   const point = snap.activePoint
 
-  // Normalisasi kode rute (hyphen/arrow/spasi) — satu aturan untuk semua jalur.
-  const normalizedRouteCode = normalizeRouteCode(routeCode)
-  const normalizedAllowed = point.allowedRoutes.map(normalizeRouteCode)
-
-  // Check direct match
-  const directMatch = normalizedAllowed.includes(normalizedRouteCode)
-
-  // Check reverse direction match (e.g., "SBDZ-SJRE" matches "SJRE-SBDZ" for round-trip routes)
-  const reverseCode = normalizedRouteCode.split('-').reverse().join('-')
-  const reverseMatch = normalizedAllowed.includes(reverseCode)
-
-  // Debug logging for troubleshooting
-  console.debug('[geofence] Route validation:', {
-    requestedCode: routeCode,
-    normalizedCode: normalizedRouteCode,
-    reverseCode,
-    allowedCodes: point.allowedRoutes,
-    normalizedAllowed,
-    directMatch,
-    reverseMatch,
-    pointName: point.name,
-  })
-
-  if (directMatch || reverseMatch) {
+  if (routeMatchesPoint(point, routeCode)) {
     return { valid: true, activePoint: point }
   }
 
@@ -629,6 +689,54 @@ export async function validateRouteForCurrentLocation(
     activePoint: point,
     reason: `Rute ${routeCode} tidak diizinkan di titik ${point.name}. Rute yang diizinkan: ${allowed}`,
   }
+}
+
+/**
+ * Validasi LOKASI TUJUAN saat petugas submit / end trip.
+ *
+ * Contoh: input di SJRE, submit di SBDZ. Petugas harus sudah berada di titik
+ * geofence SBDZ. Kalau admin sudah menandai titik tujuan khusus ('end') untuk
+ * rute ini, HANYA titik itu yang diterima — titik awal tidak bisa dipakai
+ * submit. Titik lama tanpa peran ('both') tetap berlaku supaya instalasi yang
+ * sudah berjalan tidak langsung terkunci.
+ */
+export async function validateTripEndForCurrentLocation(
+  routeCode: string,
+  gpsPosition?: { latitude: number; longitude: number },
+  dockId?: string | null,
+): Promise<RouteValidationResult> {
+  const scoped = scopedGeofencePoints(getStoredGeofencePoints())
+  if (scoped.length === 0) {
+    return { valid: false, blocked: true, configMissing: true }
+  }
+
+  const endCapable = scoped
+    .filter(point => geofenceRoleServes(point.pointType, 'end'))
+    .filter(point => routeMatchesPoint(point, routeCode))
+  const explicitEnd = endCapable.filter(
+    point => normalizeGeofenceRole(point.pointType) === 'end',
+  )
+  const candidates = explicitEnd.length ? explicitEnd : endCapable
+
+  if (candidates.length === 0) {
+    return {
+      valid: false,
+      blocked: true,
+      activePoint: null,
+      reason: `Titik tujuan untuk rute ${routeCode} belum diatur admin.`,
+    }
+  }
+
+  const pos = await resolvePosition(gpsPosition)
+  if (!pos) {
+    return { valid: false, blocked: true, activePoint: null, reason: 'GPS tidak tersedia' }
+  }
+
+  const activePoint = pickPointAt(pointsForDock(candidates, dockId), pos, dockId)
+  if (!activePoint) {
+    return { valid: false, blocked: true, activePoint: null }
+  }
+  return { valid: true, activePoint }
 }
 
 // ─── Validation helpers ──────────────────────────────────────────────────

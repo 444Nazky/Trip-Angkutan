@@ -114,7 +114,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       const coords = 'lat' in position
         ? { latitude: position.lat, longitude: position.lng }
         : { latitude: position.latitude, longitude: position.longitude }
-      const result = await getActiveGeofenceSnapshot(coords, dockId ?? undefined)
+      // Fase 'start': input kendaraan hanya boleh di titik AWAL (atau 'both').
+      // Titik yang ditandai admin sebagai titik tujuan tidak dipakai di sini.
+      const result = await getActiveGeofenceSnapshot(coords, dockId ?? undefined, 'start')
       if (!alive) return null
 
       if (result.valid && result.activePoint) {
@@ -210,6 +212,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       ? await getActiveGeofenceSnapshot(
           { latitude: position.lat, longitude: position.lng },
           dockId ?? undefined,
+          'start',
         )
       : { valid: false, activePoint: null, blocked: true, configMissing: false, reason: 'GPS tidak tersedia' }
     setSyncingGeo(false)
