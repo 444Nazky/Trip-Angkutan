@@ -382,7 +382,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
        </div>
 
        <p className="text-[10px] text-slate-400 text-center">
-         Riwayat trip yang sudah terkirim lebih dari 7 hari dihapus otomatis dari perangkat ini.
+         Riwayat lebih dari 7 hari dihapus otomatis dari perangkat.
        </p>
      </div>
    )

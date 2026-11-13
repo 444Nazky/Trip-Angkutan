@@ -87,7 +87,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
   const handleNavClick = (id: string) => {
     if (activeScreen === 'trip-summary') {
       const label = id === 'home' ? 'Beranda' : id === 'history' ? 'Riwayat' : id === 'endpoint' ? 'Server' : 'Profil'
-      openConfirmDialog(`Apakah Anda yakin ingin ke ${label}? Data trip belum disimpan.`, () => onNavigate(id))
+      openConfirmDialog(`Yakin ke ${label}? Trip belum disimpan.`, () => onNavigate(id))
     } else {
       onNavigate(id)
     }

@@ -161,9 +161,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         return
       }
 
-      setError('Akun atau PIN tidak tersedia di perangkat ini. Masuk online lalu sinkronkan data petugas.')
+      setError('Akun/PIN belum ada di perangkat. Masuk online dulu.')
     } catch {
-      setError('Verifikasi gagal. Silakan coba lagi.')
+      setError('Verifikasi gagal. Coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -206,7 +206,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         {/* Welcome Text */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-slate-800">Masuk</h2>
-          <p className="text-sm text-slate-400 mt-1">Gunakan ID Petugas dan PIN Anda</p>
+          <p className="text-sm text-slate-400 mt-1">Masukkan ID Petugas dan PIN</p>
         </div>
 
         {/* Form */}

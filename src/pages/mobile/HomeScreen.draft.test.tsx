@@ -108,7 +108,7 @@ describe('penguncian tombol Mulai Trip saat masih ada draft', () => {
     await render()
     await click('Mulai Trip (terkunci)')
     expect(container.textContent).toContain('Trip baru belum bisa dimulai')
-    expect(container.textContent).toContain('Lanjutkan atau batalkan draft dengan alasan')
+    expect(container.textContent).toContain('Lanjutkan atau batalkan di Riwayat')
     expect(container.textContent).toContain('Riwayat')
     // Trip baru TIDAK boleh dimulai diam-diam.
     expect(mocks.startTrip).not.toHaveBeenCalled()

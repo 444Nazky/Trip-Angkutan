@@ -128,21 +128,21 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
         // Jika unauthorized tapi ada cache, tetap tampilkan dan beri info
         const cachedPoints = getStoredGeofencePoints()
         if (cachedPoints.length > 0) {
-          setError('Sesi server belum siap — data lokal (' + cachedPoints.length + ' titik) tetap dipakai.')
+          setError('Sesi belum siap — pakai data lokal (' + cachedPoints.length + ' titik).')
         } else {
           setError('Sesi server belum siap. Coba lagi saat online.')
         }
       } else if (result.reason === 'network') {
         const cachedPoints = getStoredGeofencePoints()
         if (cachedPoints.length > 0) {
-          setError('Gagal terhubung ke server — data lokal (' + cachedPoints.length + ' titik) tetap dipakai.')
+          setError('Gagal terhubung — pakai data lokal (' + cachedPoints.length + ' titik).')
         } else {
           setError('Gagal terhubung ke server. Periksa koneksi internet.')
         }
       } else if (result.count === 0 && !result.ok) {
-        setError('Tidak ada data geofence. Hubungi admin untuk mengatur titik geofence.')
+        setError('Belum ada data geofence. Hubungi admin.')
       } else if (result.count === 0) {
-        setError('Belum ada titik geofence di server untuk dermaga/rute Anda. Minta admin mendaftarkannya di Master Rute.')
+        setError('Belum ada titik geofence. Minta admin menambahkannya.')
       } else {
         // Success - tidak perlu error message
         setError(null)
@@ -459,13 +459,13 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
           {points.length === 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[12px] text-amber-800">
               <p className="font-semibold mb-1">Belum ada titik geofence tersimpan.</p>
-              <p>Tekan tombol sinkronkan di kanan atas untuk menarik data dari server, atau tambah manual.</p>
+              <p>Sinkronkan untuk menarik data dari server, atau tambah manual.</p>
               {diag && (
                 <p className="mt-2 text-[11px] text-amber-700">
-                  Sync terakhir: server mengirim {diag.received} titik, {diag.active} aktif, {diag.scoped} cocok
-                  dengan rute Anda{diag.assignedCodes.length > 0 ? ` (${diag.assignedCodes.join(', ')})` : ' (rute belum tersinkron)'}.
+                  Sync: {diag.received} titik, {diag.active} aktif, {diag.scoped} cocok
+                  {diag.assignedCodes.length > 0 ? ` (${diag.assignedCodes.join(', ')})` : ''}.
                   {diag.received > 0 && diag.scoped === 0
-                    ? ' Minta admin daftarkan titik untuk rute Anda di Master Rute.'
+                    ? ' Minta admin daftarkan titik untuk rute ini.'
                     : ''}
                 </p>
               )}

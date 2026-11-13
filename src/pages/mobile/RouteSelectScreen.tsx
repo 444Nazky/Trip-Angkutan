@@ -482,8 +482,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-[13px] font-semibold text-amber-800">Tidak ada rute untuk dermaga ini</p>
             <p className="mt-1 text-[11px] leading-snug text-amber-700">
-              Data rute yang tersimpan di perangkat tidak memuat rute untuk dermaga terpilih.
-              Sambungkan internet agar data rute terbaru dapat diunduh, lalu coba lagi.
+              Belum ada rute tersimpan untuk dermaga ini. Sambungkan internet lalu coba lagi.
             </p>
           </div>
         )}

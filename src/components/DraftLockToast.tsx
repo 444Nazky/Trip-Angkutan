@@ -53,8 +53,7 @@ export default function DraftLockToast({
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-black text-amber-800">Trip baru belum bisa dimulai</p>
           <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-            Masih ada draft trip yang belum dikirim. Lanjutkan atau batalkan draft dengan alasan
-            di halaman Riwayat, lalu tombol Mulai Trip bisa dipakai lagi.
+            Masih ada draft yang belum dikirim. Lanjutkan atau batalkan di Riwayat.
           </p>
           {remainingLabel && (
             <p className="text-[10px] font-semibold text-amber-600 mt-1">{remainingLabel}</p>

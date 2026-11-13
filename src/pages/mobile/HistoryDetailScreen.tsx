@@ -156,10 +156,10 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           </p>
           <p className="mt-1 text-[10px] leading-relaxed text-red-600/80">
             {cancelState === 'sent'
-              ? 'Dokumen pembatalan sudah diterima server kantor sebagai bukti pembatalan trip ini.'
+              ? 'Bukti pembatalan sudah diterima server.'
               : cancelState === 'failed'
-                ? 'Dokumen pembatalan BELUM diterima server kantor — lihat status di bawah.'
-                : 'Dokumen pembatalan akan dikirim otomatis begitu tersambung ke server kantor.'}
+                ? 'Bukti pembatalan belum terkirim.'
+                : 'Bukti pembatalan dikirim otomatis saat tersambung.'}
           </p>
         </div>
       )}
@@ -218,8 +218,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 flex items-start gap-2">
             <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
             <p className="text-[11px] text-slate-600 leading-snug">
-              Foto dokumentasi tidak dapat ditambah lagi — trip yang sudah selesai bersifat final,
-              {' '}{isSynced ? 'dan datanya sudah tersimpan di server.' : 'meskipun datanya belum sempat terkirim.'}
+              Foto tidak bisa ditambah — trip sudah final.
+              {' '}{isSynced ? 'Data tersimpan di server.' : 'Data belum terkirim.'}
             </p>
           </div>
         )}
@@ -228,10 +228,9 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3 flex items-start gap-2">
             <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[11px] text-amber-800 leading-snug">
-              Foto dokumentasi belum lengkap{missingVehicles.length > 0 && (
+              Foto belum lengkap{missingVehicles.length > 0 && (
                 <>: <b>{missingVehicles.map(x => x.label).join(', ')}</b></>
-              )} — trip sudah selesai dan tidak bisa diedit lagi, jadi data ini belum bisa
-              dikirim ke server. Hubungi admin kantor.
+              )} — trip sudah selesai. Data belum terkirim, hubungi admin.
             </p>
           </div>
         )}

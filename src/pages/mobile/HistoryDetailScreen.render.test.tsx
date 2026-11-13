@@ -56,7 +56,7 @@ describe('detail riwayat trip', () => {
   it('trip selesai tidak bisa diedit walau belum terkirim ke server', async () => {
     await render()
     expect(container.textContent).not.toContain('Ubah')
-    expect(container.textContent).toContain('bersifat final')
+    expect(container.textContent).toContain('trip sudah final')
   })
 
   it('trip selesai tidak bisa diedit setelah trip terkirim', async () => {

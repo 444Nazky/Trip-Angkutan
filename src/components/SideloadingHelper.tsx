@@ -91,7 +91,7 @@ export function SideloadingHelper({
 
           <div className="rounded-xl bg-emerald-50 p-3 border border-emerald-100 text-[11px] text-emerald-800 flex items-start gap-2">
             <Check size={15} className="shrink-0 mt-0.5 text-emerald-600" />
-            <p>File pembaruan aman dan telah diverifikasi dari server resmi internal.</p>
+            <p>            Pembaruan diverifikasi dari server internal.</p>
           </div>
 
           {onHelpRequested && (

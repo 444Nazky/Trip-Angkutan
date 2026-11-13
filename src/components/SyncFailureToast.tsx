@@ -53,8 +53,8 @@ export default function SyncFailureToast() {
           <p className="text-[11px] text-red-600 mt-0.5 break-words">
             {detail.error}
             {detail.permanent
-              ? ' — data belum masuk dashboard admin. Buka Riwayat untuk melengkapi data lalu kirim ulang.'
-              : ' — data tersimpan di perangkat dan akan dikirim otomatis saat koneksi tersedia.'}
+              ? ' — belum masuk dashboard. Lengkapi di Riwayat lalu kirim ulang.'
+              : ' — tersimpan di perangkat, dikirim otomatis saat online.'}
           </p>
         </div>
         <button
