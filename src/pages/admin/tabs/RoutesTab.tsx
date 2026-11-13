@@ -168,11 +168,11 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     setCurrentRouteForGeofence(null)
   }
 
-  const startAddGeofence = () => {
+  const startAddGeofence = (role: GeofencePointRole) => {
     setActiveGeofence({
       id: undefined,
       locationName: '',
-      pointType: 'both',
+      pointType: role,
       latitude: '',
       longitude: '',
       radiusMeters: '100',
@@ -183,8 +183,10 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     setManualCoords(false)
   }
 
-  const startEditGeofence = (point: GeofencePoint) => {
-    setActiveGeofence({ ...point })
+  // `role` dipakai saat titik lama ('both') diedit dari slot tertentu: setelah
+  // disimpan perannya menjadi eksplisit (awal atau tujuan), bukan 'both' lagi.
+  const startEditGeofence = (point: GeofencePoint, role?: GeofencePointRole) => {
+    setActiveGeofence({ ...point, pointType: role ?? point.pointType })
     setMapsLink('')
 
     setCoordsFromLink(false)
@@ -353,6 +355,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     return `${currentRouteForGeofence.route_from}-${currentRouteForGeofence.route_to}`
   }
 
+  // Panel geofence hanya punya DUA slot: titik awal dan titik tujuan.
+  // Titik lama tanpa peran ('both') ditempatkan ke slot pertama yang kosong
+  // supaya tetap bisa diedit/dihapus, bukan disembunyikan.
+  const startSlotPoint = geofencePoints.find(p => p.pointType !== 'end')
+  const endSlotPoint = geofencePoints.find(p => p.pointType !== 'start' && p !== startSlotPoint)
+  const otherGeofencePoints = geofencePoints.filter(p => p !== startSlotPoint && p !== endSlotPoint)
+  const geofenceSlotsFull = !!startSlotPoint && !!endSlotPoint
+
   return (
     <div className="space-y-4">
 
@@ -496,86 +506,149 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-snug text-slate-600">
                 <p>
-                  <span className="font-bold text-slate-800">Titik Awal</span> dipakai saat petugas input
-                  kendaraan. <span className="font-bold text-slate-800">Titik Tujuan</span> dipakai saat
-                  petugas submit / end trip.
+                  Rute hanya butuh <span className="font-bold text-slate-800">dua titik</span>:{' '}
+                  <span className="font-bold text-slate-800">Titik Awal</span> tempat petugas input kendaraan
+                  dan <span className="font-bold text-slate-800">Titik Tujuan</span> tempat petugas submit /
+                  end trip.
                 </p>
                 <p className="mt-1">
-                  Contoh rute SJRE → SBDZ: titik di SJRE berperan Titik Awal, titik di SBDZ berperan Titik
-                  Tujuan. Tanpa titik tujuan, trip tidak bisa dikirim.
+                  Contoh SJRE → SBDZ: titik di SJRE menjadi Titik Awal, titik di SBDZ menjadi Titik Tujuan.
+                  Klik ikon pensil pada kartu titik untuk mengubah lokasinya.
                 </p>
               </div>
 
-              {geofencePoints.length === 0 && !activeGeofence && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 text-center">
-                  Belum ada titik geofence untuk rute ini.<br />
-                  Tambahkan titik untuk validasi lokasi petugas.
-                </div>
-              )}
+              {([
+                {
+                  role: 'start' as const,
+                  title: 'Titik Awal',
+                  hint: 'Lokasi petugas input kendaraan (mis. SJRE).',
+                  point: startSlotPoint,
+                },
+                {
+                  role: 'end' as const,
+                  title: 'Titik Tujuan',
+                  hint: 'Lokasi petugas submit / end trip (mis. SBDZ).',
+                  point: endSlotPoint,
+                },
+              ]).map(slot => (
+                <div
+                  key={slot.role}
+                  className={`rounded-xl p-4 border ${slot.point ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{slot.title}</p>
+                      <p className="text-[10px] text-slate-400">{slot.hint}</p>
+                    </div>
+                    {slot.point && (
+                      <div className="flex gap-1 shrink-0">
+                        <a
+                          href={slot.point.latitude && slot.point.longitude ? googleMapsLink(parseFloat(slot.point.latitude), parseFloat(slot.point.longitude)) : '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Buka di Google Maps"
+                          className="p-2 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                        <button
+                          onClick={() => startEditGeofence(slot.point!, slot.role)}
+                          title={`Edit ${slot.title}`}
+                          className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteGeofencePoint(slot.point!, getRouteCode())}
+                          title={`Hapus ${slot.title}`}
+                          className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-              {geofencePoints.map((point, idx) => (
-                <div key={point.id || idx} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-slate-900">{point.locationName}</p>
-                        <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${
-                          point.pointType === 'end'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : point.pointType === 'start'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}>
-                          {GEOFENCE_ROLE_LABEL[point.pointType]}
-                        </span>
+                  {slot.point ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <p className="font-semibold text-slate-900">{slot.point.locationName}</p>
+                        {slot.point.pointType === 'both' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
+                            Titik lama (awal & tujuan)
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 font-mono mt-1">
-                        {point.latitude}, {point.longitude} · {point.radiusMeters}m
+                        {slot.point.latitude}, {slot.point.longitude} · {slot.point.radiusMeters}m
                       </p>
-                      {point.description && (
-                        <p className="text-xs text-slate-400 mt-1">{point.description}</p>
+                      {slot.point.description && (
+                        <p className="text-xs text-slate-400 mt-1">{slot.point.description}</p>
                       )}
-                      {point.latitude && point.longitude && !isNaN(parseFloat(point.latitude)) && (
+                      {slot.point.latitude && slot.point.longitude && !isNaN(parseFloat(slot.point.latitude)) && (
                         <div className="mt-2">
                           <iframe
-                            title={`Preview ${point.locationName}`}
-                            src={osmEmbeddedMapUrl(parseFloat(point.latitude), parseFloat(point.longitude))}
+                            title={`Preview ${slot.point.locationName}`}
+                            src={osmEmbeddedMapUrl(parseFloat(slot.point.latitude), parseFloat(slot.point.longitude))}
                             className="w-full h-32 rounded-lg border border-slate-200"
                             loading="lazy"
                           />
                         </div>
                       )}
-                    </div>
-                    <div className="flex gap-1 ml-3">
-                      <a
-                        href={point.latitude && point.longitude ? googleMapsLink(parseFloat(point.latitude), parseFloat(point.longitude)) : '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50"
-                      >
-                        <ExternalLink size={14} />
-                      </a>
-                      <button
-                        onClick={() => startEditGeofence(point)}
-                        className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => deleteGeofencePoint(point, getRouteCode())}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs text-amber-800">
+                      Belum diatur.{' '}
+                      {slot.role === 'end'
+                        ? 'Tanpa titik tujuan, petugas tidak bisa submit trip.'
+                        : 'Tanpa titik awal, petugas tidak bisa memilih rute.'}
+                    </p>
+                  )}
                 </div>
               ))}
+
+              {otherGeofencePoints.length > 0 && (
+                <div className="rounded-xl border border-slate-200 p-3">
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">Titik lain pada rute ini</p>
+                  {otherGeofencePoints.map((point, idx) => (
+                    <div key={point.id || idx} className="flex items-center justify-between gap-2 py-1">
+                      <p className="text-xs text-slate-700 truncate">
+                        {point.locationName}{' '}
+                        <span className="text-slate-400 font-mono">{point.latitude}, {point.longitude}</span>
+                      </p>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => startEditGeofence(point)}
+                          title="Edit titik"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => deleteGeofencePoint(point, getRouteCode())}
+                          title="Hapus titik"
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Hapus titik yang tidak dipakai supaya rute hanya punya Titik Awal dan Titik Tujuan.
+                  </p>
+                </div>
+              )}
 
               {activeGeofence !== null && (
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 space-y-4">
                   <h4 className="font-bold text-blue-900 text-sm">
-                    {activeGeofence.id ? 'Edit Titik' : 'Tambah Titik Baru'}
+                    {activeGeofence.id ? 'Edit ' : 'Tambah '}
+                    {activeGeofence.pointType === 'end'
+                      ? 'Titik Tujuan'
+                      : activeGeofence.pointType === 'start'
+                        ? 'Titik Awal'
+                        : 'Titik'}
                   </h4>
 
                   <div>
@@ -673,27 +746,20 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     />
                   </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">
-                      Peran Titik
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {(['start', 'end', 'both'] as const).map((role: GeofencePointRole) => (
-                        <button
-                          key={role}
-                          type="button"
-                          onClick={() => setActiveGeofence(prev => prev ? { ...prev, pointType: role } : null)}
-                          className={`px-2 py-2 text-[11px] font-semibold rounded-xl border transition-colors ${activeGeofence.pointType === role
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                        >
-                          {GEOFENCE_ROLE_LABEL[role]}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Letakkan Titik Tujuan di lokasi tujuan rute (mis. SBDZ). Petugas hanya bisa
-                      submit trip saat berada di titik tujuan ini.
+                  <div className={`rounded-xl border px-3 py-2.5 text-[11px] leading-snug ${
+                    activeGeofence.pointType === 'end'
+                      ? 'border-amber-200 bg-amber-50 text-amber-800'
+                      : activeGeofence.pointType === 'start'
+                        ? 'border-blue-200 bg-blue-50 text-blue-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                  }`}>
+                    <p className="font-bold">{GEOFENCE_ROLE_LABEL[activeGeofence.pointType]}</p>
+                    <p className="mt-0.5">
+                      {activeGeofence.pointType === 'end'
+                        ? 'Titik ini dipakai saat petugas submit / end trip. Letakkan di lokasi tujuan rute (mis. SBDZ).'
+                        : activeGeofence.pointType === 'start'
+                          ? 'Titik ini dipakai saat petugas input kendaraan. Letakkan di lokasi awal rute (mis. SJRE).'
+                          : 'Titik lama berlaku untuk awal dan tujuan. Simpan lewat kartu Titik Awal / Titik Tujuan agar perannya jelas.'}
                     </p>
                   </div>
 
@@ -755,12 +821,31 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
             <div className="p-4 border-t border-slate-200">
               {!activeGeofence && (
-                <button
-                  onClick={startAddGeofence}
-                  className="w-full py-3 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2"
-                >
-                  <Plus size={16} /> Tambah Titik Geofence
-                </button>
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      onClick={() => startAddGeofence('start')}
+                      disabled={!!startSlotPoint}
+                      title={startSlotPoint ? 'Titik awal sudah ada — klik ikon pensil untuk mengubahnya' : 'Tambah titik awal'}
+                      className="py-3 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Plus size={16} /> Tambah Titik Awal
+                    </button>
+                    <button
+                      onClick={() => startAddGeofence('end')}
+                      disabled={!!endSlotPoint}
+                      title={endSlotPoint ? 'Titik tujuan sudah ada — klik ikon pensil untuk mengubahnya' : 'Tambah titik tujuan'}
+                      className="py-3 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Plus size={16} /> Tambah Titik Tujuan
+                    </button>
+                  </div>
+                  <p className="text-center text-[10px] text-slate-400 mt-2">
+                    {geofenceSlotsFull
+                      ? 'Titik awal dan titik tujuan sudah ada. Klik ikon pensil pada kartu titik untuk mengubahnya.'
+                      : 'Rute ini hanya memakai dua titik: awal dan tujuan.'}
+                  </p>
+                </>
               )}
             </div>
           </div>
