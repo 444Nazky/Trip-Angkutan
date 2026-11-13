@@ -3,7 +3,6 @@ import { Cloud, Pencil, Server, X } from 'lucide-react'
 import ServerProfileEditor from './ServerProfileEditor'
 import {
   applyEndpointInput,
-  apiBaseCandidateLabel,
   apiBaseCandidates,
   isIntranetBaseUrl,
   probeServerHealth,
@@ -131,11 +130,7 @@ export default function ServerSettingsModal({ onClose }: Props) {
           <Server size={14} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-slate-800">Pilih Endpoint</p>
-          <p className="truncate text-[10px] text-slate-400">
-            Server intranet yang digunakan: {activeUrl}
-            {apiBaseCandidateLabel(activeUrl) ? ` (${apiBaseCandidateLabel(activeUrl)})` : ''}
-          </p>
+          <p className="text-[15px] font-semibold text-slate-800">Pilih Endpoint</p>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Tutup">
           <X size={18} />
