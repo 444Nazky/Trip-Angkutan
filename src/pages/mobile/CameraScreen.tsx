@@ -4,7 +4,7 @@ import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/
 import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
-import { readPlateFromImage } from '../../services/ocr'
+import { readPlateFromPhoto, readPlateWithDetector, loadImage } from '../../services/alpr'
 import {
   compressImage,
   DOC_MAX_EDGE,
@@ -64,6 +64,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const streamRef = useRef<MediaStream | null>(null)
   const launchedRef = useRef(false)
   const busyRef = useRef(false)
+  // Draft terbaru untuk pengecekan di callback asinkron (mis. auto-scan plat
+  // yang selesai setelah layar berpindah).
+  const draftRef = useRef(draft)
+  draftRef.current = draft
 
 
 
@@ -226,7 +230,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         quality: OCR_QUALITY,
       })
       try {
-        const plate = await readPlateFromImage(ocrSource)
+        const plate = await readPlateWithDetector(ocrSource)
         if (plate) patchDraft({ ocrResult: plate })
       } catch { /* OCR gagal — biarkan petugas isi manual */ }
       setBusy(false)
@@ -234,6 +238,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       go('vehicle-form')
       return
     }
+
+    // Foto dokumentasi kendaraan (tampak depan) langsung dipindai platnya di
+    // perangkat: deteksi YOLO + OCR lokal, tanpa jaringan. Hasilnya masuk ke
+    // `ocrResult` sehingga formulir kendaraan terisi otomatis.
+    const autoPlateScan = !retake && !isSelfie && draft.cameraFrom === 'vehicle-form'
+    if (autoPlateScan) void scanPlateInBackground(rawDataUrl)
 
     const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt)
 
@@ -309,6 +319,25 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     go(returnTo)
   }
 
+
+
+
+
+  /** Pindai plat di latar belakang agar penyimpanan foto tidak tertahan. */
+  async function scanPlateInBackground(rawDataUrl: string) {
+    try {
+      const source = await compressImage(rawDataUrl, {
+        maxEdge: OCR_MAX_EDGE,
+        quality: OCR_QUALITY,
+      })
+      const img = await loadImage(source)
+      const result = await readPlateFromPhoto(img)
+      if (!result?.plate) return
+      // Jangan menimpa plat yang sudah diketik petugas saat pemindaian selesai.
+      if (draftRef.current.vehicleForm.plate.trim()) return
+      patchDraft({ ocrResult: result.plate })
+    } catch { /* tanpa plat terdeteksi — petugas isi manual */ }
+  }
 
 
 
