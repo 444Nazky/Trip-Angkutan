@@ -148,6 +148,10 @@ export interface Draft {
    *  tetapi tidak menimpa plat yang sudah diketik manual. */
   ocrPlateApplied?: string
 
+  /** Potongan gambar plat dari scan terakhir, disimpan bila plat dikoreksi
+   *  petugas sebagai pasangan data latih. */
+  ocrCropUrl?: string
+
   /** Status pemindaian plat dari foto dokumentasi: dipakai formulir untuk
    *  menampilkan "sedang membaca" / "plat tidak terbaca". */
   plateScanStatus?: 'reading' | 'failed'

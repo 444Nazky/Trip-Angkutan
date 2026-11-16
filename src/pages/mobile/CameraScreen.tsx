@@ -372,7 +372,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
         patchDraft({ plateScanStatus: undefined })
         return
       }
-      patchDraft({ ocrResult: result.plate, plateScanStatus: undefined })
+      patchDraft({ ocrResult: result.plate, plateScanStatus: undefined, ocrCropUrl: result.cropDataUrl })
     } catch {
       if (seq === scanSeqRef.current) patchDraft({ plateScanStatus: 'failed' })
     }

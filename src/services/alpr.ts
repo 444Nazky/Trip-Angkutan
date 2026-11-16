@@ -48,6 +48,8 @@ export interface AlprResult {
   plate: string
   confidence: number
   box: PlateBox
+  /** Potongan gambar plat (data URL JPEG) untuk data latih koreksi. */
+  cropDataUrl?: string
 }
 
 function assetUrl(path: string): string {
@@ -332,7 +334,7 @@ async function readFromBoxes(canvas: HTMLCanvasElement, boxes: PlateBox[]): Prom
     if (!text) continue
     const plate = formatPlateNumber(sanitizePlateInput(text))
     if (!plate) continue
-    return { plate, confidence: box.score, box }
+    return { plate, confidence: box.score, box, cropDataUrl: crop.toDataURL('image/jpeg', 0.85) }
   }
   return null
 }

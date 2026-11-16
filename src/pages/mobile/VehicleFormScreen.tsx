@@ -11,6 +11,7 @@ import {
 } from '../../utils/plateFormatter'
 import { loadChoiceApplies } from '../../utils/vehicleLoad'
 import { warmUpAlpr } from '../../services/alpr'
+import { recordPlateSample } from '../../services/plateDataset'
 
 
 
@@ -33,6 +34,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     patchDraftVehicle,
     removeDraftVehicle,
     editDraftVehicle,
+    officer,
     tariffs,
     vehicleTypes: masterTypes,
     draftLocked,
@@ -173,6 +175,18 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return false
     }
     if (!isFormComplete) return false
+
+    // Plat hasil scan yang dikoreksi petugas = pasangan gambar+label untuk
+    // penyempurnaan model. Disimpan lokal, tidak dikirim ke server.
+    const scanned = draft.ocrPlateApplied
+    if (scanned && draft.ocrCropUrl && plate.trim().toUpperCase() !== scanned.toUpperCase()) {
+      void recordPlateSample({
+        predicted: scanned,
+        corrected: plate,
+        image: draft.ocrCropUrl,
+        officer: officer?.name,
+      })
+    }
     // Kategori = pilihan petugas (Internal / Eksternal / Lokal).
     // Golongan = gol master tarif (I..V) — BEDA hal, jangan dicampur.
     // Kendaraan Internal tidak ditagih (kebijakan: tarif Internal = Rp 0),
@@ -204,6 +218,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       vehiclePhotoTarget: undefined,
       editVehicleIndex: null,
       ocrPlateApplied: undefined,
+      ocrCropUrl: undefined,
       plateScanStatus: undefined,
     })
     setCheck(null)
@@ -222,6 +237,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       vehiclePhotoTarget: undefined,
       editVehicleIndex: null,
       ocrPlateApplied: undefined,
+      ocrCropUrl: undefined,
       plateScanStatus: undefined,
     })
     setCheck(null)
