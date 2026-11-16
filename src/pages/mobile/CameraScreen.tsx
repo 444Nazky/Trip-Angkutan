@@ -4,7 +4,7 @@ import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/
 import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
-import { readPlateFromPhoto, readPlateWithDetector, loadImage } from '../../services/alpr'
+import { readPlateFromPhoto, readPlateWithDetector, loadImage, warmUpAlpr } from '../../services/alpr'
 import {
   compressImage,
   DOC_MAX_EDGE,
@@ -68,6 +68,10 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   // yang selesai setelah layar berpindah).
   const draftRef = useRef(draft)
   draftRef.current = draft
+  // Nomor urut pemindaian plat: foto yang diambil ulang membatalkan hasil
+  // pemindaian foto sebelumnya (yang bisa selesai belakangan dan menimpa
+  // plat terbaru dengan bacaan foto lama).
+  const scanSeqRef = useRef(0)
 
 
 
@@ -101,6 +105,14 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
   }, [])
+
+  // Muat model + mesin OCR selagi petugas menyiapkan jepretan, supaya
+  // pemindaian plat setelah foto diambil tidak menunggu muat model.
+  useEffect(() => {
+    if (isSelfie) return
+    if (!isOcr && draft.cameraFrom !== 'vehicle-form') return
+    warmUpAlpr()
+  }, [isOcr, isSelfie, draft.cameraFrom])
 
   // Draft yang lewat batas 15 menit tidak boleh ditambah foto lagi: keluar
   // dari layar kamera sebelum jepret diambil.
@@ -221,6 +233,19 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
     // GPS: pakai fix cache kalau ada (hampir instan), fallback request singkat.
     // Tidak pernah menahan proses lebih dari ~2.5 detik.
+    // Foto dokumentasi kendaraan (tampak depan) langsung dipindai platnya di
+    // perangkat: deteksi YOLO + OCR lokal, tanpa jaringan. Dimulai SEBELUM
+    // GPS/watermark supaya pemindaian berjalan bersamaan dengan penyimpanan
+    // foto, bukan setelahnya. Hasilnya masuk ke `ocrResult` sehingga formulir
+    // kendaraan terisi otomatis.
+    //
+    // Retake dari layar riwayat (`retake`) tidak memakai formulir kendaraan,
+    // jadi tidak ada kolom yang bisa diisi. Retake dari formulir (tombol
+    // "Ulangi") tetap dipindai, dan hasilnya boleh MENGGANTI plat lama bila plat
+    // lama itu juga berasal dari scan — lihat scanPlateInBackground().
+    const autoPlateScan = !retake && !isSelfie && draft.cameraFrom === 'vehicle-form'
+    if (autoPlateScan) void scanPlateInBackground(rawDataUrl)
+
     const { lat, lon } = await getPhotoPosition()
 
     if (isOcr) {
@@ -231,19 +256,16 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       })
       try {
         const plate = await readPlateWithDetector(ocrSource)
-        if (plate) patchDraft({ ocrResult: plate })
-      } catch { /* OCR gagal — biarkan petugas isi manual */ }
+        if (plate) patchDraft({ ocrResult: plate, plateScanStatus: undefined })
+        else patchDraft({ plateScanStatus: 'failed' })
+      } catch { /* OCR gagal — beri tahu lewat formulir */
+        patchDraft({ plateScanStatus: 'failed' })
+      }
       setBusy(false)
       patchDraft({ cameraReturn: undefined })
       go('vehicle-form')
       return
     }
-
-    // Foto dokumentasi kendaraan (tampak depan) langsung dipindai platnya di
-    // perangkat: deteksi YOLO + OCR lokal, tanpa jaringan. Hasilnya masuk ke
-    // `ocrResult` sehingga formulir kendaraan terisi otomatis.
-    const autoPlateScan = !retake && !isSelfie && draft.cameraFrom === 'vehicle-form'
-    if (autoPlateScan) void scanPlateInBackground(rawDataUrl)
 
     const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt)
 
@@ -325,6 +347,8 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
   /** Pindai plat di latar belakang agar penyimpanan foto tidak tertahan. */
   async function scanPlateInBackground(rawDataUrl: string) {
+    const seq = ++scanSeqRef.current
+    patchDraft({ plateScanStatus: 'reading' })
     try {
       const source = await compressImage(rawDataUrl, {
         maxEdge: OCR_MAX_EDGE,
@@ -332,11 +356,26 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       })
       const img = await loadImage(source)
       const result = await readPlateFromPhoto(img)
-      if (!result?.plate) return
-      // Jangan menimpa plat yang sudah diketik petugas saat pemindaian selesai.
-      if (draftRef.current.vehicleForm.plate.trim()) return
-      patchDraft({ ocrResult: result.plate })
-    } catch { /* tanpa plat terdeteksi — petugas isi manual */ }
+      // Hasil pemindaian foto yang sudah diganti tidak boleh dipakai.
+      if (seq !== scanSeqRef.current) return
+      if (!result?.plate) {
+        // Jangan beri peringatan bila petugas sudah mengisi plat sendiri.
+        patchDraft({ plateScanStatus: draftRef.current.vehicleForm.plate.trim() ? undefined : 'failed' })
+        return
+      }
+      // Plat yang sudah diketik petugas tidak boleh ditimpa. Tetapi plat yang
+      // berasal dari scan foto sebelumnya HARUS diperbarui saat foto diambil
+      // ulang — kalau tidak, plat sisa foto lama yang tertinggal di formulir.
+      const current = draftRef.current.vehicleForm.plate.trim()
+      const autoApplied = (draftRef.current.ocrPlateApplied ?? '').trim()
+      if (current && current !== autoApplied) {
+        patchDraft({ plateScanStatus: undefined })
+        return
+      }
+      patchDraft({ ocrResult: result.plate, plateScanStatus: undefined })
+    } catch {
+      if (seq === scanSeqRef.current) patchDraft({ plateScanStatus: 'failed' })
+    }
   }
 
 

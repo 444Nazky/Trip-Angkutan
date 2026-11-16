@@ -1,5 +1,5 @@
 import * as ort from 'onnxruntime-web/wasm'
-import { readPlateFromImage, readPlateTextFromCanvas } from './ocr'
+import { preloadPlateOcr, readPlateFromImage, readPlateTextFromCanvas } from './ocr'
 import { formatPlateNumber, sanitizePlateInput } from '../utils/plateFormatter'
 
 /**
@@ -19,7 +19,16 @@ import { formatPlateNumber, sanitizePlateInput } from '../utils/plateFormatter'
 const MODEL_URL = 'assets/models/plate-yolo11n.onnx'
 const INPUT_SIZE = 640
 const SCORE_THRESHOLD = 0.25
+// Ambang lebih longgar untuk potongan gambar: plat yang jauh/terlalu miring
+// sering hanya berskor 0,2-0,4, dan kita masih menyaringnya lewat pola plat.
+const TILE_SCORE_THRESHOLD = 0.18
 const IOU_THRESHOLD = 0.45
+// Kotak plat yang terlalu kecil (plat sangat jauh) tidak cukup piksel untuk
+// dibaca pasti. Lebih baik dibiarkan kosong + peringatan daripada mengisi
+// formulir dengan plat yang salah baca.
+// Diuji pada foto 1600 px yang diperkecil ke 1280: kotak setinggi ~23 px masih
+// terbaca benar, ~20 px sudah salah huruf terakhir (UEA → UES).
+const MIN_BOX_HEIGHT = 21
 
 export interface PlateBox {
   x1: number
@@ -154,6 +163,19 @@ function loadSession(): Promise<ort.InferenceSession> {
   return sessionPromise
 }
 
+/**
+ * Siapkan pipeline lebih awal (model ONNX + worker OCR) supaya pemindaian
+ * pertama setelah jepret tidak menanggung waktu muat model 10 MB dan wasm OCR.
+ * Aman dipanggil berkali-kali.
+ */
+let warmedUp = false
+export function warmUpAlpr(): void {
+  if (warmedUp) return
+  warmedUp = true
+  preloadPlateOcr()
+  void loadSession().catch(() => { warmedUp = false })
+}
+
 // ── Pipeline gambar ────────────────────────────────────────────────────────
 
 function canvasFromSource(src: HTMLCanvasElement | HTMLImageElement, maxEdge: number): HTMLCanvasElement {
@@ -197,16 +219,64 @@ function toInputTensor(canvas: HTMLCanvasElement): { data: Float32Array; params:
 export async function detectPlateBoxes(
   src: HTMLCanvasElement | HTMLImageElement,
   maxEdge = 1280,
+  scoreThreshold = SCORE_THRESHOLD,
 ): Promise<{ boxes: PlateBox[]; canvas: HTMLCanvasElement }> {
   const session = await loadSession()
   const canvas = canvasFromSource(src, maxEdge)
+  const boxes = await inferBoxes(session, canvas, scoreThreshold)
+  return { boxes, canvas }
+}
+
+/** Jalankan model pada satu canvas (tanpa letterbox tambahan di luar input). */
+async function inferBoxes(
+  session: ort.InferenceSession,
+  canvas: HTMLCanvasElement,
+  scoreThreshold: number,
+): Promise<PlateBox[]> {
   const { data, params } = toInputTensor(canvas)
   const tensor = new ort.Tensor('float32', data, [1, 3, INPUT_SIZE, INPUT_SIZE])
   const output = await session.run({ [session.inputNames[0]]: tensor })
   const out = output[session.outputNames[0]]
-  const raw = decodeYoloOutput(out.data as Float32Array, out.dims as number[])
-  const boxes = nonMaxSuppression(raw).map(b => boxToSource(b, params, canvas.width, canvas.height))
-  return { boxes, canvas }
+  const raw = decodeYoloOutput(out.data as Float32Array, out.dims as number[], scoreThreshold)
+  return nonMaxSuppression(raw).map(b => boxToSource(b, params, canvas.width, canvas.height))
+}
+
+/**
+ * Deteksi bertingkat untuk foto kendaraan dari depan: plat sering hanya
+ * menempati sebagian kecil bingkai, sehingga setelah gambar utuh diperkecil
+ * ke 640 px platnya tinggal beberapa puluh piksel dan terlewat.
+ *
+ * Gambar dipotong jadi kisi 2 kolom x 3 baris yang saling tumpang-tindih,
+ * tiap potongan diperbesar tersendiri, lalu kotak digabung kembali ke
+ * koordinat gambar asli (NMS lintas potongan).
+ */
+export async function detectPlateBoxesTiled(
+  canvas: HTMLCanvasElement,
+  scoreThreshold = TILE_SCORE_THRESHOLD,
+): Promise<PlateBox[]> {
+  const session = await loadSession()
+  const tileW = Math.round(canvas.width * 0.6)
+  const tileH = Math.round(canvas.height * 0.45)
+  if (tileW < 80 || tileH < 40) return []
+  const xs = [0, Math.round((canvas.width - tileW) * 0.66), canvas.width - tileW]
+  const ys = [0, Math.round((canvas.height - tileH) * 0.5), canvas.height - tileH]
+
+  const found: PlateBox[] = []
+  for (const y of ys) {
+    for (const x of xs) {
+      const tile = document.createElement('canvas')
+      tile.width = tileW
+      tile.height = tileH
+      const ctx = tile.getContext('2d')
+      if (!ctx) continue
+      ctx.drawImage(canvas, x, y, tileW, tileH, 0, 0, tileW, tileH)
+      const boxes = await inferBoxes(session, tile, scoreThreshold)
+      for (const b of boxes) {
+        found.push({ x1: b.x1 + x, y1: b.y1 + y, x2: b.x2 + x, y2: b.y2 + y, score: b.score })
+      }
+    }
+  }
+  return nonMaxSuppression(found, IOU_THRESHOLD)
 }
 
 export function cropPlate(canvas: HTMLCanvasElement, box: PlateBox, padRatio = 0.08): HTMLCanvasElement {
@@ -237,21 +307,34 @@ export async function readPlateFromPhoto(
 ): Promise<AlprResult | null> {
   try {
     const { boxes, canvas } = await detectPlateBoxes(src)
-    if (!boxes.length) return null
+    const fromFull = await readFromBoxes(canvas, boxes)
+    if (fromFull) return fromFull
 
-    for (const box of boxes.slice(0, 3)) {
-      const crop = cropPlate(canvas, box)
-      const text = await readPlateTextFromCanvas(crop)
-      if (!text) continue
-      const plate = formatPlateNumber(sanitizePlateInput(text))
-      if (!plate) continue
-      return { plate, confidence: box.score, box }
+    // Foto dari depan kendaraan: plat kecil di bingkai lebar. Coba lagi dengan
+    // deteksi per potongan sebelum menyerah.
+    if (canvas.width >= 240 && canvas.height >= 160) {
+      const tiled = await detectPlateBoxesTiled(canvas)
+      return readFromBoxes(canvas, tiled)
     }
     return null
   } catch (err) {
     console.warn('[alpr] gagal membaca plat', err)
     return null
   }
+}
+
+/** OCR kotak-kotak plat (urut skor) sampai ada yang cocok pola plat Indonesia. */
+async function readFromBoxes(canvas: HTMLCanvasElement, boxes: PlateBox[]): Promise<AlprResult | null> {
+  for (const box of boxes.slice(0, 4)) {
+    if (box.y2 - box.y1 < MIN_BOX_HEIGHT) continue
+    const crop = cropPlate(canvas, box)
+    const text = await readPlateTextFromCanvas(crop)
+    if (!text) continue
+    const plate = formatPlateNumber(sanitizePlateInput(text))
+    if (!plate) continue
+    return { plate, confidence: box.score, box }
+  }
+  return null
 }
 
 /** Untuk mode kamera "Scan Plat Nomor": deteksi YOLO lalu OCR.

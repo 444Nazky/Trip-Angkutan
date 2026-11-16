@@ -118,8 +118,12 @@ function upscale(crop: HTMLCanvasElement, factor: number): HTMLCanvasElement {
 
 /** Buat beberapa varian gambar dari potongan plat (asli + biner terang/gelap). */
 function buildVariants(rawCrop: HTMLCanvasElement): Variant[] {
-  // Targetkan tinggi ~240 px (crop dari model biasanya ~120 px) maksimal 3x.
-  const factor = Math.max(1, Math.min(3, 240 / Math.max(1, rawCrop.height)))
+  // JANGAN memperbesar potongan yang sudah cukup tinggi: diuji pada foto plat
+  // di bingkai lebar, upscale 120→240 px justru mengaburkan tepi huruf dan
+  // membuat "B 9701 UEA" terbaca "39701UEF". Potongan setinggi ~120 px
+  // (hasil cropPlate) dibaca apa adanya; hanya potongan sangat kecil (plat
+  // jauh) yang diperbesar, maksimal 3x.
+  const factor = rawCrop.height < 80 ? Math.max(1, Math.min(3, 120 / Math.max(1, rawCrop.height))) : 1
   const crop = upscale(rawCrop, factor)
   const ctx = crop.getContext('2d')
   if (!ctx) return []
@@ -266,8 +270,9 @@ export function plateCandidatesFromText(text: string): string[] {
   return out
 }
 
-function bestCandidate(texts: string[]): string {
-  let best = ''
+/** Kandidat plat terbaik (beserta jumlah koreksi) dari beberapa teks OCR. */
+function bestCandidateWithCorrections(texts: string[]): PlateCandidate | null {
+  let best: PlateCandidate | null = null
   let bestScore = 0
   for (const text of texts) {
     for (const line of String(text ?? '').split(/[\n\r]+/)) {
@@ -276,12 +281,17 @@ function bestCandidate(texts: string[]): string {
       const score = scorePlateCandidate(candidate.plate) - candidate.corrections * 10
       if (score > bestScore) {
         bestScore = score
-        best = candidate.plate
+        best = candidate
       }
     }
   }
+  return best
+}
+
+function bestCandidate(texts: string[]): string {
+  const best = bestCandidateWithCorrections(texts)
   if (!best) return ''
-  return formatPlateNumber(sanitizePlateInput(best))
+  return formatPlateNumber(sanitizePlateInput(best.plate))
 }
 
 // ── API publik ─────────────────────────────────────────────────────────────
@@ -299,14 +309,41 @@ export async function recognizeCropTexts(crop: HTMLCanvasElement): Promise<strin
   return texts
 }
 
-/** Baca teks plat dari potongan gambar plat (hasil deteksi YOLO). */
+/** Muat worker + model OCR lebih awal (mis. saat formulir kendaraan dibuka). */
+export function preloadPlateOcr(): void {
+  void getPlateWorker().catch(() => { /* diabaikan: dicoba lagi saat dipakai */ })
+}
+
+/**
+ * Baca teks plat dari potongan gambar plat (hasil deteksi YOLO).
+ *
+ * Varian diproses berurutan dan BERHENTI begitu satu varian sudah memberi
+ * plat yang wajar tanpa koreksi. Sebelumnya ketiga varian selalu dijalankan,
+ * jadi jalur cepat (foto jelas) tetap membayar 3x waktu OCR.
+ */
 export async function readPlateTextFromCanvas(crop: HTMLCanvasElement): Promise<string> {
+  let worker: Worker
   try {
-    return bestCandidate(await recognizeCropTexts(crop))
+    worker = await getPlateWorker()
   } catch (err) {
     console.warn('[ocr] gagal membaca plat', err)
     return ''
   }
+
+  const texts: string[] = []
+  for (const variant of buildVariants(crop)) {
+    try {
+      const { data } = await worker.recognize(variant.canvas)
+      const text = data?.text
+      if (!text) continue
+      texts.push(text)
+      const candidate = bestCandidateWithCorrections(texts)
+      if (candidate && candidate.corrections === 0) {
+        return formatPlateNumber(sanitizePlateInput(candidate.plate))
+      }
+    } catch { /* varian gagal, lanjut varian lain */ }
+  }
+  return bestCandidate(texts)
 }
 
 /** Baca plat dari gambar utuh (dipakai setelah gambar diperkecil/di-crop). */

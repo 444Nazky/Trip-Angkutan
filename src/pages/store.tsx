@@ -143,6 +143,15 @@ export interface Draft {
 
   ocrResult?: string
 
+  /** Plat yang terakhir diisi OTOMATIS oleh hasil scan (bukan ketikan petugas).
+   *  Dipakai agar foto yang diambil ulang boleh memperbarui plat hasil scan,
+   *  tetapi tidak menimpa plat yang sudah diketik manual. */
+  ocrPlateApplied?: string
+
+  /** Status pemindaian plat dari foto dokumentasi: dipakai formulir untuk
+   *  menampilkan "sedang membaca" / "plat tidak terbaca". */
+  plateScanStatus?: 'reading' | 'failed'
+
   ocrError?: string
   startedAt: number | null
 }
@@ -273,6 +282,7 @@ const emptyDraft: Draft = {
   cameraReturn: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
+  ocrPlateApplied: undefined,
   startedAt: null,
 }
 
