@@ -131,9 +131,17 @@ export async function auth(req: Request): Promise<OfficerClaims | null> {
   // Mode intranet tidak memakai kata sandi: token yang basi/tidak dikenal
   // (mis. sisa sesi petugas atau token dari JWT_SECRET lama) dulu membuat
   // dashboard admin mendapat 401/403 padahal server memang tanpa auth.
-  // Di mode ini token diabaikan dan setiap pemanggil diperlakukan sebagai
-  // admin; hanya `role` yang dibaca, token tetap tidak menambah hak apa pun.
-  if (intranet) return { role: "admin", username: "intranet" };
+  // Karena itu setiap pemanggil diperlakukan sebagai admin.
+  //
+  // Tetapi token yang MASIH VALID harus tetap dibaca: aplikasi petugas
+  // memakai id petugas di dalamnya untuk /trips/complete, /officers/my-region,
+  // /routes/mine. Saat token dibuang seluruhnya, id itu hilang dan semua
+  // kiriman trip ditolak 401 meski server bisa diakses tanpa login.
+  if (intranet) {
+    const claims = header ? await verifyToken(header.replace(/^Bearer\s+/i, "")) : null;
+    if (claims) return { ...claims, role: "admin" };
+    return { role: "admin", username: "intranet" };
+  }
   if (!header) return null;
   const token = header.replace(/^Bearer\s+/i, "");
   return verifyToken(token);
