@@ -15,7 +15,7 @@
  * tetap dipakai; kalau belum pernah ada, koreksi dilewati (tidak error).
  */
 
-import { environment } from '../environments/environment'
+import { api } from './api'
 import { formatPlateNumber, sanitizePlateInput } from '../utils/plateFormatter'
 
 export interface PlateCorrectionModel {
@@ -36,8 +36,10 @@ let current: PlateCorrectionModel | null = null
 let currentAt = 0
 let loading: Promise<PlateCorrectionModel | null> | null = null
 
+// Ikuti endpoint yang sedang aktif (termasuk bila petugas mengganti server di
+// layar Pengaturan), bukan konstanta bawaan.
 function baseUrl(): string {
-  return environment.intranetApiBaseUrl ?? ''
+  return api.baseUrl || ''
 }
 
 function parse(raw: unknown): PlateCorrectionModel | null {
