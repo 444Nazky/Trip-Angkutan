@@ -170,6 +170,16 @@ export function RegionTab({ showToast }: RegionTabProps) {
     return { byRegion: grouped, orphans: grouped.get(ORPHAN_KEY) ?? [] }
   }, [regions, dermagas])
 
+  /**
+   * Wilayah yang ditampilkan di daftar dermaga: hanya yang sudah punya
+   * minimal satu dermaga. Wilayah kosong disembunyikan supaya tabel rapi —
+   * wilayah tetap bisa dipilih lewat form "Tambah Dermaga" di atas.
+   */
+  const regionsWithDermaga = useMemo(
+    () => orderedRegions.filter((r) => (byRegion.get(String(r.id)) ?? []).length > 0),
+    [orderedRegions, byRegion],
+  )
+
   /** Pencarian: cocok bila nama/kode dermaga atau nama wilayah mengandung kata kunci. */
   const matches = useCallback(
     (d: Dermaga, regionName?: string) => {
@@ -650,16 +660,18 @@ export function RegionTab({ showToast }: RegionTabProps) {
                 </tr>
               )}
 
-              {state === 'ready' && orderedRegions.length === 0 && orphans.length === 0 && (
+              {state === 'ready' && regionsWithDermaga.length === 0 && orphans.length === 0 && (
                 <tr>
                   <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
-                    Belum ada wilayah di database.
+                    {orderedRegions.length === 0
+                      ? 'Belum ada wilayah di database.'
+                      : 'Belum ada dermaga di database. Tambahkan lewat form di atas.'}
                   </td>
                 </tr>
               )}
 
               {state === 'ready' &&
-                orderedRegions.map((region) => {
+                regionsWithDermaga.map((region) => {
                   const own = byRegion.get(String(region.id)) ?? []
                   const shown = visibleByRegion.get(String(region.id)) ?? []
                   const users = officersOfRegion(String(region.id))
@@ -677,21 +689,12 @@ export function RegionTab({ showToast }: RegionTabProps) {
                             <span className="font-normal text-slate-300">
                               {own.length} dermaga
                               {officers === null ? '' : ` · ${users.length} petugas di wilayah ini`}
-                              {own.length === 0 ? ' · belum ada dermaga di wilayah ini' : ''}
                             </span>
                           </span>
                         </td>
                       </tr>
 
-                      {own.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
-                            Belum ada dermaga di wilayah ini
-                          </td>
-                        </tr>
-                      )}
-
-                      {own.length > 0 && shown.length === 0 && (
+                      {shown.length === 0 && (
                         <tr>
                           <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
                             Tidak ada dermaga yang cocok dengan pencarian

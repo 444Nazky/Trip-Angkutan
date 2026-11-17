@@ -237,6 +237,9 @@ describe('RegionTab (render harness)', () => {
     // Dermaga Sindang punya 1 rute dan dipakai 1 petugas.
     expect(rowByText('Dermaga Sindang')?.textContent).toContain('1 rute')
     expect(rowByText('Dermaga Sindang')?.textContent).toContain('1 petugas')
+    // Wilayah tanpa dermaga disembunyikan dari daftar (tetap ada di form tambah).
+    expect(rowByText('Wilayah Badau')).toBeUndefined()
+    expect(rowByText('Wilayah Sindang')?.textContent).toContain('1 dermaga')
     expect(fetchDermagas).toHaveBeenCalled()
     expect(fetchRoutes).toHaveBeenCalled()
   })
@@ -277,6 +280,8 @@ describe('RegionTab (render harness)', () => {
 
     expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-master', name: 'Dermaga Badau Satu', code: 'SBD1' })
     expect(container.textContent ?? '').toContain('Dermaga Badau Satu')
+    // Wilayah yang tadinya kosong langsung muncul setelah dermaga pertamanya dibuat.
+    expect(rowByText('Wilayah Badau')?.textContent).toContain('1 dermaga')
     expect(toasts.at(-1)?.msg).toBe('Dermaga ditambahkan ke database')
   })
 
