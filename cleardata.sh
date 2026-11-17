@@ -11,10 +11,11 @@
 #  Yang dihapus:
 #    - semua baris `trips` (+ `vehicles` & `trip_vehicles` lewat CASCADE)
 #    - `vehicles` yatim (trip_id NULL, sisa unggahan yang gagal)
+#    - semua dokumen pembatalan trip di `trip_cancellations`
 #    - semua file foto di bucket Storage `trip-photos`
 #  Yang TIDAK disentuh:
 #    region, dermaga, rute, tarif, petugas, master plat, `plate_scans`,
-#    `vehicle_plates`, dokumen `trip_cancellations`, akun admin.
+#    `vehicle_plates`, akun admin.
 #
 #  Script dijalankan dari mesin ini. Kalau container `trip-db` ADA di mesin
 #  lokal, perintah dijalankan langsung lewat docker; kalau tidak, perintah
@@ -147,6 +148,7 @@ psql_ <<'SQL'
 SELECT 'trips=' || count(*) FROM trips;
 SELECT 'vehicles=' || count(*) FROM vehicles;
 SELECT 'vehicles_tanpa_trip=' || count(*) FROM vehicles WHERE trip_id IS NULL;
+SELECT 'trip_cancellations=' || count(*) FROM trip_cancellations;
 SQL
 
 echo "== Foto di bucket trip-photos =="
@@ -178,6 +180,7 @@ echo "== Menghapus baris database =="
 if ! psql_ <<'SQL'
 TRUNCATE trips CASCADE;
 DELETE FROM vehicles WHERE trip_id IS NULL;
+TRUNCATE trip_cancellations;
 SQL
 then
     echo "[X] Gagal menghapus baris database - cek pesan di atas."
@@ -196,10 +199,11 @@ echo "== Sesudah =="
 psql_ <<'SQL'
 SELECT 'trips=' || count(*) FROM trips;
 SELECT 'vehicles=' || count(*) FROM vehicles;
+SELECT 'trip_cancellations=' || count(*) FROM trip_cancellations;
 SQL
 echo -n 'trip-photos='
 storage_ 'ls -1 /data/storage/trip-photos 2>/dev/null | wc -l'
 
 echo ""
 echo "Selesai. Muat ulang halaman Laporan Trip di admin dashboard."
-echo "Dokumen pembatalan (tab Pembatalan) TIDAK ikut dihapus."
+echo "Dokumen pembatalan (tab Pembatalan) juga sudah dikosongkan."
