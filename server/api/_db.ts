@@ -1,27 +1,8 @@
-// Klien database lokal.
-//
-// Semua query dari handler memakai API builder yang sama seperti sebelumnya
-// (`db.from(...).select(...).eq(...)`), tetapi diterjemahkan menjadi HTTP ke
-// PostgREST lokal (container `rest` di docker-compose). Penyimpanan berkas
-// memakai direktori lokal, bukan layanan penyimpanan daring.
-//
-// Path berkas disimpan RELATIF (`/files/<bucket>/<path>`), bukan URL absolut.
-// Alasannya: alamat IP PC kantor bisa berubah, dan data hasil migrasi dari
-// server lama tidak boleh ikut menyimpan host lama di dalam database. Klien
-// (aplikasi mobile dan dashboard admin) menyelesaikan path relatif terhadap
-// origin server yang sedang aktif.
-//
-// ponytail: hanya method yang benar-benar dipakai handler yang diimplementasi.
-// Kalau nanti ada method baru, tambahkan di sini.
-
 import { join, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-// Dibaca per pemakaian (bukan saat import) supaya uji bisa menyetel env dulu.
 const postgrestUrl = () =>
   (Deno.env.get("POSTGREST_URL") || "http://127.0.0.1:3001").replace(/\/$/, "");
 const storageDir = () => Deno.env.get("STORAGE_DIR") || "/data/storage";
-
-/** Prefix URL untuk menyajikan berkas lokal. */
 export const FILES_PREFIX = "/files";
 
 export type DbError = { message: string; details?: string | null; hint?: string | null; code?: string | null };
@@ -79,7 +60,6 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
     if (this.method === "GET" || this.method === "HEAD") {
       this.params.set("select", columns);
     } else {
-      // select() setelah insert/update/delete = minta baris hasil.
       this.returning = true;
       this.params.set("select", columns);
     }
@@ -88,8 +68,6 @@ class QueryBuilder<T = Row> implements PromiseLike<DbResult<T>> {
       this.prefer.push(`count=${options.count}`);
       if (options.head) this.method = "HEAD";
     }
-    // Hasil select selalu berupa array baris; `single()` di bawah yang
-    // mengubahnya jadi satu objek.
     return this as unknown as QueryBuilder<any>;
   }
 

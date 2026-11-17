@@ -1,30 +1,3 @@
-/**
- * Backfill snapshot tarif untuk trip yang sudah tercatat SEBELUM kolom
- * `vehicles.tarif_source` ada.
- *
- * Kenapa perlu:
- *   Laporan memakai harga yang tersimpan (snapshot) supaya perubahan tarif di
- *   admin tidak mengubah trip lama. Baris yang sudah punya `tariff_amount`
- *   > 0 aman: nilainya sudah jadi harga saat trip dikirim.
- *
- *   Yang bermasalah adalah baris lawas:
- *     - tariff_amount > 0 tapi tarif_source NULL  -> ditandai "snapshot"
- *       supaya tidak pernah dihitung ulang dengan tarif yang lebih baru.
- *     - tariff_amount = 0 / NULL                 -> belum ada harga sama sekali.
- *       Di sini harga yang berlaku SAAT INI dibekukan satu kali, lalu ditandai
- *       sebagai snapshot. Tanpa ini, baris ini akan ikut berubah setiap kali
- *       admin mengedit tarif.
- *
- * Script ini IDEMPOTEN: baris yang sudah punya tarif_source tidak disentuh.
- *
- * CARA JALAN (di PC kantor, lewat container API):
- *   docker compose exec api-intranet deno run --allow-env --allow-net \
- *     --node-modules-dir=none api/scripts/backfill_tariff_snapshot.ts
- *
- * Opsi:
- *   --dry-run=1   hanya menampilkan rencana, tidak menulis ke database.
- */
-
 import { db } from "../_shared.ts";
 import { resolveTariff, normalizeCategory } from "../handlers/tariffRules.ts";
 
@@ -59,7 +32,6 @@ async function main() {
     return;
   }
 
-  // Region per trip (dipakai resolver tarif per region).
   const tripIds = [...new Set(rows.map((v) => String(v.trip_id)).filter(Boolean))];
   const regionByTrip = new Map<string, string>();
   if (tripIds.length) {
@@ -69,7 +41,6 @@ async function main() {
     }
   }
 
-  // Kelompokkan per nilai akhir supaya ditulis per batch, bukan per baris.
   const groups = new Map<string, { ids: string[]; amount: number; source: string }>();
   const add = (id: string, amount: number, source: string) => {
     const key = `${amount}|${source}`;
@@ -85,12 +56,12 @@ async function main() {
   for (const v of rows) {
     const amount = Number(v.tariff_amount ?? 0) || 0;
     if (amount > 0) {
-      // Sudah punya harga -> bekukan sebagai snapshot.
       add(String(v.id), amount, "snapshot");
       frozen++;
       continue;
     }
-    // Kategori: kolom kategori dulu, lalu nilai lawas di golongan.
+
+
     const kategori = normalizeCategory(v.kategori) ?? normalizeCategory(v.golongan);
     const resolved = await resolveTariff({
       vehicleType: v.vehicle_type ?? "",
