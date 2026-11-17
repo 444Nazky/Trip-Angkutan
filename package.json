@@ -1,6 +1,6 @@
 {
   "name": "ionic-app-base",
-  "version": "1.2.7",
+  "version": "1.2.0",
   "author": "Ionic Framework",
   "homepage": "https://ionicframework.com/",
   "engines": {
@@ -35,7 +35,6 @@
     "cordova-plugin-file-opener2": "^4.0.0",
     "express": "^4.19.2",
     "lucide-react": "^1.47.0",
-    "onnxruntime-web": "^1.23.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tesseract.js": "^7.0.0",

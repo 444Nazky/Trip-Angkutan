@@ -42,7 +42,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
   const checkNow = async () => {
     setBusy(true)
     try {

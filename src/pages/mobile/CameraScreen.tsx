@@ -4,7 +4,7 @@ import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/
 import { Geolocation } from '@capacitor/geolocation'
 import { Capacitor } from '@capacitor/core'
 import { useApp } from '../store'
-import { readPlateFromPhoto, loadImage, warmUpAlpr, type AlprResult } from '../../services/alpr'
+import { readPlateFromImage } from '../../services/ocr'
 import {
   compressImage,
   DOC_MAX_EDGE,
@@ -21,16 +21,6 @@ import type { MobileScreen } from '../types'
 interface CameraScreenProps {
   go: (s: MobileScreen) => void
 }
-
-/**
- * Nomor urut pemindaian plat di level MODUL, bukan per layar.
- *
- * Layar kamera dibuat ulang setiap kali dibuka. Kalau nomor urut disimpan di
- * dalam komponen, foto lama dan foto retake sama-sama mulai dari 1 — hasil
- * pemindaian foto LAMA yang selesai belakangan bisa menimpa plat dari foto
- * BARU. Itulah sebabnya kolom plat kadang tidak berubah saat foto diulang.
- */
-let plateScanSeq = 0
 
 
 
@@ -69,21 +59,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [liveState, setLiveState] = useState<'off' | 'starting' | 'ready' | 'denied'>('off')
-  // Foto yang baru diambil + kotak plat hasil deteksi lokal. Ditampilkan
-  // sesaat (seperti kotak hijau pada contoh Intel DLStreamer) supaya petugas
-  // bisa memastikan kotak benar-benar mengenai plat sebelum lanjut.
-  const [platePreview, setPlatePreview] = useState<
-    { src: string; plate: string; box: AlprResult['box']; fw: number; fh: number } | null
-  >(null)
   const [, setTick] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const launchedRef = useRef(false)
   const busyRef = useRef(false)
-  // Draft terbaru untuk pengecekan di callback asinkron (mis. auto-scan plat
-  // yang selesai setelah layar berpindah).
-  const draftRef = useRef(draft)
-  draftRef.current = draft
 
 
 
@@ -117,14 +97,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     const id = window.setInterval(() => setTick(v => v + 1), 1000)
     return () => window.clearInterval(id)
   }, [])
-
-  // Muat model + mesin OCR selagi petugas menyiapkan jepretan, supaya
-  // pemindaian plat setelah foto diambil tidak menunggu muat model.
-  useEffect(() => {
-    if (isSelfie) return
-    if (!isOcr && draft.cameraFrom !== 'vehicle-form') return
-    warmUpAlpr()
-  }, [isOcr, isSelfie, draft.cameraFrom])
 
   // Draft yang lewat batas 15 menit tidak boleh ditambah foto lagi: keluar
   // dari layar kamera sebelum jepret diambil.
@@ -245,43 +217,23 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
     // GPS: pakai fix cache kalau ada (hampir instan), fallback request singkat.
     // Tidak pernah menahan proses lebih dari ~2.5 detik.
-    // Foto dokumentasi kendaraan (tampak depan) langsung dipindai platnya di
-    // perangkat: deteksi YOLO + OCR lokal, tanpa jaringan. Dimulai SEBELUM
-    // GPS/watermark supaya pemindaian berjalan bersamaan dengan penyimpanan
-    // foto, bukan setelahnya. Hasilnya masuk ke `ocrResult` sehingga formulir
-    // kendaraan terisi otomatis.
-    //
-    // Retake dari layar riwayat (`retake`) tidak memakai formulir kendaraan,
-    // jadi tidak ada kolom yang bisa diisi. Retake dari formulir (tombol
-    // "Ulangi") tetap dipindai, dan hasilnya boleh MENGGANTI plat lama bila plat
-    // lama itu juga berasal dari scan — lihat scanPlateInBackground().
-    if (!retake && !isSelfie && !isOcr && draft.cameraFrom === 'vehicle-form') {
-      void scanPlateInBackground(rawDataUrl)
-    }
+    const { lat, lon } = await getPhotoPosition()
 
     if (isOcr) {
-      // Mode "Scan Plat Nomor": hasil deteksi ditampilkan sebagai kotak di
-      // atas foto (seperti kotak pembacaan plat pada referensi) sebelum
-      // formulir dibuka, jadi petugas tahu di mana plat terbaca.
-      const result = await scanPlateInBackground(rawDataUrl)
-      if (result?.frameWidth && result?.frameHeight) {
-        setPlatePreview({
-          src: rawDataUrl,
-          plate: result.plate,
-          box: result.box,
-          fw: result.frameWidth,
-          fh: result.frameHeight,
-        })
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-        setPlatePreview(null)
-      }
+      // OCR butuh resolusi lebih tinggi — downscale ke 1280 (bukan 640).
+      const ocrSource = await compressImage(rawDataUrl, {
+        maxEdge: OCR_MAX_EDGE,
+        quality: OCR_QUALITY,
+      })
+      try {
+        const plate = await readPlateFromImage(ocrSource)
+        if (plate) patchDraft({ ocrResult: plate })
+      } catch { /* OCR gagal — biarkan petugas isi manual */ }
       setBusy(false)
       patchDraft({ cameraReturn: undefined })
       go('vehicle-form')
       return
     }
-
-    const { lat, lon } = await getPhotoPosition()
 
     const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt)
 
@@ -357,63 +309,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     go(returnTo)
   }
 
-
-
-
-
-  /** Pindai plat di latar belakang agar penyimpanan foto tidak tertahan. */
-  async function scanPlateInBackground(rawDataUrl: string): Promise<AlprResult | null> {
-    const seq = ++plateScanSeq
-    patchDraft({ plateScanStatus: 'reading' })
-    try {
-      // 1280 px untuk OCR (teks plat butuh detail), tetapi deteksi memakai
-      // 1024 px di dalam pipeline supaya tetap ringan di HP.
-      const source = await compressImage(rawDataUrl, {
-        maxEdge: OCR_MAX_EDGE,
-        quality: OCR_QUALITY,
-      })
-      const img = await loadImage(source)
-      const result = await readPlateFromPhoto(img, { maxEdge: 1024 })
-      // Hasil pemindaian foto yang sudah diganti tidak boleh dipakai.
-      if (seq !== plateScanSeq) return null
-
-      const current = draftRef.current.vehicleForm.plate.trim()
-      const autoApplied = (draftRef.current.ocrPlateApplied ?? '').trim()
-      const fromScan = !!current && !!autoApplied && current.toUpperCase() === autoApplied.toUpperCase()
-
-      if (!result?.plate) {
-        if (fromScan) {
-          // Plat yang tampil berasal dari foto LAMA. Foto barunya gagal dibaca,
-          // jadi plat lama tidak boleh dibiarkan seolah-olah hasil foto baru:
-          // kosongkan dan minta petugas mengisi manual.
-          patchDraft({
-            vehicleForm: { ...draftRef.current.vehicleForm, plate: '' },
-            ocrPlateApplied: undefined,
-            ocrCropUrl: undefined,
-            ocrResult: undefined,
-            plateScanStatus: 'failed',
-          })
-        } else {
-          // Jangan beri peringatan bila petugas sudah mengisi plat sendiri.
-          patchDraft({ plateScanStatus: current ? undefined : 'failed' })
-        }
-        return null
-      }
-
-      // Plat yang sudah diketik petugas tidak boleh ditimpa. Tetapi plat yang
-      // berasal dari scan foto sebelumnya HARUS diperbarui saat foto diambil
-      // ulang — kalau tidak, plat sisa foto lama yang tertinggal di formulir.
-      if (current && !fromScan) {
-        patchDraft({ plateScanStatus: undefined })
-        return null
-      }
-      patchDraft({ ocrResult: result.plate, plateScanStatus: undefined, ocrCropUrl: result.cropDataUrl })
-      return result
-    } catch {
-      if (seq === plateScanSeq) patchDraft({ plateScanStatus: 'failed' })
-      return null
-    }
-  }
 
 
 
@@ -514,34 +409,6 @@ export default function CameraScreen({ go }: CameraScreenProps) {
 
 
 
-
-      {/* ── Hasil pindai: foto + kotak plat (seperti overlay detektor) ── */}
-      {platePreview && (
-        <div className="absolute inset-0 z-40 flex flex-col bg-black">
-          <div className="flex flex-1 items-center justify-center overflow-hidden px-2 pt-6">
-            <div className="relative inline-block">
-              <img
-                src={platePreview.src}
-                alt="Hasil pemindaian plat"
-                className="max-h-[64vh] max-w-full object-contain"
-              />
-              <div
-                className="absolute rounded-md border-2 border-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]"
-                style={{
-                  left: `${(platePreview.box.x1 / platePreview.fw) * 100}%`,
-                  top: `${(platePreview.box.y1 / platePreview.fh) * 100}%`,
-                  width: `${((platePreview.box.x2 - platePreview.box.x1) / platePreview.fw) * 100}%`,
-                  height: `${((platePreview.box.y2 - platePreview.box.y1) / platePreview.fh) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-          <div className="px-5 pb-10 pt-5 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">Plat terdeteksi</p>
-            <p className="mt-1 text-2xl font-black tracking-wider text-white">{platePreview.plate}</p>
-          </div>
-        </div>
-      )}
 
       {/* ── Header overlay ── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-5 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { ChevronLeft, Camera, Check, Loader2, Ban, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Camera, Check, Loader2, Ban } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
@@ -10,7 +10,6 @@ import {
   PLATE_REGEX_STRICT,
 } from '../../utils/plateFormatter'
 import { loadChoiceApplies } from '../../utils/vehicleLoad'
-import { warmUpAlpr } from '../../services/alpr'
 
 
 
@@ -112,9 +111,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     const newLength = rawValue.length
 
     setPlateError('')
-    // Petugas mulai mengetik sendiri: peringatan "plat tidak terbaca" tidak
-    // relevan lagi.
-    if (draft.plateScanStatus) patchDraft({ plateScanStatus: undefined })
 
     if (newLength < oldLength) {
       const sanitized = sanitizePlateInput(rawValue)
@@ -149,24 +145,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
         lastValueRef.current = formattedPlate
         void runCheck(formattedPlate)
       }
-      // Catat nilai hasil scan: dipakai CameraScreen untuk tahu apakah plat di
-      // formulir masih hasil scan (boleh diperbarui saat foto diambil ulang)
-      // atau sudah diketik petugas (tidak boleh ditimpa).
-      patchDraft({ ocrResult: undefined, ocrPlateApplied: formattedPlate })
+      patchDraft({ ocrResult: undefined })
     }
   }, [draft.ocrResult, patchDraft])
-
-  // Muat model ALPR + mesin OCR selama petugas mengisi formulir, sehingga
-  // pemindaian plat setelah foto dijepret tidak menunggu muat model.
-  useEffect(() => {
-    const id = window.setTimeout(() => warmUpAlpr(), 400)
-    return () => window.clearTimeout(id)
-  }, [])
-
-  // Plat gagal terbaca: arahkan petugas langsung ke kolom yang harus diisi.
-  useEffect(() => {
-    if (draft.plateScanStatus === 'failed') plateInputRef.current?.focus()
-  }, [draft.plateScanStatus])
 
   const openCamera = (mode: 'photo' | 'ocr') => {
     patchDraft({ cameraFrom: 'vehicle-form', cameraMode: mode })
@@ -178,7 +159,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       return false
     }
     if (!isFormComplete) return false
-
     // Kategori = pilihan petugas (Internal / Eksternal / Lokal).
     // Golongan = gol master tarif (I..V) — BEDA hal, jangan dicampur.
     // Kendaraan Internal tidak ditagih (kebijakan: tarif Internal = Rp 0),
@@ -209,9 +189,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       vPhotoLongitude: undefined,
       vehiclePhotoTarget: undefined,
       editVehicleIndex: null,
-      ocrPlateApplied: undefined,
-      ocrCropUrl: undefined,
-      plateScanStatus: undefined,
     })
     setCheck(null)
     lastValueRef.current = ''
@@ -228,9 +205,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       vPhotoLongitude: undefined,
       vehiclePhotoTarget: undefined,
       editVehicleIndex: null,
-      ocrPlateApplied: undefined,
-      ocrCropUrl: undefined,
-      plateScanStatus: undefined,
     })
     setCheck(null)
     lastValueRef.current = ''
@@ -407,23 +381,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             />
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
-          {draft.plateScanStatus === 'reading' && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <Loader2 size={12} className="animate-spin" />
-              {plate.trim() ? 'Membaca ulang plat dari foto baru…' : 'Membaca nomor plat dari foto…'}
-            </p>
-          )}
-          {draft.plateScanStatus === 'failed' && (
-            <div
-              role="alert"
-              className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700"
-            >
-              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-              <span>
-                <b>Nomor plat gagal terbaca.</b> Input manual di kolom di atas, atau ambil foto ulang.
-              </span>
-            </div>
-          )}
           {(checkLoading || check?.found) && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
               {checkLoading ? (

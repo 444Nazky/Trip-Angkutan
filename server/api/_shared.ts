@@ -127,22 +127,11 @@ export async function verifyToken(token: string): Promise<OfficerClaims | null> 
 /** Extract auth context from the request. Returns null when unauthenticated. */
 export async function auth(req: Request): Promise<OfficerClaims | null> {
   const header = req.headers.get("authorization");
-  const intranet = Deno.env.get("ADMIN_AUTH_DISABLED") === "1";
-  // Mode intranet tidak memakai kata sandi: token yang basi/tidak dikenal
-  // (mis. sisa sesi petugas atau token dari JWT_SECRET lama) dulu membuat
-  // dashboard admin mendapat 401/403 padahal server memang tanpa auth.
-  // Karena itu setiap pemanggil diperlakukan sebagai admin.
-  //
-  // Tetapi token yang MASIH VALID harus tetap dibaca: aplikasi petugas
-  // memakai id petugas di dalamnya untuk /trips/complete, /officers/my-region,
-  // /routes/mine. Saat token dibuang seluruhnya, id itu hilang dan semua
-  // kiriman trip ditolak 401 meski server bisa diakses tanpa login.
-  if (intranet) {
-    const claims = header ? await verifyToken(header.replace(/^Bearer\s+/i, "")) : null;
-    if (claims) return { ...claims, role: "admin" };
-    return { role: "admin", username: "intranet" };
+  if (!header) {
+    return Deno.env.get("ADMIN_AUTH_DISABLED") === "1"
+      ? { role: "admin", username: "intranet" }
+      : null;
   }
-  if (!header) return null;
   const token = header.replace(/^Bearer\s+/i, "");
   return verifyToken(token);
 }

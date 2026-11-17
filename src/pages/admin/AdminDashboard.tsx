@@ -22,7 +22,6 @@ import { ReportsTab } from './tabs/ReportsTab'
 import { CancellationsTab } from './tabs/CancellationsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
-import { OcrTab } from './tabs/OcrTab'
 
 
 
@@ -30,10 +29,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [officers, setOfficers] = useState<Officer[]>([])
   const [revealed, setRevealed] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  // `/ocr` adalah halaman latih model OCR; dibuka langsung lewat URL itu.
-  const [tab, setTab] = useState<AdminTab>(() =>
-    typeof window !== 'undefined' && /\/ocr\/?$/.test(window.location.pathname) ? 'ocr' : 'reports',
-  )
+  const [tab, setTab] = useState<AdminTab>('reports')
   const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline' | 'auth'>('connecting')
   const [serverError, setServerError] = useState<string | null>(null)
   const [, setServerTrips] = useState<BackendTrip[]>([])
@@ -287,10 +283,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               onSaveOfficers={setOfficers}
               showToast={showToast}
             />
-          )}
-
-          {tab === 'ocr' && (
-            <OcrTab showToast={showToast} />
           )}
 
           {tab === 'endpoint' && (

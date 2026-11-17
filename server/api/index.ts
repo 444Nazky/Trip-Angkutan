@@ -21,7 +21,6 @@ import * as ofc from "./handlers/officers.ts";
 import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
-import * as ocrh from "./handlers/ocr.ts";
 import * as imp from "./handlers/import.ts";
 import * as vts from "./handlers/vehicleTypes.ts";
 import * as setg from "./handlers/settings.ts";
@@ -325,35 +324,6 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   // grafik per menit, status komponen). Dipakai panel "Endpoint" di admin
   // dashboard untuk memantau server intranet port 3000.
   if (a === "server-stats" && req.method === "GET") return await srvst.serverStats(req);
-
-  // ---------------- /ocr (data latih OCR dari dashboard) ----------------
-  if (a === "ocr") {
-    if (req.method === "GET" && b === "model") return await ocrh.getModel(req);
-    if (req.method === "GET" && b === "samples") return await ocrh.listSamples(req, url);
-    if (req.method === "POST" && b === "samples") return await ocrh.createSample(req);
-    if (req.method === "DELETE" && b === "samples" && c) return await ocrh.deleteSample(req, c);
-    if (req.method === "POST" && b === "train") return await ocrh.train(req);
-    if (req.method === "GET" && b === "dataset") return await ocrh.dataset(req);
-    if (req.method === "GET" && !b) return await ocrh.status(req);
-    return notFound();
-  }
-
-  // ---------------- endpoint OTA lama (sudah dihapus) ----------------
-  // Pembaruan aplikasi hanya lewat APK penuh. Endpoint ini tidak lagi punya
-  // data, tetapi menjawab dengan jelas supaya versi aplikasi/browser lama tidak
-  // mencatat 404 misterius di panel statistik server.
-  if (a === "ota-manifest" && req.method === "GET") {
-    return json({ enabled: false, ota: false, message: "OTA dihapus. Pembaruan memakai APK penuh." }, 200);
-  }
-  if (a === "publish-ota") {
-    return json({ error: "GONE", message: "Kanal OTA sudah dihapus. Publikasikan APK lewat /publish-version." }, 410);
-  }
-  if (a === "publish-version" && req.method === "GET") {
-    return new Response(
-      JSON.stringify({ error: "METHOD_NOT_ALLOWED", message: "Publikasi APK memakai POST /publish-version." }),
-      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json", Allow: "POST" } },
-    );
-  }
 
   return notFound();
 }
