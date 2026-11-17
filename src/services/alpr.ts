@@ -52,6 +52,9 @@ export interface AlprResult {
   cropDataUrl?: string
   /** Waktu pemindaian (deteksi + OCR) dalam milidetik. */
   elapsedMs?: number
+  /** Ukuran gambar kerja tempat `box` dihitung (untuk menggambar kotak). */
+  frameWidth?: number
+  frameHeight?: number
 }
 
 function assetUrl(path: string): string {
@@ -326,14 +329,18 @@ export async function readPlateFromPhoto(
     // potongan, sedangkan 1280 hanya menambah ~40% waktu inferensi.
     const { boxes, canvas } = await detectPlateBoxes(src, options.maxEdge ?? 1024)
     const fromFull = await readFromBoxes(canvas, boxes)
-    if (fromFull) return { ...fromFull, elapsedMs: Date.now() - started }
+    if (fromFull) {
+      return { ...fromFull, elapsedMs: Date.now() - started, frameWidth: canvas.width, frameHeight: canvas.height }
+    }
 
     // Foto dari depan kendaraan: plat kecil di bingkai lebar. Coba lagi dengan
     // deteksi per potongan sebelum menyerah.
     if (options.tiles !== false && canvas.width >= 240 && canvas.height >= 160) {
       const tiled = await detectPlateBoxesTiled(canvas)
       const fromTiles = await readFromBoxes(canvas, tiled)
-      if (fromTiles) return { ...fromTiles, elapsedMs: Date.now() - started }
+      if (fromTiles) {
+        return { ...fromTiles, elapsedMs: Date.now() - started, frameWidth: canvas.width, frameHeight: canvas.height }
+      }
     }
     return null
   } catch (err) {
