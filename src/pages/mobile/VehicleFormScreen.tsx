@@ -165,6 +165,11 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
     return () => window.clearTimeout(id)
   }, [])
 
+  // Plat gagal terbaca: arahkan petugas langsung ke kolom yang harus diisi.
+  useEffect(() => {
+    if (draft.plateScanStatus === 'failed') plateInputRef.current?.focus()
+  }, [draft.plateScanStatus])
+
   const openCamera = (mode: 'photo' | 'ocr') => {
     patchDraft({ cameraFrom: 'vehicle-form', cameraMode: mode })
     go('camera')
@@ -415,15 +420,21 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             />
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
-          {draft.plateScanStatus === 'reading' && !plate.trim() && (
+          {draft.plateScanStatus === 'reading' && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <Loader2 size={12} className="animate-spin" /> Membaca nomor plat dari foto…
+              <Loader2 size={12} className="animate-spin" />
+              {plate.trim() ? 'Membaca ulang plat dari foto baru…' : 'Membaca nomor plat dari foto…'}
             </p>
           )}
-          {draft.plateScanStatus === 'failed' && !plate.trim() && (
-            <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700">
+          {draft.plateScanStatus === 'failed' && (
+            <div
+              role="alert"
+              className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-700"
+            >
               <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-              <span>Nomor plat tidak terbaca dari foto. Isi manual atau ambil foto ulang.</span>
+              <span>
+                <b>Nomor plat gagal terbaca.</b> Input manual di kolom di atas, atau ambil foto ulang.
+              </span>
             </div>
           )}
           {(checkLoading || check?.found) && (

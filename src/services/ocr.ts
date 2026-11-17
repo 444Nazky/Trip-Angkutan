@@ -1,5 +1,6 @@
 import { createWorker, PSM, type Worker } from 'tesseract.js'
 import { formatPlateNumber, sanitizePlateInput } from '../utils/plateFormatter'
+import { getPlateModel, loadPlateModel, snapToKnownPlate } from './ocrModel'
 
 /**
  * OCR plat nomor — 100% offline.
@@ -288,10 +289,21 @@ function bestCandidateWithCorrections(texts: string[]): PlateCandidate | null {
   return best
 }
 
+/**
+ * Rapikan teks OCR menjadi plat final, lalu terapkan model koreksi admin
+ * (bila sudah diunduh). Model hanya bisa mempersempit hasil ke plat yang
+ * pernah dikonfirmasi manusia, jadi tidak menambah salah baca baru.
+ */
+function finalizePlate(raw: string): string {
+  const formatted = formatPlateNumber(sanitizePlateInput(raw))
+  if (!formatted) return ''
+  return getPlateModel() ? snapToKnownPlate(formatted) : formatted
+}
+
 function bestCandidate(texts: string[]): string {
   const best = bestCandidateWithCorrections(texts)
   if (!best) return ''
-  return formatPlateNumber(sanitizePlateInput(best.plate))
+  return finalizePlate(best.plate)
 }
 
 // ── API publik ─────────────────────────────────────────────────────────────
@@ -312,6 +324,8 @@ export async function recognizeCropTexts(crop: HTMLCanvasElement): Promise<strin
 /** Muat worker + model OCR lebih awal (mis. saat formulir kendaraan dibuka). */
 export function preloadPlateOcr(): void {
   void getPlateWorker().catch(() => { /* diabaikan: dicoba lagi saat dipakai */ })
+  // Model koreksi dari dashboard admin: kecil, cukup diunduh sekali per sesi.
+  void loadPlateModel()
 }
 
 /**
@@ -339,7 +353,7 @@ export async function readPlateTextFromCanvas(crop: HTMLCanvasElement): Promise<
       texts.push(text)
       const candidate = bestCandidateWithCorrections(texts)
       if (candidate && candidate.corrections === 0) {
-        return formatPlateNumber(sanitizePlateInput(candidate.plate))
+        return finalizePlate(candidate.plate)
       }
     } catch { /* varian gagal, lanjut varian lain */ }
   }

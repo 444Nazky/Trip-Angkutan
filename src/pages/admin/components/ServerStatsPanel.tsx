@@ -96,13 +96,18 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   const data = useMemo(() => buckets.slice(-60), [buckets])
   const [wrapRef, width] = useElementWidth()
 
-  const H = 180
-  const PAD_L = 34
-  const PAD_R = 8
-  const PAD_T = 10
-  const PAD_B = 20
+  const H = 200
+  // PAD_L cukup lebar untuk label angka 3 digit; sebelumnya 34 px sehingga
+  // label "31" terpotong dan tampak seperti "11" di pojok grafik.
+  const PAD_L = 48
+  const PAD_R = 12
+  const PAD_T = 14
+  const PAD_B = 24
 
   const max = Math.max(1, ...data.map(b => b.total))
+  // Skala dibulatkan ke kelipatan 4 supaya garis bantu punya angka bulat dan
+  // tidak berubah-ubah setiap polling.
+  const niceMax = Math.max(4, Math.ceil(max / 4) * 4)
   const peak = data.reduce((acc, b) => (b.total > acc.total ? b : acc), { minute: 0, total: 0, ok: 0, err: 0 })
 
   const innerW = Math.max(0, width - PAD_L - PAD_R)
@@ -112,7 +117,7 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   const toPoints = (value: (b: MetricsBucket) => number) =>
     data.map((b, i) => ({
       x: PAD_L + i * step,
-      y: PAD_T + innerH - (Math.max(0, value(b)) / max) * innerH,
+      y: PAD_T + innerH - (Math.max(0, value(b)) / niceMax) * innerH,
     }))
 
   const linePts = toPoints(b => b.total)
@@ -127,14 +132,14 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1]
 
   return (
-    <div className="flex min-h-40 flex-1 flex-col rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-      <div ref={wrapRef} className="relative min-h-[180px] w-full flex-1">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+      <div ref={wrapRef} className="relative h-[200px] w-full">
         {data.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-[11px] text-slate-500">
             Belum ada data request.
           </div>
         ) : width > 0 && (
-          <svg width={width} height={H} className="block overflow-visible">
+          <svg width={width} height={H} className="block">
             <defs>
               <linearGradient id="trafficFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.45} />
@@ -169,8 +174,8 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
                     strokeWidth={r === 0 ? 1 : 0.5}
                     strokeDasharray={r === 0 ? undefined : '3 4'}
                   />
-                  <text x={PAD_L - 6} y={y + 3} textAnchor="end" fontSize={9} fill="#64748B" fontFamily="monospace">
-                    {Math.round(r * max)}
+                  <text x={PAD_L - 8} y={y + 3} textAnchor="end" fontSize={9} fill="#64748B" fontFamily="monospace">
+                    {Math.round(r * niceMax)}
                   </text>
                 </g>
               )
@@ -210,13 +215,13 @@ function TrafficChart({ buckets }: { buckets: MetricsBucket[] }) {
         )}
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-slate-500">
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full bg-[#22D3EE]" /> request</span>
           <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: '#EF4444' }} /> error</span>
         </span>
         <span className="font-mono">
-          puncak {peak.total} req/menit · total {data.reduce((s, b) => s + b.total, 0)} req
+          puncak {peak.total}/menit · total {data.reduce((s, b) => s + b.total, 0)} req
         </span>
       </div>
     </div>
@@ -229,8 +234,8 @@ function TrafficTable({ buckets }: { buckets: MetricsBucket[] }) {
   if (rows.length === 0) return null
 
   return (
-    <div className="mt-3 overflow-x-auto rounded-xl border border-slate-700/60">
-      <table className="w-full text-left text-[11px]">
+    <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-700/60">
+      <table className="w-full min-w-[420px] text-left text-[11px]">
         <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-3 py-2 font-semibold">Waktu</th>
@@ -271,6 +276,12 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
   const cpuPct = cpu.usagePercent ?? cpu.averageSinceBootPercent
   const cpuColor = cpuPct >= 85 ? '#EF4444' : cpuPct >= 60 ? '#F59E0B' : '#22D3EE'
   const memColor = mem.usedPercent >= 85 ? '#EF4444' : mem.usedPercent >= 60 ? '#F59E0B' : '#3B82F6'
+  // Beberapa path bisa berada di filesystem yang sama (mis. / dan /data pada
+  // overlay yang sama). Tampilkan sekali saja supaya panel tidak terlihat
+  // seperti angka yang salah/berulang.
+  const disks = system.disks.filter(
+    (d, i, arr) => arr.findIndex(o => o.total === d.total && o.used === d.used) === i,
+  )
 
   return (
     <div className="flex flex-col gap-3">
@@ -335,14 +346,14 @@ function SystemPanel({ system }: { system: SystemMetrics }) {
               <HardDrive size={12} /> Penyimpanan
             </span>
             <span className="font-mono text-[10px] text-slate-500">
-              {system.disks.length} filesystem
+              {disks.length} filesystem
             </span>
           </div>
-          {system.disks.length === 0 ? (
+          {disks.length === 0 ? (
             <p className="text-[10px] text-slate-500">Informasi disk tidak tersedia.</p>
           ) : (
             <div className="space-y-2.5">
-              {system.disks.map(d => (
+              {disks.map(d => (
                 <div key={d.path}>
                   <div className="flex items-center justify-between font-mono text-[10px]">
                     <span className="text-slate-300">{d.label}</span>
@@ -402,7 +413,7 @@ export function ServerStatsPanel() {
   const m = stats?.metrics
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-slate-900 p-5">
+    <div className="flex min-h-screen w-full flex-col bg-slate-900 p-4 pb-10 sm:p-5">
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -440,7 +451,7 @@ export function ServerStatsPanel() {
       )}
 
       {stats && m && (
-        <div className="flex flex-1 flex-col gap-4">
+        <div className="space-y-4">
           {/* Kartu metrik utama */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Total Requests" value={m.total.toLocaleString('id-ID')} hint={`${m.ok} sukses · ${m.clientError} 4xx · ${m.serverError} 5xx`} color="#3B82F6" />
@@ -474,7 +485,7 @@ export function ServerStatsPanel() {
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                   <Cpu size={12} /> Uptime
                 </span>
-                <span className="font-mono text-[11px] font-bold text-slate-200">{formatUptime(m.uptimeMs)}</span>
+                <span className="shrink-0 whitespace-nowrap font-mono text-[11px] font-bold text-slate-200">{formatUptime(m.uptimeMs)}</span>
               </div>
               <Meter ratio={Math.min(1, m.uptimeMs / (24 * 3600 * 1000))} color="#10B981" />
               <p className="mt-1.5 text-[10px] text-slate-500">
@@ -505,8 +516,8 @@ export function ServerStatsPanel() {
           )}
 
           {/* Grafik + status komponen */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
-            <div className="flex min-h-0 flex-col lg:col-span-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+            <div className="flex flex-col lg:col-span-3">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                 <Activity size={12} /> Grafik Request per Menit
               </p>
@@ -514,7 +525,7 @@ export function ServerStatsPanel() {
               <TrafficTable buckets={m.buckets} />
             </div>
 
-            <div className="min-h-0 lg:col-span-2">
+            <div className="lg:col-span-2">
               <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
                 <Database size={12} /> Status Komponen Server
               </p>
@@ -538,7 +549,7 @@ export function ServerStatsPanel() {
           </div>
 
           {/* Rincian error — penyebab langsung turunnya Success Rate */}
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex flex-col">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Penyebab Error (per kode &amp; endpoint)</p>
             {(() => {
               const groups = m.topErrors ?? []
@@ -550,9 +561,9 @@ export function ServerStatsPanel() {
                 )
               }
               return (
-                <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700/60">
-                  <table className="w-full text-left text-[11px]">
-                    <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
+                <div className="max-h-80 overflow-auto rounded-xl border border-slate-700/60">
+                  <table className="w-full min-w-[520px] text-left text-[11px]">
+                    <thead className="sticky top-0 bg-slate-800/95 text-[10px] uppercase tracking-wide text-slate-400 backdrop-blur">
                       <tr>
                         <th className="px-3 py-2 font-semibold">Kode</th>
                         <th className="px-3 py-2 font-semibold">Path</th>
@@ -584,11 +595,11 @@ export function ServerStatsPanel() {
 
           {/* Top endpoint */}
           {m.topPaths.length > 0 && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex flex-col">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Endpoint Teramai</p>
-              <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-700/60">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-400">
+              <div className="max-h-80 overflow-auto rounded-xl border border-slate-700/60">
+                <table className="w-full min-w-[520px] text-left text-[11px]">
+                  <thead className="sticky top-0 bg-slate-800/95 text-[10px] uppercase tracking-wide text-slate-400 backdrop-blur">
                     <tr>
                       <th className="px-3 py-2 font-semibold">Path</th>
                       <th className="px-3 py-2 font-semibold">Request</th>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X, Brain } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -22,6 +22,7 @@ import { ReportsTab } from './tabs/ReportsTab'
 import { CancellationsTab } from './tabs/CancellationsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
+import { OcrTab } from './tabs/OcrTab'
 
 
 
@@ -29,7 +30,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [officers, setOfficers] = useState<Officer[]>([])
   const [revealed, setRevealed] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const [tab, setTab] = useState<AdminTab>('reports')
+  // `/ocr` adalah halaman latih model OCR; dibuka langsung lewat URL itu.
+  const [tab, setTab] = useState<AdminTab>(() =>
+    typeof window !== 'undefined' && /\/ocr\/?$/.test(window.location.pathname) ? 'ocr' : 'reports',
+  )
   const [serverState, setServerState] = useState<'connecting' | 'online' | 'offline' | 'auth'>('connecting')
   const [serverError, setServerError] = useState<string | null>(null)
   const [, setServerTrips] = useState<BackendTrip[]>([])
@@ -116,6 +120,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
+    { key: 'ocr', label: 'Latih OCR', Icon: Brain },
     { key: 'endpoint', label: 'Pengaturan', Icon: Settings },
   ]
 
@@ -283,6 +288,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               onSaveOfficers={setOfficers}
               showToast={showToast}
             />
+          )}
+
+          {tab === 'ocr' && (
+            <OcrTab showToast={showToast} />
           )}
 
           {tab === 'endpoint' && (
