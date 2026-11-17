@@ -1,9 +1,8 @@
  import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Database, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { prefetchAllCriticalData } from '../../services/prefetch'
-import { clearPlateSamples, countPlateSamples, exportPlateDataset } from '../../services/plateDataset'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -24,9 +23,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const update = useAppUpdate()
   const [busy, setBusy] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
-  const [sampleCount, setSampleCount] = useState(0)
-  const [datasetBusy, setDatasetBusy] = useState(false)
-  const [datasetMsg, setDatasetMsg] = useState('')
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
@@ -42,34 +38,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     }
   }, [refreshOfficers])
 
-  useEffect(() => {
-    void countPlateSamples().then(setSampleCount).catch(() => setSampleCount(0))
-  }, [])
-
-  const exportDataset = async () => {
-    setDatasetBusy(true)
-    setDatasetMsg('')
-    try {
-      const res = await exportPlateDataset()
-      setDatasetMsg(`${res.count} sampel diekspor ke ${res.location}`)
-      setSampleCount(res.count)
-    } catch (err) {
-      setDatasetMsg(`Ekspor gagal: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setDatasetBusy(false)
-    }
-  }
-
-  const clearDataset = async () => {
-    setDatasetBusy(true)
-    try {
-      await clearPlateSamples()
-      setSampleCount(0)
-      setDatasetMsg('Data latih plat dihapus dari perangkat')
-    } finally {
-      setDatasetBusy(false)
-    }
-  }
 
 
 
@@ -265,39 +233,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
-
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-3 px-4 pb-2 pt-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Database size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Data Latih Plat</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">
-              {sampleCount > 0 ? `${sampleCount} koreksi plat tersimpan di perangkat` : 'Belum ada koreksi plat tersimpan'}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 px-4 pb-3">
-          <button
-            onClick={() => void exportDataset()}
-            disabled={datasetBusy || sampleCount === 0}
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-[10px] font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:bg-slate-50"
-          >
-            {datasetBusy ? 'Memproses…' : 'Ekspor JSON'}
-          </button>
-          <button
-            onClick={() => void clearDataset()}
-            disabled={datasetBusy || sampleCount === 0}
-            className="flex-1 rounded-lg border border-red-200 px-3 py-2 text-[10px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:bg-slate-50"
-          >
-            Hapus
-          </button>
-        </div>
-        {datasetMsg && (
-          <div className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-[10px] break-all text-slate-600">
-            {datasetMsg}
-          </div>
-        )}
-      </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <button

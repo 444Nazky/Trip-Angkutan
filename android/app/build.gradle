@@ -28,8 +28,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Rilis 1.1.7 - UI/teks dirapikan, geofence diperjelas, pembaruan APK penuh.
-        versionCode 35
-        versionName "1.2.5"
+        versionCode 36
+        versionName "1.2.6"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X, Brain } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -120,7 +120,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
-    { key: 'ocr', label: 'Latih OCR', Icon: Brain },
     { key: 'endpoint', label: 'Pengaturan', Icon: Settings },
   ]
 
