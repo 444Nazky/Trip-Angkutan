@@ -200,11 +200,27 @@ export async function getOfficerRoutesByDermaga(
   return map;
 }
 
+/**
+ * Nomor trip berbasis waktu WIB: TRP + YYYYMMDDHHMMSS.
+ *
+ * Dulu nomornya TRP + tanggal + 4 byte acak (mis. TRP202611176EEDD23F),
+ * sehingga tidak bisa dibaca petugas. Sekarang tanggal + jam lengkap,
+ * memakai zona Asia/Jakarta supaya sama dengan jam yang tampil di dashboard.
+ * Detik disertakan agar dua trip pada menit yang sama tidak bentrok dengan
+ * constraint UNIQUE `trips.no_trip`.
+ */
 export function generateTripNo(): string {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const random = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-    .toUpperCase();
-  return `TRP${dateStr}${random}`;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `TRP${pick("year")}${pick("month")}${pick("day")}${pick("hour")}${pick("minute")}${pick("second")}`;
 }

@@ -332,7 +332,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
       for (const t of trips as any[]) {
         tripMeta.set(t.id, [
           t.no_trip,
-          t.officers?.name,
+          t.officer_name ?? t.officers?.name,
           t.route_from,
           t.route_to,
           t.route_from_name,
@@ -367,7 +367,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
 
       return {
         ...t,
-        officer_name: t.officers?.name,
+        officer_name: t.officer_name ?? t.officers?.name ?? null,
         region_name: t.regions?.name,
         region_code: t.regions?.code,
         dermaga_name: t.dermagas?.name ?? null,

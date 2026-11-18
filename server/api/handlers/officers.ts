@@ -290,9 +290,26 @@ export async function updateOfficerRegions(req: Request, officerId: string): Pro
     if (!ctx) return json({ error: "Admin access required" }, 403);
 
     const { regionIds } = await req.json().catch(() => ({})) as any;
-    if (!Array.isArray(regionIds) || regionIds.length === 0) {
-      return json({ error: "regionIds harus berupa array dan tidak kosong" }, 400);
+    if (!Array.isArray(regionIds)) {
+      return json({ error: "regionIds harus berupa array" }, 400);
     }
+
+    // Array kosong = cabut SEMUA akses wilayah. Dulu ini ditolak 400,
+    // sehingga petugas yang aksesnya dicabut tetap menempel di wilayah lama
+    // dan tidak pernah pindah ke grup "Lainnya" di dashboard.
+    if (regionIds.length === 0) {
+      await db.from("officer_regions").delete().eq("officer_id", officerId);
+      const { error: clearError } = await db
+        .from("officers")
+        .update({ region_id: null })
+        .eq("id", officerId);
+      if (clearError) {
+        console.error("Update officer regions (clear) error:", clearError);
+        return json({ error: "Gagal menghapus akses wilayah petugas" }, 500);
+      }
+      return json({ success: true, regionIds: [] });
+    }
+
     const ids = [...new Set(regionIds
       .map((v: unknown) => String(v ?? "").trim())
       .filter((v: string) => UUID_RE.test(v)))];
@@ -429,6 +446,26 @@ export async function deleteOfficer(req: Request, officerId: string): Promise<Re
   try {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
+
+    // Simpan nama petugas ke setiap trip/pembatalan SEBELUM relasinya
+    // dilepas. Data trip tidak dihapus - hanya nama petugas yang dibekukan
+    // di kolom snapshot supaya laporan lama tetap menampilkan nama yang benar.
+    const { data: officerRow } = await db
+      .from("officers")
+      .select("name")
+      .eq("id", officerId)
+      .maybeSingle();
+    const officerName = String(officerRow?.name ?? "").trim();
+    if (officerName) {
+      await db.from("trips").update({ officer_name: officerName }).eq("officer_id", officerId);
+      await db.from("trip_cancellations").update({ officer_name: officerName }).eq("officer_id", officerId);
+    }
+
+    // Lepas relasi ke riwayat, lalu hapus petugasnya saja. ON DELETE SET NULL
+    // sudah ada di skema, tetapi update eksplisit ini tetap benar untuk
+    // database lama yang constraint-nya belum ON DELETE SET NULL.
+    await db.from("trips").update({ officer_id: null }).eq("officer_id", officerId);
+    await db.from("trip_cancellations").update({ officer_id: null }).eq("officer_id", officerId);
 
     await db.from("officer_regions").delete().eq("officer_id", officerId);
     await db.from("officer_dermagas").delete().eq("officer_id", officerId);

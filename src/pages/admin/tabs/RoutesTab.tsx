@@ -388,7 +388,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
               disabled={!!editRouteId} className="w-full border rounded-xl px-3 py-2 text-sm disabled:bg-slate-100">
               <option value="">— Pilih Dermaga —</option>
               {routeDermagas.map(d => (
-                <option key={d.id} value={d.id}>{d.region_name || d.region_id} · {d.name} ({d.code})</option>
+                <option key={d.id} value={d.id}>{d.region_name || d.region_id} · {d.name}</option>
               ))}
             </select>
           </div>
@@ -422,7 +422,6 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
         <table className="w-full min-w-[980px] border-collapse text-[13px]">
           <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2.5 border border-slate-200 text-left w-[100px]">Dermaga</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[260px]">Nama Rute</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Asal</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Tujuan</th>
@@ -431,7 +430,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
           </thead>
           <tbody>
             {routeRows.length === 0 && (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-400">
+              <tr><td colSpan={4} className="p-8 text-center text-slate-400">
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
@@ -439,14 +438,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
                 <tr className="bg-slate-800">
-                  <td colSpan={5} className="px-3 py-2 border border-slate-700 text-left">
+                  <td colSpan={4} className="px-3 py-2 border border-slate-700 text-left">
                     <span className="font-bold text-white text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
                     <tr className="bg-slate-100">
-                      <td colSpan={5} className="px-3 py-2 border border-slate-200 text-left">
+                      <td colSpan={4} className="px-3 py-2 border border-slate-200 text-left">
                         <span className="font-semibold text-slate-600 text-xs flex items-center gap-2">
                           <span className="w-1 h-1 rounded-full bg-slate-400" />
                           {dermagaName}
@@ -456,7 +455,6 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </tr>
                     {routes.map((r, rIdx) => (
                       <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : `${rIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60`}`}>
-                        <td className="px-3 py-2 border border-slate-200 text-slate-500 text-[11px] font-semibold whitespace-nowrap">{r.dermaga_code || ''}</td>
                         <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_to}</td>

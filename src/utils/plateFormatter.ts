@@ -96,12 +96,12 @@ export function validatePlate(plate: string): { valid: boolean; error?: string }
   const trimmed = plate.trim()
 
   if (!trimmed) {
-    return { valid: false, error: 'Nomor plat tidak boleh kosong' }
+    return { valid: false, error: 'No. polisi tidak boleh kosong' }
   }
 
   const raw = trimmed.replace(/\s+/g, '')
   if (raw.length < 3) {
-    return { valid: false, error: 'Nomor plat terlalu pendek' }
+    return { valid: false, error: 'No. polisi terlalu pendek' }
   }
 
   if (!PLATE_REGEX_STRICT.test(trimmed)) {
@@ -109,7 +109,7 @@ export function validatePlate(plate: string): { valid: boolean; error?: string }
     if (!match) {
       return {
         valid: false,
-        error: 'Format plat tidak valid. Contoh: B 1010 ABC atau KT 719 CEB'
+        error: 'Format no. polisi tidak valid. Contoh: B 1010 ABC atau KT 719 CEB'
       }
     }
   }

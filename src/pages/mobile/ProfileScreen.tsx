@@ -1,8 +1,9 @@
  import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Database, Download, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { prefetchAllCriticalData } from '../../services/prefetch'
+import { exportLocalDatabase } from '../../services/exportDb'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -22,6 +23,9 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   const { officer, trips, refreshOfficers } = useApp()
   const update = useAppUpdate()
   const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportMessage, setExportMessage] = useState('')
+  const [exportFailed, setExportFailed] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : false)
   useEffect(() => {
     void refreshOfficers()
@@ -66,6 +70,27 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       console.debug('[Profile] Apply update selesai:', success, 'state:', appUpdate.state)
     } finally {
       setBusy(false)
+    }
+  }
+
+  const exportDatabase = async () => {
+    setExporting(true)
+    setExportMessage('')
+    setExportFailed(false)
+    try {
+      const result = await exportLocalDatabase()
+      setExportFailed(!result.ok)
+      if (result.ok) {
+        setExportMessage(
+          result.mode === 'file'
+            ? `Database diekspor ke ${result.path ?? result.filename}`
+            : `Database diekspor: ${result.filename}`,
+        )
+      } else {
+        setExportMessage(result.message ?? 'Gagal mengekspor database')
+      }
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -194,6 +219,37 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="px-4 pb-2 pt-3">
+          <h3 className="text-xs font-semibold text-slate-800">Data Lokal</h3>
+          <p className="mt-0.5 text-[10px] text-slate-400">Cadangan data perangkat</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <button
+            onClick={() => void exportDatabase()}
+            disabled={exporting}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 disabled:opacity-60"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Database size={16} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-800">Ekspor Database Lokal</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">Trip, petugas, dan master data 40 hari terakhir</p>
+            </div>
+            {exporting
+              ? <RefreshCw size={15} className="animate-spin text-slate-400" />
+              : <Download size={15} className="text-slate-400" />}
+          </button>
+        </div>
+        {exportMessage && (
+          <div className={`flex items-start gap-2 border-t px-4 py-2.5 text-[10px] ${
+            exportFailed ? 'border-red-100 bg-red-50 text-red-700' : 'border-emerald-100 bg-emerald-50 text-emerald-800'
+          }`}>
+            {exportFailed ? <AlertCircle size={13} className="mt-0.5 shrink-0" /> : <CheckCircle size={13} className="mt-0.5 shrink-0" />}
+            <span className="break-all">{exportMessage}</span>
+          </div>
+        )}
+      </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center gap-3 p-4">

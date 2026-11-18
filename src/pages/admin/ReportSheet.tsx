@@ -439,7 +439,7 @@ export default function ReportSheet() {
                 type="search"
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
-                placeholder="No trip, plat, petugas, rute"
+                placeholder="No trip, no. polisi, petugas, rute"
                 className="border rounded-lg pl-8 pr-3 py-1.5 text-sm bg-white min-w-[230px]"
               />
             </span>

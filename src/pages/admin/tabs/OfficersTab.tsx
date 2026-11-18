@@ -138,7 +138,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const [loading, setLoading] = useState(true)
   const [addOff, setAddOff] = useState(false)
   const [editOffIdx, setEditOffIdx] = useState<number | null>(null)
-  const [offForm, setOffForm] = useState({ name: '', region: '', pin: '', device: '', dermagaIds: [] as string[] })
+  const [offForm, setOffForm] = useState({ name: '', username: '', region: '', pin: '', device: '', dermagaIds: [] as string[] })
   const [editOff, setEditOff] = useState<Officer | null>(null)
   const [editRegions, setEditRegions] = useState<string[]>([])
   const [editDermagaIds, setEditDermagaIds] = useState<string[]>([])
@@ -180,14 +180,35 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   const regionNames = [...new Set(regions.map(r => r.name))]
   const officerRegions = (o: Officer) =>
     (o.regions && o.regions.length > 0 ? o.regions : [o.region])
+  const regionNameByCode = new Map(
+    regions.map(r => [String(r.code ?? '').toUpperCase(), r.name] as const).filter(([code]) => !!code),
+  )
+  /** Nama wilayah dari setiap dermaga yang masih diakses petugas. */
+  const dermagaRegionNames = (o: Officer) =>
+    (o.dermagaAccess ?? [])
+      .map(d =>
+        routeDermagas.find(x => x.id === d.id)?.region_name ||
+        regions.find(r => r.id === d.region_id)?.name ||
+        '',
+      )
+      .filter(Boolean)
+  /**
+   * Kelompok petugas = wilayah akses region + wilayah dari dermaga aksesnya.
+   * Kalau keduanya kosong, petugas masuk grup "Lainnya".
+   */
+  const officerGroupNames = (o: Officer) => [
+    ...new Set([
+      ...officerRegions(o).filter(n => regionNames.includes(n)),
+      ...dermagaRegionNames(o).filter(n => regionNames.includes(n)),
+    ]),
+  ]
+  const hasAnyAccess = (o: Officer) => officerGroupNames(o).length > 0
   const inRegionGroup = (o: Officer, group: string) =>
-    group === 'LAINNYA'
-      ? !officerRegions(o).some(n => regionNames.includes(n))
-      : officerRegions(o).includes(group)
+    group === 'LAINNYA' ? !hasAnyAccess(o) : officerGroupNames(o).includes(group)
 
   const officerGroups = [
     ...regionNames,
-    ...(localOfficers.some(o => !officerRegions(o).some(n => regionNames.includes(n))) ? ['LAINNYA'] : []),
+    ...(localOfficers.some(o => !hasAnyAccess(o)) ? ['LAINNYA'] : []),
   ]
 
   const regionNameOfDermaga = (d: RouteDermaga) => d.region_name || regions.find(r => r.id === d.region_id)?.name || ''
@@ -217,8 +238,14 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     const parts: string[] = []
     for (const [dermagaId, dermagaRoutes] of byDermaga) {
       const dermaga = routeDermagas.find(d => d.id === dermagaId)
-      const dermagaLabel = dermaga ? dermaga.region_name || dermaga.code : ''
-      const routeLabels = dermagaRoutes.map(r => `${r.route_from} → ${r.route_to}`).join(' | ')
+      const dermagaLabel = dermaga?.name || ''
+      // Kode wilayah (SJRE, SBDZ, ...) tidak lagi ditampilkan di dashboard;
+      // tampilkan nama wilayahnya kalau kodenya bisa dipetakan.
+      const routeEndpoint = (value: string) =>
+        regionNameByCode.get(String(value ?? '').toUpperCase()) || value
+      const routeLabels = dermagaRoutes
+        .map(r => `${routeEndpoint(r.route_from)} → ${routeEndpoint(r.route_to)}`)
+        .join(' | ')
       parts.push(`${dermagaLabel ? dermagaLabel + ' · ' : ''}RUTE = ${routeLabels}`)
     }
     return parts.join(' | ')
@@ -242,11 +269,11 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     if (offForm.pin.length < 4) return showToast('PIN minimal 4 digit!', 'error')
     const region = regions.find(r => r.name === offForm.region)
     if (!region) return showToast('Pilih wilayah', 'error')
-    // ponytail: username dikirim eksplisit — rumus SAMA dengan fallback tampilan
-    // (nama lowercase tanpa spasi) dan derivasi backend, jadi @ di tabel = login.
-    const username = offForm.name.trim().toLowerCase().replace(/\s+/g, '')
+    // Username boleh diisi admin. Kalau dibiarkan kosong, server menurunkan
+    // dari nama (lowercase tanpa spasi) seperti sebelumnya.
+    const username = offForm.username.trim().toLowerCase().replace(/\s+/g, '')
     const res = await api.post<{ id: string }>('/officers', {
-      name: offForm.name.trim(), username, pin: offForm.pin, regionId: region?.id,
+      name: offForm.name.trim(), username: username || undefined, pin: offForm.pin, regionId: region?.id,
       regionIds: region ? [region.id] : undefined,
       dermagaIds: offForm.dermagaIds.length > 0 ? offForm.dermagaIds : undefined,
     })
@@ -259,14 +286,14 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
       )
     }
     await reloadAndSync(await api.getOk<BackendOfficerRow[]>('/officers'))
-    setOffForm({ name: '', region: '', pin: '', device: '', dermagaIds: [] })
+    setOffForm({ name: '', username: '', region: '', pin: '', device: '', dermagaIds: [] })
     setAddOff(false)
     showToast('Petugas ditambahkan')
   }
 
   const handleUpdOff = async () => {
     if (!editOff) return
-    const chosen = editRegions.length > 0 ? editRegions : [editOff.region]
+    const chosen = editRegions
     const ids = chosen.map(n => regions.find(r => r.name === n)?.id).filter(Boolean) as string[]
     const be = findBackendOfficer(editOff)
     if (!be) {
@@ -282,12 +309,21 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
     // dikirim ke server, jadi UI menampilkan "diupdate" padahal di database
     // masih nama lama (dan kembali lagi setelah reload).
     const newName = String(editOff.name ?? '').trim()
-    if (newName && newName !== String(be.name ?? '').trim()) {
-      const nameRes = await api.put(`/officers/${be.id}`, { name: newName })
-      if (!nameRes.ok) return showToast(failureReason(nameRes, 'Nama petugas gagal disimpan karena server menolak permintaan'), 'error')
+    const newUsername = String(editOff.username ?? '').trim().toLowerCase().replace(/\s+/g, '')
+    const profilePatch: { name?: string; username?: string } = {}
+    if (newName && newName !== String(be.name ?? '').trim()) profilePatch.name = newName
+    if (newUsername && newUsername !== String(be.username ?? '').trim().toLowerCase()) {
+      profilePatch.username = newUsername
+    }
+    if (Object.keys(profilePatch).length > 0) {
+      const profileRes = await api.put(`/officers/${be.id}`, profilePatch)
+      if (!profileRes.ok) return showToast(failureReason(profileRes, 'Data petugas gagal disimpan karena server menolak permintaan'), 'error')
     }
 
-    if (ids.length > 0) {
+    // Array kosong = cabut semua wilayah. Dulu kondisi ini dilewati sehingga
+    // wilayah lama tetap tersimpan dan petugas tidak pernah pindah ke grup
+    // "Lainnya" walaupun semua centangnya sudah dihapus.
+    {
       const res = await api.put(`/officers/${be.id}/regions`, { regionIds: ids })
       if (!res.ok) return showToast(failureReason(res, 'Wilayah petugas gagal disimpan karena server menolak permintaan'), 'error')
     }
@@ -311,7 +347,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   }
 
   const handleDelOff = async (localIdx: number) => {
-    if (!confirm('Hapus?')) return
+    if (!confirm('Hapus petugas ini? Data trip yang sudah dikirim tetap tersimpan.')) return
     const officer = localOfficers[localIdx]
     const be = findBackendOfficer(officer)
     if (!be) {
@@ -364,6 +400,10 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={offForm.name} onChange={e => setOffForm({...offForm, name: e.target.value})}
                 className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Username</label>
+              <input value={offForm.username} onChange={e => setOffForm({...offForm, username: e.target.value})}
+                placeholder="otomatis dari nama" autoCapitalize="none" spellCheck={false}
+                className="w-full border rounded-xl px-3 py-2 text-sm font-mono" /></div>
             <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <select value={offForm.region} onChange={e => setOffForm({...offForm, region: e.target.value, dermagaIds: []})}
                 className="w-full border rounded-xl px-3 py-2 text-sm">
@@ -381,7 +421,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                   <label key={d.id} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
                     <input type="checkbox" checked={offForm.dermagaIds.includes(d.id)}
                       onChange={() => setOffForm({ ...offForm, dermagaIds: toggleId(offForm.dermagaIds, d.id) })} />
-                    {d.name} ({d.code})
+                    {d.name}
                   </label>
                 ))}
               </div>
@@ -405,6 +445,10 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
             <div><label className="text-[11px] text-slate-500 block mb-1">Nama</label>
               <input value={editOff.name} onChange={e => setEditOff({...editOff, name: e.target.value})}
                 className="w-full border rounded-xl px-3 py-2 text-sm" /></div>
+            <div><label className="text-[11px] text-slate-500 block mb-1">Username</label>
+              <input value={editOff.username ?? ''} onChange={e => setEditOff({...editOff, username: e.target.value})}
+                autoCapitalize="none" spellCheck={false}
+                className="w-full border rounded-xl px-3 py-2 text-sm font-mono" /></div>
             <div><label className="text-[11px] text-slate-500 block mb-1">Wilayah</label>
               <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1.5">
                 {regionNames.map(n => (
@@ -427,7 +471,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                   <label key={d.id} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-600">
                     <input type="checkbox" checked={editDermagaIds.includes(d.id)}
                       onChange={() => setEditDermagaIds(prev => toggleId(prev, d.id))} />
-                    {regionNameOfDermaga(d)} · {d.name} ({d.code})
+                    {regionNameOfDermaga(d)} · {d.name}
                   </label>
                 ))}
               </div>
@@ -476,7 +520,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                           ? <span className="text-slate-300 text-xs">—</span>
                           : <span className="flex flex-wrap gap-1">
                             {o.dermagaAccess!.map(d => (
-                              <span key={d.id} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 text-[10px] font-semibold">{d.code}</span>
+                              <span key={d.id} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-500 text-[10px] font-semibold">{d.name}</span>
                             ))}
                           </span>
                         }

@@ -41,7 +41,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
   const handleSave = async () => {
     const plate = formatPlateNumber(sanitizePlateInput(plateForm.plate))
     const check = validatePlate(plate)
-    if (!check.valid) return showToast(check.error ?? 'Format plat tidak valid', 'error')
+    if (!check.valid) return showToast(check.error ?? 'Format no. polisi tidak valid', 'error')
     const input = {
       plate,
       owner: plateForm.owner.trim() || undefined,
@@ -50,21 +50,21 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
     }
     if (editPlateId) {
       const res = await updatePlate(editPlateId, input)
-      if (!res.ok) return showToast(res.reason ?? 'Plat gagal diperbarui karena server menolak permintaan', 'error')
+      if (!res.ok) return showToast(res.reason ?? 'No. polisi gagal diperbarui karena server menolak permintaan', 'error')
     } else {
       const res = await createPlate(input)
-      if (!res.ok) return showToast(res.reason ?? 'Plat gagal didaftarkan karena server menolak permintaan', 'error')
+      if (!res.ok) return showToast(res.reason ?? 'No. polisi gagal didaftarkan karena server menolak permintaan', 'error')
     }
     const fresh = await fetchPlates()
     if (fresh) onPlatesChange(fresh)
     resetForm()
-    showToast(editPlateId ? 'Plat diupdate' : 'Plat terdaftar')
+    showToast(editPlateId ? 'No. polisi diupdate' : 'No. polisi terdaftar')
   }
 
   const handleDel = async (id: string) => {
-    if (!confirm('Hapus plat ini?')) return
+    if (!confirm('Hapus no. polisi ini?')) return
     const res = await deletePlate(id)
-    if (!res.ok) return showToast(res.reason ?? 'Plat gagal dihapus karena server menolak permintaan', 'error')
+    if (!res.ok) return showToast(res.reason ?? 'No. polisi gagal dihapus karena server menolak permintaan', 'error')
     // Muat ulang dari server, jangan cuma memfilter state lokal - kalau
     // server menolak/memfilter baris lain (mis. constraint), tabel harus
     // menampilkan isi database yang sebenarnya.
@@ -72,7 +72,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
     if (fresh) onPlatesChange(fresh)
     else onPlatesChange(plates.filter(p => p.id !== id))
     if (editPlateId === id) resetForm()
-    showToast('Plat dihapus')
+    showToast('No. polisi dihapus')
   }
 
   const statusColor = (s: string) =>
@@ -83,8 +83,8 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
 
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Master Plat</h3>
-          <p className="text-slate-500 text-[12px]">Plat <b>internal</b> tidak dikenakan tarif saat discan</p>
+          <h3 className="font-black text-slate-900 text-lg">Nomor Polisi</h3>
+          <p className="text-slate-500 text-[12px]">Nomor polisi <b>internal</b> tidak dikenakan tarif saat discan</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
           plateState === 'ready' ? 'bg-emerald-50 text-emerald-600' : plateState === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
@@ -95,9 +95,9 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
       </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm max-w-3xl">
-        <h3 className="font-bold mb-4">{editPlateId ? 'Edit Plat' : 'Daftar Plat Baru'}</h3>
+        <h3 className="font-bold mb-4">{editPlateId ? 'Edit Nomor Polisi' : 'Daftar Nomor Polisi Baru'}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div><label className="text-[11px] text-slate-500 block mb-1">No. Plat *</label>
+          <div><label className="text-[11px] text-slate-500 block mb-1">No. Polisi *</label>
             <input value={plateForm.plate}
               onChange={e => setPlateForm({ ...plateForm, plate: formatPlateNumber(sanitizePlateInput(e.target.value)) })}
               placeholder="B 1234 XY" inputMode="text" maxLength={11}
@@ -132,18 +132,18 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
         <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wide">
-            <tr><th className="text-left p-4 border-b border-slate-200">No. Plat</th><th className="text-left p-4 border-b border-slate-200">Pemilik</th><th className="text-left p-4 border-b border-slate-200">Region Asal</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-right p-4 border-b border-slate-200">Aksi</th></tr>
+            <tr><th className="text-left p-4 border-b border-slate-200">No. Polisi</th><th className="text-left p-4 border-b border-slate-200">Pemilik</th><th className="text-left p-4 border-b border-slate-200">Region Asal</th><th className="text-left p-4 border-b border-slate-200">Status</th><th className="text-right p-4 border-b border-slate-200">Aksi</th></tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {plateState === 'loading' ? (
               <tr><td colSpan={5} className="p-6 text-center text-slate-400 animate-pulse">Memuat...</td></tr>
             ) : plates.length === 0 ? (
-              <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada plat terdaftar</td></tr>
+              <tr><td colSpan={5} className="p-6 text-center text-slate-400">Belum ada nomor polisi terdaftar</td></tr>
             ) : plates.map((p, i) => (
               <tr key={p.id} className={`${i % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50 transition-colors duration-150`}>
                 <td className="p-4 font-mono font-bold tracking-wide">{p.plate}</td>
                 <td className="p-4">{p.owner || <span className="text-slate-300">—</span>}</td>
-                <td className="p-4">{p.origin_region_name || p.origin_region_code || <span className="text-slate-300">—</span>}</td>
+                <td className="p-4">{p.origin_region_name || <span className="text-slate-300">—</span>}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span>
                 </td>

@@ -80,7 +80,7 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       ? 'history-detail'
       : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
   const title = isOcr
-    ? 'Scan Plat Nomor'
+    ? 'Scan No. Polisi'
     : isSelfie
       ? 'Swafoto Petugas'
       : retake

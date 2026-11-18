@@ -645,17 +645,24 @@ export async function persistTrips(trips: Trip[]): Promise<void> {
 }
 
 
-/** Riwayat lokal dihapus otomatis setelah 7 hari (server tetap menyimpan datanya). */
-export const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** Riwayat yang DITAMPILKAN di layar History: 3 hari terakhir. */
+export const HISTORY_VIEW_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
- * Pisahkan trip yang sudah boleh dihapus dari riwayat perangkat.
+ * Data trip disimpan di perangkat sampai 40 hari supaya masih bisa ikut
+ * diekspor (menu Profil → Ekspor Database Lokal). Server tetap menyimpan
+ * seluruh data.
+ */
+export const LOCAL_TRIP_RETENTION_MS = 40 * 24 * 60 * 60 * 1000
+
+/**
+ * Pisahkan trip yang sudah boleh dihapus dari penyimpanan perangkat.
  *
  * Data yang BELUM pasti sampai ke server tidak pernah dihapus:
  * - trip normal hanya dibuang kalau `synced === true`
  * - trip DIBATALKAN hanya dibuang kalau dokumen pembatalannya sudah
  *   dikonfirmasi server (cancelId ada di `deliveredCancels`)
- * Trip lebih muda dari 7 hari dan trip tanpa tanggal valid selalu dipertahankan.
+ * Trip lebih muda dari 40 hari dan trip tanpa tanggal valid selalu dipertahankan.
  */
 export function pruneExpiredTrips(
   trips: Trip[],
@@ -666,7 +673,7 @@ export function pruneExpiredTrips(
   const dropped: Trip[] = []
   for (const t of trips) {
     const ts = Date.parse(t.completedAt ?? '') || 0
-    if (!ts || now - ts < HISTORY_TTL_MS) { kept.push(t); continue }
+    if (!ts || now - ts < LOCAL_TRIP_RETENTION_MS) { kept.push(t); continue }
     if (t.canceled) {
       if (t.cancelId && deliveredCancels[t.cancelId]) dropped.push(t)
       else kept.push(t)
@@ -974,7 +981,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Hidrasi hanya boleh MENAMBAH foto — tidak pernah menguranginya.
         const merged = mergeTrips(full, onlyLocal)
           .map(t => withStoredPhotos(t, prevById.get(String(t.id))))
-        // Auto-clear riwayat > 7 hari (hanya yang sudah pasti sampai server).
+        // Auto-clear data trip lokal > 40 hari (hanya yang sudah pasti sampai server).
         const { kept, dropped } = pruneExpiredTrips(merged, deliveredCancels)
         if (dropped.length) {
           prunedIdsRef.current.push(...dropped.map(t => t.id))

@@ -255,7 +255,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
       c.officer_name ?? '-',
       c.region_code ?? '-',
       [c.route_from, c.route_to].filter(Boolean).join(' → ') || (c.route_code ?? '-'),
-      c.condition === 'muatan' ? 'Muatan' : c.condition === 'kosong' ? 'Kosong' : '-',
+      c.condition === 'muatan' ? 'Muatan' : c.condition === 'kosong' ? 'Kapal Kosong' : '-',
       c.reason,
       c.note ?? '-',
       c.vehicle_count ?? 0,

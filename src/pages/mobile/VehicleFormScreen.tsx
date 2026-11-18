@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { ChevronLeft, Camera, Check, Loader2, Ban } from 'lucide-react'
+import { ChevronLeft, Camera, Check, Ban } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
 import type { MobileScreen } from '../types'
@@ -43,7 +43,6 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const photoTaken = draft.vPhoto
 
   const [check, setCheck] = useState<PlateCheck | null>(null)
-  const [checkLoading, setCheckLoading] = useState(false)
   const [plateError, setPlateError] = useState('')
   const [showModal, setShowModal] = useState(false)
 
@@ -81,11 +80,9 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
   const runCheck = async (p: string) => {
     if (!p.trim()) return
-    setCheckLoading(true)
     setPlateError('')
     const res = await checkPlate(p, null)
     setCheck(res || null)
-    setCheckLoading(false)
   }
 
   const setField = (p: Partial<{ plate: string; type: string; category: string; load: 'loaded' | 'empty' }>) => {
@@ -130,7 +127,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
   const validatePlateInput = (): boolean => {
     const result = validatePlate(plate)
     if (!result.valid) {
-      setPlateError(result.error || 'Format plat tidak valid')
+      setPlateError(result.error || 'Format no. polisi tidak valid')
       return false
     }
     return true
@@ -241,7 +238,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
       {/* Satu kartu — tiap baris dipisah garis tipis, tanpa kotak bertumpuk.
           Urutan mengikuti alur petugas: kategori dulu (dasar tarif), lalu jenis
-          (menentukan golongan), foto bukti, dan nomor plat paling akhir. */}
+          (menentukan golongan), foto bukti, dan no. polisi paling akhir. */}
       <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
         {/* Kategori — wajib */}
         <div className="px-4 py-3.5">
@@ -319,11 +316,11 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           )}
         </div>
 
-        {/* Foto Dokumentasi */}
+        {/* Foto Kendaraan */}
         <div className="px-4 py-3.5">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[13px] font-medium text-slate-600">
-              Foto Dokumentasi <span className="text-red-500">*</span>
+              Foto Kendaraan <span className="text-red-500">*</span>
             </label>
             {photoTaken && (
               <button onClick={() => openCamera('photo')} disabled={draftLocked} className="text-[11px] text-blue-600 font-medium disabled:text-slate-300">
@@ -357,10 +354,10 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </button>
         </div>
 
-        {/* Nomor Plat */}
+        {/* No. Polisi */}
         <div className="px-4 py-3.5">
           <label className="text-[13px] font-medium text-slate-600 block mb-2">
-            Nomor Plat <span className="text-red-500">*</span>
+            No. Polisi <span className="text-red-500">*</span>
           </label>
           <div className="flex gap-2">
             <input
@@ -381,23 +378,17 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
             />
           </div>
           {plateError && <p className="text-xs text-red-500 mt-1">{plateError}</p>}
-          {(checkLoading || check?.found) && (
+          {check?.found && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-              {checkLoading ? (
-                <><Loader2 size={12} className="animate-spin" /> Memeriksa plat…</>
-              ) : check?.found ? (
-                <>
-                  <span className={`font-medium ${
-                    check.status === 'internal' ? 'text-slate-700'
-                    : check.status === 'lokal' ? 'text-blue-600'
-                    : 'text-amber-600'
-                  }`}>{check.status}</span>
-                  <span>(terdaftar di database)</span>
-                  {check.offline && (
-                    <span className="text-amber-600">(perkiraan offline — data master lokal)</span>
-                  )}
-                </>
-              ) : null}
+              <span className={`font-medium ${
+                check.status === 'internal' ? 'text-slate-700'
+                : check.status === 'lokal' ? 'text-blue-600'
+                : 'text-amber-600'
+              }`}>{check.status}</span>
+              <span>(terdaftar di database)</span>
+              {check.offline && (
+                <span className="text-amber-600">(perkiraan offline — data master lokal)</span>
+              )}
             </div>
           )}
         </div>
@@ -422,7 +413,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
               : !photoTaken
                 ? 'Ambil Foto Kendaraan'
                 : !plateOk
-                  ? 'Isi Nomor Plat'
+                  ? 'Isi No. Polisi'
                   : isEditing ? 'Perbarui Kendaraan' : 'Simpan Kendaraan'}
       </button>
       {isEditing && (
@@ -494,7 +485,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
 
             <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Plat</span>
+                <span className="text-slate-500">No. Polisi</span>
                 <span className="font-mono font-bold">{plate}</span>
               </div>
               <div className="flex justify-between">

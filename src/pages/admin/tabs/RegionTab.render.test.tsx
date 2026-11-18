@@ -231,7 +231,8 @@ describe('RegionTab (render harness)', () => {
     expect(body).toContain('Wilayah Badau')
     expect(body).toContain('Wilayah Sindang')
     expect(body).toContain('Dermaga Sindang')
-    expect(body).toContain('SBD1')
+    // Kode dermaga tidak lagi ditampilkan di dashboard.
+    expect(body).not.toContain('SBD1')
     // Ringkasan jumlah diambil dari server, bukan angka tetap.
     expect(body).toContain('2 wilayah · 1 dermaga')
     // Dermaga Sindang punya 1 rute dan dipakai 1 petugas.
@@ -249,43 +250,29 @@ describe('RegionTab (render harness)', () => {
 
     await setValue(container.querySelector('select') as HTMLSelectElement, 'r-sbdz')
     await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Baru')
-    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'bdu')
     await click(buttonByText('Tambah Dermaga'))
 
-    expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-sbdz', name: 'Dermaga Baru', code: 'BDU' })
+    // Kode internal diturunkan dari nama (huruf besar tanpa spasi).
+    expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-sbdz', name: 'Dermaga Baru', code: 'DERMAGABARU' })
     expect(container.textContent ?? '').toContain('Dermaga Baru')
     expect(toasts.at(-1)?.msg).toBe('Dermaga ditambahkan ke database')
   })
 
-  it('menolak kode dermaga kembar di wilayah yang sama tanpa memanggil server', async () => {
+  it('menambahkan dermaga bernama sama di wilayah lain dengan kode internal unik', async () => {
     await renderTab()
 
-    await setValue(container.querySelector('select') as HTMLSelectElement, 'r-sbdz')
-    await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Duplikat')
-    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
-    await click(buttonByText('Tambah Dermaga'))
-
-    expect(createDermaga).not.toHaveBeenCalled()
-    expect(toasts.at(-1)).toEqual({ msg: 'Wilayah ini sudah punya dermaga berkode SBD1', type: 'error' })
-  })
-
-  it('mengizinkan kode dermaga yang sama di wilayah BERBEDA (pola database kantor: D1, D2 per wilayah)', async () => {
-    await renderTab()
-
-    // Kode SBD1 sudah dipakai Dermaga Sindang, tetapi di wilayah lain tetap boleh.
     await setValue(container.querySelector('select') as HTMLSelectElement, 'r-master')
     await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Badau Satu')
-    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
     await click(buttonByText('Tambah Dermaga'))
 
-    expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-master', name: 'Dermaga Badau Satu', code: 'SBD1' })
+    expect(createDermaga).toHaveBeenCalledWith({ region_id: 'r-master', name: 'Dermaga Badau Satu', code: 'DERMAGABADAU' })
     expect(container.textContent ?? '').toContain('Dermaga Badau Satu')
     // Wilayah yang tadinya kosong langsung muncul setelah dermaga pertamanya dibuat.
     expect(rowByText('Wilayah Badau')?.textContent).toContain('1 dermaga')
     expect(toasts.at(-1)?.msg).toBe('Dermaga ditambahkan ke database')
   })
 
-  it('menampilkan kode dermaga yang sama di dua wilayah tanpa tertukar (pola database kantor)', async () => {
+  it('tidak menampilkan kolom kode dermaga atau kode wilayah', async () => {
     ;(db.dermagas as RowDermaga[]).push({
       id: 'd-master',
       region_id: 'r-master',
@@ -294,9 +281,11 @@ describe('RegionTab (render harness)', () => {
     })
     await renderTab()
 
-    expect(rowByText('Dermaga Sindang')?.textContent).toContain('SBD1')
-    expect(rowByText('Dermaga Badau Satu')?.textContent).toContain('SBD1')
-    // Jumlah dermaga dihitung per wilayah, bukan dari kode yang bisa berulang.
+    const body = container.textContent ?? ''
+    expect(body).not.toContain('SBD1')
+    expect(body).not.toContain('(BADAU)')
+    expect(body).not.toContain('(SBDZ)')
+    // Jumlah dermaga tetap dihitung per wilayah.
     expect(rowByText('Wilayah Badau')?.textContent).toContain('1 dermaga')
     expect(rowByText('Wilayah Sindang')?.textContent).toContain('1 dermaga')
   })
@@ -390,18 +379,16 @@ describe('RegionTab (render harness)', () => {
     expect(vi.mocked(fetchDermagas).mock.calls.length).toBe(before)
   })
 
-  it('menampilkan pesan error di dalam kartu form saat kode dermaga kembar', async () => {
+  it('menampilkan pesan error di dalam kartu form saat nama dermaga kosong', async () => {
     await renderTab()
 
     await setValue(container.querySelector('select') as HTMLSelectElement, 'r-sbdz')
-    await setValue(container.querySelector('input[placeholder="cth: Dermaga Badau"]') as HTMLInputElement, 'Dermaga Kembar')
-    await setValue(container.querySelector('input[placeholder="cth: BDU"]') as HTMLInputElement, 'sbd1')
     await click(buttonByText('Tambah Dermaga'))
 
     expect(createDermaga).not.toHaveBeenCalled()
-    expect(toasts.at(-1)).toEqual({ msg: 'Wilayah ini sudah punya dermaga berkode SBD1', type: 'error' })
+    expect(toasts.at(-1)).toEqual({ msg: 'Nama dermaga wajib diisi', type: 'error' })
     // Pesan yang sama juga tampil di dalam form (bukan cuma toast).
-    expect(container.textContent ?? '').toContain('Wilayah ini sudah punya dermaga berkode SBD1')
+    expect(container.textContent ?? '').toContain('Nama dermaga wajib diisi')
   })
 })
 

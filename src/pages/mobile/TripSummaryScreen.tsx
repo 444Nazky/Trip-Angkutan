@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, Truck, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X } from 'lucide-react'
+import { ChevronLeft, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X } from 'lucide-react'
 import { activeRoutes } from '../data'
-import { fmtDate, fmtTime, nextTripId, unitLabel, useApp } from '../store'
+import { unitLabel, useApp } from '../store'
 import { validateTripEndForCurrentLocation } from '../../services/geofence'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import type { MobileScreen } from '../types'
@@ -28,7 +28,7 @@ interface TripSummaryScreenProps {
 
 export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   const {
-    draft, trips, startTrip, patchDraft, editDraftVehicle, draftLocked, draftTtlMinutes, cancelDraft,
+    draft, startTrip, patchDraft, editDraftVehicle, draftLocked, draftTtlMinutes, cancelDraft,
     finishEmptyTrip, finishMuatanTrip,
   } = useApp()
 
@@ -187,39 +187,18 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
         <main className="space-y-4 p-4">
           <section className="rounded-2xl bg-[#0F172A] p-4 text-white shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white">
-                  <Truck size={18} />
+            <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-white/60">
+                  <MapPin size={16} className="text-emerald-400" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.16em]">Rute</span>
                 </div>
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/60">ID Trip</p>
-                  <p className="font-mono text-sm font-semibold text-white">{nextTripId(trips)}</p>
-                </div>
+                <span className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white">
+                  {draft.condition === 'kosong' ? 'Ponton tanpa muatan' : 'Ponton dengan muatan'}
+                </span>
               </div>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-white">
-                {draft.condition === 'kosong' ? 'Kosong' : 'Muatan'}
-              </span>
-            </div>
-
-            <div className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
-              <div className="mb-2 flex items-center gap-2 text-white/60">
-                <MapPin size={14} className="text-emerald-400" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.16em]">Rute</span>
-              </div>
-              <p className="text-sm font-semibold text-white">{route.from} <span className="text-white/50">→</span> {route.to}</p>
-              <p className="mt-1 text-[11px] text-white/60">{route.code}</p>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-xl bg-white/5 p-2.5 ring-1 ring-white/10">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-white/50">Tanggal</p>
-                <p className="mt-1 font-medium text-white">{fmtDate(new Date())}</p>
-              </div>
-              <div className="rounded-xl bg-white/5 p-2.5 ring-1 ring-white/10">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-white/50">Waktu</p>
-                <p className="mt-1 font-medium text-white">{fmtTime(new Date())}</p>
-              </div>
+              <p className="text-xl font-bold leading-snug text-white">{route.from} <span className="text-white/50">→</span> {route.to}</p>
+              <p className="mt-2 text-[12px] text-white/60">{route.code}</p>
             </div>
           </section>
 
@@ -261,7 +240,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                     </div>
                     <div className="flex items-center gap-1.5">
                       {v.photoUrl ? (
-                        <img src={v.photoUrl} alt="" className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200" />
+                        <img src={v.photoUrl} alt={`Foto kendaraan ${v.plate}`} className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
                       ) : (
                         <button
                           onClick={() => { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: i }); go('camera') }}

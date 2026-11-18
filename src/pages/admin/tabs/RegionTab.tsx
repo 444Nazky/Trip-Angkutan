@@ -47,9 +47,6 @@ const MASTER_REGION_NAME = 'BADAU'
 /** Kunci kelompok untuk dermaga yang wilayahnya sudah tidak ada di database. */
 const ORPHAN_KEY = '__orphan__'
 
-/** Kode wilayah/dermaga: 2–16 karakter tanpa spasi. */
-const CODE_RE = /^\S{2,16}$/
-
 const labelOf = (row: { name?: string | null; code?: string | null }) =>
   String(row.name ?? '').trim() || String(row.code ?? '').trim() || '(tanpa nama)'
 
@@ -80,7 +77,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
   const [officers, setOfficers] = useState<BackendOfficerRow[] | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'offline'>('loading')
   const [saving, setSaving] = useState(false)
-  const [dermagaForm, setDermagaForm] = useState({ regionId: '', name: '', code: '' })
+  const [dermagaForm, setDermagaForm] = useState({ regionId: '', name: '' })
   /** Pesan error yang tampil di dalam kartu form (toast tetap muncul). */
   const [formError, setFormError] = useState('')
   /** Pencarian di tabel (hanya tampilan, bukan query server). */
@@ -180,14 +177,13 @@ export function RegionTab({ showToast }: RegionTabProps) {
     [orderedRegions, byRegion],
   )
 
-  /** Pencarian: cocok bila nama/kode dermaga atau nama wilayah mengandung kata kunci. */
+  /** Pencarian: cocok bila nama dermaga atau nama wilayah mengandung kata kunci. */
   const matches = useCallback(
     (d: Dermaga, regionName?: string) => {
       const q = query.trim().toLowerCase()
       if (!q) return true
       return (
         String(d.name ?? '').toLowerCase().includes(q) ||
-        String(d.code ?? '').toLowerCase().includes(q) ||
         String(regionName ?? '').toLowerCase().includes(q)
       )
     },
@@ -216,13 +212,27 @@ export function RegionTab({ showToast }: RegionTabProps) {
   )
 
   const resetForm = () => {
-    setDermagaForm({ regionId: '', name: '', code: '' })
+    setDermagaForm({ regionId: '', name: '' })
     setFormError('')
+  }
+
+  /**
+   * Kode dermaga tidak lagi diisi admin (kode D1/SJRE membingungkan dan
+   * dobel antar wilayah). Kode internal diturunkan dari nama dan tetap unik
+   * di dalam satu wilayah, karena kolom `code` masih dipakai database.
+   */
+  const buildDermagaCode = (name: string, regionId: string) => {
+    const base = name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'DERMAGA'
+    let code = base
+    let n = 2
+    while (dermagas.some(d => String(d.region_id ?? '') === regionId && String(d.code ?? '').toUpperCase() === code)) {
+      code = `${base.slice(0, 14)}${n++}`
+    }
+    return code
   }
 
   const handleCreateDermaga = async () => {
     const name = dermagaForm.name.trim()
-    const code = dermagaForm.code.trim().toUpperCase()
     setFormError('')
     if (!dermagaForm.regionId) {
       const msg = 'Pilih wilayah untuk dermaga ini'
@@ -234,25 +244,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
       setFormError(msg)
       return showToast(msg, 'error')
     }
-    if (!CODE_RE.test(code)) {
-      const msg = 'Kode dermaga 2–16 karakter tanpa spasi'
-      setFormError(msg)
-      return showToast(msg, 'error')
-    }
-    // Kode dermaga hanya wajib unik DI DALAM satu wilayah. Di database kantor
-    // setiap wilayah memakai kode yang sama (D1, D2, ...), jadi aturan unik
-    // global akan memblokir penambahan dermaga di wilayah yang masih kosong.
-    if (
-      dermagas.some(
-        (d) =>
-          String(d.region_id ?? '') === dermagaForm.regionId &&
-          String(d.code ?? '').toUpperCase() === code,
-      )
-    ) {
-      const msg = `Wilayah ini sudah punya dermaga berkode ${code}`
-      setFormError(msg)
-      return showToast(msg, 'error')
-    }
+    const code = buildDermagaCode(name, dermagaForm.regionId)
 
     setSaving(true)
     try {
@@ -328,7 +320,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
     // Server MENOLAK hapus dermaga yang masih punya rute atau masih dipakai
     // petugas (FK cascade). Jadi dialog konfirmasi harus jujur soal itu —
     // bukan menjanjikan "rute ikut terhapus".
-    const lines = [`Hapus dermaga ${labelOf(dermaga)} (${dermaga.code}) dari database?`, '']
+    const lines = [`Hapus dermaga ${labelOf(dermaga)} dari database?`, '']
     lines.push(
       routeCount === null
         ? '• Jumlah rute dermaga ini tidak bisa dipastikan (data rute tidak termuat).'
@@ -384,11 +376,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
           ) : (
             <span className="font-semibold text-slate-800">{labelOf(d)}</span>
           )}
-        </td>
-        <td className="border border-slate-200 px-3 py-2.5">
-          <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
-            {d.code || '—'}
-          </span>
         </td>
         <td className="border border-slate-200 px-3 py-2.5">
           {routeCount === null ? (
@@ -470,7 +457,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
         ? 'bg-amber-500'
         : 'bg-slate-400 animate-pulse'
 
-  const formDirty = !!(dermagaForm.regionId || dermagaForm.name || dermagaForm.code)
+  const formDirty = !!(dermagaForm.regionId || dermagaForm.name)
 
   return (
     <div className="space-y-4">
@@ -538,7 +525,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className={LABEL_CLS}>Wilayah *</label>
             <select
@@ -551,10 +538,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             >
               <option value="">— Pilih Wilayah —</option>
               {orderedRegions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {labelOf(r)}
-                  {r.code ? ` (${r.code})` : ''}
-                </option>
+                <option key={r.id} value={r.id}>{labelOf(r)}</option>
               ))}
             </select>
           </div>
@@ -569,21 +553,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
               placeholder="cth: Dermaga Badau"
               className={INPUT_CLS}
             />
-          </div>
-          <div>
-            <label className={LABEL_CLS}>Kode Dermaga *</label>
-            <input
-              value={dermagaForm.code}
-              onChange={(e) => {
-                setDermagaForm({ ...dermagaForm, code: e.target.value.toUpperCase() })
-                setFormError('')
-              }}
-              placeholder="cth: BDU"
-              className={`${INPUT_CLS} font-mono tracking-wide uppercase`}
-            />
-            <p className="mt-1 text-[10.5px] text-slate-400">
-              2–16 karakter tanpa spasi, unik di dalam satu wilayah (bisa sama antar wilayah).
-            </p>
           </div>
         </div>
 
@@ -624,7 +593,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari nama / kode dermaga…"
+              placeholder="Cari nama dermaga / wilayah…"
               aria-label="Cari dermaga"
               className={`${INPUT_CLS} pl-8 text-[12.5px]`}
             />
@@ -632,11 +601,10 @@ export function RegionTab({ showToast }: RegionTabProps) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-[13px]">
+          <table className="w-full min-w-[700px] border-collapse text-[13px]">
             <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="border border-slate-200 px-3 py-2.5 text-left">Dermaga</th>
-                <th className="border border-slate-200 px-3 py-2.5 text-left w-[140px]">Kode</th>
                 <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Rute</th>
                 <th className="border border-slate-200 px-3 py-2.5 text-left w-[150px]">Petugas</th>
                 <th className="border border-slate-200 px-3 py-2.5 text-right w-[240px]">Aksi</th>
@@ -645,7 +613,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
             <tbody>
               {state === 'offline' && (
                 <tr>
-                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-500">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-500">
                     Server tidak bisa dihubungi. Tekan
                     <span className="font-bold"> Muat ulang</span> setelah server hidup.
                   </td>
@@ -654,7 +622,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
               {state === 'loading' && (
                 <tr>
-                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
                     <span className="inline-block animate-pulse">Memuat data wilayah…</span>
                   </td>
                 </tr>
@@ -662,7 +630,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
               {state === 'ready' && regionsWithDermaga.length === 0 && orphans.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
+                  <td colSpan={4} className="border border-slate-200 px-3 py-10 text-center text-[12px] text-slate-400">
                     {orderedRegions.length === 0
                       ? 'Belum ada wilayah di database.'
                       : 'Belum ada dermaga di database. Tambahkan lewat form di atas.'}
@@ -678,13 +646,10 @@ export function RegionTab({ showToast }: RegionTabProps) {
                   return (
                     <Fragment key={region.id}>
                       <tr className="bg-slate-800">
-                        <td colSpan={5} className="border border-slate-700 px-3 py-2">
+                        <td colSpan={4} className="border border-slate-700 px-3 py-2">
                           <span className="flex flex-wrap items-center gap-2 text-[12px] font-bold text-white">
                             <span className="inline-flex items-center gap-2">
                               <Landmark size={13} /> {labelOf(region)}
-                              <span className="font-normal text-slate-400">
-                                {region.code ? `(${region.code})` : ''}
-                              </span>
                             </span>
                             <span className="font-normal text-slate-300">
                               {own.length} dermaga
@@ -696,7 +661,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
 
                       {shown.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                          <td colSpan={4} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
                             Tidak ada dermaga yang cocok dengan pencarian
                           </td>
                         </tr>
@@ -710,7 +675,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
               {state === 'ready' && orphans.length > 0 && (
                 <Fragment>
                   <tr className="bg-amber-500">
-                    <td colSpan={5} className="border border-amber-600 px-3 py-2">
+                    <td colSpan={4} className="border border-amber-600 px-3 py-2">
                       <span className="inline-flex items-center gap-2 text-[12px] font-bold text-white">
                         <TriangleAlert size={13} /> Dermaga tanpa wilayah ({orphans.length}) — wilayahnya sudah tidak
                         ada di database
@@ -719,7 +684,7 @@ export function RegionTab({ showToast }: RegionTabProps) {
                   </tr>
                   {visibleOrphans.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
+                      <td colSpan={4} className="border border-slate-200 px-3 py-3 pl-10 text-[12px] text-slate-400">
                         Tidak ada dermaga yatim yang cocok dengan pencarian
                       </td>
                     </tr>

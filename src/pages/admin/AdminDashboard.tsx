@@ -112,7 +112,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const navItems: { key: AdminTab; label: string; Icon: any }[] = [
     { key: 'reports', label: 'Dashboard', Icon: BarChart2 },
     { key: 'tariff', label: 'Master Tarif', Icon: Table2 },
-    { key: 'plates', label: 'Master Plat', Icon: Hash },
+    { key: 'plates', label: 'Nomor Polisi', Icon: Hash },
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },

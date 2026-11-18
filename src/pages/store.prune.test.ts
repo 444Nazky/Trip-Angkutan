@@ -1,10 +1,10 @@
 // ─── Unit Test: pruneExpiredTrips (pages/store.tsx) ─────────────────────────
-// Auto-clear riwayat 7 hari. Data yang belum pasti sampai server TIDAK boleh
+// Auto-clear data trip lokal 40 hari. Data yang belum pasti sampai server TIDAK boleh
 // terhapus: trip pending/local selalu dipertahankan, trip dibatalkan hanya
 // dibuang kalau dokumen pembatalannya sudah dikonfirmasi server.
 
 import { describe, expect, it } from 'vitest'
-import { HISTORY_TTL_MS, pruneExpiredTrips, type Trip } from './store'
+import { LOCAL_TRIP_RETENTION_MS, pruneExpiredTrips, type Trip } from './store'
 
 const base = (over: Partial<Trip>): Trip => ({
   id: 'T1',
@@ -25,11 +25,11 @@ const base = (over: Partial<Trip>): Trip => ({
 })
 
 const NOW = Date.parse('2026-11-06T12:00:00Z')
-const old = new Date(NOW - HISTORY_TTL_MS - 60_000).toISOString()
+const old = new Date(NOW - LOCAL_TRIP_RETENTION_MS - 60_000).toISOString()
 const fresh = new Date(NOW - 60_000).toISOString()
 
-describe('pruneExpiredTrips — auto-clear 7 hari', () => {
-  it('trip terkirim lebih dari 7 hari dihapus', () => {
+describe('pruneExpiredTrips — auto-clear 40 hari', () => {
+  it('trip terkirim lebih dari 40 hari dihapus', () => {
     const { kept, dropped } = pruneExpiredTrips([base({ synced: true, completedAt: old })], {}, NOW)
     expect(kept).toHaveLength(0)
     expect(dropped).toHaveLength(1)

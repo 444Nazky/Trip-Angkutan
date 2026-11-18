@@ -149,12 +149,12 @@ export async function createPlate(input: {
 }): Promise<ActionResult<string>> {
   const res = await api.post<{ id: string }>('/plates', input)
   if (!res.ok) {
-    return { ok: false, reason: failureReason(res, 'Plat gagal didaftarkan karena server menolak permintaan') }
+    return { ok: false, reason: failureReason(res, 'No. polisi gagal didaftarkan karena server menolak permintaan') }
   }
   const id = res.data?.id
   return id
     ? { ok: true, data: id }
-    : { ok: false, reason: 'Plat gagal didaftarkan karena server tidak mengembalikan id' }
+    : { ok: false, reason: 'No. polisi gagal didaftarkan karena server tidak mengembalikan id' }
 }
 
 export async function updatePlate(
@@ -162,10 +162,10 @@ export async function updatePlate(
   input: { plate?: string; owner?: string; originRegionId?: string | null; status?: PlateStatus; isActive?: boolean },
 ): Promise<ActionResult> {
   const res = await api.put(`/plates/${id}`, input)
-  return toActionResult(res, 'Plat gagal diperbarui karena server menolak permintaan')
+  return toActionResult(res, 'No. polisi gagal diperbarui karena server menolak permintaan')
 }
 
 export async function deletePlate(id: string): Promise<ActionResult> {
   const res = await api.delete(`/plates/${id}`)
-  return toActionResult(res, 'Plat gagal dihapus karena server menolak permintaan')
+  return toActionResult(res, 'No. polisi gagal dihapus karena server menolak permintaan')
 }

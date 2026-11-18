@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Truck, Wifi, WifiOff, Cloud, CloudOff, AlertTriangle, FileText, Clock, ChevronRight, Ban } from 'lucide-react'
-import { fmtDate, fmtTime, useApp } from '../store'
+import { HISTORY_VIEW_MS, fmtDate, fmtTime, useApp } from '../store'
 import { classifyTripSync, onSyncQueueChange, type SyncItem, type TripSyncState } from '../../services/sync'
 import {
   draftExpired,
@@ -172,6 +172,12 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+    // Frontend riwayat hanya menampilkan 3 hari terakhir. Data yang lebih
+    // tua tetap tersimpan di perangkat (40 hari) untuk kebutuhan ekspor.
+    .filter(t => {
+      const ts = Date.parse(t.completedAt ?? '') || 0
+      return !ts || now - ts < HISTORY_VIEW_MS
+    })
     // Urutkan kronologis terbaru lebih dulu; sumbernya tetap data lokal.
     .sort((a, b) => {
       const ta = Date.parse(a.completedAt ?? '') || 0
@@ -382,7 +388,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
        </div>
 
        <p className="text-[10px] text-slate-400 text-center">
-         Riwayat lebih dari 7 hari dihapus otomatis.
+         Riwayat lebih dari 3 hari tidak ditampilkan. Data tetap tersimpan untuk ekspor.
        </p>
      </div>
    )

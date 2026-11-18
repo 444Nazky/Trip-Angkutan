@@ -957,7 +957,7 @@ export async function getTripCancellations(req: Request, url: URL): Promise<Resp
 
     const rows = (data ?? []).map((c: any) => ({
       ...c,
-      officer_name: c.officers?.name ?? null,
+      officer_name: c.officer_name ?? c.officers?.name ?? null,
       region_code: c.regions?.code ?? null,
     }));
 
@@ -1136,7 +1136,7 @@ export async function getTrips(req: Request, url: URL): Promise<Response> {
     return json(
       (trips ?? []).map((t: any) => ({
         ...t,
-        officer_name: t.officers?.name,
+        officer_name: t.officer_name ?? t.officers?.name ?? null,
         region_code: t.regions?.code,
         photo_url: t.foto_kosong_path,
         vehicle_count: t.trip_vehicles?.[0]?.count ?? 0,
