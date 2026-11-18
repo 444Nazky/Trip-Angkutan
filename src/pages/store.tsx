@@ -13,7 +13,7 @@ import {
   readQueuedPhotos,
   type QueuedPhotos,
 } from '../services/sync'
-import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession, SESSION_READY_EVENT } from '../services/auth'
+import { ensureBackendSession, getStoredOfficer, logout as endBackendSession, refreshBackendSession } from '../services/auth'
 import { api } from '../services/api'
 import { dbAll, dbClear, dbDelete, dbGet, dbPutMany, initLocalDb } from '../services/localDb'
 import { syncOfficersToLocal, getStoredOfficers, OFFICERS_UPDATED_EVENT } from '../services/officers'
@@ -103,6 +103,13 @@ export interface Trip {
   officerId?: string
   selfieUrl?: string
   selfieCapturedAt?: string
+  /** Foto bukti muatan (setelah swafoto, wajib sebelum trip dikirim). */
+  proofUrl?: string
+  proofCapturedAt?: string
+  proofLatitude?: number | null
+  proofLongitude?: number | null
+  /** Dermaga tempat trip dibuat (dasar izin edit di titik awal). */
+  dermagaId?: string
   updatedAt?: number
   /** true = trip ini DIBATALKAN (bukan dikirim). */
   canceled?: boolean
@@ -135,6 +142,12 @@ export interface Draft {
   vehiclePhotoTarget?: number
   selfieUrl?: string
   selfieCapturedAt?: string
+  proofUrl?: string
+  proofCapturedAt?: string
+  proofLatitude?: number | null
+  proofLongitude?: number | null
+  /** Diisi saat mengedit trip yang sudah ada; kosong = trip baru. */
+  editingTripId?: string
   cameraReturn?: MobileScreen
 
   cameraFrom: MobileScreen
@@ -223,6 +236,8 @@ interface StoreValue {
   patchDraftVehicle: (index: number, fields: Partial<VehicleEntry>) => void
   removeDraftVehicle: (index: number) => void
   editDraftVehicle: (index: number) => void
+  /** Muat trip lama ke draft untuk diedit (hanya dari titik awal trip). */
+  editTrip: (trip: Trip) => void
   startTrip: () => void
   finishEmptyTrip: () => void
   finishMuatanTrip: () => void
@@ -270,6 +285,11 @@ const emptyDraft: Draft = {
   vehiclePhotoTarget: undefined,
   selfieUrl: undefined,
   selfieCapturedAt: undefined,
+  proofUrl: undefined,
+  proofCapturedAt: undefined,
+  proofLatitude: undefined,
+  proofLongitude: undefined,
+  editingTripId: undefined,
   cameraReturn: undefined,
   cameraFrom: 'vehicle-form',
   cameraMode: 'photo',
@@ -496,6 +516,7 @@ function normalizeTrips(list: Trip[]): Trip[] {
 function hasTripPhoto(trip: Trip): boolean {
   if (trip.photoUrl) return true
   if (trip.selfieUrl) return true
+  if (trip.proofUrl) return true
   return !!trip.vehicles?.some(v => !!v.photoUrl)
 }
 
@@ -528,6 +549,7 @@ export function stripTripPhotos(trip: Trip): Trip {
     ...trip,
     photoUrl: undefined,
     selfieUrl: undefined,
+    proofUrl: undefined,
     vehicles: trip.vehicles?.map(v => ({ ...v, photoUrl: undefined })),
   }
 }
@@ -558,6 +580,12 @@ export function withStoredPhotos(next: Trip, stored?: Trip): Trip {
   if (!next.selfieUrl && stored.selfieUrl) {
     picked.selfieUrl = stored.selfieUrl
     picked.selfieCapturedAt = stored.selfieCapturedAt
+  }
+  if (!next.proofUrl && stored.proofUrl) {
+    picked.proofUrl = stored.proofUrl
+    picked.proofCapturedAt = stored.proofCapturedAt
+    picked.proofLatitude = stored.proofLatitude
+    picked.proofLongitude = stored.proofLongitude
   }
   const vehicles = next.vehicles?.map(v => {
     if (v.photoUrl) return v
@@ -591,6 +619,7 @@ function applyQueuedPhotos(trip: Trip, q: QueuedPhotos): Trip {
     ...trip,
     photoUrl: trip.photoUrl ?? q.tripPhotoUrl,
     selfieUrl: trip.selfieUrl ?? q.selfieUrl,
+    proofUrl: trip.proofUrl ?? q.proofUrl,
     vehicles,
   }
 }
@@ -1233,26 +1262,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     photos?: { dataUrl: string; mimeType: string }[],
     tripPhoto?: { dataUrl: string; mimeType: string },
   ) => {
-    // Kunci idempoten dibuat SEKALI di sini. Kalau trip ini di-retry (mis.
-    // foto belum lengkap lalu dilengkapi), clientTripId yang sama dipakai
-    // lagi -> server tahu itu trip yang sama, bukan trip baru.
-    const tripWithSync: Trip = { ...t, clientTripId: t.clientTripId ?? newClientTripId(), synced: false }
-    setTrips(prev => [tripWithSync, ...prev])
+    const previous = tripsRef.current.find(x => String(x.id) === String(t.id))
+    // Kunci idempoten dibuat SEKALI. Saat mengedit trip lama, kunci dan waktu
+    // selesai dari versi lama dipertahankan supaya server memperbarui trip
+    // yang sama (bukan membuat trip baru).
+    const tripWithSync: Trip = {
+      ...t,
+      clientTripId: previous?.clientTripId ?? t.clientTripId ?? newClientTripId(),
+      completedAt: previous?.completedAt ?? t.completedAt,
+      synced: false,
+    }
+    setTrips(prev => (
+      previous
+        ? prev.map(x => (String(x.id) === String(t.id) ? tripWithSync : x))
+        : [tripWithSync, ...prev]
+    ))
     setDetailTripId(t.id)
     setDraft(emptyDraft)
     const photoList = photos?.length
       ? photos
       : (t.vehicles ?? []).map(v => ({ dataUrl: v.photoUrl ?? '', mimeType: 'image/jpeg' }))
     const tripPhotoEntry = tripPhoto ?? (t.photoUrl ? { dataUrl: t.photoUrl, mimeType: 'image/jpeg' } : undefined)
-    void addToSyncQueue(tripWithSync, photoList, tripPhotoEntry)
+    const proofPhotoEntry = t.proofUrl ? { dataUrl: t.proofUrl, mimeType: 'image/jpeg' } : undefined
+    void addToSyncQueue(tripWithSync, photoList, tripPhotoEntry, proofPhotoEntry)
   }, [])
   const finishEmptyTrip = useCallback(() => {
     if (!draft.selfieUrl) {
       console.warn('[trip] finishEmptyTrip dipanggil tanpa swafoto petugas — dibatalkan')
       return
     }
+    if (!draft.proofUrl) {
+      console.warn('[trip] finishEmptyTrip dipanggil tanpa foto bukti muatan — dibatalkan')
+      return
+    }
     const now = new Date()
-    const id = nextTripId(tripsRef.current)
+    const previous = draft.editingTripId
+      ? tripsRef.current.find(t => String(t.id) === String(draft.editingTripId))
+      : undefined
+    const id = previous?.id ?? nextTripId(tripsRef.current)
     const routeCode = draft.routeCode ?? ''
     const sepIdx = routeCode.lastIndexOf('-')
     const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
@@ -1260,6 +1307,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const routeLabel = sepIdx > 0
       ? `${routeFrom} → ${routeTo}`
       : routeCode || 'Tidak Diketahui'
+    const completed = previous ? new Date(previous.completedAt ?? now) : now
+    const startedAt = draft.startedAt ? new Date(draft.startedAt) : completed
+    const elapsed = Math.max(0, Math.floor((completed.getTime() - startedAt.getTime()) / 1000))
     const trip: Trip = {
       id,
       route: routeLabel,
@@ -1267,8 +1317,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       routeFrom,
       routeTo,
       status: 'Selesai',
-      time: fmtClock(now),
-      date: fmtDate(now),
+      time: previous?.time ?? fmtClock(now),
+      date: previous?.date ?? fmtDate(now),
       load: 'Kosong',
       vehicle: '-',
       type: '-',
@@ -1277,18 +1327,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       revenueNum: 0,
       officer: officer.name,
       officerId: String(officer.id),
-      duration: '-',
+      duration: fmtElapsed(elapsed),
       photo: !!draft.photoUrl,
       photoUrl: draft.photoUrl,
       photoCapturedAt: draft.photoCapturedAt,
       photoLatitude: draft.photoLatitude ?? null,
       photoLongitude: draft.photoLongitude ?? null,
-      startedAt: draft.startedAt ? new Date(draft.startedAt).toISOString() : now.toISOString(),
-      completedAt: now.toISOString(),
+      startedAt: startedAt.toISOString(),
+      completedAt: completed.toISOString(),
       vehicles: [],
       synced: false,
       selfieUrl: draft.selfieUrl,
       selfieCapturedAt: draft.selfieCapturedAt,
+      proofUrl: draft.proofUrl,
+      proofCapturedAt: draft.proofCapturedAt,
+      proofLatitude: draft.proofLatitude ?? null,
+      proofLongitude: draft.proofLongitude ?? null,
     }
     commitTrip(trip)
   }, [draft, officer.name, officer.id, commitTrip])
@@ -1298,15 +1352,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn('[trip] finishMuatanTrip ditolak: swafoto petugas belum diambil')
       return
     }
+    if (!draft.proofUrl) {
+      console.warn('[trip] finishMuatanTrip ditolak: foto bukti muatan belum diambil')
+      return
+    }
     const now = new Date()
-    const id = nextTripId(tripsRef.current)
+    const previous = draft.editingTripId
+      ? tripsRef.current.find(t => String(t.id) === String(draft.editingTripId))
+      : undefined
+    const id = previous?.id ?? nextTripId(tripsRef.current)
     const routeCode = draft.routeCode ?? ''
     const sepIdx = routeCode.lastIndexOf('-')
     const routeFrom = sepIdx > 0 ? routeCode.slice(0, sepIdx).trim() : ''
     const routeTo = sepIdx > 0 ? routeCode.slice(sepIdx + 1).trim() : ''
     const routeLabel = sepIdx > 0 ? `${routeFrom} → ${routeTo}` : routeCode || 'Tidak Diketahui'
-    const startedAt = draft.startedAt ? new Date(draft.startedAt) : now
-    const elapsed = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000))
+    const completed = previous ? new Date(previous.completedAt ?? now) : now
+    const startedAt = draft.startedAt ? new Date(draft.startedAt) : completed
+    const elapsed = Math.max(0, Math.floor((completed.getTime() - startedAt.getTime()) / 1000))
     const vehicles = draft.vehicles
     const total = vehicles.reduce((sum, v) => sum + (v.tariff ?? 0), 0)
     const trip: Trip = {
@@ -1316,8 +1378,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       routeFrom,
       routeTo,
       status: 'Selesai',
-      time: fmtClock(now),
-      date: fmtDate(now),
+      time: previous?.time ?? fmtClock(now),
+      date: previous?.date ?? fmtDate(now),
       // `load` = kondisi TRIP, bukan kondisi muatan tiap kendaraan. Trip dengan
       // kendaraan tetap 'Ada Muatan' walau semua unitnya mengangkut kosong;
       // status muatan per-unit tetap disimpan di vehicle.load dan payload sync.
@@ -1336,14 +1398,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       photoLatitude: draft.photoLatitude ?? null,
       photoLongitude: draft.photoLongitude ?? null,
       startedAt: startedAt.toISOString(),
-      completedAt: now.toISOString(),
+      completedAt: completed.toISOString(),
       vehicles,
       synced: false,
       selfieUrl: draft.selfieUrl,
       selfieCapturedAt: draft.selfieCapturedAt,
+      proofUrl: draft.proofUrl,
+      proofCapturedAt: draft.proofCapturedAt,
+      proofLatitude: draft.proofLatitude ?? null,
+      proofLongitude: draft.proofLongitude ?? null,
     }
     commitTrip(trip)
   }, [draft, officer.name, officer.id, commitTrip])
+  /**
+   * Buka trip yang sudah ada ke draft untuk diedit.
+   *
+   * Izin lokasi diperiksa di layar Riwayat (hanya titik awal). Fungsi ini
+   * hanya menyiapkan isi draft; penyimpanan tetap lewat jalur kirim yang sama
+   * sehingga server memperbarui trip berdasarkan clientTripId + completedAt.
+   */
+  const editTrip = useCallback((trip: Trip) => {
+    const startedMs = Date.parse(trip.startedAt ?? '')
+    setDraft({
+      ...emptyDraft,
+      routeCode: trip.routeCode ?? null,
+      condition: (trip.vehicles?.length ?? 0) > 0 ? 'muatan' : 'kosong',
+      vehicles: trip.vehicles ?? [],
+      photo: !!trip.photoUrl,
+      photoUrl: trip.photoUrl,
+      photoCapturedAt: trip.photoCapturedAt,
+      photoLatitude: trip.photoLatitude ?? undefined,
+      photoLongitude: trip.photoLongitude ?? undefined,
+      selfieUrl: trip.selfieUrl,
+      selfieCapturedAt: trip.selfieCapturedAt,
+      proofUrl: trip.proofUrl,
+      proofCapturedAt: trip.proofCapturedAt,
+      proofLatitude: trip.proofLatitude ?? undefined,
+      proofLongitude: trip.proofLongitude ?? undefined,
+      startedAt: Number.isFinite(startedMs) ? startedMs : Date.now(),
+      editingTripId: trip.id,
+      cameraFrom: 'trip-summary',
+      cameraMode: 'photo',
+      cameraReturn: 'trip-summary',
+    })
+  }, [])
   const markTripSynced = useCallback((id: string, target?: string) => {
     setTrips(prev => prev.map(t => (
       t.id === id ? { ...t, synced: true, syncedTarget: target ?? t.syncedTarget } : t
@@ -1432,24 +1530,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return unsub
   }, [markTripSynced])
 
-  useEffect(() => {
-    // ponytail: begitu perangkat ONLINE (atau sesi siap), TARIK SEMUA master
-    // data dari dashboard admin: PIN baru, petugas baru, akses dermaga baru,
-    // rute, geofence, tarif. Hasilnya langsung menggantikan cache lokal.
-    const pullAuthorizedMasterData = () => {
-      void refreshOfficers(true)
-      void prefetchAllCriticalData({ force: true }).catch(() => undefined)
-    }
-    const onOnline = () => pullAuthorizedMasterData()
-    const onSessionReady = () => pullAuthorizedMasterData()
-    window.addEventListener('online', onOnline)
-    window.addEventListener(SESSION_READY_EVENT, onSessionReady)
-    return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener(SESSION_READY_EVENT, onSessionReady)
-    }
-  }, [refreshOfficers])
-
   // Roster yang ditarik dari server (PIN/petugas/akses baru) langsung
   // menggantikan roster di UI.
   useEffect(() => {
@@ -1477,7 +1557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tariffs,
     vehicleTypes,
     officers, saveOfficers,
-    draft, draftInfo, draftLocked, draftCounted: hasCountedDraft(draft), draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, draftLocked, draftCounted: hasCountedDraft(draft), draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, editTrip,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto,
     detailTripId, setDetailTripId,
@@ -1485,7 +1565,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveDermaga,
     clearAllTrips,
   }), [loggedIn, login, logout, userType, officer, setOfficerId, refreshOfficers, trips, tripsLoaded, tariffs, vehicleTypes, officers, saveOfficers,
-    draft, draftInfo, draftLocked, draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle,
+    draft, draftInfo, draftLocked, draftTtlMinutes, resetDraft, cancelDraft, patchDraft, addVehicle, patchDraftVehicle, removeDraftVehicle, editDraftVehicle, editTrip,
     startTrip, finishEmptyTrip, finishMuatanTrip,
     patchTripPhoto, patchVehiclePhoto, detailTripId, pendingOfficerId, verifyIntent, beginVerify, clearVerify,
     setActiveDermaga, clearAllTrips])

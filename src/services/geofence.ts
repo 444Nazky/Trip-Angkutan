@@ -732,16 +732,86 @@ export async function validateRouteForCurrentLocation(
   return { valid: true, activePoint }
 }
 
+/** Apakah nama lokasi titik memuat kode lokasi (SJRE/SBDZ) sebagai kata. */
+function pointNameHasCode(point: GeofencePoint, code: string): boolean {
+  const want = String(code ?? '').trim().toUpperCase()
+  if (!want) return false
+  const tokens = String(point.name ?? '').toUpperCase().split(/[^A-Z0-9]+/)
+  return tokens.includes(want)
+}
+
+/** Titik awal & tujuan untuk sebuah rute, berdasarkan kode lokasi di nama titik. */
+function routeEndpointPoints(routeCode: string): {
+  all: GeofencePoint[]
+  origin: GeofencePoint[]
+  destination: GeofencePoint[]
+} {
+  const normalized = normalizeRouteCode(routeCode)
+  const [from, to] = normalized.split('-')
+  const all = scopedGeofencePoints(getStoredGeofencePoints())
+    .filter(point => routeMatchesPoint(point, routeCode))
+  return {
+    all,
+    origin: all.filter(point => pointNameHasCode(point, from)),
+    destination: all.filter(point => pointNameHasCode(point, to)),
+  }
+}
+
 /**
- * Validasi LOKASI TUJUAN saat petugas submit / end trip.
+ * Validasi LOKASI PENGIRIMAN trip.
  *
- * Contoh: input di SJRE, submit di SBDZ. Petugas harus sudah berada di titik
- * geofence SBDZ. Kalau admin sudah menandai titik tujuan khusus ('end') untuk
- * rute ini, HANYA titik itu yang diterima — titik awal tidak bisa dipakai
- * submit. Titik lama tanpa peran ('both') tetap berlaku supaya instalasi yang
- * sudah berjalan tidak langsung terkunci.
+ * Aturan revisi: trip boleh DIKIRIM dari titik awal MAUPUN titik tujuan.
+ * Contoh input di SJRE lalu kirim di SJRE (sebelum berangkat) atau di SBDZ
+ * (setelah sampai). Yang tidak boleh di titik tujuan hanyalah MENGEDIT trip
+ * (lihat validateTripEditForCurrentLocation).
+ *
+ * Titik dipilih dari semua titik yang mengizinkan rute ini, bukan hanya peran
+ * 'end', karena data admin lama bisa punya peran yang tertukar untuk rute
+ * arah sebaliknya.
  */
 export async function validateTripEndForCurrentLocation(
+  routeCode: string,
+  gpsPosition?: { latitude: number; longitude: number },
+  dockId?: string | null,
+): Promise<RouteValidationResult> {
+  const points = getStoredGeofencePoints()
+  if (scopedGeofencePoints(points).length === 0) {
+    return { valid: false, blocked: true, configMissing: true }
+  }
+
+  const { all, origin, destination } = routeEndpointPoints(routeCode)
+  const candidates = all.length ? [...origin, ...destination, ...all] : []
+  const unique = [...new Map(candidates.map(point => [point.id, point])).values()]
+
+  if (unique.length === 0) {
+    return {
+      valid: false,
+      blocked: true,
+      activePoint: null,
+      reason: `Titik awal/tujuan untuk rute ${routeCode} belum diatur admin.`,
+    }
+  }
+
+  const pos = await resolvePosition(gpsPosition)
+  if (!pos) {
+    return { valid: false, blocked: true, activePoint: null, reason: 'GPS tidak tersedia' }
+  }
+
+  const activePoint = pickPointAt(pointsForDock(unique, dockId), pos, dockId)
+  if (!activePoint) {
+    return { valid: false, blocked: true, activePoint: null }
+  }
+  return { valid: true, activePoint }
+}
+
+/**
+ * Validasi izin MENGEDIT trip: hanya di titik awal trip.
+ *
+ * Titik awal dicari dari nama titik yang memuat kode asal rute (mis. SJRE),
+ * dengan cadangan peran 'start' untuk data lama yang namanya tidak memuat
+ * kode lokasi. Di titik tujuan tombol edit tidak boleh muncul.
+ */
+export async function validateTripEditForCurrentLocation(
   routeCode: string,
   gpsPosition?: { latitude: number; longitude: number },
   dockId?: string | null,
@@ -751,20 +821,18 @@ export async function validateTripEndForCurrentLocation(
     return { valid: false, blocked: true, configMissing: true }
   }
 
-  const endCapable = scoped
-    .filter(point => geofenceRoleServes(point.pointType, 'end'))
+  const { origin } = routeEndpointPoints(routeCode)
+  const startRole = scoped
     .filter(point => routeMatchesPoint(point, routeCode))
-  const explicitEnd = endCapable.filter(
-    point => normalizeGeofenceRole(point.pointType) === 'end',
-  )
-  const candidates = explicitEnd.length ? explicitEnd : endCapable
+    .filter(point => geofenceRoleServes(point.pointType, 'start'))
+  const candidates = origin.length ? origin : startRole
 
   if (candidates.length === 0) {
     return {
       valid: false,
       blocked: true,
       activePoint: null,
-      reason: `Titik tujuan untuk rute ${routeCode} belum diatur admin.`,
+      reason: 'Titik awal trip ini belum diatur admin.',
     }
   }
 
@@ -773,9 +841,14 @@ export async function validateTripEndForCurrentLocation(
     return { valid: false, blocked: true, activePoint: null, reason: 'GPS tidak tersedia' }
   }
 
-  const activePoint = pickPointAt(pointsForDock(candidates, dockId), pos, dockId, 'end')
+  const activePoint = pickPointAt(pointsForDock(candidates, dockId), pos, dockId, 'start')
   if (!activePoint) {
-    return { valid: false, blocked: true, activePoint: null }
+    return {
+      valid: false,
+      blocked: true,
+      activePoint: null,
+      reason: 'Edit trip hanya bisa dilakukan di titik awal trip.',
+    }
   }
   return { valid: true, activePoint }
 }

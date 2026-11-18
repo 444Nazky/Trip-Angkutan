@@ -84,9 +84,9 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               <Truck size={20} className={textColor('kosong', condition === 'kosong')} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kapal Kosong</p>
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Ponton Tanpa Muatan</p>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Mulai trip baru dengan kondisi kapal kosong tanpa kendaraan
+                Mulai trip baru dengan kondisi ponton tanpa muatan kendaraan
               </p>
 
             </div>
@@ -109,9 +109,9 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               <Package size={20} className={textColor('muatan', condition === 'muatan')} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Kapal dengan Muatan</p>
+              <p className="font-bold text-slate-900 text-[13px] mb-0.5">Ponton dengan Muatan</p>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Mulai trip baru dengan kondisi kapal memiliki muatan kendaraan
+                Mulai trip baru dengan kondisi ponton memiliki muatan kendaraan
               </p>
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('muatan')}`}>

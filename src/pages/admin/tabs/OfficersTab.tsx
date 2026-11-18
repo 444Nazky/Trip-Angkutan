@@ -22,16 +22,12 @@ interface OfficersTabProps {
 function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
   return rows.map(b => {
     const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
-    const region = b.regions?.[0]?.name ?? b.region_code ?? b.region_id
-    const regions = b.regions && b.regions.length > 0 ? b.regions.map(r => r.name) : [region]
-    // Tidak ada akses dermaga = kosong. Dulu fallback-nya dummy
-    // `{ id: '', name: '', code: 'D1' }` - data palsu yang tampil sebagai
-    // kolom "Dermaga" padahal tidak ada di database.
-    const dermagaAccess = b.dermagas && b.dermagas.length > 0
-      ? b.dermagas
-      : old?.dermagaAccess && old.dermagaAccess.length > 0
-        ? old.dermagaAccess
-        : []
+    // Server adalah sumber kebenaran. Dulu hasil kosong dari server dianggap
+    // "belum termuat" lalu diisi ulang dari state lama, sehingga akses yang
+    // sudah dicabut admin tetap tampil menempel di wilayah/dermaga lama.
+    const regions = (b.regions ?? []).map(r => r.name)
+    const region = regions[0] ?? b.region_code ?? b.region_id ?? '-'
+    const dermagaAccess = b.dermagas ?? []
     return {
       id: String(b.id),
       name: b.name,
@@ -178,8 +174,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
   // itu bukan data database, dan membuat admin tidak bisa memberi akses
   // wilayah yang memang ada.
   const regionNames = [...new Set(regions.map(r => r.name))]
-  const officerRegions = (o: Officer) =>
-    (o.regions && o.regions.length > 0 ? o.regions : [o.region])
+  const officerRegions = (o: Officer) => o.regions ?? []
   const regionNameByCode = new Map(
     regions.map(r => [String(r.code ?? '').toUpperCase(), r.name] as const).filter(([code]) => !!code),
   )
@@ -536,7 +531,7 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
                       </td>
                       <td className="p-4">
                         <ActionMenu
-                          onEdit={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions && o.regions.length > 0 ? o.regions : [o.region]); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
+                          onEdit={() => { setEditOffIdx(localIdx); setEditOff(o); setEditRegions(o.regions ?? []); setEditDermagaIds((o.dermagaAccess ?? []).filter(d => d.id).map(d => d.id)) }}
                           onToggle={() => toggleOffStatus(localIdx)}
                           isActive={o.status === 'Aktif'}
                           onDelete={() => handleDelOff(localIdx)}

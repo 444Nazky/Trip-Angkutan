@@ -14,7 +14,6 @@ import {
   requestPersistentStorage,
 } from './localDb'
 import type { Trip, VehicleEntry } from '../pages/store'
-import { syncOnResume } from './adminPull'
 import { processCancelQueue, readCancelQueue } from './tripCancel'
 
 
@@ -32,8 +31,6 @@ const ITEM_TIMEOUT_MS = 90_000
 const GEO_TIMEOUT_MS = 20_000
 const PING_TTL_MS = 2_500
 const PING_TIMEOUT_MS = 5_000
-const ONLINE_RETRY_ATTEMPTS = 3
-const ONLINE_RETRY_DELAY_MS = 700
 
 
 
@@ -57,6 +54,8 @@ export interface SyncItem {
   lastAttemptAt?: number
   photos: PhotoEntry[]
   tripPhoto?: PhotoEntry
+  /** Foto bukti muatan (jepretan kedua setelah swafoto). */
+  proofPhoto?: PhotoEntry
 }
 
 
@@ -105,13 +104,6 @@ let _retryTimer: ReturnType<typeof setTimeout> | null = null
 
 
 let _initialized = false
-
-
-
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
 
 
 
@@ -212,6 +204,10 @@ function derivePhotos(trip: Trip): PhotoEntry[] {
 
 function deriveTripPhoto(trip: Trip): PhotoEntry | undefined {
   return trip.photoUrl ? { dataUrl: trip.photoUrl, mimeType: 'image/jpeg' } : undefined
+}
+
+function deriveProofPhoto(trip: Trip): PhotoEntry | undefined {
+  return trip.proofUrl ? { dataUrl: trip.proofUrl, mimeType: 'image/jpeg' } : undefined
 }
 
 
@@ -343,11 +339,19 @@ function mergeQueuedTrip(
   const tripPhoto = hasPhotoData({ dataUrl: next.photoUrl ?? '', mimeType: 'image/jpeg' })
     ? { dataUrl: next.photoUrl as string, mimeType: 'image/jpeg' }
     : prev?.tripPhoto
+  const proofPhoto = hasPhotoData({ dataUrl: next.proofUrl ?? '', mimeType: 'image/jpeg' })
+    ? { dataUrl: next.proofUrl as string, mimeType: 'image/jpeg' }
+    : prev?.proofPhoto
 
   return {
-    trip: { ...next, vehicles: tripVehicles },
+    trip: {
+      ...next,
+      vehicles: tripVehicles,
+      proofUrl: next.proofUrl ?? proofPhoto?.dataUrl,
+    },
     photos,
     tripPhoto,
+    proofPhoto,
   }
 }
 
@@ -400,6 +404,7 @@ export async function addToSyncQueue(
   trip: Trip,
   photos?: PhotoEntry[],
   tripPhoto?: PhotoEntry,
+  proofPhoto?: PhotoEntry,
 ): Promise<void> {
   await initLocalDb()
   const existing = (await dbGetById(trip.id))
@@ -419,6 +424,9 @@ export async function addToSyncQueue(
   const incomingTripPhoto = hasPhotoData(tripPhoto)
     ? tripPhoto
     : (hasPhotoData(deriveTripPhoto(trip)) ? deriveTripPhoto(trip) : undefined)
+  const incomingProofPhoto = hasPhotoData(proofPhoto)
+    ? proofPhoto
+    : (hasPhotoData(deriveProofPhoto(trip)) ? deriveProofPhoto(trip) : undefined)
 
   // Gabungkan dengan isi antrean lama: daftar kendaraan dan foto tidak boleh
   // pernah hilang hanya karena state yang dipakai hanya metadata.
@@ -437,10 +445,11 @@ export async function addToSyncQueue(
     // Foto trip hanya boleh diganti oleh foto BARU yang berisi data; kalau
     // tidak ada, pertahankan salinan yang sudah ada di antrean.
     tripPhoto: incomingTripPhoto ?? existing?.tripPhoto,
+    proofPhoto: incomingProofPhoto ?? existing?.proofPhoto,
   }
   await writeItem(item)
   notifyQueueListeners()
-  window.setTimeout(() => void processSyncQueue(), 150)
+  // Sinkron manual: TIDAK memicu pengiriman otomatis setelah antrean diisi.
 }
 
 
@@ -468,6 +477,7 @@ export interface QueuedPhotos {
   vehiclePhotos: Array<string | undefined>
   tripPhotoUrl?: string
   selfieUrl?: string
+  proofUrl?: string
 }
 
 /** Foto sebuah trip dari antrean sync. `null` = antrean tidak punya fotonya. */
@@ -479,8 +489,11 @@ export async function readQueuedPhotos(tripId: string): Promise<QueuedPhotos | n
     const vehiclePhotos = (item.photos ?? []).map(p => (hasPhotoData(p) ? p.dataUrl : undefined))
     const tripPhotoUrl = hasPhotoData(item.tripPhoto) ? item.tripPhoto.dataUrl : undefined
     const selfieUrl = typeof item.trip?.selfieUrl === 'string' ? item.trip.selfieUrl : undefined
-    if (!vehiclePhotos.some(Boolean) && !tripPhotoUrl && !selfieUrl) return null
-    return { vehiclePhotos, tripPhotoUrl, selfieUrl }
+    const proofUrl = hasPhotoData(item.proofPhoto)
+      ? item.proofPhoto.dataUrl
+      : (typeof item.trip?.proofUrl === 'string' ? item.trip.proofUrl : undefined)
+    if (!vehiclePhotos.some(Boolean) && !tripPhotoUrl && !selfieUrl && !proofUrl) return null
+    return { vehiclePhotos, tripPhotoUrl, selfieUrl, proofUrl }
   } catch {
     return null
   }
@@ -911,6 +924,10 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
     // Swafoto (foto petugas) dikirim sebagai foto tambahan pada trip.
     const selfieIdx = await pushPhoto(trip.selfieUrl ?? undefined)
 
+    // Foto bukti muatan (wajib di aplikasi baru, opsional di server agar
+    // aplikasi versi lama tetap bisa sinkron).
+    const proofIdx = await pushPhoto(item.proofPhoto?.dataUrl ?? trip.proofUrl)
+
     const hasLoad = (trip.vehicles?.length ?? 0) > 0
       ? trip.vehicles!.some(v => v.load !== 'empty')
       : trip.load === 'Ada Muatan'
@@ -993,7 +1010,9 @@ async function postTripToServer(item: SyncItem, allowReauth = true): Promise<Syn
       keterangan: trip.category && trip.category !== '-' ? trip.category : null,
       tripPhotoIndex: tripPhotoIdx,
       selfieIndex: selfieIdx,
+      proofIndex: proofIdx,
       selfieCapturedAt: trip.selfieCapturedAt ?? null,
+      proofCapturedAt: trip.proofCapturedAt ?? null,
       tripPhotoCapturedAt: trip.photoCapturedAt ?? null,
       tripPhotoLatitude: trip.photoLatitude ?? null,
       tripPhotoLongitude: trip.photoLongitude ?? null,
@@ -1116,12 +1135,10 @@ function releaseLock(): void {
 
 
 
-function scheduleRetry(delayMs = POLL_INTERVAL_MS): void {
-  if (_retryTimer) clearTimeout(_retryTimer)
-  _retryTimer = setTimeout(() => {
-    _retryTimer = null
-    void processSyncQueue()
-  }, delayMs)
+function scheduleRetry(_delayMs = POLL_INTERVAL_MS): void {
+  // Sinkron manual: kegagalan tidak dijadwalkan ulang sendiri. Petugas
+  // mencoba lagi lewat tombol sinkron atau gerbang harian.
+  if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null }
 }
 
 
@@ -1253,44 +1270,28 @@ export async function processSyncQueue(opts?: { retryAll?: boolean }): Promise<v
 
 
 
-async function handleConnectionRestored(): Promise<void> {
-  for (let i = 0; i < ONLINE_RETRY_ATTEMPTS; i++) {
-    if (await probeServer(true)) {
-      void syncOnResume(true)
-      await processSyncQueue()
-      return
-    }
-    if (i < ONLINE_RETRY_ATTEMPTS - 1) await sleep(ONLINE_RETRY_DELAY_MS)
-  }
-  scheduleRetry(POLL_INTERVAL_MS)
-}
-
-
-
-
+/**
+ * Inisialisasi penyimpanan antrean SAJA.
+ *
+ * Tidak ada lagi pengiriman otomatis saat aplikasi dibuka, saat perangkat
+ * kembali online, saat aplikasi kembali aktif, atau lewat interval. Trip baru
+ * menunggu sampai petugas menekan tombol sinkron (termasuk gerbang wajib
+ * sinkron harian).
+ */
 export function initializeSync(): void {
   if (_initialized) return
   _initialized = true
 
-  void syncOnResume()
-
   void initLocalDb().then(async () => {
     await migrateLegacyQueue()
     void requestPersistentStorage()
-    window.setTimeout(() => void processSyncQueue(), 1_200)
+    notifyQueueListeners()
   })
 
-  window.addEventListener('online', () => { void handleConnectionRestored() })
   window.addEventListener('offline', () => {
     _pingOk = false
     _pingAt = 0
     notifyQueueListeners()
-  })
-
-  window.setInterval(() => { void processSyncQueue() }, POLL_INTERVAL_MS)
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void processSyncQueue()
   })
 }
 

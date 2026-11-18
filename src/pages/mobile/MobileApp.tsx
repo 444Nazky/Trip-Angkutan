@@ -16,6 +16,7 @@ import EndpointScreen from './EndpointScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
 import GeofenceConfigScreen from './GeofenceConfigScreen'
 import SyncFailureToast from '../../components/SyncFailureToast'
+import DailySyncGate from '../../components/DailySyncGate'
 import type { MobileScreen } from '../types'
 import type { Dermaga } from '../../services/auth'
 import { useApp } from '../store'
@@ -143,6 +144,7 @@ export default function MobileApp() {
           </div>,
         )}
         <SyncFailureToast />
+        <DailySyncGate />
       </>
     )
   }
@@ -156,6 +158,7 @@ export default function MobileApp() {
           </div>,
         )}
         <SyncFailureToast />
+        <DailySyncGate />
       </>
     )
   }
@@ -164,6 +167,7 @@ export default function MobileApp() {
     <MobileShell activeNav={activeNav} onNav={goTab}>
       <div key={screen} className={`scr-anim scr-anim-${anim} min-h-full`}>{screenMap[screen]}</div>
       <SyncFailureToast />
+      <DailySyncGate />
     </MobileShell>
   )
 }

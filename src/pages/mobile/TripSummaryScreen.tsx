@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X } from 'lucide-react'
+import { ChevronLeft, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X, ShieldCheck, Camera } from 'lucide-react'
 import { activeRoutes } from '../data'
 import { unitLabel, useApp } from '../store'
 import { validateTripEndForCurrentLocation } from '../../services/geofence'
 import CancelTripDialog from '../../components/CancelTripDialog'
+import TripAuthDialog from '../../components/TripAuthDialog'
 import type { MobileScreen } from '../types'
 
 
@@ -33,7 +34,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   } = useApp()
 
   const hasSelfie = !!draft.selfieUrl
+  const hasProof = !!draft.proofUrl
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
   const [geofenceError, setGeofenceError] = useState<string | null>(null)
   const [geofenceBlocked, setGeofenceBlocked] = useState(false)
   const [geofenceLoading, setGeofenceLoading] = useState(false)
@@ -109,9 +112,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   // tidak diizinkan di titik Y. Rute yang diizinkan: ...") dipotong jadi satu
   // kalimat.
   const formatGeofenceError = (result: { reason?: string; activePoint?: { name?: string } | null }) => {
-    if (result.reason?.includes('belum diatur admin')) return 'Titik tujuan trip ini belum diatur admin.'
-    if (result.activePoint) return 'Anda belum berada di titik tujuan trip ini.'
-    return 'Anda belum berada di titik tujuan trip ini.'
+    if (result.reason?.includes('belum diatur admin')) return 'Titik awal/tujuan trip ini belum diatur admin.'
+    if (result.activePoint) return 'Anda belum berada di titik awal atau tujuan trip ini.'
+    return 'Anda belum berada di titik awal atau tujuan trip ini.'
   }
 
   useEffect(() => {
@@ -134,12 +137,14 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
   // kembali tidak boleh membuka langkah yang bisa mengubah isian.
   const backTo = draftLocked
     ? 'home'
-    : draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
+    : draft.editingTripId
+      ? 'history-detail'
+      : draft.condition === 'kosong' ? 'route-select' : 'vehicle-form'
   const missingVehiclePhoto = vehicles.filter(v => !v.photoUrl).length
-  // Swafoto petugas menjadi bukti untuk semua trip; foto kendaraan tetap wajib.
-  const canSubmit = hasSelfie && missingVehiclePhoto === 0
+  // Swafoto + foto bukti muatan wajib untuk semua trip; foto kendaraan tetap wajib.
+  const canSubmit = hasSelfie && hasProof && missingVehiclePhoto === 0
 
-  const handleSubmit = async () => {
+  const doSubmit = async () => {
     if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
     const result = await validateTripEndForCurrentLocation(draft.routeCode!)
     if (!result.valid) {
@@ -151,6 +156,13 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     if (draft.condition === 'kosong') finishEmptyTrip()
     else finishMuatanTrip()
     go('trip-complete')
+  }
+
+  // Sidik jari/passkey diutamakan sebelum data dikirim. PIN tersedia sebagai
+  // cadangan kalau perangkat tidak punya authenticator platform.
+  const handleSubmit = () => {
+    if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
+    setAuthOpen(true)
   }
 
   // Pembatalan trip SELALU lewat dialog alasan: yang terkirim ke server
@@ -266,6 +278,13 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               )}
           </section>
 
+          {draft.editingTripId && (
+            <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[11px] text-blue-800">
+              <ShieldCheck size={14} className="mt-0.5 shrink-0" />
+              <span>Mode edit trip. Perubahan akan memperbarui trip yang sudah ada, bukan membuat trip baru.</span>
+            </div>
+          )}
+
           <section className={`rounded-2xl border bg-white p-4 shadow-sm ${hasSelfie ? 'border-slate-200 ring-1 ring-slate-100' : 'border-amber-300 ring-1 ring-amber-100'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -293,11 +312,40 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             )}
           </section>
 
+          <section className={`rounded-2xl border bg-white p-4 shadow-sm ${hasProof ? 'border-slate-200 ring-1 ring-slate-100' : 'border-amber-300 ring-1 ring-amber-100'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${hasProof ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-600'}`}>
+                  <Camera size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Foto Bukti Muatan</p>
+                  <p className="text-[10px] text-slate-500">
+                    {hasProof ? 'tersimpan' : 'wajib dijepret sebelum trip dikirim'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { patchDraft({ cameraFrom: 'trip-summary', cameraMode: 'proof', cameraReturn: 'trip-summary' }); go('camera') }}
+                disabled={draftLocked}
+                className={`rounded-lg border bg-transparent px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${hasProof ? 'border-slate-300 text-slate-700 hover:bg-slate-50' : 'border-amber-400 text-amber-800 hover:bg-amber-50 active:bg-amber-100'}`}
+              >
+                {hasProof ? 'Ulangi' : 'Ambil'}
+              </button>
+            </div>
+
+            {hasProof && draft.proofUrl && (
+              <img src={draft.proofUrl} alt="Foto bukti muatan" className="mt-3 h-32 w-full rounded-xl object-cover ring-1 ring-slate-200" />
+            )}
+          </section>
+
           {!canSubmit && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800">
               {!hasSelfie
                 ? 'Swafoto petugas belum diambil.'
-                : `${missingVehiclePhoto} unit kendaraan belum memiliki foto.`}
+                : !hasProof
+                  ? 'Foto bukti muatan belum diambil.'
+                  : `${missingVehiclePhoto} unit kendaraan belum memiliki foto.`}
             </p>
           )}
 
@@ -334,6 +382,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           </div>
         </main>
       </div>
+
+      <TripAuthDialog
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onVerified={() => { setAuthOpen(false); void doSubmit() }}
+      />
 
       <CancelTripDialog
         open={cancelOpen}

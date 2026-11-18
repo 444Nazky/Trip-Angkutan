@@ -2,6 +2,7 @@ import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock } from 'lucide-react'
 import { useApp } from '../store'
 import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
+import { markSyncedToday } from '../../services/syncPolicy'
 import {
   draftRemainingMs,
   draftResumeTarget,
@@ -56,8 +57,11 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
       }
       setSyncState(r)
       setPendingCount(getPendingCount())
-      // Prefetch data kritis setelah sinkronisasi
-      void prefetchAllCriticalData().catch(() => undefined)
+      // Prefetch data kritis setelah sinkronisasi (manual, bukan otomatis).
+      void prefetchAllCriticalData({ force: true }).catch(() => undefined)
+      if (r.reachable !== false && r.failed === 0) {
+        markSyncedToday()
+      }
       if (r.failed === 0) {
         setTimeout(() => { setSyncState(null); setPendingCount(getPendingCount()) }, 3500)
       }

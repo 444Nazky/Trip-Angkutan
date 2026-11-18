@@ -57,7 +57,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
           icon: 'text-amber-500',
           text: 'text-amber-700',
           title: 'Menunggu Sinkronisasi',
-          detail: 'Tersimpan di perangkat. Data akan dikirim saat koneksi tersedia.',
+          detail: 'Tersimpan di perangkat. Ketuk Sinkronkan di Beranda untuk mengirim.',
           Icon: Clock,
         }
       : synced

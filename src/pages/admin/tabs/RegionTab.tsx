@@ -20,7 +20,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { Landmark, MapPin, Pencil, Plus, RefreshCw, Route as RouteIcon, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
+import { Landmark, MapPin, Pencil, Plus, RefreshCw, Search, Trash2, TriangleAlert, Users } from 'lucide-react'
 import {
   fetchAdminRegions,
   type AdminRegionRow,
@@ -486,23 +486,6 @@ export function RegionTab({ showToast }: RegionTabProps) {
             <RefreshCw size={12} /> Muat ulang
           </button>
         </div>
-      </div>
-
-      {/* Ringkasan cepat */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: 'Wilayah', value: regions.length, Icon: Landmark, tone: 'text-slate-700' },
-          { label: 'Dermaga', value: dermagas.length, Icon: MapPin, tone: 'text-blue-600' },
-          { label: 'Rute', value: routes === null ? '—' : routes.length, Icon: RouteIcon, tone: 'text-emerald-600' },
-          { label: 'Petugas', value: officers === null ? '—' : officers.length, Icon: Users, tone: 'text-amber-600' },
-        ].map(({ label, value, Icon, tone }) => (
-          <div key={label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
-              <Icon size={13} /> {label}
-            </div>
-            <p className={`mt-1 text-xl font-black ${tone}`}>{value}</p>
-          </div>
-        ))}
       </div>
 
       {officers === null && state === 'ready' && (

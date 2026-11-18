@@ -171,14 +171,12 @@ export async function syncOfficersToLocal(force = false): Promise<ReturnType<typ
   // Roster di perangkat = roster dari server. Petugas yang tidak ada di
   // server TIDAK boleh tetap tampil (dulu daftar seed bikin petugas contoh
   // ikut muncul di HP).
-  const local = new Map<string, ReturnType<typeof toMobileOfficer>>()
-  for (const o of getStoredOfficers()) local.set(String(o.id), o)
-
   const merged = new Map<string, ReturnType<typeof toMobileOfficer>>()
   for (const o of mobileOfficers) {
-    const prev = local.get(String(o.id))
-    const dermagaAccess = o.dermagaAccess?.length ? o.dermagaAccess : (prev?.dermagaAccess ?? [])
-    merged.set(String(o.id), { ...o, dermagaAccess })
+    // Akses dermaga mengikuti server: [] berarti dicabut. Dulu nilai kosong
+    // diisi ulang dari roster lama, jadi pencabutan akses tidak pernah sampai
+    // ke perangkat petugas.
+    merged.set(String(o.id), o)
   }
   const roster = [...merged.values()]
   localStorage.setItem('trip.officers.v1', JSON.stringify(roster))

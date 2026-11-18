@@ -159,7 +159,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
               ? 'Bukti pembatalan sudah diterima server.'
               : cancelState === 'failed'
                 ? 'Bukti pembatalan belum terkirim.'
-                : 'Bukti pembatalan dikirim otomatis saat tersambung.'}
+                : 'Bukti pembatalan menunggu sinkron manual di Beranda.'}
           </p>
         </div>
       )}
@@ -330,8 +330,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
                 : cancelState === 'sent'
                   ? `Dokumen pembatalan diterima server kantor${cancelDelivered?.noCancel ? ` · ${cancelDelivered.noCancel}` : ''} · ${t.date}`
                   : cancelItem?.lastError
-                    ? `${cancelItem.lastError} — otomatis dicoba lagi saat koneksi pulih`
-                    : 'Dokumen pembatalan aman tersimpan di perangkat dan dikirim otomatis'}
+                    ? `${cancelItem.lastError} — coba lagi lewat tombol sinkron di Beranda`
+                    : 'Dokumen pembatalan aman tersimpan di perangkat dan menunggu sinkron manual'}
             </p>
           </div>
         </div>

@@ -73,21 +73,26 @@ export default function CameraScreen({ go }: CameraScreenProps) {
   // (plugin Camera Android membuka aplikasi kamera sistem dan tidak bisa
   // memaksa kamera depan), jadi selalu lewat getUserMedia di WebView.
   const isSelfie = draft.cameraMode === 'selfie'
+  const isProof = draft.cameraMode === 'proof'
   const retake = draft.retakeTarget
   const returnTo: MobileScreen = isSelfie
     ? (draft.cameraReturn ?? 'trip-summary')
-    : retake
-      ? 'history-detail'
-      : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
+    : isProof
+      ? (draft.cameraReturn ?? 'trip-summary')
+      : retake
+        ? 'history-detail'
+        : draft.cameraReturn ?? (isOcr ? 'vehicle-form' : (draft.cameraFrom || 'vehicle-form'))
   const title = isOcr
     ? 'Scan No. Polisi'
     : isSelfie
       ? 'Swafoto Petugas'
-      : retake
+      : isProof
+        ? 'Foto Bukti Muatan'
+        : retake
         ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
-        : (returnTo === 'trip-summary' || returnTo === 'route-select'
-          ? (draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip')
-          : 'Foto Bukti Muatan')
+          : (returnTo === 'trip-summary' || returnTo === 'route-select'
+            ? (draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip')
+            : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 
 
@@ -276,6 +281,19 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       patchDraft({
         selfieUrl: watermarked,
         selfieCapturedAt: capturedIso,
+        cameraReturn: undefined,
+      })
+      setBusy(false)
+      go(returnTo)
+      return
+    }
+
+    if (isProof) {
+      patchDraft({
+        proofUrl: watermarked,
+        proofCapturedAt: capturedIso,
+        proofLatitude: lat,
+        proofLongitude: lon,
         cameraReturn: undefined,
       })
       setBusy(false)

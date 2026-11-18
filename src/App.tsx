@@ -4,12 +4,10 @@ import LoginPage from "./pages/LoginPage"
 import AdminDashboard from "./pages/admin/AdminDashboard"
 import { AppProvider, useApp } from "./pages/store"
 import { initializeSync } from "./services/sync"
-import { syncOnResume } from "./services/adminPull"
 import { initOfflineDb } from "./services/offlineDb"
 import { startGpsWatch, stopGpsWatch } from "./services/geofence"
-import { prefetchAllCriticalData, startMasterDataAutoSync, stopMasterDataAutoSync } from "./services/prefetch"
 import { checkAndRequestLocationOnStartup } from "./services/permission"
-import { autoDetectApiBaseUrl, api } from "./services/api"
+import { api } from "./services/api"
 import { ensureAdminSession, setAdminCredentials } from "./services/auth"
 import { appUpdate } from "./services/appUpdate"
 
@@ -27,12 +25,9 @@ function Shell() {
       initializeSync()
       void initOfflineDb()
       void checkAndRequestLocationOnStartup()
-      // ponytail: SATU prefetch (rute + geofence + tarif + akses dermaga),
-      // bukan beberapa request terpisah. Prefetch punya TTL + single-flight
-      // sehingga tidak mengulang request yang sama.
-      void autoDetectApiBaseUrl()
-        .then(() => prefetchAllCriticalData({ force: true }))
-        .catch(() => prefetchAllCriticalData({ force: true }))
+      // Sinkron master data TIDAK lagi otomatis saat aplikasi dibuka. Data
+      // memakai cache lokal sampai petugas menekan tombol sinkron (gerbang
+      // wajib sinkron harian akan memandu).
       // GPS watch: fix GPS selalu hangat -> layar "Pilih Rute" tidak nunggu
       // cold start GPS (detik-detik) setiap kali dibuka.
       startGpsWatch()
@@ -48,16 +43,11 @@ function Shell() {
       let sub: { remove?: () => void } | undefined
       CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
-          syncOnResume()
-          // Tarik master data (PIN/petugas/akses/rute/geofence/tarif) dari
-          // dashboard admin begitu aplikasi aktif kembali.
-          void prefetchAllCriticalData({ force: true })
-          startMasterDataAutoSync()
+          // Tanpa sinkron otomatis: hanya versi aplikasi & GPS yang disegarkan.
           void appUpdate.syncInstalledVersion()
           startGpsWatch()
         } else {
           stopGpsWatch()
-          stopMasterDataAutoSync()
         }
       }).then(s => { sub = s })
       return () => { sub?.remove?.() }

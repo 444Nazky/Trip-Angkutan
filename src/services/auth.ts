@@ -147,11 +147,14 @@ function enrichOfficerWithDermagaAccess(
   officer: StoredOfficer,
   dermagas?: Array<{ id: string; name?: string; code?: string; region_id?: string }>,
 ): StoredOfficer {
-  const fromArgs = (dermagas ?? [])
+  // Server tidak mengirim daftar dermaga (server lama) -> pertahankan sesi.
+  if (!Array.isArray(dermagas)) return officer
+  const fromArgs = dermagas
     .map(d => ({ id: String(d.id), name: String(d.name ?? ''), code: String(d.code ?? ''), region_id: d.region_id }))
     .filter(d => d.id)
-  if (fromArgs.length) return { ...officer, dermagaAccess: fromArgs }
-  return officer
+  // Array kosong berarti SEMUA akses dermaga dicabut. Dulu kondisi ini
+  // diabaikan sehingga sesi lama (beserta aksesnya) tetap dipakai.
+  return { ...officer, dermagaAccess: fromArgs }
 }
 
 // Titik geofence hanya dibuang saat GANTI petugas — bukan setiap login.
@@ -313,7 +316,9 @@ async function buildOfflineSession(identifier: string): Promise<StoredOfficer | 
   if (row.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(row.status))) return null
 
   const roster = findStoredOfficerRecord(String(row.id))
-  const access = row.dermagaAccess?.length ? row.dermagaAccess : roster?.dermagaAccess
+  // Array kosong pada record terbaru = akses sudah dicabut; jangan diisi
+  // ulang dari roster lama (yang bisa saja masih menyimpan akses lama).
+  const access = Array.isArray(row.dermagaAccess) ? row.dermagaAccess : roster?.dermagaAccess
   const region = String(row.region ?? row.regionCode ?? row.regionId ?? '')
   const officer: StoredOfficer = {
     id: String(row.id ?? identifier),

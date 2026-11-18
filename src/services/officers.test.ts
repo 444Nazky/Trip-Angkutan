@@ -124,4 +124,20 @@ describe('sinkronisasi normal', () => {
     expect(h.saved[0].map(o => o.id)).toEqual(['off-1'])
     expect(JSON.parse(localStorage.getItem(CACHE_KEY) as string).officers).toHaveLength(1)
   })
+
+  it('akses dermaga yang dicabut server (array kosong) tidak diisi ulang dari roster lama', async () => {
+    localStorage.setItem('trip.officers.v1', JSON.stringify([{
+      id: 'off-1',
+      name: 'Petugas Satu',
+      dermagaAccess: [{ id: 'dm-1', name: 'Badau Dermaga 1', code: 'BAU1' }],
+    }]))
+    h.authed = true
+    h.ensure = true
+    h.response = { ok: true, data: [{ ...BACKEND_ROW, dermagas: [] }] }
+
+    const roster = await syncOfficersToLocal(true)
+
+    expect(roster[0].dermagaAccess).toEqual([])
+    expect(JSON.parse(localStorage.getItem('trip.officers.v1') as string)[0].dermagaAccess).toEqual([])
+  })
 })
