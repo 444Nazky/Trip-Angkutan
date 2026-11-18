@@ -1,15 +1,34 @@
 /**
  * Verifikasi sidik jari / passkey perangkat.
  *
- * Memakai WebAuthn dengan authenticator platform (fingerprint, Face ID, atau
- * PIN layar kunci). Kredensial didaftarkan sekali per petugas di perangkat ini,
- * lalu setiap pengiriman trip meminta verifikasi biometrik.
+ * Di APK Android dipakai plugin native `NativeBiometric` (BiometricPrompt),
+ * karena WebView belum tentu mendukung WebAuthn. Di browser tetap memakai
+ * WebAuthn dengan authenticator platform.
  *
- * Kalau perangkat/WebView tidak mendukung WebAuthn, pemanggil memakai PIN
- * petugas sebagai cadangan — jadi petugas tidak pernah terkunci.
+ * Kalau perangkat tidak punya sensor atau verifikasi dibatalkan, pemanggil
+ * memakai PIN petugas sebagai cadangan — jadi petugas tidak pernah terkunci.
  */
 
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
 const CREDENTIAL_PREFIX = 'trip.biometric.credential.v1.'
+const NATIVE_PREFIX = 'trip.biometric.native.v1.'
+
+interface NativeBiometricPlugin {
+  isAvailable(): Promise<{ available: boolean; reason?: unknown }>
+  verify(options?: {
+    title?: string
+    subtitle?: string
+    description?: string
+    negativeButtonText?: string
+  }): Promise<{ verified: boolean }>
+}
+
+const NativeBiometric = registerPlugin<NativeBiometricPlugin>('NativeBiometric')
+
+function isNativeAndroid(): boolean {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+}
 
 export type BiometricOutcome = 'ok' | 'unavailable' | 'cancelled' | 'failed'
 
@@ -45,12 +64,29 @@ function storedCredentialId(officerId: string): string | null {
   }
 }
 
+function nativeCredentialMissing(officerId: string): boolean {
+  try {
+    return localStorage.getItem(`${NATIVE_PREFIX}${officerId}`) !== '1'
+  } catch {
+    return true
+  }
+}
+
 export function hasBiometricCredential(officerId: string): boolean {
+  if (isNativeAndroid()) return !nativeCredentialMissing(String(officerId))
   return !!storedCredentialId(officerId)
 }
 
 /** Apakah perangkat punya authenticator platform yang bisa dipakai. */
 export async function biometricAvailable(): Promise<boolean> {
+  if (isNativeAndroid()) {
+    try {
+      const result = await NativeBiometric.isAvailable()
+      return !!result.available
+    } catch {
+      return false
+    }
+  }
   try {
     if (typeof window === 'undefined' || !window.PublicKeyCredential) return false
     if (typeof navigator === 'undefined' || !navigator.credentials) return false
@@ -62,12 +98,31 @@ export async function biometricAvailable(): Promise<boolean> {
   }
 }
 
+async function verifyNativeBiometric(officerId: string): Promise<BiometricOutcome> {
+  try {
+    await NativeBiometric.verify({
+      title: 'Verifikasi Sidik Jari',
+      subtitle: 'Sebelum data trip dikirim ke server',
+      description: 'Sentuh sensor sidik jari untuk melanjutkan.',
+      negativeButtonText: 'Gunakan PIN',
+    })
+    localStorage.setItem(`${NATIVE_PREFIX}${officerId}`, '1')
+    return 'ok'
+  } catch (err) {
+    const code = String((err as { code?: string })?.code ?? '')
+    if (code === 'CANCELLED') return 'cancelled'
+    if (code === 'UNAVAILABLE') return 'unavailable'
+    return 'failed'
+  }
+}
+
 /**
  * Daftarkan sidik jari petugas di perangkat ini.
  * Mengembalikan 'ok' bila kredensial tersimpan.
  */
 export async function enrollBiometric(officer: { id: string; name: string; username?: string }): Promise<BiometricOutcome> {
   if (!(await biometricAvailable())) return 'unavailable'
+  if (isNativeAndroid()) return verifyNativeBiometric(String(officer.id))
   try {
     const credential = await navigator.credentials.create({
       publicKey: {
@@ -108,6 +163,7 @@ export async function enrollBiometric(officer: { id: string; name: string; usern
  */
 export async function verifyBiometric(officer: { id: string; name: string; username?: string }): Promise<BiometricOutcome> {
   if (!(await biometricAvailable())) return 'unavailable'
+  if (isNativeAndroid()) return verifyNativeBiometric(String(officer.id))
   const stored = storedCredentialId(String(officer.id))
   if (!stored) {
     const enrolled = await enrollBiometric(officer)

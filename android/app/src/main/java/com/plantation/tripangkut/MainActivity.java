@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         // didaftarkan setelahnya tidak akan pernah ikut terpasang dan
         // `ApkInstaller.install()` gagal dengan "not implemented".
         registerPlugin(ApkInstallerPlugin.class);
+        registerPlugin(NativeBiometricPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
