@@ -54,7 +54,7 @@ export default function MobileApp() {
 
   const activeNav = ['history', 'history-detail'].includes(screen)
     ? 'history'
-    : ['sync-trips', 'trip-summary', 'trip-complete'].includes(screen)
+    : ['trip-summary', 'trip-complete', 'sync-trips'].includes(screen)
       ? 'home'
       : ['location', 'geofence-config'].includes(screen)
         ? 'location'
@@ -74,7 +74,7 @@ export default function MobileApp() {
     'trip-complete': <TripCompleteScreen go={go} />,
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} onBack={goBack} />,
-    'sync-trips': <SyncTripsScreen go={go} />,
+    'sync-trips': <SyncTripsScreen go={go} onBack={goBack} />,
     location: <ActiveLocationScreen go={go} />,
     'officer-switch': <OfficerSwitchScreen go={go} />,
     'pin-verify': <PinVerifyScreen go={go} />,

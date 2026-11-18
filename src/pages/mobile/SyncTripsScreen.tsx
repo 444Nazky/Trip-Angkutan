@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw, Send } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import {
@@ -13,6 +13,7 @@ import {
 
 interface SyncTripsScreenProps {
   go: (s: MobileScreen) => void
+  onBack: () => void
 }
 
 /**
@@ -21,7 +22,7 @@ interface SyncTripsScreenProps {
  * Sinkron otomatis sudah dihapus, jadi layar ini adalah tempat petugas melihat
  * antrean, membaca alasan gagal, dan mengirim ulang secara manual.
  */
-export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
+export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
   const { trips, officer, setDetailTripId } = useApp()
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -112,9 +113,18 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
   return (
     <div className="space-y-4 px-4 pb-4 pt-2">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="font-black text-slate-900 text-[20px]">Trip Belum Terkirim</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">{rows.length} trip menunggu dikirim.</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            onClick={onBack}
+            aria-label="Kembali"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 active:scale-95"
+          >
+            <ArrowLeft size={17} />
+          </button>
+          <div className="min-w-0">
+            <h2 className="font-black text-slate-900 text-[20px] leading-tight">Trip Belum Terkirim</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">{rows.length} trip menunggu dikirim.</p>
+          </div>
         </div>
         <button
           onClick={() => void runSync()}

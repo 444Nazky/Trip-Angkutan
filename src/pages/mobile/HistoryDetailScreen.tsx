@@ -361,7 +361,7 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
           <div className="rounded-xl bg-slate-50 py-8 text-center">
             <Camera size={26} className="mx-auto text-slate-300 mb-2" />
             <p className="text-[11px] text-slate-400">
-              {brokenCount > 0 ? 'Foto tidak dapat dimuat dari perangkat' : 'Belum ada foto dokumentasi tersimpan'}
+              {brokenCount > 0 ? 'Foto tidak dapat dimuat dari perangkat' : 'Belum ada foto kendaraan tersimpan'}
             </p>
           </div>
         ) : (
@@ -487,7 +487,7 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
               : isSynced
                 ? `Data berhasil dikirim ke ${t.syncedTarget ?? 'server'} · ${t.date}`
                 : photoStuck
-                  ? (queueItem?.lastError ?? 'Menunggu foto dokumentasi dilengkapi…')
+                  ? (queueItem?.lastError ?? 'Menunggu foto kendaraan dilengkapi…')
                   : inQueue
                     ? 'Menunggu koneksi untuk mengirim...'
                     : 'Data aman tersimpan di perangkat'}
