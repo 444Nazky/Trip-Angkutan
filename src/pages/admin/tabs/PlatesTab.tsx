@@ -83,7 +83,7 @@ export function PlatesTab({ plates, onPlatesChange, showToast }: PlatesTabProps)
 
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-black text-slate-900 text-lg">Nomor Polisi</h3>
+          <h3 className="font-black text-slate-900 text-lg">Master Kendaraan</h3>
           <p className="text-slate-500 text-[12px]">Nomor polisi <b>internal</b> tidak dikenakan tarif saat discan</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
