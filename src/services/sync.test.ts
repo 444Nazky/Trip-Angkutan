@@ -518,6 +518,16 @@ describe('foto di antrean tidak hilang oleh state tanpa foto', () => {
     expect(body!.getAll('photos')).toHaveLength(2)
   })
 
+  it('retrySyncItem hanya mengantrekan, tidak mengirim otomatis', async () => {
+    await addToSyncQueue(makeTrip())
+    h.api.postCalls = 0
+
+    await retrySyncItem(makeTrip({ photoUrl: IMG_BARU }))
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(h.api.postCalls, 'harus menunggu tombol Sinkron').toBe(0)
+  })
+
   it('foto hasil ambil ulang tetap menggantikan foto lama', async () => {
     await addToSyncQueue(makeTrip())
 

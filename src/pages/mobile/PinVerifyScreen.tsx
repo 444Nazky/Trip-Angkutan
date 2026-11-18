@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { ChevronLeft, Lock, Delete } from 'lucide-react'
 import { api } from '../../services/api'
 import { loginOffline, loginWithPin, SESSION_READY_EVENT } from '../../services/auth'
-import { syncNow } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -104,7 +103,7 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
     try {
       await loginWithPin(id, pin)
       if (api.isAuthenticated) {
-        void syncNow().catch(() => undefined)
+        // Sinkron trip tetap manual; login hanya memperbarui master data.
         // Prefetch data kritis di background
         void prefetchAllCriticalData().catch(() => undefined)
         window.dispatchEvent(new Event(SESSION_READY_EVENT))

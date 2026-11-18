@@ -538,7 +538,8 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
     }
     await writeItem(item)
     notifyQueueListeners()
-    window.setTimeout(() => void processSyncQueue(), 150)
+    // Sinkron manual: perubahan foto hanya masuk antrean, tidak dikirim
+    // sendiri sampai petugas menekan Sinkron.
   } catch (err) {
     console.warn('[sync] retrySyncItem gagal:', err)
   }

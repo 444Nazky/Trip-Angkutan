@@ -26,7 +26,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
 
   useEffect(() => {
     if (!detailTripId) go('home')
-    processSyncQueue()
+    // Tidak kirim otomatis: petugas memakai tombol sinkron manual.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
