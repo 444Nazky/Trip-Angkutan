@@ -278,11 +278,11 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {/* ── Galeri Foto Dokumentasi (HANYA tampilkan yang valid) ── */}
+      {/* ── Galeri Foto Kendaraan (HANYA tampilkan yang valid) ── */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-            {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Dokumentasi (${photos.length})`}
+            {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Kendaraan (${photos.length})`}
           </p>
         </div>
 

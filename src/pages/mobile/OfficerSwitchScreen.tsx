@@ -76,7 +76,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         </p>
         {!online && (
           <p className="text-[11px] font-bold text-amber-400 mt-1.5">
-            Mode offline — menampilkan data hasil prefetch saat terakhir tersambung
+Mode offline. Memakai data terakhir tersimpan.
           </p>
         )}
         <button
@@ -92,8 +92,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
       <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
-            <p className="text-[13px] font-bold text-slate-700 mb-1">Tidak ada rekan dg dermaga sama</p>
-            <p className="text-[11px] text-slate-400">Petugas lain tidak memiliki akses dermaga yang bersinggungan</p>
+            <p className="text-[13px] font-bold text-slate-700">Tidak ada rekan satu dermaga</p>
           </div>
         )}
         {filtered.map(o => (
