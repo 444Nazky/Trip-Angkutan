@@ -159,8 +159,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
     go('trip-complete')
   }
 
-  // Sidik jari/passkey diutamakan sebelum data dikirim. PIN tersedia sebagai
-  // cadangan kalau perangkat tidak punya authenticator platform.
+  // Sidik jari/passkey wajib sebelum data dikirim — tidak ada cadangan PIN.
   const handleSubmit = () => {
     if (!canSubmit || geofenceError || geofenceBlocked || geofenceLoading) return
     setAuthOpen(true)

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Fingerprint, KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
+import { Fingerprint, Loader2, ShieldCheck, X } from 'lucide-react'
 import { useApp } from '../pages/store'
-import { verifyPinOffline } from '../services/auth'
 import { verifyBiometric } from '../services/biometric'
 import MobileModal from './MobileModal'
 
@@ -9,29 +8,47 @@ interface TripAuthDialogProps {
   open: boolean
   onClose: () => void
   onVerified: () => void
+  /** Judul dialog; bawaan untuk pengiriman trip. */
+  title?: string
+  subtitle?: string
 }
 
 /**
- * Gerbang sebelum trip dikirim: sidik jari diutamakan, PIN sebagai cadangan.
- *
- * WebAuthn hanya tersedia di perangkat/WebView yang mendukung. Kalau tidak
- * tersedia atau gagal, dialog langsung menawarkan PIN petugas — pengiriman
- * tidak boleh macet total hanya karena perangkat tidak punya sensor.
+ * Gerbang sidik jari sebelum aksi penting (kirim trip, edit trip, tambah
+ * kendaraan). HANYA sidik jari/passkey yang terdaftar di HP petugas — tidak ada
+ * cadangan PIN. Kalau sensor tidak tersedia atau ditolak, petugas harus
+ * mencoba lagi di perangkat yang sama.
  */
-export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDialogProps) {
+export default function TripAuthDialog({
+  open,
+  onClose,
+  onVerified,
+  title = 'Verifikasi Pengiriman',
+  subtitle = 'Sebelum data trip dikirim ke server',
+}: TripAuthDialogProps) {
   const { officer } = useApp()
-  const [phase, setPhase] = useState<'checking' | 'biometric' | 'pin'>('checking')
+  const [phase, setPhase] = useState<'checking' | 'failed'>('checking')
   const [message, setMessage] = useState('')
-  const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const attemptedRef = useRef(false)
+
+  const applyResult = (result: Awaited<ReturnType<typeof verifyBiometric>>) => {
+    if (result === 'ok') { onVerified(); return }
+    setPhase('failed')
+    if (result === 'unavailable') {
+      setMessage('Perangkat ini belum memiliki sidik jari terdaftar. Daftarkan sidik jari di pengaturan HP petugas lalu coba lagi.')
+      return
+    }
+    setMessage(result === 'cancelled'
+      ? 'Verifikasi sidik jari dibatalkan. Coba lagi untuk melanjutkan.'
+      : 'Sidik jari tidak cocok. Coba lagi dengan sidik jari yang terdaftar di HP ini.')
+  }
 
   useEffect(() => {
     if (!open) {
       attemptedRef.current = false
       setPhase('checking')
       setMessage('')
-      setPin('')
       setBusy(false)
       return
     }
@@ -41,17 +58,7 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
     setPhase('checking')
     setMessage('')
     void verifyBiometric(officer).then(result => {
-      if (!alive) return
-      if (result === 'ok') { onVerified(); return }
-      if (result === 'unavailable') {
-        setPhase('pin')
-        setMessage('Perangkat ini belum mendukung sidik jari. Masukkan PIN petugas.')
-        return
-      }
-      setPhase('pin')
-      setMessage(result === 'cancelled'
-        ? 'Verifikasi sidik jari dibatalkan. Coba lagi atau gunakan PIN.'
-        : 'Sidik jari gagal diverifikasi. Coba lagi atau gunakan PIN.')
+      if (alive) applyResult(result)
     })
     return () => { alive = false }
   }, [open, officer, onVerified])
@@ -63,28 +70,7 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
     setMessage('')
     const result = await verifyBiometric(officer)
     setBusy(false)
-    if (result === 'ok') { onVerified(); return }
-    if (result === 'unavailable') {
-      setPhase('pin')
-      setMessage('Perangkat ini belum mendukung sidik jari. Masukkan PIN petugas.')
-      return
-    }
-    setMessage(result === 'cancelled'
-      ? 'Verifikasi dibatalkan. Coba lagi atau gunakan PIN.'
-      : 'Sidik jari gagal diverifikasi. Coba lagi atau gunakan PIN.')
-  }
-
-  const submitPin = async () => {
-    if (!pin.trim()) return
-    setBusy(true)
-    setMessage('')
-    // Id petugas adalah kunci kredensial offline yang paling pasti.
-    const identifier = officer.id || officer.username || officer.name
-    const ok = await verifyPinOffline(identifier, pin.trim())
-    setBusy(false)
-    if (ok) { onVerified(); return }
-    setMessage('PIN tidak cocok. Periksa kembali.')
-    setPin('')
+    applyResult(result)
   }
 
   return (
@@ -100,8 +86,8 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
               <ShieldCheck size={20} />
             </span>
             <div>
-              <h3 className="text-[15px] font-bold text-slate-900">Verifikasi Pengiriman</h3>
-              <p className="text-[11px] text-slate-500">Sebelum data trip dikirim ke server</p>
+              <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+              <p className="text-[11px] text-slate-500">{subtitle}</p>
             </div>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500" aria-label="Tutup">
@@ -109,72 +95,37 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
           </button>
         </div>
 
-        {phase === 'checking' || busy ? (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <Loader2 size={28} className="animate-spin text-blue-600" />
-            <p className="text-[12px] font-medium text-slate-600">
-              {phase === 'checking' ? 'Meminta sidik jari perangkat…' : 'Memeriksa…'}
+        {phase !== 'failed' ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            {phase === 'checking' || busy
+              ? <Loader2 size={28} className="animate-spin text-blue-600" />
+              : <Fingerprint size={44} className="text-blue-600" />}
+            <p className="text-center text-[12px] text-slate-600">
+              {phase === 'checking' || busy
+                ? 'Meminta sidik jari perangkat…'
+                : 'Sentuh sensor sidik jari untuk melanjutkan.'}
             </p>
           </div>
-        ) : phase === 'biometric' ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <Fingerprint size={44} className="text-blue-600" />
-            <p className="text-center text-[12px] text-slate-600">Sentuh sensor sidik jari untuk melanjutkan.</p>
-          </div>
         ) : (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
-                <Fingerprint size={15} /> Sidik jari tidak tersedia
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                Pakai PIN petugas. Sidik jari ditawarkan jika tersedia.
+          <div className="space-y-3 py-2">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <Fingerprint size={30} className="text-amber-600" />
+              <p className="text-center text-[11px] leading-relaxed text-amber-800">
+                Sidik jari petugas yang terdaftar di HP ini wajib dipakai. Verifikasi PIN tidak tersedia.
               </p>
             </div>
-            <label className="block">
-              <span className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-                <KeyRound size={13} /> PIN Petugas
-              </span>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={e => setPin(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void submitPin() }}
-                placeholder="Masukkan PIN"
-                autoFocus
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-center text-lg font-bold tracking-[0.3em] text-slate-900 outline-none focus:border-blue-500"
-              />
-            </label>
             <button
-              onClick={() => void submitPin()}
-              disabled={!pin.trim()}
+              onClick={() => void retryBiometric()}
+              disabled={busy}
               className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-40"
             >
-              Verifikasi & Kirim
-            </button>
-            <button
-              onClick={() => { setPhase('biometric'); void retryBiometric() }}
-              className="w-full rounded-xl border border-slate-200 py-2.5 text-[12px] font-semibold text-slate-600"
-            >
-              Coba Sidik Jari Lagi
+              {busy ? 'Memeriksa…' : 'Coba Sidik Jari Lagi'}
             </button>
           </div>
         )}
 
         {message && (
           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">{message}</p>
-        )}
-
-        {phase === 'biometric' && !busy && (
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => void retryBiometric()} className="flex-1 rounded-xl bg-blue-600 py-2.5 text-[12px] font-bold text-white">
-              Verifikasi
-            </button>
-            <button onClick={() => { setPhase('pin'); setMessage('') }} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-[12px] font-semibold text-slate-600">
-              Gunakan PIN
-            </button>
-          </div>
         )}
     </MobileModal>
   )

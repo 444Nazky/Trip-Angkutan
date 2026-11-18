@@ -3,6 +3,7 @@ import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, 
 import { fmtElapsed, unitLabel, useApp, type VehicleEntry, type Trip } from '../store'
 import { validateTripEditForCurrentLocation } from '../../services/geofence'
 import MobileModal from '../../components/MobileModal'
+import TripAuthDialog from '../../components/TripAuthDialog'
 import { classifyTripSync, onSyncQueueChange, syncTripNow, type SyncItem } from '../../services/sync'
 import {
   onCancelQueueChange,
@@ -50,6 +51,7 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const [editState, setEditState] = useState<'checking' | 'allowed' | 'blocked'>('checking')
+  const [authAction, setAuthAction] = useState<'edit' | 'add-vehicle' | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
 
@@ -113,6 +115,37 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
     } finally {
       setSending(false)
     }
+  }
+
+  const startEdit = () => {
+    if (!t || isSynced) return
+    editTrip(t)
+    go('trip-summary')
+  }
+
+  const startAddVehicle = () => {
+    if (!t || isSynced) return
+    editTrip(t)
+    patchDraft({
+      vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
+      editVehicleIndex: null,
+      vPhoto: false,
+      vPhotoUrl: undefined,
+      vPhotoCapturedAt: undefined,
+      vPhotoLatitude: undefined,
+      vPhotoLongitude: undefined,
+      cameraFrom: 'vehicle-form',
+      cameraMode: 'photo',
+      cameraReturn: 'vehicle-form',
+    })
+    go('vehicle-form')
+  }
+
+  const confirmAuth = () => {
+    const action = authAction
+    if (action === 'edit') startEdit()
+    else if (action === 'add-vehicle') startAddVehicle()
+    setAuthAction(null)
   }
 
   const [preview, setPreview] = useState<DocPhoto | null>(null)
@@ -224,31 +257,16 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
         </div>
       )}
 
-      {editState === 'allowed' && !t.canceled && !isEmptyTrip && (
+      {editState === 'allowed' && !t.canceled && !isEmptyTrip && !isSynced && (
         <div className="mb-4 grid grid-cols-2 gap-2">
           <button
-            onClick={() => { editTrip(t); go('trip-summary') }}
+            onClick={() => setAuthAction('edit')}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2.5 text-[12px] font-bold text-slate-700"
           >
             <Pencil size={14} /> Edit Trip
           </button>
           <button
-            onClick={() => {
-              editTrip(t)
-              patchDraft({
-                vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
-                editVehicleIndex: null,
-                vPhoto: false,
-                vPhotoUrl: undefined,
-                vPhotoCapturedAt: undefined,
-                vPhotoLatitude: undefined,
-                vPhotoLongitude: undefined,
-                cameraFrom: 'vehicle-form',
-                cameraMode: 'photo',
-                cameraReturn: 'vehicle-form',
-              })
-              go('vehicle-form')
-            }}
+            onClick={() => setAuthAction('add-vehicle')}
             className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0F172A] py-2.5 text-[12px] font-bold text-white"
           >
             <Plus size={14} /> Tambah Kendaraan
@@ -391,6 +409,14 @@ export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenP
           </div>
         )}
       </div>
+
+      <TripAuthDialog
+        open={authAction !== null}
+        onClose={() => setAuthAction(null)}
+        onVerified={confirmAuth}
+        title={authAction === 'add-vehicle' ? 'Verifikasi Tambah Kendaraan' : 'Verifikasi Edit Trip'}
+        subtitle="Sidik jari petugas yang terdaftar di HP ini wajib"
+      />
 
       {/* Lightbox dokumentasi */}
       <MobileModal

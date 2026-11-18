@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { dbAll, localDbBackend } from './localDb'
-import { canPickSaveLocation, saveJsonWithPicker } from './saveFile'
+import { canPickSaveLocation, saveChunksWithPicker, splitChunk } from './saveFile'
 
 /**
  * Ekspor data trip perangkat.
@@ -162,6 +162,21 @@ function exportFilename(now: number): string {
   return `trip-angkutan-data-trip-${stamp}.json`
 }
 
+/**
+ * JSON dipecah per trip (lalu per potongan kecil) supaya tidak pernah ada satu
+ * string raksasa di memori WebView maupun di jembatan native.
+ */
+function* exportJsonChunks(payload: LocalDatabaseExport): Generator<string> {
+  const { trips, ...meta } = payload
+  const head = JSON.stringify(meta)
+  yield `${head.slice(0, -1)},"trips":[`
+  for (let i = 0; i < trips.length; i++) {
+    const raw = `${i > 0 ? ',' : ''}${JSON.stringify(trips[i])}`
+    for (const part of splitChunk(raw)) yield part
+  }
+  yield ']}'
+}
+
 function downloadInBrowser(filename: string, json: string): ExportResult {
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -189,17 +204,9 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
       }
     }
 
-    const json = JSON.stringify(payload, null, 2)
-    if (json.length <= 2) {
-      return {
-        ok: false,
-        filename,
-        size: json.length,
-        message: 'Data trip tersinkron kosong — ekspor dibatalkan.',
-      }
-    }
-
+    // Di Android JSON tidak pernah dirakit utuh: langsung dialirkan ke file.
     if (!Capacitor.isNativePlatform()) {
+      const json = JSON.stringify(payload, null, 2)
       return downloadInBrowser(filename, json)
     }
 
@@ -207,17 +214,25 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
       return {
         ok: false,
         filename,
-        size: json.length,
+        size: 0,
         message: 'Pemilih lokasi file hanya tersedia di aplikasi Android.',
       }
     }
 
     try {
-      const saved = await saveJsonWithPicker(filename, json)
+      const saved = await saveChunksWithPicker(filename, exportJsonChunks(payload))
+      if (!saved.bytes) {
+        return {
+          ok: false,
+          filename,
+          size: 0,
+          message: 'File ekspor kosong. Coba ekspor ulang dan pilih lokasi penyimpanan.',
+        }
+      }
       return {
         ok: true,
         filename: saved.name || filename,
-        size: json.length,
+        size: saved.bytes,
         mode: 'file',
         path: saved.uri,
       }
@@ -229,7 +244,7 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
       return {
         ok: false,
         filename,
-        size: json.length,
+        size: 0,
         message: code === 'CANCELLED'
           ? 'Ekspor dibatalkan.'
           : `Gagal menyimpan berkas ekspor: ${message || 'lokasi tidak tersedia'}`,

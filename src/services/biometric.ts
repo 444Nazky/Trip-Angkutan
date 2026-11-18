@@ -5,8 +5,9 @@
  * karena WebView belum tentu mendukung WebAuthn. Di browser tetap memakai
  * WebAuthn dengan authenticator platform.
  *
- * Kalau perangkat tidak punya sensor atau verifikasi dibatalkan, pemanggil
- * memakai PIN petugas sebagai cadangan — jadi petugas tidak pernah terkunci.
+ * Verifikasi hanya memakai sidik jari/passkey yang terdaftar di HP petugas.
+ * Tidak ada cadangan PIN: kalau sensor tidak tersedia atau verifikasi ditolak,
+ * petugas harus mencoba lagi di perangkat tersebut.
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core'
@@ -104,7 +105,7 @@ async function verifyNativeBiometric(officerId: string): Promise<BiometricOutcom
       title: 'Verifikasi Sidik Jari',
       subtitle: 'Sebelum data trip dikirim ke server',
       description: 'Sentuh sensor sidik jari untuk melanjutkan.',
-      negativeButtonText: 'Gunakan PIN',
+      negativeButtonText: 'Batal',
     })
     localStorage.setItem(`${NATIVE_PREFIX}${officerId}`, '1')
     return 'ok'
@@ -159,7 +160,7 @@ export async function enrollBiometric(officer: { id: string; name: string; usern
 
 /**
  * Minta verifikasi sidik jari. Kalau belum terdaftar, daftarkan dulu.
- * 'unavailable' = perangkat tidak mendukung; pemanggil memakai PIN.
+ * 'unavailable' = perangkat tidak punya sidik jari terdaftar; aksi ditolak.
  */
 export async function verifyBiometric(officer: { id: string; name: string; username?: string }): Promise<BiometricOutcome> {
   if (!(await biometricAvailable())) return 'unavailable'
