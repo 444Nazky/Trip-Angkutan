@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info, Pencil, Plus } from 'lucide-react'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info, Pencil, Plus, Send, Loader2 } from 'lucide-react'
 import { fmtElapsed, unitLabel, useApp, type VehicleEntry, type Trip } from '../store'
 import { validateTripEditForCurrentLocation } from '../../services/geofence'
 import MobileModal from '../../components/MobileModal'
-import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
+import { classifyTripSync, onSyncQueueChange, syncTripNow, type SyncItem } from '../../services/sync'
 import {
   onCancelQueueChange,
   readDeliveredCancels,
@@ -17,6 +17,8 @@ import type { MobileScreen } from '../types'
 
 interface HistoryDetailScreenProps {
   go: (s: MobileScreen) => void
+  /** Kembali ke layar asal (Beranda, antrean kirim, atau Riwayat). */
+  onBack?: () => void
 }
 
 
@@ -42,11 +44,14 @@ function durationText(t: Trip): string {
 
 
 
-export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
+export default function HistoryDetailScreen({ go, onBack }: HistoryDetailScreenProps) {
   const { trips, detailTripId, officer, editTrip, patchDraft } = useApp()
+  const back = onBack ?? (() => go('history'))
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
   const [editState, setEditState] = useState<'checking' | 'allowed' | 'blocked'>('checking')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   // Edit hanya boleh dari titik awal trip. Di titik tujuan tombol edit tidak
   // ditampilkan sama sekali (bukan sekadar dinonaktifkan). Diperiksa berkala
@@ -96,6 +101,20 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   const inQueue = !!queueItem
   const photoStuck = !!queueItem?.needsAttention && /foto/i.test(queueItem.lastError ?? '')
 
+  const sendNow = async () => {
+    if (!t || sending) return
+    setSending(true)
+    setSendError(null)
+    try {
+      const result = await syncTripNow(t)
+      if (!result.ok) setSendError(result.error ?? 'Trip belum diterima server.')
+    } catch {
+      setSendError('Pengiriman gagal. Periksa koneksi lalu coba lagi.')
+    } finally {
+      setSending(false)
+    }
+  }
+
   const [preview, setPreview] = useState<DocPhoto | null>(null)
 
   // Foto yang gagal dimuat (data URL rusak / gambar tidak bisa didekode WebView).
@@ -108,8 +127,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   if (!t) {
     return (
       <div className="px-4 pt-2 pb-4">
-        <button onClick={() => go('history')} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
-          <ChevronLeft size={16} /> Riwayat
+        <button onClick={back} className="flex items-center gap-1.5 text-slate-500 text-[13px] mb-4 hover:text-slate-700 font-medium">
+          <ChevronLeft size={16} /> Kembali
         </button>
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center">
           <p className="text-[13px] font-bold text-slate-700">Belum ada trip</p>
@@ -169,8 +188,8 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   return (
     <div className="px-4 pt-2 pb-4">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => go('history')} className="flex items-center gap-1.5 text-slate-500 text-[13px] hover:text-slate-700 font-medium">
-          <ChevronLeft size={16} /> Riwayat
+        <button onClick={back} className="flex items-center gap-1.5 text-slate-500 text-[13px] hover:text-slate-700 font-medium">
+          <ChevronLeft size={16} /> Kembali
         </button>
       </div>
 
@@ -233,6 +252,26 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
             className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0F172A] py-2.5 text-[12px] font-bold text-white"
           >
             <Plus size={14} /> Tambah Kendaraan
+          </button>
+        </div>
+      )}
+
+      {!isSynced && !t.canceled && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+          <CloudOff size={17} className="shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-bold text-amber-800">Trip belum terkirim ke server</p>
+            <p className="text-[10px] leading-relaxed text-amber-700">
+              {sendError ?? 'Kirim sekarang agar data masuk ke dashboard admin.'}
+            </p>
+          </div>
+          <button
+            onClick={() => { void sendNow() }}
+            disabled={sending}
+            className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-amber-600 px-3 py-2 text-[11px] font-bold text-white disabled:opacity-50"
+          >
+            {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+            {sending ? 'Kirim…' : 'Kirim'}
           </button>
         </div>
       )}

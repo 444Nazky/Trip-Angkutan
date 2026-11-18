@@ -42,16 +42,20 @@ interface ReportsTabProps {
 // Pengelompokan tabel laporan
 //
 //   06-11-2026/
-//   ├── Internal/   → semua kendaraan golongan Internal pada tanggal itu
-//   ├── Eksternal/  → semua kendaraan golongan Eksternal pada tanggal itu
-//   └── Lokal/      → semua kendaraan golongan Lokal pada tanggal itu
+//   ├── Internal/            → semua kendaraan golongan Internal
+//   ├── Eksternal/           → semua kendaraan golongan Eksternal
+//   ├── Lokal/               → semua kendaraan golongan Lokal
+//   └── Ponton Tanpa Muatan/ → trip kondisi kosong + foto bukti & dokumentasi
 //
-// Trip TIDAK lagi jadi baris sendiri: semua kendaraannya digabung ke dalam
-// grup golongan, jadi satu baris = satu kendaraan.
+// Trip bermuatan TIDAK jadi baris sendiri: semua kendaraannya digabung ke
+// dalam grup golongan, jadi satu baris = satu kendaraan.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Urutan grup golongan (dipakai juga di kartu breakdown: Internal di atas).
-const GOL_ORDER = ['Internal', 'Eksternal', 'Lokal']
+// Urutan grup golongan. "Ponton Tanpa Muatan" adalah grup kondisi trip,
+// bukan golongan kendaraan, tetapi ditampilkan sejajar agar foto bukti dan
+// dokumentasi trip kosong mudah ditemukan.
+const PONTON_GROUP = 'Ponton Tanpa Muatan'
+const GOL_ORDER = ['Internal', 'Eksternal', 'Lokal', PONTON_GROUP]
 
 function golRank(g: string): number {
   const i = GOL_ORDER.indexOf(g)
@@ -69,6 +73,10 @@ interface GolGroup {
   trips: number
   units: number
   revenue: number
+  /** Trip kondisi ponton tanpa muatan (tidak punya kendaraan). */
+  pontonTrips: ReportTrip[]
+  /** Jumlah foto bukti + dokumentasi pada grup Ponton Tanpa Muatan. */
+  photoCount: number
   /** Ringkasan jumlah unit per jenis kendaraan di dalam grup ini. */
   summary: string
 }
@@ -142,7 +150,28 @@ function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
       const keys = [...new Set([...GOL_ORDER, ...byGol.keys()])]
         .sort((a, b) => golRank(a) - golRank(b) || a.localeCompare(b))
 
+      const pontonTrips = group.trips.filter(t =>
+        t.status_muatan === 'kosong' && (t.vehicles ?? []).length === 0)
+      const pontonIds = new Set(pontonTrips.map(t => String(t.id)))
+
       const gols: GolGroup[] = keys.map(key => {
+        if (key === PONTON_GROUP) {
+          const photos = pontonTrips.reduce((count, t) =>
+            count + (t.proof_photo ? 1 : 0) + (t.foto_kosong_path ? 1 : 0), 0)
+          return {
+            key,
+            rows: [],
+            trips: pontonTrips.length,
+            units: 0,
+            revenue: 0,
+            pontonTrips,
+            photoCount: photos,
+            summary: pontonTrips.length > 0
+              ? `${pontonTrips.length} trip · ${photos} foto bukti & dokumentasi`
+              : '',
+          }
+        }
+
         const rows = [...(byGol.get(key) ?? [])].sort((a, b) =>
           a.trip.no_trip.localeCompare(b.trip.no_trip)
           || String(a.vehicle.id ?? '').localeCompare(String(b.vehicle.id ?? '')))
@@ -162,11 +191,16 @@ function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
           trips: new Set(rows.map(r => String(r.trip.id))).size,
           units: rows.length,
           revenue: rows.reduce((s, r) => s + (Number(r.vehicle.tariff_amount) || 0), 0),
+          pontonTrips: [],
+          photoCount: 0,
           summary,
         }
       })
 
-      const emptyTrips = group.trips.filter(t => (t.vehicles ?? []).length === 0)
+      // Trip tanpa kendaraan yang BUKAN kondisi ponton kosong tetap tampil
+      // sebagai baris cadangan di luar grup.
+      const emptyTrips = group.trips.filter(t =>
+        (t.vehicles ?? []).length === 0 && !pontonIds.has(String(t.id)))
       return {
         date,
         label: dateFolderLabel(date),
@@ -384,6 +418,77 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
 
   // Hierarki tabel: tanggal → golongan → kendaraan.
   const dateGroups = useMemo(() => buildDateGroups(reportTrips), [reportTrips])
+
+  /** Foto trip tanpa kendaraan. Grup Ponton hanya memuat bukti + dokumentasi. */
+  const emptyTripThumbs = (trip: ReportTrip, includeSelfie: boolean) => [
+    ...(includeSelfie && trip.selfie_photo ? [{
+      id: `selfie-${trip.id}`,
+      url: trip.selfie_photo,
+      caption: `${trip.no_trip} - Swafoto petugas`,
+    }] : []),
+    ...(trip.proof_photo ? [{
+      id: `proof-${trip.id}`,
+      url: trip.proof_photo,
+      caption: `${trip.no_trip} - Foto bukti ponton kosong`,
+    }] : []),
+    ...(trip.foto_kosong_path ? [{
+      id: `trip-${trip.id}`,
+      url: trip.foto_kosong_path,
+      caption: `${trip.no_trip} - Foto dokumentasi trip`,
+    }] : []),
+  ]
+
+  const renderEmptyTripRow = (trip: ReportTrip, keyPrefix: string, includeSelfie: boolean) => {
+    const d = formatReportDateTime(trip.created_at)
+    const thumbs = emptyTripThumbs(trip, includeSelfie)
+    return (
+      <tr key={`${keyPrefix}-${trip.id}`}
+        data-testid="report-empty-trip-row"
+        className="border-b border-[var(--admin-border-subtle)] hover:bg-[var(--admin-surface-hover)] transition-colors">
+        <td className="pl-10 pr-3 py-2.5 font-mono font-semibold text-[var(--admin-text-soft)]">{trip.no_trip}</td>
+        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
+        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{tripDuration(trip.started_at, trip.completed_at)}</td>
+        <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
+        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
+          {trip.route_name || `${trip.route_from_name || trip.route_from || '-'} → ${trip.route_to_name || trip.route_to || '-'}`}
+        </td>
+        <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{trip.officer_name || '-'}</td>
+        <td className="px-3 py-2.5 font-mono text-[var(--admin-text-faint)]">—</td>
+        <td className="px-3 py-2.5 text-[var(--admin-text-faint)]">Tanpa kendaraan</td>
+        <td className="px-3 py-2.5">
+          <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-[var(--admin-border)] text-[var(--admin-text-faint)]">
+            Tanpa Muatan
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-right text-[var(--admin-text-faint)]">—</td>
+        <td className="px-4 py-2.5">
+          {thumbs.length === 0 ? (
+            <span className="text-[10px] text-[var(--admin-text-faint)]">-</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setViewingPhotos(thumbs)}
+              className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-[var(--admin-accent)]"
+              aria-label={`Lihat ${thumbs.length} foto ${trip.no_trip}`}
+            >
+              {thumbs.slice(0, 3).map(p => (
+                <img
+                  key={p.id}
+                  src={resolvePhotoUrl(p.url, baseUrl)}
+                  alt=""
+                  loading="lazy"
+                  className="h-9 w-9 rounded-md object-cover ring-1 ring-[var(--admin-border)]"
+                />
+              ))}
+              {thumbs.length > 3 && (
+                <span className="text-[10px] font-bold text-[var(--admin-text-muted)]">+{thumbs.length - 3}</span>
+              )}
+            </button>
+          )}
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -670,9 +775,24 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                             <span className="text-[13px] font-black text-[var(--admin-text)]">{gol.key}</span>
                           </span>
                           <span className="text-[10px] font-bold text-[var(--admin-text-faint)]">
-                            {gol.trips} trip · {gol.units} unit
+                            {gol.key === PONTON_GROUP
+                              ? `${gol.trips} trip · ${gol.photoCount} foto`
+                              : `${gol.trips} trip · ${gol.units} unit`}
                           </span>
-                          {gol.summary && (
+                          {gol.key === PONTON_GROUP ? (
+                            gol.photoCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setViewingPhotos(gol.pontonTrips.flatMap(t => emptyTripThumbs(t, false)))
+                                }}
+                                className="inline-flex items-center gap-1 rounded border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 py-0.5 text-[10px] font-bold text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]"
+                              >
+                                <Camera size={11} /> Lihat {gol.photoCount} foto bukti & dokumentasi
+                              </button>
+                            )
+                          ) : gol.summary && (
                             <span title={gol.summary}
                               className="max-w-[420px] truncate text-[10px] font-semibold text-[var(--admin-text-muted)] bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded px-2 py-0.5">
                               Rincian: {gol.summary}
@@ -681,13 +801,30 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         </span>
                       </td>
                       <td colSpan={4} className="px-4 py-2 text-right whitespace-nowrap">
-                        <span className="text-[11px] font-bold text-[var(--admin-text-muted)] mr-3">{gol.units} unit</span>
-                        <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={gol.revenue} className="text-[var(--admin-success-text)] font-black text-[12px]" />
+                        {gol.key === PONTON_GROUP ? (
+                          <span className="text-[11px] font-bold text-[var(--admin-text-faint)]">
+                            {gol.photoCount > 0 ? `${gol.photoCount} foto` : 'Belum ada foto'}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[11px] font-bold text-[var(--admin-text-muted)] mr-3">{gol.units} unit</span>
+                            <CurrencyDisplay revealed={revealed} onToggleReveal={onToggleReveal} amount={gol.revenue} className="text-[var(--admin-success-text)] font-black text-[12px]" />
+                          </>
+                        )}
                       </td>
                     </tr>
                   )
 
                   if (!golOpen) continue
+
+                  // Grup kondisi ponton tanpa muatan: trip kosong beserta
+                  // foto bukti dan dokumentasinya.
+                  if (gol.key === PONTON_GROUP) {
+                    for (const trip of gol.pontonTrips) {
+                      rows.push(renderEmptyTripRow(trip, `${group.date}-ponton`, false))
+                    }
+                    continue
+                  }
 
                   // Seluruh kendaraan golongan ini pada tanggal tersebut
                   for (const { trip, vehicle } of gol.rows) {
@@ -777,62 +914,10 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                   }
                 }
 
-                // Trip tanpa kendaraan (ponton kosong) tetap tampil sebagai
-                // baris nyata supaya durasi & petugasnya bisa diperiksa.
+                // Trip tanpa kendaraan di luar kondisi ponton kosong tetap
+                // tampil sebagai baris cadangan agar datanya tidak hilang.
                 for (const trip of group.emptyTrips) {
-                  const d = formatReportDateTime(trip.created_at)
-                  const thumbs = [
-                    ...(trip.selfie_photo ? [{ id: `selfie-${trip.id}`, url: trip.selfie_photo, caption: `${trip.no_trip} - Swafoto petugas` }] : []),
-                    ...(trip.proof_photo ? [{ id: `proof-${trip.id}`, url: trip.proof_photo, caption: `${trip.no_trip} - Foto bukti ponton kosong` }] : []),
-                    ...(trip.foto_kosong_path ? [{ id: `trip-${trip.id}`, url: trip.foto_kosong_path, caption: `${trip.no_trip} - Bukti trip` }] : []),
-                  ]
-                  rows.push(
-                    <tr key={`${group.date}-empty-${trip.id}`}
-                      data-testid="report-empty-trip-row"
-                      className="border-b border-[var(--admin-border-subtle)] hover:bg-[var(--admin-surface-hover)] transition-colors">
-                      <td className="pl-10 pr-3 py-2.5 font-mono font-semibold text-[var(--admin-text-soft)]">{trip.no_trip}</td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{tripDuration(trip.started_at, trip.completed_at)}</td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
-                        {trip.route_name || `${trip.route_from_name || trip.route_from || '-'} → ${trip.route_to_name || trip.route_to || '-'}`}
-                      </td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{trip.officer_name || '-'}</td>
-                      <td className="px-3 py-2.5 font-mono text-[var(--admin-text-faint)]">—</td>
-                      <td className="px-3 py-2.5 text-[var(--admin-text-faint)]">Tanpa kendaraan</td>
-                      <td className="px-3 py-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-[var(--admin-border)] text-[var(--admin-text-faint)]">
-                          Tanpa Muatan
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[var(--admin-text-faint)]">—</td>
-                      <td className="px-4 py-2.5">
-                        {thumbs.length === 0 ? (
-                          <span className="text-[10px] text-[var(--admin-text-faint)]">-</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setViewingPhotos(thumbs)}
-                            className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-[var(--admin-accent)]"
-                            aria-label={`Lihat ${thumbs.length} foto ${trip.no_trip}`}
-                          >
-                            {thumbs.slice(0, 3).map(p => (
-                              <img
-                                key={p.id}
-                                src={resolvePhotoUrl(p.url, baseUrl)}
-                                alt=""
-                                loading="lazy"
-                                className="h-9 w-9 rounded-md object-cover ring-1 ring-[var(--admin-border)]"
-                              />
-                            ))}
-                            {thumbs.length > 3 && (
-                              <span className="text-[10px] font-bold text-[var(--admin-text-muted)]">+{thumbs.length - 3}</span>
-                            )}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
+                  rows.push(renderEmptyTripRow(trip, `${group.date}-empty`, true))
                 }
                 return rows
               })

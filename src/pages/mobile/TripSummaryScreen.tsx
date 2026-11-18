@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { ChevronLeft, MapPin, Package, AlertCircle, Ban, Pencil, Plus, User, X, ShieldCheck, Camera } from 'lucide-react'
 import { activeRoutes } from '../data'
-import { unitLabel, useApp } from '../store'
+import { useApp } from '../store'
 import { validateTripEndForCurrentLocation } from '../../services/geofence'
 import CancelTripDialog from '../../components/CancelTripDialog'
 import MobileModal from '../../components/MobileModal'
@@ -242,9 +242,6 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               <div className="space-y-2">
                 {vehicles.map((v, i) => (
                   <div key={`${v.plate}-${i}`} className="flex items-center gap-3 rounded-xl bg-slate-50 p-2.5 ring-1 ring-slate-200">
-                    <span className="inline-flex min-w-[28px] items-center justify-center rounded-md bg-slate-900 px-1.5 py-1 text-[9px] font-bold text-white">
-                      {unitLabel(vehicles, i)}
-                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-medium text-slate-800">{v.plate}</p>
                       <p className="text-[10px] text-slate-500">

@@ -82,11 +82,11 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       if (result.ok) {
         setExportMessage(
           result.mode === 'file'
-            ? `Database disimpan: ${result.filename}`
-            : `Database diunduh: ${result.filename}`,
+            ? `Data trip disimpan: ${result.filename}`
+            : `Data trip diunduh: ${result.filename}`,
         )
       } else {
-        setExportMessage(result.message ?? 'Gagal mengekspor database')
+        setExportMessage(result.message ?? 'Gagal mengekspor data trip')
       }
     } finally {
       setExporting(false)
@@ -223,7 +223,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="px-4 pb-2 pt-3">
           <h3 className="text-xs font-semibold text-slate-800">Data Lokal</h3>
-          <p className="mt-0.5 text-[10px] text-slate-400">Cadangan data perangkat</p>
+          <p className="mt-0.5 text-[10px] text-slate-400">Data trip yang sudah tersinkron</p>
         </div>
         <div className="divide-y divide-slate-100">
           <button
@@ -233,8 +233,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Database size={16} /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-slate-800">Ekspor Database Lokal</p>
-              <p className="mt-0.5 text-[10px] text-slate-400">Pilih folder simpan lewat file manager. Data 40 hari terakhir.</p>
+              <p className="text-xs font-medium text-slate-800">Ekspor Data Trip</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">Hanya trip tersinkron 40 hari terakhir. Simpan sebagai JSON lewat file manager.</p>
             </div>
             {exporting
               ? <RefreshCw size={15} className="animate-spin text-slate-400" />

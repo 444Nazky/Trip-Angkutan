@@ -20,8 +20,8 @@ export const DEFAULT_DRAFT_TTL_MINUTES = 15;
 /** Batas aman: terlalu kecil = draft mati sebelum sempat diisi. */
 export const MIN_DRAFT_TTL_MINUTES = 1;
 
-/** Batas atas: lebih dari ini tidak masuk akal untuk draft lapangan. */
-export const MAX_DRAFT_TTL_MINUTES = 240;
+/** Batas atas: satu hari penuh, cukup untuk shift panjang (mis. 420 menit). */
+export const MAX_DRAFT_TTL_MINUTES = 1440;
 
 /**
  * Validate the draft TTL value coming from the admin form.

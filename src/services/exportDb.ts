@@ -3,37 +3,25 @@ import { dbAll, localDbBackend } from './localDb'
 import { canPickSaveLocation, saveJsonWithPicker } from './saveFile'
 
 /**
- * Ekspor database lokal perangkat.
+ * Ekspor data trip perangkat.
  *
- * Isinya: trip, antrean kirim, dokumen pembatalan, petugas, dan master data
- * penting dalam rentang 40 hari terakhir. Kredensial (PIN/token/password)
- * sengaja TIDAK ikut diekspor.
+ * Isinya HANYA trip yang sudah benar-benar terkirim dan tersinkron ke server
+ * (`synced: true`), bukan antrean yang masih menunggu, draft, atau dokumen
+ * pembatalan. Data diambil dari IndexedDB (lengkap dengan foto) dan
+ * digabung dengan cache `trip.trips.v1` di localStorage supaya trip yang
+ * sudah tersinkron tetap ikut walau penulisan IndexedDB sempat gagal.
  */
 export const EXPORT_WINDOW_DAYS = 40
 const EXPORT_WINDOW_MS = EXPORT_WINDOW_DAYS * 24 * 60 * 60 * 1000
 
-/** Kunci localStorage yang dianggap data penting untuk ekspor. */
-const IMPORTANT_KEYS = [
-  'trip.officers.v1',
-  'trip.auth.officer.v1',
-  'trip.officer.v2',
-  'trip.regions.v1',
-  'trip.auth.routes.v1',
-  'trip.routes.v2',
-  'trip.tariffs.v1',
-  'trip.vehicleTypes.v1',
-  'trip.master.offline.v1',
-  'trip.geofence.points',
-  'trip.dermaga',
-  'trip.dermaga.all',
-  'trip.appSettings.v1',
-  'trip.api.baseUrl',
-  'trip.server.profile.v1',
-  'trip.seq.v1',
-]
+/** Cache metadata trip di localStorage (lihat `LS.trips` di store). */
+export const LOCAL_TRIPS_CACHE_KEY = 'trip.trips.v1'
+
+type TripRow = Record<string, unknown>
 
 export interface LocalDatabaseExport {
   app: string
+  kind: 'synced-trips'
   format: number
   exportedAt: string
   windowDays: number
@@ -41,17 +29,11 @@ export interface LocalDatabaseExport {
   backend: 'indexeddb' | 'localStorage'
   counts: {
     trips: number
-    pendingTrips: number
-    pendingCancels: number
-    officers: number
-    meta: number
+    photos: number
+    withProof: number
+    withDocumentation: number
   }
-  trips: unknown[]
-  pendingTrips: unknown[]
-  pendingCancels: unknown[]
-  officers: unknown
-  meta: unknown[]
-  data: Record<string, unknown>
+  trips: TripRow[]
 }
 
 export interface ExportResult {
@@ -72,21 +54,11 @@ function parseTime(value: unknown): number {
   return 0
 }
 
-function tripTime(trip: unknown): number {
-  if (!trip || typeof trip !== 'object') return 0
-  const t = trip as Record<string, unknown>
-  return parseTime(t['completedAt'])
-    || parseTime(t['startedAt'])
-    || parseTime(t['updatedAt'])
-    || parseTime(t['date'])
-}
-
-function queueTime(item: unknown): number {
-  if (!item || typeof item !== 'object') return 0
-  const row = item as Record<string, unknown>
-  return parseTime(row['createdAt'])
-    || parseTime(row['cancelledAt'])
-    || tripTime(row['trip'])
+function tripTime(trip: TripRow): number {
+  return parseTime(trip['completedAt'])
+    || parseTime(trip['startedAt'])
+    || parseTime(trip['updatedAt'])
+    || parseTime(trip['date'])
 }
 
 function withinWindow(ts: number, cutoff: number): boolean {
@@ -94,67 +66,92 @@ function withinWindow(ts: number, cutoff: number): boolean {
   return !ts || ts >= cutoff
 }
 
-function readLocalValue(key: string): unknown {
+/**
+ * Hanya trip final yang sudah diterima server. Trip yang sedang diantrekan
+ * (`synced: false`), draft, dan pembatalan tidak boleh ikut.
+ */
+function isSyncedTrip(trip: TripRow): boolean {
+  if (trip['canceled'] === true) return false
+  const synced = trip['synced']
+  return synced === true || synced === 1 || synced === 'true'
+}
+
+function tripId(trip: TripRow): string {
+  return String(trip['id'] ?? '').trim()
+}
+
+function readCachedTrips(): TripRow[] {
+  if (typeof localStorage === 'undefined') return []
   try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return undefined
-    try { return JSON.parse(raw) } catch { return raw }
+    const raw = localStorage.getItem(LOCAL_TRIPS_CACHE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((row): row is TripRow => !!row && typeof row === 'object') : []
   } catch {
-    return undefined
+    return []
   }
 }
 
-function collectImportantData(): Record<string, unknown> {
-  const data: Record<string, unknown> = {}
-  if (typeof localStorage === 'undefined') return data
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key) continue
-      const important = IMPORTANT_KEYS.includes(key) || key.startsWith('trip.dermaga.officers.')
-      if (!important) continue
-      const value = readLocalValue(key)
-      if (value !== undefined) data[key] = value
+/** Foto yang benar-benar ada di data trip (bukan sekadar field kosong). */
+function hasString(row: TripRow, key: string): boolean {
+  const value = row[key]
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function tripPhotos(trip: TripRow): string[] {
+  const photos: string[] = []
+  const push = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) photos.push(value)
+  }
+  push(trip['photoUrl'])
+  push(trip['selfieUrl'])
+  push(trip['proofUrl'])
+  const vehicles = trip['vehicles']
+  if (Array.isArray(vehicles)) {
+    for (const vehicle of vehicles) {
+      if (vehicle && typeof vehicle === 'object') push((vehicle as TripRow)['photoUrl'])
     }
-  } catch { /* localStorage tidak tersedia */ }
-  return data
+  }
+  return photos
 }
 
 export async function buildLocalDatabaseExport(now: number = Date.now()): Promise<LocalDatabaseExport> {
   const cutoff = now - EXPORT_WINDOW_MS
-  const [allTrips, allPending, allCancels, allMeta] = await Promise.all([
-    dbAll<Record<string, unknown>>('trips'),
-    dbAll<Record<string, unknown>>('pending'),
-    dbAll<Record<string, unknown>>('pending-cancel'),
-    dbAll<Record<string, unknown>>('meta'),
-  ])
+  // IndexedDB adalah sumber utama (menyimpan foto). Cache localStorage
+  // menjadi cadangan metadata bila IndexedDB kosong/gagal ditulis.
+  const stored = await dbAll<TripRow>('trips')
+  const merged = new Map<string, TripRow>()
+  for (const trip of stored) {
+    const id = tripId(trip)
+    if (id) merged.set(id, trip)
+  }
+  for (const trip of readCachedTrips()) {
+    const id = tripId(trip)
+    // Versi IndexedDB menang karena membawa foto; cache hanya mengisi trip
+    // yang tidak ada di IndexedDB.
+    if (id && !merged.has(id)) merged.set(id, trip)
+  }
 
-  const trips = allTrips.filter(t => withinWindow(tripTime(t), cutoff))
-  const pendingTrips = allPending.filter(t => withinWindow(queueTime(t), cutoff))
-  const pendingCancels = allCancels.filter(t => withinWindow(queueTime(t), cutoff))
-  const data = collectImportantData()
-  const officers = data['trip.officers.v1'] ?? []
+  const trips = [...merged.values()]
+    .filter(trip => isSyncedTrip(trip) && withinWindow(tripTime(trip), cutoff))
+    .sort((a, b) => tripTime(b) - tripTime(a))
 
+  const photos = trips.flatMap(tripPhotos)
   return {
     app: 'Trip Angkutan',
-    format: 1,
+    kind: 'synced-trips',
+    format: 2,
     exportedAt: new Date(now).toISOString(),
     windowDays: EXPORT_WINDOW_DAYS,
     windowStart: new Date(cutoff).toISOString(),
     backend: localDbBackend(),
     counts: {
       trips: trips.length,
-      pendingTrips: pendingTrips.length,
-      pendingCancels: pendingCancels.length,
-      officers: Array.isArray(officers) ? officers.length : 0,
-      meta: allMeta.length,
+      photos: photos.length,
+      withProof: trips.filter(t => hasString(t, 'proofUrl')).length,
+      withDocumentation: trips.filter(t => hasString(t, 'photoUrl')).length,
     },
     trips,
-    pendingTrips,
-    pendingCancels,
-    officers,
-    meta: allMeta,
-    data,
   }
 }
 
@@ -162,7 +159,7 @@ function exportFilename(now: number): string {
   const d = new Date(now)
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
-  return `trip-angkutan-db-${stamp}.json`
+  return `trip-angkutan-data-trip-${stamp}.json`
 }
 
 function downloadInBrowser(filename: string, json: string): ExportResult {
@@ -183,7 +180,24 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
   const filename = exportFilename(now)
   try {
     const payload = await buildLocalDatabaseExport(now)
+    if (payload.counts.trips === 0) {
+      return {
+        ok: false,
+        filename,
+        size: 0,
+        message: 'Belum ada trip tersinkron di perangkat ini. Kirim trip ke server terlebih dahulu.',
+      }
+    }
+
     const json = JSON.stringify(payload, null, 2)
+    if (json.length <= 2) {
+      return {
+        ok: false,
+        filename,
+        size: json.length,
+        message: 'Data trip tersinkron kosong — ekspor dibatalkan.',
+      }
+    }
 
     if (!Capacitor.isNativePlatform()) {
       return downloadInBrowser(filename, json)
@@ -226,7 +240,7 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
       ok: false,
       filename,
       size: 0,
-      message: err instanceof Error ? err.message : 'Gagal membuat ekspor database',
+      message: err instanceof Error ? err.message : 'Gagal membuat ekspor data trip',
     }
   }
 }

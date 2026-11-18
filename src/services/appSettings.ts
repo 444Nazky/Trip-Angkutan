@@ -25,7 +25,7 @@ export interface AppSettings {
 function sanitizeMinutes(raw: unknown): number {
   const n = Math.round(Number(raw))
   if (!Number.isFinite(n) || n < 1) return DEFAULT_DRAFT_TTL_MINUTES
-  if (n > 240) return 240
+  if (n > 1440) return 1440
   return n
 }
 

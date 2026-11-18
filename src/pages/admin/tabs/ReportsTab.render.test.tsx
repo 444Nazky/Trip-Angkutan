@@ -69,6 +69,26 @@ const { reportTrips } = vi.hoisted(() => ({
         },
       ],
     },
+    {
+      id: 'trip-ponton',
+      no_trip: 'TRP-2026-002',
+      route_from: 'SBDZ',
+      route_to: 'SJRE',
+      route_from_name: 'Sindang',
+      route_to_name: 'Cirebon',
+      status_muatan: 'kosong',
+      keterangan: 'Ponton tanpa muatan',
+      foto_kosong_path: '/storage/trip-photos/dokumentasi-ponton.jpg',
+      proof_photo: '/storage/trip-photos/bukti-ponton.jpg',
+      selfie_photo: '/storage/trip-photos/swafoto-ponton.jpg',
+      created_at: '2026-10-22T05:20:00.000Z',
+      officer_name: 'Petugas Dua',
+      region_name: 'Wilayah Cirebon',
+      region_code: 'CRB',
+      vehicle_count: 0,
+      trip_revenue: 0,
+      vehicles: [],
+    },
   ],
 }))
 
@@ -196,6 +216,8 @@ describe('ReportsTab (render harness)', () => {
     expect(body).toContain('Internal')
     expect(body).toContain('Eksternal')
     expect(body).toContain('Lokal')
+    // Grup kondisi baru selalu tampil, walau isinya masih tertutup.
+    expect(body).toContain('Ponton Tanpa Muatan')
     // Baris kendaraan baru muncul setelah grup golongan diklik.
     expect(body).not.toContain('D 1234 AB')
     expect(body).not.toContain('D 5678 CD')
@@ -239,8 +261,28 @@ describe('ReportsTab (render harness)', () => {
     await act(async () => {
       button('Expand All').dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(container.querySelectorAll('[data-testid="report-gol-header"]').length).toBe(3)
+    expect(container.querySelectorAll('[data-testid="report-gol-header"]').length).toBe(4)
     expect(container.querySelectorAll('[data-testid="report-vehicle-row"]').length).toBe(2)
+    expect(container.querySelectorAll('[data-testid="report-empty-trip-row"]').length).toBe(1)
+  })
+
+  it('grup Ponton Tanpa Muatan berisi trip kosong dengan foto bukti dan dokumentasi', async () => {
+    await renderReports()
+    await openGolongan('Ponton Tanpa Muatan')
+
+    const row = container.querySelector('[data-testid="report-empty-trip-row"]')
+    expect(row?.textContent).toContain('TRP-2026-002')
+    expect(row?.textContent).toContain('Tanpa Muatan')
+
+    const sources = Array.from(row?.querySelectorAll('img') ?? [])
+      .map(img => img.getAttribute('src') ?? '')
+    expect(sources.some(s => s.includes('bukti-ponton.jpg'))).toBe(true)
+    expect(sources.some(s => s.includes('dokumentasi-ponton.jpg'))).toBe(true)
+    // Grup ini fokus pada bukti + dokumentasi, bukan swafoto.
+    expect(sources.some(s => s.includes('swafoto-ponton.jpg'))).toBe(false)
+
+    const body = container.textContent ?? ''
+    expect(body).toContain('2 foto bukti & dokumentasi')
   })
 
   it('menampilkan strip thumbnail seluruh foto (swafoto, bukti trip, kendaraan)', async () => {

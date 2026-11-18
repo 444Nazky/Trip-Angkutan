@@ -1,11 +1,16 @@
-// ─── Unit Test: Ekspor Database Lokal (services/exportDb.ts) ────────────────
-// Memastikan ekspor hanya membawa data 40 hari terakhir, menyertakan petugas
-// dan master data penting, serta TIDAK membocorkan kredensial.
+// ─── Unit Test: Ekspor Data Trip (services/exportDb.ts) ─────────────────────
+// Memastikan ekspor hanya membawa trip yang SUDAH tersinkron, tidak menulis
+// file kosong, dan tetap menemukan data dari cache lokal bila IndexedDB gagal.
 
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { dbClear, dbPut } from './localDb'
-import { buildLocalDatabaseExport, EXPORT_WINDOW_DAYS } from './exportDb'
+import {
+  buildLocalDatabaseExport,
+  exportLocalDatabase,
+  EXPORT_WINDOW_DAYS,
+  LOCAL_TRIPS_CACHE_KEY,
+} from './exportDb'
 
 const NOW = Date.parse('2026-11-18T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -21,41 +26,61 @@ beforeEach(async () => {
 })
 
 describe('buildLocalDatabaseExport', () => {
-  it('mengekspor trip 40 hari terakhir dan membuang yang lebih tua', async () => {
-    await dbPut('trips', { id: 'baru', completedAt: recent })
-    await dbPut('trips', { id: 'lama', completedAt: old })
+  it('hanya mengekspor trip tersinkron dalam 40 hari terakhir', async () => {
+    await dbPut('trips', { id: 'terkirim', synced: true, completedAt: recent })
+    await dbPut('trips', { id: 'belum-terkirim', synced: false, completedAt: recent })
+    await dbPut('trips', { id: 'lama', synced: true, completedAt: old })
+    await dbPut('trips', { id: 'dibatalkan', synced: true, canceled: true, completedAt: recent })
 
     const result = await buildLocalDatabaseExport(NOW)
 
+    expect(result.kind).toBe('synced-trips')
     expect(result.windowDays).toBe(EXPORT_WINDOW_DAYS)
-    expect(result.trips.map(t => (t as { id: string }).id)).toEqual(['baru'])
+    expect(result.trips.map(t => t.id)).toEqual(['terkirim'])
+    expect(result.counts.trips).toBe(1)
+    // File tidak boleh kosong: ada data trip nyata di dalam JSON.
+    expect(JSON.stringify(result)).toContain('terkirim')
+  })
+
+  it('memakai cache localStorage bila IndexedDB tidak berisi trip', async () => {
+    localStorage.setItem(LOCAL_TRIPS_CACHE_KEY, JSON.stringify([
+      { id: 'cache-terkirim', synced: true, completedAt: recent, route: 'A → B' },
+      { id: 'cache-lokal', synced: false, completedAt: recent, route: 'C → D' },
+    ]))
+
+    const result = await buildLocalDatabaseExport(NOW)
+
+    expect(result.trips.map(t => t.id)).toEqual(['cache-terkirim'])
     expect(result.counts.trips).toBe(1)
   })
 
-  it('menyertakan antrean kirim dan pembatalan dalam rentang waktu', async () => {
-    await dbPut('pending', { syncId: 'p-baru', createdAt: NOW - DAY })
-    await dbPut('pending', { syncId: 'p-lama', createdAt: NOW - 41 * DAY })
-    await dbPut('pending-cancel', { cancelId: 'c-baru', cancelledAt: recent })
-    await dbPut('pending-cancel', { cancelId: 'c-lama', cancelledAt: old })
+  it('menyertakan foto bukti dan dokumentasi beserta hitungannya', async () => {
+    await dbPut('trips', {
+      id: 'lengkap',
+      synced: true,
+      completedAt: recent,
+      photoUrl: 'data:image/jpeg;base64,DOKUMENTASI',
+      proofUrl: 'data:image/jpeg;base64,BUKTI',
+      selfieUrl: 'data:image/jpeg;base64,SWAFOTO',
+      vehicles: [{ plate: 'B 1 X', photoUrl: 'data:image/jpeg;base64,KENDARAAN' }],
+    })
 
     const result = await buildLocalDatabaseExport(NOW)
 
-    expect(result.pendingTrips.map(t => (t as { syncId: string }).syncId)).toEqual(['p-baru'])
-    expect(result.pendingCancels.map(t => (t as { cancelId: string }).cancelId)).toEqual(['c-baru'])
+    expect(result.counts.photos).toBe(4)
+    expect(result.counts.withProof).toBe(1)
+    expect(result.counts.withDocumentation).toBe(1)
+    expect(JSON.stringify(result)).toContain('BUKTI')
+    expect(JSON.stringify(result)).toContain('DOKUMENTASI')
   })
+})
 
-  it('menyertakan petugas + master penting, tetapi tidak kredensial/token', async () => {
-    localStorage.setItem('trip.officers.v1', JSON.stringify([{ id: 'o-1', name: 'Budi' }]))
-    localStorage.setItem('trip.master.offline.v1', JSON.stringify({ plates: [{ plate: 'B 1 X' }] }))
-    localStorage.setItem('trip.officers.credentials.v1', JSON.stringify({ 'o-1': 'hash' }))
-    localStorage.setItem('trip.auth.token.v2', 'rahasia')
+describe('exportLocalDatabase', () => {
+  it('menolak membuat file kosong saat belum ada trip tersinkron', async () => {
+    const result = await exportLocalDatabase()
 
-    const result = await buildLocalDatabaseExport(NOW)
-
-    expect(result.counts.officers).toBe(1)
-    expect(result.data['trip.officers.v1']).toEqual([{ id: 'o-1', name: 'Budi' }])
-    expect(result.data['trip.master.offline.v1']).toEqual({ plates: [{ plate: 'B 1 X' }] })
-    expect(result.data['trip.officers.credentials.v1']).toBeUndefined()
-    expect(result.data['trip.auth.token.v2']).toBeUndefined()
+    expect(result.ok).toBe(false)
+    expect(result.size).toBe(0)
+    expect(result.message).toContain('Belum ada trip tersinkron')
   })
 })

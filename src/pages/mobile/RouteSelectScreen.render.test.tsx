@@ -5,6 +5,7 @@ import RouteSelectScreen from './RouteSelectScreen'
 
 const mocks = vi.hoisted(() => ({
   patch: vi.fn(),
+  startTrip: vi.fn(),
   routes: [
     { code: 'SJRE-TJPN', from: 'SJRE', to: 'TJPN', label: 'Rute lain' },
     { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Rute utama' },
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../store', () => ({
   useApp: () => ({
     draft: { condition: mocks.state.condition, routeCode: mocks.state.routeCode, vehicles: [] },
+    startTrip: mocks.startTrip,
     patchDraft: (p: { routeCode?: string }) => {
       mocks.patch(p)
       if (p.routeCode !== undefined) mocks.state.routeCode = p.routeCode
@@ -66,6 +68,7 @@ let root: Root
 
 beforeEach(() => {
   mocks.patch.mockClear()
+  mocks.startTrip.mockClear()
   mocks.state.condition = 'muatan'
   mocks.state.routeCode = null
   mocks.state.inside = true
@@ -132,6 +135,7 @@ describe('layar pilih rute', () => {
       .find(el => (el.textContent ?? '').includes('Lanjut Ringkasan'))
     expect(button).toBeTruthy()
     await act(async () => { button!.click() })
+    expect(mocks.startTrip).toHaveBeenCalled()
     expect(go).toHaveBeenCalledWith('trip-summary')
     expect(go).not.toHaveBeenCalledWith('camera')
     expect(mocks.patch).toHaveBeenLastCalledWith({

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   go: vi.fn(),
   cancel: vi.fn(),
   state: {
+    trips: [] as Array<Record<string, unknown>>,
     draft: {
       routeCode: 'SJRE-SBDZ' as string | null,
       condition: 'muatan' as 'muatan' | 'kosong' | null,
@@ -34,7 +35,7 @@ vi.mock('../../services/api', async importOriginal => {
 
 vi.mock('../store', () => ({
   useApp: () => ({
-    trips: [],
+    trips: mocks.state.trips,
     setDetailTripId: () => {},
     officer: { id: 'o1', name: 'Petugas' },
     draft: mocks.state.draft,
@@ -44,6 +45,7 @@ vi.mock('../store', () => ({
   }),
   fmtDate: () => '30 Okt 2026',
   fmtTime: () => '10:00',
+  HISTORY_VIEW_MS: 3 * 24 * 60 * 60 * 1000,
 }))
 
 vi.mock('../../services/sync', () => ({
@@ -62,6 +64,7 @@ let root: Root
 beforeEach(() => {
   mocks.cancel.mockReset()
   mocks.go.mockReset()
+  mocks.state.trips = []
   mocks.state.locked = false
   mocks.state.intranetReachable = false
   mocks.state.info = { createdAt: Date.now(), savedAt: Date.now(), expiresAt: Date.now() + 15 * 60_000 }
@@ -101,6 +104,21 @@ describe('draft di halaman Riwayat Trip', () => {
     mocks.state.intranetReachable = true
     await render()
     expect(container.textContent).toContain('Online')
+  })
+
+  it('hanya menampilkan trip yang sudah tersinkron di Riwayat', async () => {
+    const base = {
+      officerId: 'o1', officer: 'Petugas', date: '18 Nov 2026', time: '10:00',
+      completedAt: new Date().toISOString(), load: 'Ada Muatan', canceled: false,
+      vehicle: 'B 1', vehicles: [], photo: false,
+    }
+    mocks.state.trips = [
+      { ...base, id: 'TRIP-SENT', route: 'Rute Terkirim', synced: true },
+      { ...base, id: 'TRIP-LOCAL', route: 'Rute Lokal', synced: false },
+    ]
+    await render()
+    expect(container.textContent).toContain('Rute Terkirim')
+    expect(container.textContent).not.toContain('Rute Lokal')
   })
 
   it('menampilkan draft yang belum terkirim beserta sisa waktunya', async () => {

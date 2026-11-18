@@ -29,7 +29,7 @@ interface RouteSelectScreenProps {
 
 
 export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScreenProps) {
-  const { draft, patchDraft, officer, draftLocked } = useApp()
+  const { draft, patchDraft, officer, draftLocked, startTrip } = useApp()
 
   const dockId = selectedDockId ?? null
   const accessibleDermagas = officer.dermagaAccess || []
@@ -294,6 +294,9 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
   const handleContinue = () => {
     if (!draft.condition) { go('trip-condition'); return }
     if (!validSelected || isRouteLocked(validSelected)) return
+    // Durasi trip mulai dihitung saat rute dipilih, bukan saat Mulai Trip
+    // ditekan atau saat data akhirnya tersinkron ke server.
+    startTrip()
     if (draft.condition === 'muatan') {
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
@@ -311,7 +314,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
     return (
       <button
         key={r.code}
-        onClick={() => patchDraft({ routeCode: r.code })}
+        onClick={() => {
+          patchDraft({ routeCode: r.code })
+          startTrip()
+        }}
         disabled={isLocked}
         title={isLocked ? 'Rute terkunci: titik GPS aktif tidak cocok' : undefined}
         className={`w-full rounded-2xl p-4 text-left border-2 transition-all ${

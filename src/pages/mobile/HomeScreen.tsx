@@ -1,6 +1,6 @@
-import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock, CloudOff, AlertTriangle } from 'lucide-react'
+import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock, CloudOff, AlertTriangle, Loader2, Send } from 'lucide-react'
 import { useApp } from '../store'
-import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
+import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, syncTripNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
 import { markSyncedToday } from '../../services/syncPolicy'
 import {
@@ -34,6 +34,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [syncState, setSyncState] = useState<SyncState>(null)
   const [busy, setBusy] = useState(false)
+  const [sendingId, setSendingId] = useState<string | null>(null)
   const [lockToastOpen, setLockToastOpen] = useState(false)
 
   useEffect(() => {
@@ -76,6 +77,26 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
     }
   }
 
+
+  const sendTrip = async (trip: (typeof trips)[number]) => {
+    if (busy || sendingId) return
+    setSendingId(String(trip.id))
+    setSyncState(null)
+    try {
+      const result = await syncTripNow(trip)
+      if (result.ok) {
+        setSyncState({ synced: 1, failed: 0, reachable: true })
+        setTimeout(() => setSyncState(null), 3500)
+      } else {
+        setSyncState({ synced: 0, failed: Math.max(1, getPendingCount()), reachable: true })
+      }
+    } catch {
+      setSyncState({ synced: 0, failed: Math.max(1, getPendingCount()), reachable: false })
+    } finally {
+      setSendingId(null)
+      setPendingCount(getPendingCount())
+    }
+  }
 
   const myTrips = trips.filter(t =>
     t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name,
@@ -281,24 +302,42 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
               const status = stateOf(t.id, t.synced)
               const failed = status === 'failed'
               return (
-                <button
+                <div
                   key={t.id}
-                  onClick={() => { setDetailTripId(t.id); go('history-detail') }}
-                  className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md active:scale-[0.98] transition-all text-left"
+                  className="w-full bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center gap-2 hover:shadow-md transition-all"
                 >
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${failed ? 'bg-red-50' : 'bg-amber-50'}`}>
-                    {failed
-                      ? <AlertTriangle size={20} className="text-red-500" />
-                      : <Truck size={20} className="text-amber-500" />}
+                  <button
+                    onClick={() => { setDetailTripId(t.id); go('history-detail') }}
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 text-left active:scale-[0.98] transition-all"
+                  >
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${failed ? 'bg-red-50' : 'bg-amber-50'}`}>
+                      {failed
+                        ? <AlertTriangle size={20} className="text-red-500" />
+                        : <Truck size={20} className="text-amber-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-bold text-slate-800">{t.route}</p>
+                      <p className="text-[12px] text-slate-400 mt-0.5">{t.time} · {t.vehicle !== '-' ? t.vehicle : t.load}</p>
+                    </div>
+                    <ChevronRight size={16} className="shrink-0 text-slate-300" />
+                  </button>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${failed ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                      {failed ? 'GAGAL' : status === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
+                    </span>
+                    <button
+                      onClick={() => { void sendTrip(t) }}
+                      disabled={busy || !!sendingId}
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-40"
+                      title="Kirim trip ini ke server"
+                    >
+                      {sendingId === String(t.id)
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : <Send size={11} />}
+                      {sendingId === String(t.id) ? 'Kirim…' : 'Kirim'}
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-bold text-slate-800">{t.route}</p>
-                    <p className="text-[12px] text-slate-400 mt-0.5">{t.time} · {t.vehicle !== '-' ? t.vehicle : t.load}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold ${failed ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
-                    {failed ? 'GAGAL' : status === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
-                  </span>
-                </button>
+                </div>
               )
             })}
           </div>

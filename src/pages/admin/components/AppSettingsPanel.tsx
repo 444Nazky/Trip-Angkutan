@@ -21,7 +21,8 @@ import { api } from '../../../services/api'
 
 /** Batas bawah/atas yang diterima server (menit). */
 const MIN_MINUTES = 1
-const MAX_MINUTES = 240
+// Cukup untuk shift panjang (mis. 7 jam = 420 menit).
+const MAX_MINUTES = 1440
 
 interface SettingsPanelProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
@@ -73,7 +74,7 @@ export function AppSettingsPanel({ showToast }: SettingsPanelProps) {
         <div className="min-w-0 flex-1">
           <h3 className="text-[14px] font-bold text-slate-900">Batas Umur Draft Trip</h3>
           <p className="mt-0.5 text-[12px] leading-relaxed text-slate-500">
-            Batas pengisian draft. Lewat batas: kirim atau batalkan.
+            Batas pengisian draft (1–1.440 menit). Contoh: 420 untuk 7 jam.
           </p>
         </div>
       </div>

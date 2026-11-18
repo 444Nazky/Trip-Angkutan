@@ -23,6 +23,8 @@ Deno.test("normalizeDraftTtlMinutes menerima angka bulat", () => {
   assertEquals(normalizeDraftTtlMinutes(10), 10);
   assertEquals(normalizeDraftTtlMinutes("20"), 20);
   assertEquals(normalizeDraftTtlMinutes(15.4), 15);
+  // Shift 7 jam harus diterima, bukan dipotong ke 240 menit.
+  assertEquals(normalizeDraftTtlMinutes(420), 420);
 });
 
 Deno.test("normalizeDraftTtlMinutes menolak nilai yang bukan angka", () => {

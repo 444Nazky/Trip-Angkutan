@@ -78,7 +78,7 @@ describe('pullAppSettings', () => {
 
     try {
       const s = await pullAppSettings()
-      expect(s.draftTtlMinutes).toBe(240)
+      expect(s.draftTtlMinutes).toBe(1440)
     } finally {
       globalThis.fetch = original
     }

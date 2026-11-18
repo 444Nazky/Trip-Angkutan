@@ -172,6 +172,10 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
 
   const myTrips = trips
     .filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
+    // Riwayat hanya berisi trip yang sudah benar-benar diterima server.
+    // Trip yang masih lokal/menunggu/gagal tetap di Beranda dan halaman
+    // "Trip Belum Terkirim" supaya tidak tercampur dengan riwayat final.
+    .filter(t => t.canceled || stateOf(t.id, t.synced) === 'synced')
     // Frontend riwayat hanya menampilkan 3 hari terakhir. Data yang lebih
     // tua tetap tersimpan di perangkat (40 hari) untuk kebutuhan ekspor.
     .filter(t => {
@@ -191,13 +195,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
       : myTrips.filter(t => (filter === 'muatan' ? t.load === 'Ada Muatan' : t.load === 'Kosong'))
 
   const canceledCount = myTrips.filter(t => t.canceled).length
-  const syncedCount = myTrips.filter(t => !t.canceled && stateOf(t.id, t.synced) === 'synced').length
-  const failedCount = myTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
-  const localCount = myTrips.filter(t => {
-    if (t.canceled) return false
-    const s = stateOf(t.id, t.synced)
-    return s === 'pending' || s === 'local'
-  }).length
+  const syncedCount = myTrips.filter(t => !t.canceled).length
 
   return (
     <div className="px-4 pt-2 pb-4 space-y-4">
@@ -218,16 +216,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <span>{canceledCount} dibatalkan</span>
           </div>
         )}
-        {failedCount > 0 && (
-          <div className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-full font-semibold">
-            <AlertTriangle size={10} />
-            <span>{failedCount} gagal kirim</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1 bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full font-semibold">
-          <CloudOff size={10} />
-          <span>{localCount} lokal</span>
-        </div>
+
       </div>
 
       {/* Draft trip yang belum terkirim — bisa dilanjutkan, dikirim, atau dibatalkan */}
@@ -340,7 +329,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
             <p className="text-[14px] font-bold text-slate-700 mb-2">Belum ada trip</p>
             <p className="text-[12px] text-slate-400 leading-relaxed">
               {filter === 'all'
-                ? 'Trip yang Anda catat akan muncul di sini'
+                ? 'Trip yang sudah terkirim ke server akan muncul di sini'
                 : filter === 'dibatalkan'
                   ? 'Trip yang dibatalkan petugas akan muncul di sini'
                   : `Trip dengan status "${filter === 'muatan' ? 'Ada Muatan' : 'Kosong'}" akan muncul di sini`}

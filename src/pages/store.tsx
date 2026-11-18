@@ -689,9 +689,9 @@ export async function persistTrips(trips: Trip[]): Promise<void> {
 export const HISTORY_VIEW_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
- * Data trip disimpan di perangkat sampai 40 hari supaya masih bisa ikut
- * diekspor (menu Profil → Ekspor Database Lokal). Server tetap menyimpan
- * seluruh data.
+ * Data trip disimpan di perangkat sampai 40 hari supaya trip yang sudah
+ * tersinkron masih bisa diekspor (menu Profil → Ekspor Data Trip). Server
+ * tetap menyimpan seluruh data.
  */
 export const LOCAL_TRIP_RETENTION_MS = 40 * 24 * 60 * 60 * 1000
 

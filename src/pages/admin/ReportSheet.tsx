@@ -121,7 +121,10 @@ const AUTO_REFRESH_MS = 300_000
 const COLUMNS = [
   { key: 'noTrip', label: 'No Trip' },
   { key: 'tanggal', label: 'Tanggal' },
-  { key: 'jam', label: 'Jam (WIB)' },
+  { key: 'jam', label: 'Jam Server (WIB)' },
+  { key: 'waktuInput', label: 'Waktu Input (WIB)' },
+  { key: 'jamKirim', label: 'Jam Kirim (WIB)' },
+  { key: 'durasi', label: 'Durasi' },
   { key: 'tempat', label: 'Tempat / Wilayah' },
   { key: 'asal', label: 'Rute Asal' },
   { key: 'tujuan', label: 'Rute Tujuan' },
@@ -141,6 +144,21 @@ const STATUS_MUATAN = [
   { value: 'tanpa', label: 'Tanpa Muatan' },
 ]
 
+// Durasi operasional: dari rute dipilih sampai petugas menekan Kirim Trip.
+// Tidak memakai created_at karena itu waktu server menerima antrean sinkron.
+function tripDuration(trip: ReportTrip): string {
+  const start = Date.parse(trip.started_at ?? '')
+  const end = Date.parse(trip.completed_at ?? '')
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return '-'
+  const total = Math.floor((end - start) / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `${h}j ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}d`
+  return `${s}d`
+}
+
 // Baris kendaraan: rincian satu unit di dalam sebuah trip (tampilan datar/itemized).
 type VehicleRow = {
   trip: ReportTrip
@@ -148,6 +166,9 @@ type VehicleRow = {
   dateKey: string
   date: string
   time: string
+  inputTime: string
+  completeTime: string
+  duration: string
   category: string
   tarif: number
   loc: LocCell | null
@@ -245,6 +266,10 @@ export default function ReportSheet() {
       if (vehicles.length === 0) continue
 
       const stamp = formatReportDateTime(trip.created_at)
+      // Jangan ganti waktu yang tidak ada dengan created_at (itu waktu sinkron,
+      // bukan waktu petugas mengisi/mengirim). Tampilkan "-" bila memang kosong.
+      const inputStamp = formatReportDateTime(trip.started_at)
+      const completeStamp = formatReportDateTime(trip.completed_at)
       const key = dayKeyWib(trip.created_at)
       const bucket = byDate.get(key) ?? []
       const tripIds = tripsByDate.get(key) ?? new Set<string>()
@@ -260,6 +285,9 @@ export default function ReportSheet() {
           dateKey: key,
           date: stamp.date,
           time: stamp.time,
+          inputTime: inputStamp.time,
+          completeTime: completeStamp.time,
+          duration: tripDuration(trip),
           category: reportGolongan(vehicle),
           tarif: Number(vehicle.tariff_amount || 0),
           loc: base && {
@@ -325,6 +353,9 @@ export default function ReportSheet() {
       r.trip.no_trip,
       r.date,
       r.time,
+      r.inputTime,
+      r.completeTime,
+      r.duration,
       reportPlace(r.trip),
       reportAsal(r.trip),
       reportTujuan(r.trip),
@@ -347,7 +378,7 @@ export default function ReportSheet() {
           header,
           ...body,
           [],
-          ['TOTAL', `${totalTrip} trip - ${totalUnit} unit`, '', '', '', '', '', '', '', '', '', totalRevenue, '', ''],
+          ['TOTAL', `${totalTrip} trip - ${totalUnit} unit`, '', '', '', '', '', '', '', '', '', '', '', '', totalRevenue, '', ''],
         ],
       },
     ]
@@ -377,7 +408,7 @@ export default function ReportSheet() {
           <div className="mr-auto">
             <h1 className="font-extrabold text-slate-900 text-[15px] leading-tight">Laporan Spreadsheet</h1>
             <p className="text-[11px] text-slate-400">
-              Satu baris per kendaraan · refresh 15 detik
+              Satu baris per kendaraan · refresh 5 menit
               {lastSync && <> · {lastSync} WIB</>}
             </p>
           </div>
@@ -478,7 +509,7 @@ export default function ReportSheet() {
       <main className="p-5">
         <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="overflow-auto max-h-[calc(100vh-220px)]">
-            <table className="w-full border-collapse text-[13px] min-w-[1500px]">
+            <table className="w-full border-collapse text-[13px] min-w-[1900px]">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
                   {COLUMNS.map(c => (
@@ -502,7 +533,7 @@ export default function ReportSheet() {
                 ) : dateGroups.map(group => (
                   <Fragment key={`date-${group.key}`}>
                     <tr className="bg-slate-800 text-white">
-                      <td colSpan={8} className="px-3 py-2.5 border border-slate-700">
+                      <td colSpan={10} className="px-3 py-2.5 border border-slate-700">
                         <span className="flex items-center gap-1.5 font-bold text-sm">
                           <Calendar size={13} className="text-slate-400" />
                           {group.label}
@@ -511,7 +542,7 @@ export default function ReportSheet() {
                           {group.tripCount} trip - {group.vehicleCount} unit
                         </span>
                       </td>
-                      <td colSpan={3} className="px-3 py-2.5 border border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                      <td colSpan={4} className="px-3 py-2.5 border border-slate-700 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">
                         Subtotal
                       </td>
                       <td className="px-3 py-2.5 border border-slate-700 text-right font-black tabular-nums">
@@ -527,6 +558,9 @@ export default function ReportSheet() {
                           <td className="px-3 py-2 border border-slate-200 font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap">{r.trip.no_trip}</td>
                           <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 whitespace-nowrap">{r.date}</td>
                           <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.time}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.inputTime}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.completeTime}</td>
+                          <td className="px-3 py-2 border border-slate-200 text-[11px] font-semibold text-slate-700 tabular-nums whitespace-nowrap">{r.duration}</td>
                           <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportPlace(r.trip)}</td>
                           <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportAsal(r.trip)}</td>
                           <td className="px-3 py-2 border border-slate-200 text-slate-700">{reportTujuan(r.trip)}</td>
@@ -581,7 +615,7 @@ export default function ReportSheet() {
               {vehicleRows.length > 0 && (
                 <tfoot>
                   <tr className="bg-slate-100 font-bold text-slate-700">
-                    <td colSpan={7} className="px-3 py-3 border border-slate-300 text-[12px]">
+                    <td colSpan={10} className="px-3 py-3 border border-slate-300 text-[12px]">
                       TOTAL {totalTrip} trip - {totalUnit} unit
                     </td>
                     <td colSpan={4} className="border border-slate-300" />
