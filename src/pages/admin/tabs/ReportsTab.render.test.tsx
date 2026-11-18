@@ -274,7 +274,7 @@ describe('ReportsTab (render harness)', () => {
     const dataRow = container.querySelector('[data-testid="report-vehicle-row"]')
     const dataCells = dataRow?.querySelectorAll('td').length ?? 0
 
-    expect(headerCells).toBe(10)
+    expect(headerCells).toBe(11)
     expect(dataCells).toBe(headerCells)
   })
 })

@@ -363,6 +363,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
         ...tv.map((v: any) => v.foto_path).filter(Boolean),
         t.foto_kosong_path,
         t.selfie_path,
+        t.proof_path,
       ].filter(Boolean);
 
       return {
@@ -379,6 +380,7 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
         all_photos: allPhotos,
         trip_photo: t.foto_kosong_path,
         selfie_photo: t.selfie_path ?? null,
+        proof_photo: t.proof_path ?? null,
       };
     });
 

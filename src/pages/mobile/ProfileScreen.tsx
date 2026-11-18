@@ -2,7 +2,6 @@
 import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Database, Download, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { useAppUpdate } from '../../components/UpdateNotifier'
-import { prefetchAllCriticalData } from '../../services/prefetch'
 import { exportLocalDatabase } from '../../services/exportDb'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
@@ -30,8 +29,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
   useEffect(() => {
     void refreshOfficers()
     void appUpdate.refreshVersions()
-    // Prefetch data kritis saat app aktif
-    void prefetchAllCriticalData()
+    // Tanpa prefetch otomatis: sinkron master hanya lewat tombol/gerbang harian.
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)

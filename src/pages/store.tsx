@@ -152,7 +152,7 @@ export interface Draft {
 
   cameraFrom: MobileScreen
 
-  cameraMode: 'photo' | 'ocr' | 'selfie'
+  cameraMode: 'photo' | 'ocr' | 'selfie' | 'proof'
 
   ocrResult?: string
 
@@ -1517,10 +1517,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [officerId])
 
-  useEffect(() => {
-    void refreshOfficers(true)
-  }, [refreshOfficers])
-
+  // Tidak ada penarikan roster otomatis saat aplikasi dibuka. Roster memakai
+  // cache lokal sampai petugas melakukan sinkron manual (gerbang harian).
   useEffect(() => {
     refreshOfficersRef.current = refreshOfficers
   }, [refreshOfficers])

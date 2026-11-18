@@ -170,6 +170,8 @@ export interface ReportTrip {
   trip_photo?: string | null
   /** Swafoto petugas (kalau trip punya). */
   selfie_photo?: string | null
+  /** Foto bukti muatan (kalau trip punya). */
+  proof_photo?: string | null
 }
 
 

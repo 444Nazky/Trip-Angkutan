@@ -77,7 +77,8 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
     if (!pin.trim()) return
     setBusy(true)
     setMessage('')
-    const identifier = officer.username || officer.id || officer.name
+    // Id petugas adalah kunci kredensial offline yang paling pasti.
+    const identifier = officer.id || officer.username || officer.name
     const ok = await verifyPinOffline(identifier, pin.trim())
     setBusy(false)
     if (ok) { onVerified(); return }

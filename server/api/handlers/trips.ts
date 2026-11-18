@@ -538,6 +538,11 @@ export async function completeTrip(req: Request): Promise<Response> {
     const selfieIndex = payload.selfieIndex === undefined || payload.selfieIndex === null
       ? null
       : validPhotoIndex(payload.selfieIndex, files.length);
+    // Foto bukti muatan (jepretan setelah swafoto). Opsional di server agar
+    // aplikasi versi lama tetap bisa mengirim; aplikasi baru mewajibkannya.
+    const proofIndex = payload.proofIndex === undefined || payload.proofIndex === null
+      ? null
+      : validPhotoIndex(payload.proofIndex, files.length);
 
     if (
       tripPhotoIndex === undefined ||
@@ -548,6 +553,9 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (selfieIndex === undefined) {
       return json({ error: "Index foto swafoto tidak valid" }, 400);
     }
+    if (proofIndex === undefined) {
+      return json({ error: "Index foto bukti muatan tidak valid" }, 400);
+    }
     if (tripPhotoIndex === null && selfieIndex === null) {
       return json({ error: "Swafoto petugas atau foto bukti trip wajib disertakan" }, 400);
     }
@@ -556,6 +564,7 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (tripPhotoIndex !== null) usedIndexes.push(tripPhotoIndex);
     usedIndexes.push(...vehiclePhotoIndexes as number[]);
     if (selfieIndex !== null) usedIndexes.push(selfieIndex);
+    if (proofIndex !== null) usedIndexes.push(proofIndex);
     if (new Set(usedIndexes).size !== files.length) {
       return json({ error: "Payload harus menyertakan seluruh foto dokumentasi tepat satu kali" }, 400);
     }
@@ -594,6 +603,14 @@ export async function completeTrip(req: Request): Promise<Response> {
     if (hasSelfieCols) {
       tripDoc.selfie_path = selfieIndex === null ? null : photoPaths[selfieIndex];
       tripDoc.selfie_captured_at = selfieIndex === null ? null : (payload.selfieCapturedAt || null);
+    }
+
+    // Foto bukti muatan disimpan terpisah (kalau migrasi sudah ada).
+    const hasProofCols = await supportsColumn("trips", "proof_path") &&
+      await supportsColumn("trips", "proof_captured_at");
+    if (hasProofCols) {
+      tripDoc.proof_path = proofIndex === null ? null : photoPaths[proofIndex];
+      tripDoc.proof_captured_at = proofIndex === null ? null : (payload.proofCapturedAt || null);
     }
 
     if (existingTrip) {

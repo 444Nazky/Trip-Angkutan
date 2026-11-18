@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info } from 'lucide-react'
-import { unitLabel, useApp, type VehicleEntry } from '../store'
+import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info, Pencil, Plus } from 'lucide-react'
+import { fmtElapsed, unitLabel, useApp, type VehicleEntry, type Trip } from '../store'
+import { validateTripEditForCurrentLocation } from '../../services/geofence'
 import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
 import {
   onCancelQueueChange,
@@ -23,17 +24,53 @@ interface HistoryDetailScreenProps {
 interface DocPhoto {
   url: string
   label: string
-  kind: 'trip' | 'vehicle' | 'selfie'
+  kind: 'trip' | 'vehicle' | 'selfie' | 'proof'
   index?: number
+}
+
+/** Durasi mulai trip → trip dikirim, dihitung ulang untuk data lama. */
+function durationText(t: Trip): string {
+  const start = Date.parse(t.startedAt ?? '')
+  const end = Date.parse(t.completedAt ?? '')
+  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+    return fmtElapsed(Math.floor((end - start) / 1000))
+  }
+  return t.duration && t.duration !== '-' ? t.duration : '-'
 }
 
 
 
 
 export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
-  const { trips, detailTripId, officer } = useApp()
+  const { trips, detailTripId, officer, editTrip, patchDraft } = useApp()
   const myTrips = trips.filter(x => x.officerId ? String(x.officerId) === String(officer.id) : x.officer === officer.name)
   const t = myTrips.find(x => x.id === detailTripId) ?? myTrips[0]
+  const [editState, setEditState] = useState<'checking' | 'allowed' | 'blocked'>('checking')
+
+  // Edit hanya boleh dari titik awal trip. Di titik tujuan tombol edit tidak
+  // ditampilkan sama sekali (bukan sekadar dinonaktifkan). Diperiksa berkala
+  // supaya tombol hilang begitu petugas tiba di titik tujuan.
+  useEffect(() => {
+    let alive = true
+    if (!t || t.canceled || !t.routeCode) {
+      setEditState('blocked')
+      return
+    }
+    const check = () => {
+      void validateTripEditForCurrentLocation(t.routeCode!).then(result => {
+        if (alive) setEditState(result.valid ? 'allowed' : 'blocked')
+      }).catch(() => { if (alive) setEditState('blocked') })
+    }
+    setEditState('checking')
+    check()
+    const timer = window.setInterval(check, 20_000)
+    window.addEventListener('focus', check)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', check)
+    }
+  }, [t?.id, t?.routeCode, t?.canceled])
 
   const [queue, setQueue] = useState<SyncItem[]>([])
   useEffect(() => onSyncQueueChange((_n, q) => setQueue(q)), [])
@@ -90,11 +127,13 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const tripPhotoUrl = usableUrl(t.photoUrl)
   const selfieUrl = usableUrl(t.selfieUrl)
+  const proofUrl = usableUrl(t.proofUrl)
 
   const photos: DocPhoto[] = isEmptyTrip
     ? [
         ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
         ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+        ...(proofUrl ? [{ url: proofUrl, label: 'Foto Bukti Muatan', kind: 'proof' as const }] : []),
       ]
     : [
         ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
@@ -105,6 +144,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
           index: i,
         })).filter(p => !!p.url),
         ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
+        ...(proofUrl ? [{ url: proofUrl, label: 'Foto Bukti Muatan', kind: 'proof' as const }] : []),
       ]
 
   const missingVehicles = isEmptyTrip
@@ -164,10 +204,42 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
+      {editState === 'allowed' && !t.canceled && (
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => { editTrip(t); go('trip-summary') }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2.5 text-[12px] font-bold text-slate-700"
+          >
+            <Pencil size={14} /> Edit Trip
+          </button>
+          <button
+            onClick={() => {
+              editTrip(t)
+              patchDraft({
+                vehicleForm: { plate: '', type: '', category: '', load: 'loaded' },
+                editVehicleIndex: null,
+                vPhoto: false,
+                vPhotoUrl: undefined,
+                vPhotoCapturedAt: undefined,
+                vPhotoLatitude: undefined,
+                vPhotoLongitude: undefined,
+                cameraFrom: 'vehicle-form',
+                cameraMode: 'photo',
+                cameraReturn: 'vehicle-form',
+              })
+              go('vehicle-form')
+            }}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0F172A] py-2.5 text-[12px] font-bold text-white"
+          >
+            <Plus size={14} /> Tambah Kendaraan
+          </button>
+        </div>
+      )}
+
       {/* Info Card */}
       <div className="bg-[#0F172A] rounded-3xl p-5 mb-4">
         <div className="grid grid-cols-2 gap-4">
-          {[{ l: 'Tanggal', v: t.date }, { l: 'Jam Mulai', v: t.time }, { l: 'Durasi', v: t.duration }, { l: 'Petugas', v: t.officer }].map(({ l, v }) => (
+          {[{ l: 'Tanggal', v: t.date }, { l: 'Jam Mulai', v: t.time }, { l: 'Durasi', v: durationText(t) }, { l: 'Petugas', v: t.officer }].map(({ l, v }) => (
             <div key={l}><p className="text-slate-500 text-[10px] mb-0.5">{l}</p><p className="text-white font-semibold text-[12px]">{v}</p></div>
           ))}
         </div>

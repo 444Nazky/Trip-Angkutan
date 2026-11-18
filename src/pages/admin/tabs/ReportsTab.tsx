@@ -97,6 +97,19 @@ function dateWeekday(date: string): string {
   return obj.toLocaleDateString('id-ID', { weekday: 'long' })
 }
 
+/** Durasi mulai trip → trip dikirim (start to end). */
+function tripDuration(startedAt?: string | null, completedAt?: string | null): string {
+  const start = Date.parse(startedAt ?? '')
+  const end = Date.parse(completedAt ?? '')
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '-'
+  const total = Math.floor((end - start) / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  if (h > 0) return `${h}j ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m`
+  return `${total}dtk`
+}
+
 /**
  * Bangun hierarki tanggal → golongan → kendaraan dari daftar trip.
  * Semua kendaraan dari seluruh trip pada tanggal yang sama digabung per
@@ -510,7 +523,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         <table className="w-full min-w-[900px] border-collapse text-[13px]">
           <thead>
             <tr className="bg-[var(--admin-surface-muted)]">
-              <th colSpan={10} className="px-4 py-3 border-b border-[var(--admin-border)]">
+              <th colSpan={11} className="px-4 py-3 border-b border-[var(--admin-border)]">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex gap-1.5">
                     {([
@@ -550,6 +563,11 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         url: t.selfie_photo,
                         caption: `${t.no_trip} - Swafoto petugas`,
                       }] : []),
+                      ...(t.proof_photo ? [{
+                        id: `proof-${t.id}`,
+                        url: t.proof_photo,
+                        caption: `${t.no_trip} - Foto bukti muatan`,
+                      }] : []),
                       ...t.vehicles.filter(v => v.foto_path).map(v => ({
                         id: `vehicle-${v.id}`,
                         url: v.foto_path as string,
@@ -560,7 +578,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                   }}
                     disabled={reportState !== 'ready'}
                     className="bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] px-3.5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-[var(--admin-accent-hover)]">
-                    <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
+                    <Camera size={15} /> Foto ({reportTrips.reduce((count, t) => count + (t.foto_kosong_path ? 1 : 0) + (t.selfie_photo ? 1 : 0) + (t.proof_photo ? 1 : 0) + t.vehicles.filter(v => !!v.foto_path).length, 0)})
                   </button>
                   </div>
                 </div>
@@ -569,6 +587,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
             <tr className="bg-[var(--admin-surface-sunken)] text-[10px] uppercase tracking-wide text-[var(--admin-text-muted)]">
               <th className="text-left pl-10 pr-3 py-2.5 border-b border-[var(--admin-border)]">No Trip</th>
               <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Jam</th>
+              <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Durasi</th>
               <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Wilayah</th>
               <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Rute</th>
               <th className="text-left px-3 py-2.5 border-b border-[var(--admin-border)]">Petugas</th>
@@ -582,7 +601,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
           <tbody>
             {reportState === 'offline' ? (
               <tr>
-                <td colSpan={10} className="p-8 text-center">
+                <td colSpan={11} className="p-8 text-center">
                   <p className="text-[var(--admin-text-muted)] font-semibold">Laporan tidak bisa dimuat</p>
                   <p className="text-[12px] text-[var(--admin-text-faint)] mt-1">{reportError ?? 'Server tidak menjawab.'}</p>
                   <button
@@ -594,9 +613,9 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                 </td>
               </tr>
             ) : reportState !== 'ready' ? (
-              <tr><td colSpan={10} className="p-8 text-center text-[var(--admin-text-faint)] animate-pulse">Memuat...</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-[var(--admin-text-faint)] animate-pulse">Memuat...</td></tr>
             ) : reportTrips.length === 0 ? (
-              <tr><td colSpan={10} className="p-8 text-center text-[var(--admin-text-faint)]">Belum ada trip</td></tr>
+              <tr><td colSpan={11} className="p-8 text-center text-[var(--admin-text-faint)]">Belum ada trip</td></tr>
             ) : (
               // Hierarki: tanggal → golongan → kendaraan.
               dateGroups.flatMap(group => {
@@ -608,7 +627,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                   <tr key={`date-${group.date}`} onClick={() => toggleDate(group.date)}
                     data-testid="report-date-header"
                     className="bg-[var(--admin-surface-inverse)] text-[var(--admin-text-inverse)] cursor-pointer hover:bg-[var(--admin-surface-inverse-hover)] transition-colors">
-                    <td colSpan={6} className="px-4 py-2.5">
+                    <td colSpan={7} className="px-4 py-2.5">
                       <span className="flex items-center gap-2 flex-wrap">
                         <span className="flex items-center gap-1.5">
                           <Calendar size={14} className="text-[var(--admin-text-inverse-faint)]" />
@@ -639,7 +658,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                       data-testid="report-gol-header"
                       data-gol={gol.key}
                       className="bg-[var(--admin-surface-sunken)] cursor-pointer hover:bg-[var(--admin-surface-hover)] transition-colors">
-                      <td colSpan={6} className="pl-10 pr-3 py-2">
+                      <td colSpan={7} className="pl-10 pr-3 py-2">
                         <span className="flex items-center gap-2 flex-wrap">
                           <span className="flex items-center gap-1.5">
                             <ChevronRight size={13} className={`text-[var(--admin-text-faint)] transition-transform ${golOpen ? 'rotate-90' : ''}`} />
@@ -675,6 +694,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         className="border-b border-[var(--admin-border-subtle)] hover:bg-[var(--admin-surface-hover)] transition-colors">
                         <td className="pl-10 pr-3 py-2.5 font-mono font-semibold text-[var(--admin-text-soft)]">{trip.no_trip}</td>
                         <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
+                        <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{tripDuration(trip.started_at, trip.completed_at)}</td>
                         <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
                         <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
                           {trip.route_name || `${trip.route_from_name || trip.route_from || '-'} → ${trip.route_to_name || trip.route_to || '-'}`}
@@ -709,6 +729,11 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                                 id: `selfie-${trip.id}`,
                                 url: trip.selfie_photo,
                                 caption: `${trip.no_trip} - Swafoto petugas`,
+                              }] : []),
+                              ...(trip.proof_photo ? [{
+                                id: `proof-${trip.id}`,
+                                url: trip.proof_photo,
+                                caption: `${trip.no_trip} - Foto bukti muatan`,
                               }] : []),
                               ...(trip.foto_kosong_path ? [{
                                 id: `trip-${trip.id}`,
@@ -752,7 +777,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
           </tbody>
           <tfoot>
             <tr className="bg-[var(--admin-surface-sunken)] font-bold text-[var(--admin-text-soft)]">
-              <td colSpan={10} className="px-4 py-3 border-t-2 border-[var(--admin-border-strong)] text-right text-[12px]">
+              <td colSpan={11} className="px-4 py-3 border-t-2 border-[var(--admin-border-strong)] text-right text-[12px]">
                 Total {totalTrip} trip - {totalUnit} unit
                 {reportTrips.some(t => (t.vehicles ?? []).length === 0) && (
                   <span className="ml-3 text-[10px] font-semibold text-[var(--admin-text-faint)]">

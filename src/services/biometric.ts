@@ -71,10 +71,10 @@ export async function enrollBiometric(officer: { id: string; name: string; usern
   try {
     const credential = await navigator.credentials.create({
       publicKey: {
-        challenge: randomChallenge(),
+        challenge: randomChallenge() as unknown as BufferSource,
         rp: { name: 'Trip Angkutan', id: window.location.hostname },
         user: {
-          id: new TextEncoder().encode(String(officer.id)),
+          id: new TextEncoder().encode(String(officer.id)) as unknown as BufferSource,
           name: officer.username || officer.name || 'petugas',
           displayName: officer.name || 'Petugas',
         },
@@ -118,10 +118,10 @@ export async function verifyBiometric(officer: { id: string; name: string; usern
   try {
     const assertion = await navigator.credentials.get({
       publicKey: {
-        challenge: randomChallenge(),
+        challenge: randomChallenge() as unknown as BufferSource,
         allowCredentials: [{
           type: 'public-key',
-          id: fromBase64(credentialId),
+          id: fromBase64(credentialId) as unknown as BufferSource,
           transports: ['internal'],
         }],
         userVerification: 'required',

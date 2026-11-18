@@ -303,7 +303,7 @@ function mergeVehicleList(
 function mergeQueuedTrip(
   next: Trip,
   prev?: SyncItem,
-): { trip: Trip; photos: PhotoEntry[]; tripPhoto?: PhotoEntry } {
+): { trip: Trip; photos: PhotoEntry[]; tripPhoto?: PhotoEntry; proofPhoto?: PhotoEntry } {
   const prevVehicles = prev?.trip?.vehicles ?? []
   const vehicles = mergeVehicleList(next.vehicles ?? [], prevVehicles)
 
