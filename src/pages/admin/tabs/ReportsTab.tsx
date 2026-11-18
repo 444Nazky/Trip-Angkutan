@@ -443,7 +443,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
             <option value="">Semua</option>
             {routeOptions.map(r => (
               <option key={r.id} value={r.id}>
-                {r.route_from} → {r.route_to}{r.dermaga_name ? ` · ${r.dermaga_name}` : ''}
+                {r.name || `${r.route_from} → ${r.route_to}`}{r.dermaga_name ? ` · ${r.dermaga_name}` : ''}
               </option>
             ))}
           </select></div>
@@ -677,7 +677,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                         <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
                         <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
                         <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
-                          {trip.route_from_name || trip.route_from || '-'} → {trip.route_to_name || trip.route_to || '-'}
+                          {trip.route_name || `${trip.route_from_name || trip.route_from || '-'} → ${trip.route_to_name || trip.route_to || '-'}`}
                         </td>
                         <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{trip.officer_name || '-'}</td>
                         <td className="px-3 py-2.5 font-mono text-[var(--admin-text-soft)]">{vehicle.no_polisi}</td>
