@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check } from 'lucide-react'
-import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute } from '../../../services/dermagas'
+import { MapPin, Plus, Pencil, Trash2, X, Link2, ExternalLink, Check, GripVertical } from 'lucide-react'
+import { fetchRoutes, fetchDermagas, createRoute, updateRoute, deleteRoute, reorderRoutes } from '../../../services/dermagas'
 import { fetchGeofencePointsForRoute, createRouteGeofencePoint, updateGeofenceRule, deleteGeofenceRule } from '../../../services/geofences'
 import { isShortMapsLink, parseMapsUrl, resolveMapsShortLink, osmEmbeddedMapUrl, googleMapsLink, type ParsedGeo } from '../../../services/geo'
 import { GEOFENCE_ROLE_LABEL, type GeofencePointRole } from '../../../utils/geofenceRole'
@@ -23,6 +23,10 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
   const [routeState, setRouteState] = useState<'idle' | 'loading' | 'ready' | 'offline'>('idle')
   const [routeForm, setRouteForm] = useState<RouteFormState>(emptyRouteForm)
   const [editRouteId, setEditRouteId] = useState<string | null>(null)
+  /** Baris yang sedang di-drag (drag handle di kolom kiri). */
+  const [draggingRouteId, setDraggingRouteId] = useState<string | null>(null)
+  /** Baris target saat pointer berada di atasnya. */
+  const [dragOverRouteId, setDragOverRouteId] = useState<string | null>(null)
 
   const [showGeofencePanel, setShowGeofencePanel] = useState(false)
   const [geofencePoints, setGeofencePoints] = useState<GeofencePoint[]>([])
@@ -134,6 +138,41 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
     showToast('Rute dihapus')
     const fresh = await fetchRoutes()
     if (fresh) setRouteRows(fresh as RouteRow[])
+  }
+
+  /**
+   * Pindahkan rute yang sedang di-drag ke posisi rute target, lalu simpan
+   * urutan baru ke server. Hanya boleh di dalam dermaga yang sama — urutan
+   * antar dermaga tidak punya arti.
+   */
+  const handleReorderDrop = async (target: RouteRow) => {
+    const sourceId = draggingRouteId
+    setDraggingRouteId(null)
+    setDragOverRouteId(null)
+    if (!sourceId || sourceId === target.id) return
+
+    const source = routeRows.find(r => r.id === sourceId)
+    if (!source || source.dermaga_id !== target.dermaga_id) return
+
+    const fromIdx = routeRows.findIndex(r => r.id === sourceId)
+    const toIdx = routeRows.findIndex(r => r.id === target.id)
+    if (fromIdx < 0 || toIdx < 0) return
+
+    const next = [...routeRows]
+    const [moved] = next.splice(fromIdx, 1)
+    const insertAt = next.findIndex(r => r.id === target.id)
+    next.splice(insertAt, 0, moved)
+    setRouteRows(next)
+
+    const ids = next.filter(r => r.dermaga_id === target.dermaga_id).map(r => r.id)
+    const res = await reorderRoutes(target.dermaga_id, ids)
+    if (!res.ok) {
+      showToast(res.reason ?? 'Urutan rute gagal disimpan karena server menolak permintaan', 'error')
+      const fresh = await fetchRoutes()
+      if (fresh) setRouteRows(fresh as RouteRow[])
+      return
+    }
+    showToast('Urutan rute disimpan')
   }
 
   const loadGeofencePoints = async (routeCode: string, dermagaId?: string) => {
@@ -419,9 +458,12 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse text-[13px]">
+        <table className="w-full min-w-[1020px] border-collapse text-[13px]">
           <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
+              <th className="px-2 py-2.5 border border-slate-200 text-center w-[44px]" title="Tarik untuk menyusun urutan">
+                <GripVertical size={13} className="mx-auto text-slate-400" />
+              </th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[260px]">Nama Rute</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Asal</th>
               <th className="px-3 py-2.5 border border-slate-200 text-left w-[120px]">Tujuan</th>
@@ -430,7 +472,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
           </thead>
           <tbody>
             {routeRows.length === 0 && (
-              <tr><td colSpan={4} className="p-8 text-center text-slate-400">
+              <tr><td colSpan={5} className="p-8 text-center text-slate-400">
                 {routeState === 'offline' ? 'Offline' : 'Belum ada rute'}
               </td></tr>
             )}
@@ -438,14 +480,14 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             {Object.entries(groupRoutesByRegionAndDermaga(routeRows)).map(([regionName, regions]) => (
               <React.Fragment key={regionName}>
                 <tr className="bg-slate-800">
-                  <td colSpan={4} className="px-3 py-2 border border-slate-700 text-left">
+                  <td colSpan={5} className="px-3 py-2 border border-slate-700 text-left">
                     <span className="font-bold text-white text-[13px]">{regionName}</span>
                   </td>
                 </tr>
                 {Object.entries(regions).map(([dermagaName, routes]) => (
                   <React.Fragment key={dermagaName}>
                     <tr className="bg-slate-100">
-                      <td colSpan={4} className="px-3 py-2 border border-slate-200 text-left">
+                      <td colSpan={5} className="px-3 py-2 border border-slate-200 text-left">
                         <span className="font-semibold text-slate-600 text-xs flex items-center gap-2">
                           <span className="w-1 h-1 rounded-full bg-slate-400" />
                           {dermagaName}
@@ -454,7 +496,41 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                       </td>
                     </tr>
                     {routes.map((r, rIdx) => (
-                      <tr key={r.id} className={`admin-table-row ${editRouteId === r.id ? 'bg-blue-50' : `${rIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60`}`}>
+                      <tr
+                        key={r.id}
+                        onDragOver={(e) => {
+                          if (!draggingRouteId || draggingRouteId === r.id) return
+                          const source = routeRows.find(x => x.id === draggingRouteId)
+                          if (!source || source.dermaga_id !== r.dermaga_id) return
+                          e.preventDefault()
+                          e.dataTransfer.dropEffect = 'move'
+                          if (dragOverRouteId !== r.id) setDragOverRouteId(r.id)
+                        }}
+                        onDragLeave={() => setDragOverRouteId(prev => prev === r.id ? null : prev)}
+                        onDrop={(e) => { e.preventDefault(); void handleReorderDrop(r) }}
+                        className={`admin-table-row ${
+                          editRouteId === r.id ? 'bg-blue-50' : `${rIdx % 2 === 1 ? 'bg-slate-50/40' : ''} hover:bg-slate-50/60`
+                        } ${
+                          dragOverRouteId === r.id ? 'ring-2 ring-inset ring-blue-400' : ''
+                        } ${draggingRouteId === r.id ? 'opacity-40' : ''}`}
+                      >
+                        <td className="px-2 py-2 border border-slate-200 text-center align-middle">
+                          <button
+                            type="button"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move'
+                              e.dataTransfer.setData('text/plain', r.id)
+                              setDraggingRouteId(r.id)
+                            }}
+                            onDragEnd={() => { setDraggingRouteId(null); setDragOverRouteId(null) }}
+                            title="Tarik untuk menyusun urutan rute"
+                            aria-label={`Ubah urutan ${r.name}`}
+                            className="inline-flex h-7 w-7 cursor-grab items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 active:cursor-grabbing"
+                          >
+                            <GripVertical size={15} />
+                          </button>
+                        </td>
                         <td className="px-3 py-2 border border-slate-200 font-semibold text-slate-800">{r.name}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_from}</td>
                         <td className="px-3 py-2 border border-slate-200 font-mono text-slate-600 text-xs whitespace-nowrap">{r.route_to}</td>

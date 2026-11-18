@@ -22,6 +22,8 @@ export interface Route {
   route_to: string
   distance?: string | null
   duration?: string | null
+  /** Urutan tampil di dalam dermaga (hasil susunan admin). */
+  sort_order?: number
 }
 
 
@@ -87,6 +89,15 @@ export async function createRoute(data: Omit<Route, 'id'>): Promise<ActionResult
 export async function updateRoute(id: string, data: Partial<Route>): Promise<ActionResult> {
   const result = await api.put(`/routes/${id}`, data)
   return toActionResult(result, 'Rute gagal diperbarui karena server menolak permintaan')
+}
+
+/**
+ * Simpan urutan rute di satu dermaga. `routeIds` harus berisi seluruh rute
+ * dermaga tersebut sesuai urutan baru (atas ke bawah).
+ */
+export async function reorderRoutes(dermagaId: string, routeIds: string[]): Promise<ActionResult> {
+  const result = await api.put('/routes/reorder', { dermagaId, routeIds })
+  return toActionResult(result, 'Urutan rute gagal disimpan karena server menolak permintaan')
 }
 
 

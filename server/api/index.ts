@@ -208,6 +208,9 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
     if (req.method === "GET" && b === "mine") return await rts.getOfficerRoutes(req);
     if (req.method === "GET" && !b) return await rts.getAllRoutes(req);
     if (req.method === "POST" && !b) return await rts.createRoute(req);
+    // Simpan urutan drag-and-drop. Harus SEBELUM handler PUT /routes/:id
+    // supaya "reorder" tidak dianggap id rute.
+    if (req.method === "PUT" && b === "reorder") return await rts.reorderRoutes(req);
     if (req.method === "PUT" && b) return await rts.updateRoute(req, b);
     if (req.method === "DELETE" && b) return await rts.deleteRoute(req, b);
     return notFound();

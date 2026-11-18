@@ -13,14 +13,20 @@ export async function getOfficerRoutes(req: Request): Promise<Response> {
 
     const { data, error } = await db
       .from("officer_dermagas")
-      .select(`dermagas(id, name, code, routes(id, name, route_from, route_to, distance, duration))`)
+      .select(`dermagas(id, name, code, routes(id, name, route_from, route_to, distance, duration, sort_order))`)
       .eq("officer_id", officerId);
     if (error) throw error;
 
     const result: unknown[] = [];
     for (const od of data ?? []) {
       const dm: any = od.dermagas;
-      for (const r of dm?.routes ?? []) {
+      // Urutan mengikuti susunan admin di dashboard. Fallback nama untuk
+      // database lama yang belum punya sort_order.
+      const routes = [...(dm?.routes ?? [])].sort((a: any, b: any) =>
+        (Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0)) ||
+        String(a.name ?? "").localeCompare(String(b.name ?? ""))
+      );
+      for (const r of routes) {
         result.push({
           id: r.id,
           name: r.name,
@@ -49,6 +55,7 @@ export async function getAllRoutes(req: Request): Promise<Response> {
     const { data, error } = await db
       .from("routes")
       .select("*, dermagas(name, code)")
+      .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
     if (error) throw error;
     return json(
@@ -86,6 +93,16 @@ export async function createRoute(req: Request): Promise<Response> {
     if (!dermaga_id) return json({ error: "Dermaga wajib dipilih" }, 400);
     if (!UUID_RE.test(String(dermaga_id))) return json({ error: "Dermaga tidak valid" }, 400);
 
+    // Rute baru diletakkan paling bawah di dermaganya. Tanpa ini semua rute
+    // baru mendapat sort_order 0 dan urutan drag di dashboard jadi acak.
+    const { data: lastRoute } = await db
+      .from("routes")
+      .select("sort_order")
+      .eq("dermaga_id", String(dermaga_id))
+      .order("sort_order", { ascending: false })
+      .limit(1);
+    const sortOrder = Number((lastRoute as any[] | null)?.[0]?.sort_order ?? 0) + 1;
+
     const { data, error } = await db
       .from("routes")
       .insert({
@@ -95,6 +112,7 @@ export async function createRoute(req: Request): Promise<Response> {
         route_to: cleanTo,
         distance: distance || null,
         duration: duration || null,
+        sort_order: sortOrder,
       })
       .select()
       .single();
@@ -123,6 +141,56 @@ export async function updateRoute(req: Request, id: string): Promise<Response> {
   } catch (error) {
     console.error("Update route error:", error);
     return json({ error: `Rute gagal diperbarui karena galat server: ${dbDetail(error)}` }, 500);
+  }
+}
+
+/**
+ * PUT /routes/reorder
+ *
+ * Menyimpan urutan rute hasil drag-and-drop di dashboard. Urutan hanya
+ * berlaku di dalam satu dermaga (`sort_order` 1..n), karena rute milik
+ * dermaga lain tidak ikut diubah.
+ */
+export async function reorderRoutes(req: Request): Promise<Response> {
+  try {
+    const ctx = await requireAdmin(req);
+    if (!ctx) return json({ error: "Admin access required" }, 403);
+
+    const { dermagaId, routeIds } = await req.json().catch(() => ({})) as any;
+    const dermaga = String(dermagaId ?? "").trim();
+    if (!UUID_RE.test(dermaga)) return json({ error: "Dermaga tidak valid" }, 400);
+    if (!Array.isArray(routeIds)) return json({ error: "routeIds harus berupa array" }, 400);
+
+    const ids = [...new Set(routeIds
+      .map((v: unknown) => String(v ?? "").trim())
+      .filter((v: string) => UUID_RE.test(v)))];
+    if (ids.length === 0) return json({ error: "Tidak ada rute valid yang dipilih" }, 400);
+
+    // Pastikan semua rute memang milik dermaga ini. Tanpa pemeriksaan ini,
+    // request yang salah bisa mengubah urutan rute dermaga lain.
+    const { data: owned, error: readError } = await db
+      .from("routes")
+      .select("id")
+      .eq("dermaga_id", dermaga);
+    if (readError) throw readError;
+    const ownedIds = new Set((owned ?? []).map((r: any) => String(r.id)));
+    if (ids.some((id) => !ownedIds.has(id))) {
+      return json({ error: "Ada rute yang bukan milik dermaga ini" }, 400);
+    }
+
+    // Simpan berurutan supaya tidak ada dua rute dengan sort_order sama.
+    for (let i = 0; i < ids.length; i++) {
+      const { error } = await db
+        .from("routes")
+        .update({ sort_order: i + 1 })
+        .eq("id", ids[i]);
+      if (error) throw error;
+    }
+
+    return json({ success: true, routeIds: ids });
+  } catch (error) {
+    console.error("Reorder routes error:", error);
+    return json({ error: `Urutan rute gagal disimpan karena galat server: ${dbDetail(error)}` }, 500);
   }
 }
 

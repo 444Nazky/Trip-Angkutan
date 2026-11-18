@@ -34,6 +34,7 @@ export interface RouteRow {
   route_to: string
   distance?: string
   duration?: string
+  sort_order?: number
   dermaga_name?: string
   dermaga_code?: string
   region_name?: string
