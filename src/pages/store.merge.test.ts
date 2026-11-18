@@ -5,7 +5,7 @@
 // Aturan: updatedAt terbaru menang; bila seri, synced:true tidak ditimpa false.
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { healDermagaAccess, mergeTrips, vehicleTariff, type Trip } from './store'
+import { fmtElapsed, healDermagaAccess, mergeTrips, vehicleTariff, type Trip } from './store'
 
 
 const base = (over: Partial<Trip>): Trip => ({
@@ -24,6 +24,20 @@ const base = (over: Partial<Trip>): Trip => ({
   duration: '-',
   photo: true,
   ...over,
+})
+
+describe('fmtElapsed — durasi tidak boleh 0dtk', () => {
+  it('durasi kosong/tidak sah ditampilkan sebagai -', () => {
+    expect(fmtElapsed(0)).toBe('-')
+    expect(fmtElapsed(-1)).toBe('-')
+    expect(fmtElapsed(Number.NaN)).toBe('-')
+  })
+
+  it('durasi sah tetap diformat', () => {
+    expect(fmtElapsed(12)).toBe('12dtk')
+    expect(fmtElapsed(90)).toBe('1m')
+    expect(fmtElapsed(3720)).toBe('1j 02m')
+  })
 })
 
 describe('mergeTrips — edit pasca-kirim tidak hilang', () => {

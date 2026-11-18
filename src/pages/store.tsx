@@ -362,6 +362,8 @@ export function fmtClock(d: Date): string {
 
 
 export function fmtElapsed(totalSec: number): string {
+  // Tanpa durasi yang sah, tampilkan "-" — jangan klaim "0dtk".
+  if (!Number.isFinite(totalSec) || totalSec <= 0) return '-'
   const h = Math.floor(totalSec / 3600)
   const m = Math.floor((totalSec % 3600) / 60)
   const s = totalSec % 60

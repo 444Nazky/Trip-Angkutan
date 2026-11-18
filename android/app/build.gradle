@@ -27,9 +27,9 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.2.1 - sinkron harian manual, edit trip, durasi, foto bukti.
-        versionCode 32
-        versionName "1.2.2"
+        // Rilis 1.2.3 - kirim per trip, durasi start-to-end, trip kosong.
+        versionCode 33
+        versionName "1.2.3"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

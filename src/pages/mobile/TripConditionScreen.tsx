@@ -72,7 +72,8 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
               vPhotoLatitude: undefined,
               vPhotoLongitude: undefined,
               retakeTarget: undefined,
-              cameraMode: 'photo',
+              cameraFrom: undefined,
+              cameraMode: undefined,
               ocrResult: undefined,
               ocrError: undefined,
             })
@@ -85,7 +86,9 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             </div>
             <div className="flex-1">
               <p className="font-bold text-slate-900 text-[13px]">Ponton Tanpa Muatan</p>
-
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+                Mulai trip baru dengan kondisi ponton tanpa muatan.
+              </p>
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('kosong')}`}>
               {condition === 'kosong' && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -107,6 +110,9 @@ export default function TripConditionScreen({ go }: TripConditionScreenProps) {
             </div>
             <div className="flex-1">
               <p className="font-bold text-slate-900 text-[13px]">Ponton dengan Muatan</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+                Mulai trip baru dengan kondisi ponton dengan muatan.
+              </p>
             </div>
             <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${dotColor('muatan')}`}>
               {condition === 'muatan' && <div className="w-2 h-2 rounded-full bg-white" />}

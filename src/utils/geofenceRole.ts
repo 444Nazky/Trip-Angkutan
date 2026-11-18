@@ -30,5 +30,5 @@ export function geofenceRoleServes(
 export const GEOFENCE_ROLE_LABEL: Record<GeofencePointRole, string> = {
   start: 'Titik Awal (Input)',
   end: 'Titik Tujuan (End Trip)',
-  both: 'Awal & Tujuan',
+  both: 'Titik Tambahan',
 }

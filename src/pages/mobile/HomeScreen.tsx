@@ -237,7 +237,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
                   ? 'text-red-600 border-red-200'
                   : 'text-amber-700 border-amber-200'
           }`}>
-            {busy ? 'Memproses…' : 'Paksa Sinkronisasi'}
+            {busy ? 'Mengirim…' : 'Kirim'}
           </span>
         </button>
       )}

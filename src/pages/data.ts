@@ -20,7 +20,6 @@ export function activeRoutes(): UiRoute[] {
   return stored.length > 0 || hasDockScopedRoutes() ? stored : []
 }
 
-export const allTrips = []
 
 export interface DermagaAccess {
   id: string

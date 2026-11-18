@@ -21,6 +21,7 @@ import {
   readQueuedPhotos,
   resolveRoute,
   retrySyncItem,
+  syncTripNow,
   type SyncItem,
 } from './sync'
 import { dbAll } from './localDb'
@@ -383,6 +384,22 @@ describe('antrean sinkron', () => {
     expect(rows).toHaveLength(1)                       // tidak dibuang sia-sia
     expect(rows[0].lastErrorCode).toBe('PHOTO_MISSING')
     expect(rows[0].needsAttention).toBe(true)
+  })
+
+  it('syncTripNow hanya mengirim satu trip, trip lain tetap di antrean', async () => {
+    const trip1 = makeTrip({ id: 'TRP-2026-0001' })
+    const trip2 = makeTrip({ id: 'TRP-2026-0002', completedAt: new Date(Date.now() + 1000).toISOString() })
+    await addToSyncQueue(trip1)
+    await addToSyncQueue(trip2)
+    h.api.postOk = true
+
+    const result = await syncTripNow(trip1)
+
+    expect(result.ok).toBe(true)
+    expect(h.api.postCalls).toBe(1)
+    const rows = await pendingRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].trip.id).toBe('TRP-2026-0002')
   })
 
   it('server tak terjangkau (ping gagal) → siklus berhenti, antrean tidak disentuh', async () => {

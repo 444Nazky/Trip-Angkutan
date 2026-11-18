@@ -214,6 +214,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             </div>
           </section>
 
+          {draft.condition !== 'kosong' && (
           <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -222,7 +223,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-slate-400">{vehicles.length} unit</span>
-                {draft.condition !== 'kosong' && !draftLocked && (
+                {!draftLocked && (
                   <button
                     onClick={handleAddVehicle}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-transparent px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 active:scale-[0.98]"
@@ -235,7 +236,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
 
             {vehicles.length === 0 ? (
               <p className="rounded-xl bg-slate-50 p-3 text-[12px] text-slate-500 ring-1 ring-slate-200">
-                Trip tanpa kendaraan
+                Belum ada kendaraan.
               </p>
             ) : (
               <div className="space-y-2">
@@ -277,6 +278,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               </div>
               )}
           </section>
+          )}
 
           {draft.editingTripId && (
             <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[11px] text-blue-800">
@@ -319,7 +321,9 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                   <Camera size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Foto Bukti Muatan</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {draft.condition === 'kosong' ? 'Foto Bukti Ponton Kosong' : 'Foto Bukti Muatan'}
+                  </p>
                   <p className="text-[10px] text-slate-500">
                     {hasProof ? 'Tersimpan' : 'Wajib diambil'}
                   </p>
@@ -335,7 +339,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
             </div>
 
             {hasProof && draft.proofUrl && (
-              <img src={draft.proofUrl} alt="Foto bukti muatan" className="mt-3 h-32 w-full rounded-xl object-cover ring-1 ring-slate-200" />
+              <img
+                src={draft.proofUrl}
+                alt={draft.condition === 'kosong' ? 'Foto bukti ponton kosong' : 'Foto bukti muatan'}
+                className="mt-3 h-32 w-full rounded-xl object-cover ring-1 ring-slate-200"
+              />
             )}
           </section>
 
@@ -344,7 +352,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               {!hasSelfie
                 ? 'Swafoto petugas belum diambil.'
                 : !hasProof
-                  ? 'Foto bukti muatan belum diambil.'
+                  ? (draft.condition === 'kosong' ? 'Foto bukti ponton kosong belum diambil.' : 'Foto bukti muatan belum diambil.')
                   : `${missingVehiclePhoto} unit kendaraan belum memiliki foto.`}
             </p>
           )}
@@ -374,7 +382,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
               disabled={!canSubmit || !!geofenceError || geofenceBlocked}
               className="w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {draft.condition === 'kosong' ? 'Selesaikan' : 'Kirim Trip'}
+              Kirim Trip
             </button>
             <button onClick={handleBatal} className="w-full rounded-xl border border-red-200 bg-transparent py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50">
               Batalkan Trip

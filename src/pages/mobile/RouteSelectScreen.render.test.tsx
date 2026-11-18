@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     { code: 'SBDZ-SJRE', from: 'SBDZ', to: 'SJRE', label: 'Rute utama' },
   ],
   state: {
+    condition: 'muatan' as 'muatan' | 'kosong',
     routeCode: null as string | null,
     inside: true,
     lastFix: null as null | { lat: number; lng: number },
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../store', () => ({
   useApp: () => ({
-    draft: { condition: 'muatan', routeCode: mocks.state.routeCode, vehicles: [] },
+    draft: { condition: mocks.state.condition, routeCode: mocks.state.routeCode, vehicles: [] },
     patchDraft: (p: { routeCode?: string }) => {
       mocks.patch(p)
       if (p.routeCode !== undefined) mocks.state.routeCode = p.routeCode
@@ -65,6 +66,7 @@ let root: Root
 
 beforeEach(() => {
   mocks.patch.mockClear()
+  mocks.state.condition = 'muatan'
   mocks.state.routeCode = null
   mocks.state.inside = true
   mocks.state.lastFix = null
@@ -79,8 +81,8 @@ afterEach(() => {
   container.remove()
 })
 
-const render = async () => {
-  await act(async () => { root.render(<RouteSelectScreen go={() => {}} />) })
+const render = async (go: (screen: string) => void = () => {}) => {
+  await act(async () => { root.render(<RouteSelectScreen go={go} />) })
   await act(async () => {})
 }
 
@@ -119,5 +121,23 @@ describe('layar pilih rute', () => {
     expect(container.textContent).toContain('Anda sedang berada di luar area bertugas')
     expect(container.textContent).toContain('Segera kembali ke posisi.')
     expect(mocks.patch).not.toHaveBeenCalled()
+  })
+
+  it('trip kosong lanjut ke Ringkasan tanpa membuka kamera', async () => {
+    mocks.state.condition = 'kosong'
+    mocks.state.routeCode = 'SBDZ-SJRE'
+    const go = vi.fn()
+    await render(go)
+    const button = [...container.querySelectorAll('button')]
+      .find(el => (el.textContent ?? '').includes('Lanjut Ringkasan'))
+    expect(button).toBeTruthy()
+    await act(async () => { button!.click() })
+    expect(go).toHaveBeenCalledWith('trip-summary')
+    expect(go).not.toHaveBeenCalledWith('camera')
+    expect(mocks.patch).toHaveBeenLastCalledWith({
+      routeCode: 'SBDZ-SJRE',
+      cameraFrom: undefined,
+      cameraMode: undefined,
+    })
   })
 })

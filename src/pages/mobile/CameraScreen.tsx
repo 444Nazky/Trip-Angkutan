@@ -87,11 +87,11 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     : isSelfie
       ? 'Swafoto Petugas'
       : isProof
-        ? 'Foto Bukti Muatan'
+        ? (draft.condition === 'kosong' ? 'Foto Bukti Ponton Kosong' : 'Foto Bukti Muatan')
         : retake
         ? (retake.kind === 'trip' ? 'Ulangi Foto Bukti Trip' : 'Ulangi Foto Kendaraan')
           : (returnTo === 'trip-summary' || returnTo === 'route-select'
-            ? (draft.condition === 'kosong' ? 'Foto Bukti Kapal Kosong' : 'Foto Bukti Trip')
+            ? (draft.condition === 'kosong' ? 'Foto Bukti Ponton Kosong' : 'Foto Bukti Trip')
             : 'Foto Bukti Muatan')
   const regionLabel = officer?.region || ''
 

@@ -298,8 +298,10 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       patchDraft({ routeCode: validSelected })
       go('vehicle-form')
     } else {
-      patchDraft({ routeCode: validSelected, cameraFrom: 'trip-summary', cameraMode: 'photo' })
-      go('camera')
+      // Trip kosong: dokumentasi diambil dari Ringkasan, bukan otomatis
+      // membuka kamera di sini supaya tidak ada foto ganda.
+      patchDraft({ routeCode: validSelected, cameraFrom: undefined, cameraMode: undefined })
+      go('trip-summary')
     }
   }
 
@@ -514,7 +516,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
       >
         {!draft.condition
           ? 'Pilih Rute Ini'
-          : draft.condition === 'muatan' ? 'Lanjut Input Kendaraan' : 'Lanjut Ambil Foto'}
+          : draft.condition === 'muatan' ? 'Lanjut Input Kendaraan' : 'Lanjut Ringkasan'}
       </button>
     </div>
   )

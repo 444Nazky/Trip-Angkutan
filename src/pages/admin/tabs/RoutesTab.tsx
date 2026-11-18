@@ -408,7 +408,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-black text-slate-900 text-lg">Master Rute</h3>
-          <p className="text-slate-500 text-[12px]">Rute per wilayah & Dermaga — nama rute bisa diubah dinamis</p>
+          <p className="text-slate-500 text-[12px]">Rute per wilayah dan dermaga.</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${
           routeState === 'ready' ? 'bg-emerald-50 text-emerald-600' : routeState === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
@@ -665,7 +665,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
 
               {otherGeofencePoints.length > 0 && (
                 <div className="rounded-xl border border-slate-200 p-3">
-                  <p className="text-[11px] font-semibold text-slate-500 mb-1">Titik lain pada rute ini</p>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-1">Titik tambahan</p>
                   {otherGeofencePoints.map((point, idx) => (
                     <div key={point.id || idx} className="flex items-center justify-between gap-2 py-1">
                       <p className="text-xs text-slate-700 truncate">
@@ -691,7 +691,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </div>
                   ))}
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Hapus titik yang tidak dipakai.
+                    Tidak dipakai di alur awal/tujuan. Hapus bila tidak perlu.
                   </p>
                 </div>
               )}
@@ -814,7 +814,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                         ? 'Dipakai saat petugas submit trip (mis. SBDZ).'
                         : activeGeofence.pointType === 'start'
                           ? 'Dipakai saat petugas input kendaraan (mis. SJRE).'
-                          : 'Berlaku untuk awal dan tujuan.'}
+                          : 'Titik tambahan. Atur ulang sebagai awal atau tujuan.'}
                     </p>
                   </div>
 
@@ -896,7 +896,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                   </div>
                   <p className="text-center text-[10px] text-slate-400 mt-2">
                     {geofenceSlotsFull
-                      ? 'Titik awal dan titik tujuan sudah ada. Klik ikon pensil pada kartu titik untuk mengubahnya.'
+                      ? 'Titik awal dan tujuan sudah diatur. Klik pensil untuk mengubah.'
                       : 'Rute ini hanya memakai dua titik: awal dan tujuan.'}
                   </p>
                 </>

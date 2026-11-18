@@ -81,6 +81,7 @@ interface DateGroup {
   units: number
   revenue: number
   gols: GolGroup[]
+  emptyTrips: ReportTrip[]
   tripsWithoutVehicles: number
 }
 
@@ -101,8 +102,10 @@ function dateWeekday(date: string): string {
 function tripDuration(startedAt?: string | null, completedAt?: string | null): string {
   const start = Date.parse(startedAt ?? '')
   const end = Date.parse(completedAt ?? '')
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '-'
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return '-'
   const total = Math.floor((end - start) / 1000)
+  // Timestamp lama bisa sama persis (fitur durasi belum ada). Tampilkan '-'.
+  if (total <= 0) return '-'
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   if (h > 0) return `${h}j ${String(m).padStart(2, '0')}m`
@@ -163,6 +166,7 @@ function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
         }
       })
 
+      const emptyTrips = group.trips.filter(t => (t.vehicles ?? []).length === 0)
       return {
         date,
         label: dateFolderLabel(date),
@@ -171,7 +175,8 @@ function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
         units: group.rows.length,
         revenue: group.rows.reduce((s, r) => s + (Number(r.vehicle.tariff_amount) || 0), 0),
         gols,
-        tripsWithoutVehicles: group.trips.filter(t => (t.vehicles ?? []).length === 0).length,
+        emptyTrips,
+        tripsWithoutVehicles: emptyTrips.length,
       }
     })
 }
@@ -771,6 +776,64 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                     )
                   }
                 }
+
+                // Trip tanpa kendaraan (ponton kosong) tetap tampil sebagai
+                // baris nyata supaya durasi & petugasnya bisa diperiksa.
+                for (const trip of group.emptyTrips) {
+                  const d = formatReportDateTime(trip.created_at)
+                  const thumbs = [
+                    ...(trip.selfie_photo ? [{ id: `selfie-${trip.id}`, url: trip.selfie_photo, caption: `${trip.no_trip} - Swafoto petugas` }] : []),
+                    ...(trip.proof_photo ? [{ id: `proof-${trip.id}`, url: trip.proof_photo, caption: `${trip.no_trip} - Foto bukti ponton kosong` }] : []),
+                    ...(trip.foto_kosong_path ? [{ id: `trip-${trip.id}`, url: trip.foto_kosong_path, caption: `${trip.no_trip} - Bukti trip` }] : []),
+                  ]
+                  rows.push(
+                    <tr key={`${group.date}-empty-${trip.id}`}
+                      data-testid="report-empty-trip-row"
+                      className="border-b border-[var(--admin-border-subtle)] hover:bg-[var(--admin-surface-hover)] transition-colors">
+                      <td className="pl-10 pr-3 py-2.5 font-mono font-semibold text-[var(--admin-text-soft)]">{trip.no_trip}</td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{d.time}</td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] text-xs whitespace-nowrap">{tripDuration(trip.started_at, trip.completed_at)}</td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text)]">{trip.region_name || '-'}</td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)] whitespace-nowrap">
+                        {trip.route_name || `${trip.route_from_name || trip.route_from || '-'} → ${trip.route_to_name || trip.route_to || '-'}`}
+                      </td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text-muted)]">{trip.officer_name || '-'}</td>
+                      <td className="px-3 py-2.5 font-mono text-[var(--admin-text-faint)]">—</td>
+                      <td className="px-3 py-2.5 text-[var(--admin-text-faint)]">Tanpa kendaraan</td>
+                      <td className="px-3 py-2.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-[var(--admin-border)] text-[var(--admin-text-faint)]">
+                          Tanpa Muatan
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-[var(--admin-text-faint)]">—</td>
+                      <td className="px-4 py-2.5">
+                        {thumbs.length === 0 ? (
+                          <span className="text-[10px] text-[var(--admin-text-faint)]">-</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setViewingPhotos(thumbs)}
+                            className="flex items-center gap-1 rounded-lg hover:ring-2 hover:ring-[var(--admin-accent)]"
+                            aria-label={`Lihat ${thumbs.length} foto ${trip.no_trip}`}
+                          >
+                            {thumbs.slice(0, 3).map(p => (
+                              <img
+                                key={p.id}
+                                src={resolvePhotoUrl(p.url, baseUrl)}
+                                alt=""
+                                loading="lazy"
+                                className="h-9 w-9 rounded-md object-cover ring-1 ring-[var(--admin-border)]"
+                              />
+                            ))}
+                            {thumbs.length > 3 && (
+                              <span className="text-[10px] font-bold text-[var(--admin-text-muted)]">+{thumbs.length - 3}</span>
+                            )}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                }
                 return rows
               })
             )}
@@ -781,7 +844,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                 Total {totalTrip} trip - {totalUnit} unit
                 {reportTrips.some(t => (t.vehicles ?? []).length === 0) && (
                   <span className="ml-3 text-[10px] font-semibold text-[var(--admin-text-faint)]">
-                    ({reportTrips.filter(t => (t.vehicles ?? []).length === 0).length} trip tanpa data kendaraan tidak tampil)
+                    ({reportTrips.filter(t => (t.vehicles ?? []).length === 0).length} trip tanpa kendaraan)
                   </span>
                 )}
                 <span className="ml-4">

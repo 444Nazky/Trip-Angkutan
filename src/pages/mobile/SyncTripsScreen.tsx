@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw, Send } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import {
@@ -7,6 +7,7 @@ import {
   onSyncQueueChange,
   retrySyncItem,
   syncNow,
+  syncTripNow,
   type SyncItem,
 } from '../../services/sync'
 
@@ -24,6 +25,7 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
   const { trips, officer, setDetailTripId } = useApp()
   const [queue, setQueue] = useState<SyncItem[]>([])
   const [busy, setBusy] = useState(false)
+  const [sendingId, setSendingId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [failed, setFailed] = useState(false)
 
@@ -81,6 +83,27 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
     }
   }
 
+  const sendTrip = async (trip: (typeof rows)[number]['trip']) => {
+    if (busy || sendingId) return
+    setSendingId(String(trip.id))
+    setMessage('')
+    setFailed(false)
+    try {
+      const result = await syncTripNow(trip)
+      if (result.ok) {
+        setMessage('Trip berhasil dikirim.')
+      } else {
+        setFailed(true)
+        setMessage(result.error ?? 'Trip belum diterima server.')
+      }
+    } catch {
+      setFailed(true)
+      setMessage('Pengiriman gagal. Periksa koneksi lalu coba lagi.')
+    } finally {
+      setSendingId(null)
+    }
+  }
+
   const openDetail = (id: string) => {
     setDetailTripId(id)
     go('history-detail')
@@ -99,7 +122,7 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
           className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-[11px] font-bold text-white disabled:opacity-40"
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          {busy ? 'Mengirim…' : 'Sinkron Semua'}
+          {busy ? 'Mengirim…' : 'Kirim Semua'}
         </button>
       </div>
 
@@ -121,50 +144,67 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
       ) : (
         <div className="space-y-3">
           {rows.map(({ trip, status }) => (
-            <button
+            <div
               key={trip.id}
-              onClick={() => openDetail(trip.id)}
-              className="flex w-full items-start gap-4 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
             >
-              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                status.state === 'failed'
-                  ? 'bg-red-50 text-red-500'
-                  : status.state === 'pending'
-                    ? 'bg-amber-50 text-amber-500'
-                    : 'bg-slate-100 text-slate-400'
-              }`}>
-                {status.state === 'failed' ? <AlertTriangle size={20} /> : <CloudOff size={20} />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <p className="truncate text-[14px] font-bold text-slate-900">
-                    {trip.routeFrom && trip.routeTo ? `${trip.routeFrom} → ${trip.routeTo}` : trip.route || 'Trip'}
-                  </p>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={() => openDetail(trip.id)}
+                  className="flex min-w-0 flex-1 items-start gap-3 text-left active:opacity-70"
+                >
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
                     status.state === 'failed'
-                      ? 'bg-red-50 text-red-600'
+                      ? 'bg-red-50 text-red-500'
                       : status.state === 'pending'
-                        ? 'bg-amber-50 text-amber-700'
-                        : 'bg-slate-100 text-slate-500'
+                        ? 'bg-amber-50 text-amber-500'
+                        : 'bg-slate-100 text-slate-400'
                   }`}>
-                    {status.state === 'failed' ? 'GAGAL' : status.state === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
+                    {status.state === 'failed' ? <AlertTriangle size={20} /> : <CloudOff size={20} />}
                   </span>
-                </div>
-                <p className="font-mono text-[11px] text-slate-400">{trip.id}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                  <span>{trip.date} · {trip.time}</span>
-                  <span>{trip.officer || officer.name}</span>
-                  <span>{trip.vehicles?.length ?? 0} unit</span>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${trip.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                    {trip.load}
-                  </span>
-                </div>
-                {status.state === 'failed' && status.error && (
-                  <p className="mt-2 line-clamp-2 text-[10px] font-semibold text-red-600">{status.error}</p>
-                )}
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="truncate text-[14px] font-bold text-slate-900">
+                        {trip.routeFrom && trip.routeTo ? `${trip.routeFrom} → ${trip.routeTo}` : trip.route || 'Trip'}
+                      </p>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                        status.state === 'failed'
+                          ? 'bg-red-50 text-red-600'
+                          : status.state === 'pending'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {status.state === 'failed' ? 'GAGAL' : status.state === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
+                      </span>
+                    </div>
+                    <p className="font-mono text-[11px] text-slate-400">{trip.id}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                      <span>{trip.date} · {trip.time}</span>
+                      <span>{trip.officer || officer.name}</span>
+                      <span>{trip.vehicles?.length ?? 0} unit</span>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${trip.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {trip.load}
+                      </span>
+                    </div>
+                    {status.state === 'failed' && status.error && (
+                      <p className="mt-2 line-clamp-2 text-[10px] font-semibold text-red-600">{status.error}</p>
+                    )}
+                  </div>
+                  <ChevronRight size={16} className="mt-3 shrink-0 text-slate-300" />
+                </button>
+                <button
+                  onClick={() => void sendTrip(trip)}
+                  disabled={busy || !!sendingId}
+                  className="inline-flex shrink-0 items-center gap-1 self-center rounded-xl bg-blue-600 px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+                  title="Kirim trip ini saja"
+                >
+                  {sendingId === String(trip.id)
+                    ? <Loader2 size={12} className="animate-spin" />
+                    : <Send size={12} />}
+                  {sendingId === String(trip.id) ? 'Mengirim…' : 'Kirim'}
+                </button>
               </div>
-              <ChevronRight size={16} className="mt-3 shrink-0 text-slate-300" />
-            </button>
+            </div>
           ))}
         </div>
       )}

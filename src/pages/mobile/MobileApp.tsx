@@ -36,7 +36,7 @@ const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'location', 'endpoint', 
 
 
 export default function MobileApp() {
-  const { officer, setActiveDermaga } = useApp()
+  const { officer, setActiveDermaga, startTrip } = useApp()
   const [screen, setScreen] = useState<MobileScreen>('home')
   const [anim, setAnim] = useState<AnimKind>('tab')
   const [pendingDermagas, setPendingDermagas] = useState<Dermaga[] | null>(null)
@@ -111,6 +111,8 @@ export default function MobileApp() {
     setPendingDermagas(null)
     setSelectedDockId(accesses[0]?.id ?? null)
     setActiveDermaga(accesses[0]?.id ?? null)
+    // Durasi dihitung sejak trip benar-benar dimulai, bukan saat dikirim.
+    startTrip()
     go('trip-condition')
   }
 
@@ -127,6 +129,7 @@ export default function MobileApp() {
     setPendingDermagas(null)
     setSelectedDockId(dermaga.id)
     setActiveDermaga(dermaga.id)
+    startTrip()
     go('trip-condition')
   }
 

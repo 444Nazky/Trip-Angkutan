@@ -1050,7 +1050,7 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
                       disabled={form.regionId === ALL_REGIONS}
                       title={
                         form.regionId === ALL_REGIONS
-                          ? 'Tarif lokal berlaku per wilayah dan jenis kendaraan, jadi tidak bisa disamakan ke semua region'
+                          ? '                    Tarif lokal hanya berlaku untuk wilayah dan jenis ini.'
                           : undefined
                       }
                       className={INPUT_CLS}

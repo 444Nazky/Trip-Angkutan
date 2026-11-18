@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, CheckCircle2, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
-import { classifyTripSync, onSyncQueueChange, processSyncQueue, refreshSyncQueue, type SyncItem } from '../../services/sync'
+import { classifyTripSync, onSyncQueueChange, syncTripNow, type SyncItem } from '../../services/sync'
 import type { MobileScreen } from '../types'
 
 interface TripCompleteScreenProps {
@@ -57,7 +57,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
           icon: 'text-amber-500',
           text: 'text-amber-700',
           title: 'Menunggu Sinkronisasi',
-          detail: 'Tersimpan di perangkat. Ketuk Sinkronkan di Beranda untuk mengirim.',
+          detail: 'Tersimpan di perangkat. Ketuk Kirim di Beranda.',
           Icon: Clock,
         }
       : synced
@@ -124,11 +124,11 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
         </div>
         {(failed || pending || syncStatus.state === 'local') && (
           <button
-            onClick={() => { void processSyncQueue({ retryAll: true }); refreshSyncQueue() }}
+            onClick={() => { void syncTripNow(t) }}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[10px] font-bold"
             title="Kirim ulang ke server"
           >
-            <RefreshCw size={11} /> Coba
+            <RefreshCw size={11} /> Kirim
           </button>
         )}
       </div>

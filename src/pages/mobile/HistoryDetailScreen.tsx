@@ -33,7 +33,7 @@ interface DocPhoto {
 function durationText(t: Trip): string {
   const start = Date.parse(t.startedAt ?? '')
   const end = Date.parse(t.completedAt ?? '')
-  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
     return fmtElapsed(Math.floor((end - start) / 1000))
   }
   return t.duration && t.duration !== '-' ? t.duration : '-'
@@ -53,7 +53,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
   // supaya tombol hilang begitu petugas tiba di titik tujuan.
   useEffect(() => {
     let alive = true
-    if (!t || t.canceled || !t.routeCode) {
+    if (!t || t.canceled || !t.routeCode || !(t.vehicles && t.vehicles.length > 0)) {
       setEditState('blocked')
       return
     }
@@ -132,9 +132,9 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
 
   const photos: DocPhoto[] = isEmptyTrip
     ? [
-        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Kapal Kosong', kind: 'trip' as const }] : []),
+        ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Ponton Kosong', kind: 'trip' as const }] : []),
         ...(selfieUrl ? [{ url: selfieUrl, label: 'Swafoto Petugas', kind: 'selfie' as const }] : []),
-        ...(proofUrl ? [{ url: proofUrl, label: 'Foto Bukti Muatan', kind: 'proof' as const }] : []),
+        ...(proofUrl ? [{ url: proofUrl, label: 'Foto Bukti Ponton Kosong', kind: 'proof' as const }] : []),
       ]
     : [
         ...(tripPhotoUrl ? [{ url: tripPhotoUrl, label: 'Foto Bukti Trip', kind: 'trip' as const }] : []),
@@ -205,7 +205,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         </div>
       )}
 
-      {editState === 'allowed' && !t.canceled && (
+      {editState === 'allowed' && !t.canceled && !isEmptyTrip && (
         <div className="mb-4 grid grid-cols-2 gap-2">
           <button
             onClick={() => { editTrip(t); go('trip-summary') }}
@@ -283,7 +283,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-            {isEmptyTrip ? 'Foto Bukti Kondisi Kapal' : `Foto Kendaraan (${photos.length})`}
+            {isEmptyTrip ? 'Foto Bukti Ponton Kosong' : `Foto Kendaraan (${photos.length})`}
           </p>
         </div>
 

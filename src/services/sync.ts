@@ -550,6 +550,52 @@ export async function retrySyncItem(trip: Trip): Promise<void> {
 
 export function getSyncQueue(): SyncItem[] { return _queueCache }
 
+
+
+/**
+ * Kirim SATU trip saja tanpa mengirim seluruh antrean.
+ *
+ * Dipakai tombol Kirim per baris. Mengembalikan status jujur: `ok` hanya
+ * kalau trip benar-benar hilang dari antrean (diterima server).
+ */
+export async function syncTripNow(
+  trip: Trip,
+): Promise<{ ok: boolean; error?: string; reachable?: boolean }> {
+  if (isSyncBusy()) {
+    return { ok: false, error: 'Pengiriman lain sedang berjalan. Tunggu sebentar.' }
+  }
+
+  await retrySyncItem(trip)
+  await initLocalDb()
+  const item = await dbGetById(trip.id)
+  // Trip yang sudah tidak ada di antrean memang sudah terkirim.
+  if (!item) return { ok: true }
+
+  acquireLock()
+  try {
+    const reachable = await probeServer(true)
+    if (!reachable) {
+      return {
+        ok: false,
+        reachable: false,
+        error: 'Server tidak terjangkau. Sambungkan ke jaringan kantor.',
+      }
+    }
+    const sessionOk = await ensureSessionForQueue()
+    if (!sessionOk) {
+      return { ok: false, error: 'Sesi autentikasi berakhir — login ulang lalu coba lagi.' }
+    }
+
+    await processItem(item, true)
+    const after = await dbGetById(trip.id)
+    if (!after) return { ok: true }
+    return { ok: false, error: after.lastError ?? 'Trip belum diterima server.' }
+  } finally {
+    releaseLock()
+    notifyQueueListeners()
+  }
+}
+
 let _queueCache: SyncItem[] = []
 void readQueue().then(q => { _queueCache = q }).catch(() => { /* ignore */ })
 

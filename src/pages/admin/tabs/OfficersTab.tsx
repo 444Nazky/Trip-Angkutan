@@ -381,7 +381,11 @@ export function OfficersTab({ officers, onSaveOfficers, showToast }: OfficersTab
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-black text-slate-900">Master Petugas</h3>
+          <p className="text-slate-500 text-[12px]">Kelola petugas, wilayah, dermaga, dan status akses.</p>
+        </div>
         <button onClick={() => setAddOff(true)}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-blue-700">
           <Plus size={14} />Tambah Petugas
