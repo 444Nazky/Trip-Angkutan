@@ -86,10 +86,21 @@ function saveRegions(regions: StoredRegion[]): void {
 export function regionDisplayName(value?: string | null, fallback?: string | null): string {
   const needle = String(value ?? '').trim()
   const saved = String(fallback ?? '').trim()
-  const found = needle
-    ? getStoredRegions().find(r => r.code === needle || r.id === needle)
-    : undefined
-  return saved || found?.name || needle
+  const regions = getStoredRegions()
+  const norm = (v: string) => v.trim().toLowerCase()
+  const byName = (v: string) => regions.find(r => r.name && norm(r.name) === norm(v))
+  const byCode = (v: string) => regions.find(r => r.code === v || r.id === v)
+
+  // Nama region selalu menang. Kode lama (mis. KMP) TIDAK boleh ditampilkan
+  // walaupun tersimpan sebagai `regionName` dari sesi lama.
+  if (saved) {
+    const savedName = byName(saved)
+    if (savedName) return savedName.name
+    if (!byCode(saved) && !/^KMP\d*$/i.test(saved)) return saved
+  }
+
+  const found = (needle && (byName(needle) || byCode(needle))) || (saved ? byCode(saved) : undefined)
+  return found?.name || saved || needle
 }
 
 

@@ -28,8 +28,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Rilis 1.2.3 - kirim per trip, durasi start-to-end, trip kosong.
-        versionCode 36
-        versionName "1.2.6"
+        versionCode 37
+        versionName "1.2.7"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

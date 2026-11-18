@@ -12,7 +12,9 @@ import {
   OCR_MAX_EDGE,
   OCR_QUALITY,
 } from '../../services/imageUtil'
-import { getCurrentPosition } from '../../services/geofence'
+import { getActiveGeofenceSnapshot, getCurrentPosition } from '../../services/geofence'
+import { getStoredDermaga } from '../../services/auth'
+import { regionDisplayName } from '../../services/adminPull'
 import type { MobileScreen } from '../types'
 
 
@@ -24,6 +26,42 @@ interface CameraScreenProps {
 
 
 
+
+function cleanPointName(name?: string | null): string {
+  return String(name ?? '').replace(/^titik\s+/i, '').trim()
+}
+
+/**
+ * Label wilayah untuk watermark: nama region (bukan kode lama seperti KMP)
+ * lalu detail dermaga/titik tempat foto diambil.
+ */
+async function resolveAreaLabel(
+  officer: { region?: string; regionName?: string } | undefined,
+  lat: number | null,
+  lon: number | null,
+): Promise<string> {
+  const dock = getStoredDermaga()
+  const region = regionDisplayName(
+    officer?.region,
+    dock?.region_name || officer?.regionName || dock?.region_code,
+  ).trim()
+
+  let place = ''
+  if (lat != null && lon != null) {
+    try {
+      const snap = await getActiveGeofenceSnapshot(
+        { latitude: lat, longitude: lon },
+        dock?.id ?? null,
+      )
+      place = cleanPointName(snap.activePoint?.name)
+    } catch { /* tetap pakai dermaga tersimpan */ }
+  }
+  if (!place) place = String(dock?.name || dock?.code || '').trim()
+
+  if (!region) return place
+  if (!place || place.toLowerCase() === region.toLowerCase()) return region
+  return `${region} - ${place}`
+}
 
 /**
  * Ambil posisi GPS untuk watermark SEKARANG.
@@ -93,7 +131,15 @@ export default function CameraScreen({ go }: CameraScreenProps) {
           : (returnTo === 'trip-summary' || returnTo === 'route-select'
             ? (draft.condition === 'kosong' ? 'Foto Bukti Ponton Kosong' : 'Foto Bukti Trip')
             : 'Foto Bukti Muatan')
-  const regionLabel = officer?.region || ''
+  const dockLabel = getStoredDermaga()
+  const regionOnly = regionDisplayName(
+    officer?.region,
+    dockLabel?.region_name || officer?.regionName || dockLabel?.region_code,
+  )
+  const dockName = String(dockLabel?.name || dockLabel?.code || '').trim()
+  const regionLabel = regionOnly && dockName && dockName.toLowerCase() !== regionOnly.toLowerCase()
+    ? `${regionOnly} - ${dockName}`
+    : regionOnly
 
 
 
@@ -205,11 +251,12 @@ export default function CameraScreen({ go }: CameraScreenProps) {
     lat: number | null,
     lon: number | null,
     capturedAt: Date,
+    areaLabel: string,
   ): Promise<string> =>
     compressImage(dataUrl, {
       maxEdge: DOC_MAX_EDGE,
       quality: DOC_QUALITY,
-      watermark: { capturedAt, lat, lon, region: regionLabel },
+      watermark: { capturedAt, lat, lon, region: areaLabel },
     })
 
 
@@ -240,7 +287,8 @@ export default function CameraScreen({ go }: CameraScreenProps) {
       return
     }
 
-    const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt)
+    const areaLabel = await resolveAreaLabel(officer, lat, lon)
+    const watermarked = await processPhoto(rawDataUrl, lat, lon, capturedAt, areaLabel)
 
 
 
