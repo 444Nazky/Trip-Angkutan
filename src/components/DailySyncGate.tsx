@@ -51,7 +51,7 @@ export default function DailySyncGate() {
       void refreshOfficers(true)
       const reachable = queue.reachable !== false && master.success
       if (!reachable) {
-        setError('Server belum bisa dijangkau. Sambungkan ke jaringan kantor lalu coba lagi.')
+        setError('Server tidak terjangkau. Coba lagi saat online.')
         setOfflineAllowed(true)
         return
       }
@@ -62,8 +62,7 @@ export default function DailySyncGate() {
           : 'Sinkron berhasil. Data master dan trip sudah diperbarui.',
       )
       setVisible(false)
-    } catch {
-      setError('Sinkron gagal. Periksa koneksi lalu coba lagi.')
+    } catch {            setError('Sinkron gagal. Periksa koneksi lalu coba lagi.')
       setOfflineAllowed(true)
     } finally {
       setBusy(false)
@@ -86,8 +85,7 @@ export default function DailySyncGate() {
         </div>
 
         <p className="mb-4 text-[12px] leading-relaxed text-slate-600">
-          Sinkronkan data master (rute, geofence, tarif, petugas) dan kirim trip yang menunggu.
-          Setelah berhasil, Anda bisa memakai aplikasi sampai tanggal berganti lagi.
+          Sinkronkan master dan trip. Berlaku sampai tanggal berganti.
         </p>
 
         {error && (

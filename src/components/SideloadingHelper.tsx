@@ -32,7 +32,7 @@ export function SideloadingHelper({
         </summary>
         <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 leading-relaxed text-[11px] text-slate-500">
           <p>
-            Android mewajibkan izin khusus untuk memperbarui aplikasi internal perusahaan.
+            Android minta izin khusus untuk update aplikasi internal.
           </p>
           <ol className="mt-1.5 list-decimal pl-4 space-y-1">
             <li>Saat dialog muncul, pilih <strong>"Izinkan"</strong> atau <strong>"Tetap Izinkan"</strong>.</li>

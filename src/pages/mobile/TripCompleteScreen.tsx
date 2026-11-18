@@ -103,7 +103,7 @@ export default function TripCompleteScreen({ go }: TripCompleteScreenProps) {
           {[
             { label: 'Rute', val: t.route },
             { label: 'Durasi', val: t.duration },
-            { label: 'Kendaraan', val: unitCount > 0 ? `${unitCount} unit` : 'Kosong' },
+            { label: 'Kendaraan', val: unitCount > 0 ? `${unitCount} unit` : 'Tanpa kendaraan' },
             { label: 'Kondisi', val: t.load },
           ].map(({ label, val }) => (
             <div key={label}>

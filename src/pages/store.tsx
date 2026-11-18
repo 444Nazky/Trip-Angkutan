@@ -438,22 +438,31 @@ function writeTripSeq(value: number): void {
 }
 
 export function nextTripId(trips: Trip[]): string {
-  let max = readTripSeq()
-  for (const t of trips) {
-    const m = /TRP-(\d{4})-(\d{4})/.exec(t.id)
-    if (m) max = Math.max(max, parseInt(m[2], 10))
+  // Format sama dengan server: TRP + YYYYMMDDHHMMSS (WIB), mis.
+  // TRP20261117163045. Nomor trip jadi bisa dibaca manusia dan tidak lagi
+  // bergantung pada nomor urut perangkat yang bisa bentrok antar HP.
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const pick = (type: string) => parts.find(part => part.type === type)?.value ?? '00'
+  const base = `TRP${pick('year')}${pick('month')}${pick('day')}${pick('hour')}${pick('minute')}${pick('second')}`
+  writeTripSeq(readTripSeq() + 1)
+  if (!trips.some(t => t.id === base)) return base
+  // Dua trip pada detik yang sama: beri urutan pendek agar riwayat lokal tidak
+  // saling menimpa.
+  for (let i = 1; i <= 99; i++) {
+    const candidate = `${base}-${String(i).padStart(2, '0')}`
+    if (!trips.some(t => t.id === candidate)) return candidate
   }
-  const next = max + 1
-  writeTripSeq(next)
-  const base = `TRP-${new Date().getFullYear()}-${String(next).padStart(4, '0')}`
-  // Pengaman: kalau id yang dihitung sudah dipakai (mis. localStorage
-  // dibersihkan tapi IndexedDB masih ada), tambahkan sufiks acak supaya
-  // riwayat lokal tidak menimpa trip sebelumnya.
-  if (trips.some(t => t.id === base)) {
-    const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
-    return `${base}-${suffix}`
-  }
-  return base
+  return `${base}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`
 }
 
 /**

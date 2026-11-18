@@ -579,22 +579,21 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-snug text-slate-600">
-                <span className="font-bold text-slate-800">Titik Awal</span> untuk input kendaraan,{' '}
-                <span className="font-bold text-slate-800">Titik Tujuan</span> untuk submit trip.
-                Contoh: SJRE → SBDZ.
+                <span className="font-bold text-slate-800">Titik Awal</span>: mulai trip, kirim, dan edit.{' '}
+                <span className="font-bold text-slate-800">Titik Tujuan</span>: kirim saja.
               </p>
 
               {([
                 {
                   role: 'start' as const,
                   title: 'Titik Awal',
-                  hint: 'Input kendaraan (mis. SJRE).',
+                  hint: 'Mulai, kirim, dan edit trip.',
                   point: startSlotPoint,
                 },
                 {
                   role: 'end' as const,
                   title: 'Titik Tujuan',
-                  hint: 'Submit trip (mis. SBDZ).',
+                  hint: 'Kirim trip. Edit tidak tersedia.',
                   point: endSlotPoint,
                 },
               ]).map(slot => (
@@ -658,7 +657,7 @@ export function RoutesTab({ showToast }: RoutesTabProps) {
                     </>
                   ) : (
                     <p className="mt-2 text-xs text-amber-800">
-                      Belum diatur — petugas tidak bisa {slot.role === 'end' ? 'submit trip' : 'memilih rute'}.
+                      Belum diatur — petugas tidak bisa {slot.role === 'end' ? 'mengirim trip' : 'memulai trip'}.
                     </p>
                   )}
                 </div>

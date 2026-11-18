@@ -388,7 +388,7 @@ export default function HistoryScreen({ go }: HistoryScreenProps) {
        </div>
 
        <p className="text-[10px] text-slate-400 text-center">
-         Riwayat lebih dari 3 hari tidak ditampilkan. Data tetap tersimpan untuk ekspor.
+         Hanya 3 hari terakhir. Data lama tetap bisa diekspor.
        </p>
      </div>
    )

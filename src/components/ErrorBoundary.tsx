@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 {this.props.label ?? 'Aplikasi'} gagal ditampilkan
               </h2>
               <p className="text-[13px] text-slate-500 mt-1">
-                Gagal menampilkan bagian ini. Data di server tetap aman — coba muat ulang.
+                Gagal menampilkan bagian ini. Coba muat ulang.
               </p>
             </div>
           </div>

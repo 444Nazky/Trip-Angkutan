@@ -209,8 +209,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                   {draft.condition === 'kosong' ? 'Ponton tanpa muatan' : 'Ponton dengan muatan'}
                 </span>
               </div>
-              <p className="text-xl font-bold leading-snug text-white">{route.from} <span className="text-white/50">→</span> {route.to}</p>
-              <p className="mt-2 text-[12px] text-white/60">{route.code}</p>
+              <p className="text-3xl font-black leading-tight tracking-tight text-white">{route.from} <span className="text-white/50">→</span> {route.to}</p>
             </div>
           </section>
 
@@ -247,12 +246,12 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12px] font-medium text-slate-800">{v.plate}</p>
                       <p className="text-[10px] text-slate-500">
-                        {v.type} - {v.category} - {v.load === 'empty' ? 'Kosong' : 'Muatan'}
+                        {v.type} · {v.category} · {v.load === 'empty' ? 'Tanpa muatan' : 'Dengan muatan'}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {v.photoUrl ? (
-                        <img src={v.photoUrl} alt={`Foto kendaraan ${v.plate}`} className="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
+                        <img src={v.photoUrl} alt={`Foto kendaraan ${v.plate}`} className="h-24 w-24 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
                       ) : (
                         <button
                           onClick={() => { patchDraft({ cameraFrom: 'vehicle-form', cameraMode: 'photo', cameraReturn: 'trip-summary', vehiclePhotoTarget: i }); go('camera') }}
@@ -281,7 +280,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
           {draft.editingTripId && (
             <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[11px] text-blue-800">
               <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-              <span>Mode edit trip. Perubahan akan memperbarui trip yang sudah ada, bukan membuat trip baru.</span>
+              <span>Mode edit. Data trip ini akan diperbarui.</span>
             </div>
           )}
 
@@ -294,7 +293,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Swafoto Petugas</p>
                   <p className="text-[10px] text-slate-500">
-                    {hasSelfie ? 'tersimpan' : 'wajib sebelum trip diselesaikan'}
+                    {hasSelfie ? 'Tersimpan' : 'Wajib diambil'}
                   </p>
                 </div>
               </div>
@@ -321,7 +320,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Foto Bukti Muatan</p>
                   <p className="text-[10px] text-slate-500">
-                    {hasProof ? 'tersimpan' : 'wajib dijepret sebelum trip dikirim'}
+                    {hasProof ? 'Tersimpan' : 'Wajib diambil'}
                   </p>
                 </div>
               </div>

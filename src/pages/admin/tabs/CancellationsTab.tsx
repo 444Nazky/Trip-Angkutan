@@ -461,7 +461,7 @@ export function CancellationsTab({ showToast, onClose }: CancellationsTabProps) 
               Daftar Rincian Trip Dibatalkan (Petugas → Tanggal)
             </h4>
             <p className="text-[11px] text-[var(--admin-text-muted)]">
-              Satu baris = satu kendaraan. Klik baris untuk melihat alasan pembatalan.
+              Satu baris = satu kendaraan. Klik untuk melihat alasan.
             </p>
           </div>
           <div className="flex gap-1.5">

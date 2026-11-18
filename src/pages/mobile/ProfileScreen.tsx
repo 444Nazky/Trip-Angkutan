@@ -1,5 +1,5 @@
  import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeftRight, CheckCircle, ChevronRight, Database, Download, Lock, MapPin, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { AlertCircle, ArrowLeftRight, CheckCircle, Database, Download, Lock, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { appUpdate } from '../../services/appUpdate'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { exportLocalDatabase } from '../../services/exportDb'
@@ -282,23 +282,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <AlertCircle size={13} /> {update.error}
           </div>
         )}
-      </section>
-
-
-
-
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <button
-          onClick={() => go('geofence-config')}
-          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><MapPin size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-800">Lokasi aktif</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">Lokasi aktif saat ini</p>
-          </div>
-          <ChevronRight size={16} className="text-slate-400" />
-        </button>
       </section>
 
 

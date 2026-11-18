@@ -12,6 +12,8 @@ export type MobileScreen =
   | 'trip-complete'
   | 'history'
   | 'history-detail'
+  | 'sync-trips'
+  | 'location'
   | 'officer-switch'
   | 'pin-verify'
   | 'profile'

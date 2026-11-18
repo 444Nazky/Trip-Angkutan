@@ -12,6 +12,8 @@ import HistoryDetailScreen from './HistoryDetailScreen'
 import OfficerSwitchScreen from './OfficerSwitchScreen'
 import PinVerifyScreen from './PinVerifyScreen'
 import ProfileScreen from './ProfileScreen'
+import SyncTripsScreen from './SyncTripsScreen'
+import ActiveLocationScreen from './ActiveLocationScreen'
 import EndpointScreen from './EndpointScreen'
 import DermagaSelectScreen from './DermagaSelectScreen'
 import GeofenceConfigScreen from './GeofenceConfigScreen'
@@ -28,7 +30,7 @@ type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
-const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'endpoint', 'profile']
+const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'sync-trips', 'location', 'endpoint', 'profile']
 
 
 
@@ -52,11 +54,15 @@ export default function MobileApp() {
 
   const activeNav = ['history', 'history-detail'].includes(screen)
     ? 'history'
-    : screen === 'endpoint'
-    ? 'endpoint'
-    : screen === 'profile'
-    ? 'profile'
-    : 'home'
+    : ['sync-trips', 'trip-summary', 'trip-complete'].includes(screen)
+      ? 'sync-trips'
+      : ['location', 'geofence-config'].includes(screen)
+        ? 'location'
+        : screen === 'endpoint'
+          ? 'endpoint'
+          : screen === 'profile'
+            ? 'profile'
+            : 'home'
 
   const screenMap: Record<MobileScreen, React.ReactNode> = {
     home: <HomeScreen go={go} onStartTrip={handleStartTrip} />,
@@ -68,6 +74,8 @@ export default function MobileApp() {
     'trip-complete': <TripCompleteScreen go={go} />,
     history: <HistoryScreen go={go} />,
     'history-detail': <HistoryDetailScreen go={go} />,
+    'sync-trips': <SyncTripsScreen go={go} />,
+    location: <ActiveLocationScreen go={go} />,
     'officer-switch': <OfficerSwitchScreen go={go} />,
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,

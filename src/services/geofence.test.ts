@@ -659,6 +659,22 @@ describe('validasi end trip terhadap titik tujuan', () => {
     expect(atEnd.activePoint?.id).toBe('geo-end')
   })
 
+  it('peran titik tertukar (data lama) tetap mengenali titik awal dari nama', async () => {
+    h.routes = [{ code: 'SJRE-SBDZ' }]
+    // Kasus data live: titik SJRE berperan end, SBDZ berperan start.
+    saveGeofencePoints([
+      { ...START, id: 'geo-sjre', name: 'TITIK SJRE', pointType: 'end' },
+      { ...END, id: 'geo-sbdz', name: 'TITIK SBDZ', pointType: 'start' },
+    ])
+
+    const res = await validateRouteForCurrentLocation('SJRE-SBDZ', {
+      latitude: START.latitude,
+      longitude: START.longitude,
+    })
+    expect(res.valid).toBe(true)
+    expect(res.activePoint?.id).toBe('geo-sjre')
+  })
+
   it('input kendaraan tidak memakai titik tujuan', async () => {
     h.routes = [{ code: 'SJRE-SBDZ' }]
     saveGeofencePoints([END])

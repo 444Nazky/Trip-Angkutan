@@ -181,7 +181,7 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
         <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${
           isEmptyTrip ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-700'
         }`}>
-          {isEmptyTrip ? 'Kosong' : 'Ada Muatan'}
+          {isEmptyTrip ? 'Ponton tanpa muatan' : 'Ponton dengan muatan'}
         </span>
       </div>
 

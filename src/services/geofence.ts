@@ -685,9 +685,14 @@ export async function validateRouteForCurrentLocation(
     return { valid: false, blocked: true, configMissing: true }
   }
 
-  const startCapable = scoped
-    .filter(point => geofenceRoleServes(point.pointType, 'start'))
-    .filter(point => routeMatchesPoint(point, routeCode))
+  // Titik awal dikenali dari kode asal pada nama titik (mis. "TITIK SJRE").
+  // Peran point_type dipakai sebagai cadangan karena data lama bisa punya
+  // peran tertukar; tanpa ini petugas di titik awal yang benar tetap diblokir.
+  const routePoints = scoped.filter(point => routeMatchesPoint(point, routeCode))
+  const originPoints = routeEndpointPoints(routeCode).origin
+  const startCapable = originPoints.length
+    ? originPoints
+    : routePoints.filter(point => geofenceRoleServes(point.pointType, 'start'))
 
   // Tidak ada titik awal yang mengizinkan rute ini sama sekali.
   if (startCapable.length === 0) {

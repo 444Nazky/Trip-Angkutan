@@ -288,7 +288,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
           </div>
           {vehicleTypes.length === 0 && (
             <p className="mt-1.5 text-[11px] text-amber-600">
-              Jenis kendaraan belum tersedia. Sambungkan ke server untuk menarik master.
+              Jenis kendaraan belum ada. Sambungkan server.
             </p>
           )}
 

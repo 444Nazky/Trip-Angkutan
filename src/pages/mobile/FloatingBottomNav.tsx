@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Home, List, Server, User, X } from 'lucide-react'
+import { Home, List, MapPin, RefreshCw, Server, User, X } from 'lucide-react'
 import type { ElementType } from 'react'
 
 
@@ -22,6 +22,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'home', label: 'Beranda', icon: Home },
   { id: 'history', label: 'Riwayat', icon: List },
+  { id: 'sync-trips', label: 'Sinkron Trip', icon: RefreshCw },
+  { id: 'location', label: 'Lokasi Aktif', icon: MapPin },
   { id: 'endpoint', label: 'Server', icon: Server },
   { id: 'profile', label: 'Profil', icon: User },
 ]
@@ -86,7 +88,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
 
   const handleNavClick = (id: string) => {
     if (activeScreen === 'trip-summary') {
-      const label = id === 'home' ? 'Beranda' : id === 'history' ? 'Riwayat' : id === 'endpoint' ? 'Server' : 'Profil'
+      const label = navItems.find(item => item.id === id)?.label ?? 'Menu'
       openConfirmDialog(`Yakin ke ${label}? Trip belum disimpan.`, () => onNavigate(id))
     } else {
       onNavigate(id)
@@ -103,12 +105,12 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
               <button
                 key={id}
                 onClick={() => handleNavClick(id)}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl transition-all active:scale-95 ${
+                className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-2xl transition-all active:scale-95 ${
                   isActive ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
-                <span className="text-[10px]">{label}</span>
+                <span className="text-[9px] font-medium leading-tight">{label}</span>
               </button>
             )
           })}

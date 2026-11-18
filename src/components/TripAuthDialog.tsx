@@ -123,7 +123,7 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
                 <Fingerprint size={15} /> Sidik jari tidak tersedia
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                Gunakan PIN petugas untuk mengirim trip. Sidik jari akan ditawarkan lagi di perangkat yang mendukung.
+                Pakai PIN petugas. Sidik jari ditawarkan jika tersedia.
               </p>
             </div>
             <label className="block">
