@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Home, List, MapPin, RefreshCw, Server, User, X } from 'lucide-react'
+import { Home, List, MapPin, Server, User, X } from 'lucide-react'
 import type { ElementType } from 'react'
+import MobileModal from '../../components/MobileModal'
 
 
 
@@ -22,7 +23,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'home', label: 'Beranda', icon: Home },
   { id: 'history', label: 'Riwayat', icon: List },
-  { id: 'sync-trips', label: 'Sinkron Trip', icon: RefreshCw },
   { id: 'location', label: 'Lokasi Aktif', icon: MapPin },
   { id: 'endpoint', label: 'Server', icon: Server },
   { id: 'profile', label: 'Profil', icon: User },
@@ -118,9 +118,11 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
       </div>
 
       {/* Navigation Confirmation Dialog */}
-      {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
+      <MobileModal
+        open={confirmDialog.isOpen}
+        onClose={closeConfirmDialog}
+        panelClassName="max-w-xs rounded-2xl bg-white p-5 shadow-xl"
+      >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">Konfirmasi</h3>
               <button
@@ -150,9 +152,7 @@ export default function FloatingBottomNav({ activeScreen, onNavigate }: Floating
                 {confirmDialog.countdown > 0 ? `Yakin (${confirmDialog.countdown})` : 'Yakin'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </MobileModal>
     </>
   )
 }

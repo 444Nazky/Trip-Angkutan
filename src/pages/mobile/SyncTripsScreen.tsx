@@ -49,10 +49,6 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
     })
   }, [trips, queue])
 
-  const pending = rows.filter(r => r.status.state === 'pending').length
-  const failedCount = rows.filter(r => r.status.state === 'failed').length
-  const local = rows.filter(r => r.status.state === 'local').length
-
   const runSync = async () => {
     if (busy) return
     setBusy(true)
@@ -91,11 +87,11 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
   }
 
   return (
-    <div className="space-y-4 px-4 pb-6 pt-2">
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-4 px-4 pb-4 pt-2">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-black text-slate-900">Sinkron Trip</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">Trip yang belum terkirim ke server.</p>
+          <h2 className="font-black text-slate-900 text-[20px]">Trip Belum Terkirim</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">{rows.length} trip menunggu dikirim.</p>
         </div>
         <button
           onClick={() => void runSync()}
@@ -105,21 +101,6 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
           {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           {busy ? 'Mengirim…' : 'Sinkron Semua'}
         </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2">
-          <p className="text-base font-black text-amber-700">{pending}</p>
-          <p className="text-[9px] font-semibold text-amber-700">Menunggu</p>
-        </div>
-        <div className="rounded-xl border border-red-200 bg-red-50 px-2 py-2">
-          <p className="text-base font-black text-red-600">{failedCount}</p>
-          <p className="text-[9px] font-semibold text-red-600">Gagal</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-          <p className="text-base font-black text-slate-600">{local}</p>
-          <p className="text-[9px] font-semibold text-slate-500">Belum antre</p>
-        </div>
       </div>
 
       {message && (
@@ -132,34 +113,34 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
       )}
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-8 text-center">
+        <div className="rounded-2xl border border-slate-100 bg-white px-6 py-10 text-center shadow-sm">
           <CheckCircle2 size={30} className="mx-auto text-emerald-500" />
-          <p className="mt-2 text-sm font-bold text-emerald-800">Semua trip terkirim</p>
-          <p className="mt-1 text-[11px] text-emerald-700">Tidak ada data yang menunggu.</p>
+          <p className="mt-3 text-[14px] font-bold text-slate-700">Semua trip sudah terkirim</p>
+          <p className="mt-1 text-[12px] text-slate-400">Tidak ada data yang menunggu.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {rows.map(({ trip, status }) => (
             <button
               key={trip.id}
               onClick={() => openDetail(trip.id)}
-              className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left active:bg-slate-50"
+              className="flex w-full items-start gap-4 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
             >
-              <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
                 status.state === 'failed'
-                  ? 'bg-red-50 text-red-600'
+                  ? 'bg-red-50 text-red-500'
                   : status.state === 'pending'
-                    ? 'bg-amber-50 text-amber-600'
-                    : 'bg-slate-100 text-slate-500'
+                    ? 'bg-amber-50 text-amber-500'
+                    : 'bg-slate-100 text-slate-400'
               }`}>
-                {status.state === 'failed' ? <AlertTriangle size={16} /> : <CloudOff size={16} />}
+                {status.state === 'failed' ? <AlertTriangle size={20} /> : <CloudOff size={20} />}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-[12px] font-bold text-slate-900">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="truncate text-[14px] font-bold text-slate-900">
                     {trip.routeFrom && trip.routeTo ? `${trip.routeFrom} → ${trip.routeTo}` : trip.route || 'Trip'}
                   </p>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
                     status.state === 'failed'
                       ? 'bg-red-50 text-red-600'
                       : status.state === 'pending'
@@ -169,17 +150,20 @@ export default function SyncTripsScreen({ go }: SyncTripsScreenProps) {
                     {status.state === 'failed' ? 'GAGAL' : status.state === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[10px] text-slate-500">
-                  {trip.date} · {trip.time} · {trip.officer || officer.name} · {trip.vehicles?.length ?? 0} unit
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  {trip.id} · {trip.load === 'Kosong' ? 'Ponton tanpa muatan' : 'Ponton dengan muatan'}
-                </p>
+                <p className="font-mono text-[11px] text-slate-400">{trip.id}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                  <span>{trip.date} · {trip.time}</span>
+                  <span>{trip.officer || officer.name}</span>
+                  <span>{trip.vehicles?.length ?? 0} unit</span>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${trip.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                    {trip.load}
+                  </span>
+                </div>
                 {status.state === 'failed' && status.error && (
-                  <p className="mt-1 line-clamp-2 text-[10px] font-semibold text-red-600">{status.error}</p>
+                  <p className="mt-2 line-clamp-2 text-[10px] font-semibold text-red-600">{status.error}</p>
                 )}
               </div>
-              <ChevronRight size={16} className="mt-2 shrink-0 text-slate-300" />
+              <ChevronRight size={16} className="mt-3 shrink-0 text-slate-300" />
             </button>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { AlertTriangle, History, PlayCircle, X } from 'lucide-react'
+import MobileModal from './MobileModal'
 
 /**
  * Notifikasi panduan untuk draft trip yang belum dikirim.
@@ -45,8 +46,12 @@ export default function DraftLockToast({
   })()
 
   return (
-    <div className="fixed inset-x-3 bottom-4 z-[90] flex justify-center pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 shadow-lg shadow-amber-900/10 p-3.5 flex items-start gap-3">
+    <MobileModal
+      open={visible}
+      onClose={onClose}
+      panelClassName="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-2xl shadow-amber-900/20"
+    >
+      <div className="flex items-start gap-3">
         <span className="mt-0.5 shrink-0 w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center">
           <AlertTriangle size={15} />
         </span>
@@ -83,6 +88,6 @@ export default function DraftLockToast({
           <X size={14} />
         </button>
       </div>
-    </div>
+    </MobileModal>
   )
 }

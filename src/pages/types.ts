@@ -73,6 +73,7 @@ export interface Officer {
   username?: string
   initials: string
   region: string
+  regionName?: string
   regions?: string[]
   pin: string
   status: string

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, MapPin, Navigation, RefreshCw, Settings2 } from 'lucide-react'
 import { useApp } from '../store'
+import { regionDisplayName } from '../../services/adminPull'
 import type { MobileScreen } from '../types'
 import {
   getActiveGeofenceSnapshot,
@@ -121,7 +122,7 @@ export default function ActiveLocationScreen({ go }: ActiveLocationScreenProps) 
           <MapPin size={14} className="text-slate-500" />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-slate-800">Petugas</p>
-            <p className="text-[11px] text-slate-500">{officer.name} · {officer.region}</p>
+            <p className="text-[11px] text-slate-500">{officer.name} · {regionDisplayName(officer.region, officer.regionName)}</p>
           </div>
         </div>
       </section>

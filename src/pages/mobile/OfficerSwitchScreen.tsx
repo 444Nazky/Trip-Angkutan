@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Lock, RefreshCw, LogOut } from 'lucide-react'
 import { useApp } from '../store'
+import { regionDisplayName } from '../../services/adminPull'
 import type { MobileScreen } from '../types'
 
 
@@ -40,6 +41,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
   }, [])
 
   const myRegions = officer.regions && officer.regions.length > 0 ? officer.regions : [officer.region]
+  const myRegionLabels = myRegions.map(code => regionDisplayName(code, code === officer.region ? officer.regionName : undefined))
 
   const myDermagaIds = new Set((officer.dermagaAccess || []).map(d => d.id))
   const filtered = officers.filter(o => {
@@ -72,7 +74,7 @@ export default function OfficerSwitchScreen({ go }: OfficerSwitchScreenProps) {
         </div>
         <h2 className="text-white font-black text-[18px] mb-0.5">Daftar Rekan Kerja</h2>
         <p className="text-slate-400 text-[12px]">
-          Hanya rekan dg dermaga sama: <span className="text-emerald-400 font-black">{myRegions.join(', ')}</span>
+          Hanya rekan dg dermaga sama: <span className="text-emerald-400 font-black">{myRegionLabels.join(', ')}</span>
         </p>
         {!online && (
           <p className="text-[11px] font-bold text-amber-400 mt-1.5">

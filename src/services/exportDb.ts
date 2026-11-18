@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { dbAll, localDbBackend } from './localDb'
+import { canPickSaveLocation, saveJsonWithPicker } from './saveFile'
 
 /**
  * Ekspor database lokal perangkat.
@@ -189,27 +189,37 @@ export async function exportLocalDatabase(): Promise<ExportResult> {
       return downloadInBrowser(filename, json)
     }
 
-    let lastError = ''
-    for (const directory of [Directory.Documents, Directory.External, Directory.Cache]) {
-      try {
-        const res = await Filesystem.writeFile({
-          path: filename,
-          data: json,
-          directory,
-          encoding: Encoding.UTF8,
-          recursive: true,
-        })
-        return { ok: true, filename, size: json.length, mode: 'file', path: res.uri }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err)
+    if (!canPickSaveLocation()) {
+      return {
+        ok: false,
+        filename,
+        size: json.length,
+        message: 'Pemilih lokasi file hanya tersedia di aplikasi Android.',
       }
     }
 
-    return {
-      ok: false,
-      filename,
-      size: json.length,
-      message: `Gagal menyimpan berkas ekspor: ${lastError || 'penyimpanan tidak tersedia'}`,
+    try {
+      const saved = await saveJsonWithPicker(filename, json)
+      return {
+        ok: true,
+        filename: saved.name || filename,
+        size: json.length,
+        mode: 'file',
+        path: saved.uri,
+      }
+    } catch (err) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? String((err as { code?: unknown }).code ?? '')
+        : ''
+      const message = err instanceof Error ? err.message : String(err)
+      return {
+        ok: false,
+        filename,
+        size: json.length,
+        message: code === 'CANCELLED'
+          ? 'Ekspor dibatalkan.'
+          : `Gagal menyimpan berkas ekspor: ${message || 'lokasi tidak tersedia'}`,
+      }
     }
   } catch (err) {
     return {

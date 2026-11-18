@@ -3,6 +3,7 @@ import { AlertCircle, ArrowLeftRight, CheckCircle, Database, Download, Lock, Ref
 import { appUpdate } from '../../services/appUpdate'
 import { useAppUpdate } from '../../components/UpdateNotifier'
 import { exportLocalDatabase } from '../../services/exportDb'
+import { regionDisplayName } from '../../services/adminPull'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -81,8 +82,8 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
       if (result.ok) {
         setExportMessage(
           result.mode === 'file'
-            ? `Database diekspor ke ${result.path ?? result.filename}`
-            : `Database diekspor: ${result.filename}`,
+            ? `Database disimpan: ${result.filename}`
+            : `Database diunduh: ${result.filename}`,
         )
       } else {
         setExportMessage(result.message ?? 'Gagal mengekspor database')
@@ -138,6 +139,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
 
 
 
+  const regionLabel = regionDisplayName(officer.region, officer.regionName) || '—'
   const myTrips = trips.filter(t => t.officerId ? String(t.officerId) === String(officer.id) : t.officer === officer.name)
 
   const units = new Set(
@@ -163,7 +165,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <p className="text-blue-400 text-[12px] mt-0.5">@{officer.username || officer.name.toLowerCase().replace(/\s+/g, '')}</p>
             <div className="flex items-center gap-1.5 mt-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-emerald-400 text-[11px] font-bold">REGION : {officer.region}</span>
+              <span className="text-emerald-400 text-[11px] font-bold">REGION : {regionLabel}</span>
             </div>
           </div>
         </div>
@@ -186,7 +188,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10">
           <Lock size={12} className="text-slate-500" />
           <span className="text-[11px] text-slate-500">Region Locked</span>
-          <span className="ml-auto text-[11px] font-black text-emerald-400 tracking-widest">{officer.region}</span>
+          <span className="ml-auto text-[11px] font-black text-emerald-400 tracking-widest">{regionLabel}</span>
           <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
         </div>
       </section>
@@ -232,7 +234,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Database size={16} /></span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-800">Ekspor Database Lokal</p>
-              <p className="mt-0.5 text-[10px] text-slate-400">Trip, petugas, dan master data 40 hari terakhir</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">Pilih folder simpan lewat file manager. Data 40 hari terakhir.</p>
             </div>
             {exporting
               ? <RefreshCw size={15} className="animate-spin text-slate-400" />

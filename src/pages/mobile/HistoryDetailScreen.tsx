@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, Camera, ImageOff, Cloud, CloudOff, AlertTriangle, Ban, X, Info, Pencil, Plus } from 'lucide-react'
 import { fmtElapsed, unitLabel, useApp, type VehicleEntry, type Trip } from '../store'
 import { validateTripEditForCurrentLocation } from '../../services/geofence'
+import MobileModal from '../../components/MobileModal'
 import { classifyTripSync, onSyncQueueChange, type SyncItem } from '../../services/sync'
 import {
   onCancelQueueChange,
@@ -353,17 +354,22 @@ export default function HistoryDetailScreen({ go }: HistoryDetailScreenProps) {
       </div>
 
       {/* Lightbox dokumentasi */}
-      {preview && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute top-4 right-4 p-3 rounded-full bg-white/10 text-white">
-            <X size={20} />
-          </button>
-          <div className="max-w-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
-            <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
-            <p className="text-white text-[12px] font-black uppercase text-center">{preview.label} - {t.id}</p>
+      <MobileModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        overlayClassName="bg-black/90"
+        panelClassName="max-w-4xl bg-transparent p-0 shadow-none"
+      >
+        {preview && (
+          <div className="relative flex flex-col items-center gap-3 p-4">
+            <button onClick={() => setPreview(null)} aria-label="Tutup pratinjau" className="absolute right-0 top-0 p-3 rounded-full bg-white/10 text-white">
+              <X size={20} />
+            </button>
+            <img src={preview.url} alt={preview.label} onError={() => { markBroken(preview.url); setPreview(null) }} className="mt-12 max-h-[70dvh] max-w-full rounded-lg object-contain" />
+            <p className="text-center text-[12px] font-black uppercase text-white">{preview.label} - {t.id}</p>
           </div>
-        </div>
-      )}
+        )}
+      </MobileModal>
 
       {/* Status: trip yang dibatalkan tidak lagi memakai status antrean trip —
           yang dikirim ke server adalah dokumen pembatalan. */}

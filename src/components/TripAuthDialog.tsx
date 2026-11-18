@@ -3,6 +3,7 @@ import { Fingerprint, KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
 import { useApp } from '../pages/store'
 import { verifyPinOffline } from '../services/auth'
 import { verifyBiometric } from '../services/biometric'
+import MobileModal from './MobileModal'
 
 interface TripAuthDialogProps {
   open: boolean
@@ -87,8 +88,12 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+    <MobileModal
+      open={open}
+      onClose={onClose}
+      overlayClassName="bg-black/60"
+      panelClassName="max-w-sm rounded-3xl bg-white p-5 shadow-2xl"
+    >
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
@@ -171,7 +176,6 @@ export default function TripAuthDialog({ open, onClose, onVerified }: TripAuthDi
             </button>
           </div>
         )}
-      </div>
-    </div>
+    </MobileModal>
   )
 }

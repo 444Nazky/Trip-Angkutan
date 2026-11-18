@@ -30,7 +30,7 @@ type AnimKind = 'push' | 'pop' | 'zoom' | 'sheet' | 'tab'
 
 const ZOOM_SCREENS: MobileScreen[] = ['camera', 'trip-summary', 'trip-complete', 'history-detail']
 const SHEET_SCREENS: MobileScreen[] = ['trip-condition', 'vehicle-form', 'pin-verify']
-const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'sync-trips', 'location', 'endpoint', 'profile']
+const TAB_SCREENS: MobileScreen[] = ['home', 'history', 'location', 'endpoint', 'profile']
 
 
 
@@ -55,7 +55,7 @@ export default function MobileApp() {
   const activeNav = ['history', 'history-detail'].includes(screen)
     ? 'history'
     : ['sync-trips', 'trip-summary', 'trip-complete'].includes(screen)
-      ? 'sync-trips'
+      ? 'home'
       : ['location', 'geofence-config'].includes(screen)
         ? 'location'
         : screen === 'endpoint'

@@ -92,7 +92,7 @@ const render = async () => {
 }
 
 const click = async (label: string) => {
-  const button = [...container.querySelectorAll('button')].find(b => b.textContent?.includes(label))
+  const button = [...document.querySelectorAll('button')].find(b => b.textContent?.includes(label))
   expect(button, `tombol "${label}" tidak ditemukan`).toBeTruthy()
   await act(async () => { button!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
 }
@@ -107,9 +107,9 @@ describe('penguncian tombol Mulai Trip saat masih ada draft', () => {
   it('mengetuk tombol terkunci memunculkan panduan lanjutkan/hapus draft di Riwayat', async () => {
     await render()
     await click('Mulai Trip (terkunci)')
-    expect(container.textContent).toContain('Trip baru belum bisa dimulai')
-    expect(container.textContent).toContain('Lanjutkan atau batalkan di Riwayat')
-    expect(container.textContent).toContain('Riwayat')
+    expect(document.body.textContent).toContain('Trip baru belum bisa dimulai')
+    expect(document.body.textContent).toContain('Lanjutkan atau batalkan di Riwayat')
+    expect(document.body.textContent).toContain('Buka Riwayat')
     // Trip baru TIDAK boleh dimulai diam-diam.
     expect(mocks.startTrip).not.toHaveBeenCalled()
   })
@@ -147,6 +147,29 @@ describe('penguncian tombol Mulai Trip saat masih ada draft', () => {
     expect(container.textContent).not.toContain('Mulai Trip (terkunci)')
     await click('Mulai Trip')
     expect(mocks.startTrip).toHaveBeenCalled()
+  })
+
+  it('menampilkan hanya trip yang belum tersinkron dan mengarahkan Lihat Semua ke antrean', async () => {
+    mocks.state.trips = [
+      {
+        id: 'trip-synced', officer: 'Petugas', officerId: 'o1', synced: true,
+        vehicle: 'B 1111 AA', vehicles: [{ plate: 'B 1111 AA' }],
+        load: 'Ada Muatan', route: 'Rute Sudah Terkirim', time: '08:00',
+      },
+      {
+        id: 'trip-pending', officer: 'Petugas', officerId: 'o1', synced: false,
+        vehicle: 'B 2222 BB', vehicles: [{ plate: 'B 2222 BB' }],
+        load: 'Kosong', route: 'Rute Belum Terkirim', time: '09:00',
+      },
+    ]
+
+    await render()
+
+    expect(container.textContent).toContain('Trip belum tersinkron')
+    expect(container.textContent).toContain('Rute Belum Terkirim')
+    expect(container.textContent).not.toContain('Rute Sudah Terkirim')
+    await click('Lihat Semua')
+    expect(mocks.go).toHaveBeenCalledWith('sync-trips')
   })
 
   it('tidak menghitung trip yang dibatalkan sebagai tercatat atau belum terkirim', async () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { ChevronLeft, Camera, Check, Ban } from 'lucide-react'
 import { golonganFor, unitLabel, useApp, vehicleTariff } from '../store'
 import { checkPlate, type PlateCheck } from '../../services/plates'
+import MobileModal from '../../components/MobileModal'
 import type { MobileScreen } from '../types'
 import {
   formatPlateNumber,
@@ -477,10 +478,11 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
       )}
 
       {/* Modal Konfirmasi */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="w-full bg-white rounded-t-2xl p-6">
-            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-5" />
+      <MobileModal
+        open={showModal}
+        closeOnBackdrop={false}
+        panelClassName="max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+      >
             <h3 className="text-center font-semibold text-slate-900 mb-4">{isEditing ? 'Perubahan Tersimpan' : 'Kendaraan Tersimpan'}</h3>
 
             <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-2 text-sm">
@@ -527,9 +529,7 @@ export default function VehicleFormScreen({ go }: VehicleFormScreenProps) {
                 {isEditing ? 'Selesai Ubah' : 'Tambah Lagi'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </MobileModal>
     </div>
   )
 }

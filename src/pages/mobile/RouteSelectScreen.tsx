@@ -13,6 +13,7 @@ import {
   type GeofencePoint,
 } from '../../services/geofence'
 import { partitionRoutes, pickAutoRouteCode, routeAllowed } from '../../services/routeAvailability'
+import { regionDisplayName } from '../../services/adminPull'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 
@@ -375,7 +376,7 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wide">Wilayah Aktif</p>
-          <p className="text-white font-bold text-[13px]">{officer.region}</p>
+          <p className="text-white font-bold text-[13px]">{regionDisplayName(officer.region, officer.regionName) || '—'}</p>
           {dockName && (
             <div className="flex items-center gap-1 mt-0.5">
               <Anchor size={10} className="text-amber-400" />

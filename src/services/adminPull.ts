@@ -79,6 +79,19 @@ function saveRegions(regions: StoredRegion[]): void {
   try { localStorage.setItem(REGIONS_STORAGE_KEY, JSON.stringify(regions)) } catch { /* quota */ }
 }
 
+/**
+ * Nama wilayah untuk UI. Data petugas lama hanya menyimpan kode (mis. KMP),
+ * jadi kode tersebut dicocokkan ke master region yang sudah tersimpan.
+ */
+export function regionDisplayName(value?: string | null, fallback?: string | null): string {
+  const needle = String(value ?? '').trim()
+  const saved = String(fallback ?? '').trim()
+  const found = needle
+    ? getStoredRegions().find(r => r.code === needle || r.id === needle)
+    : undefined
+  return saved || found?.name || needle
+}
+
 
 
 /**

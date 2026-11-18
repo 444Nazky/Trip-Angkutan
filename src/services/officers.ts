@@ -107,6 +107,7 @@ function toMobileOfficer(bo: BackendOfficer) {
     username: bo.username || undefined,
     initials: bo.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     region: primaryRegion,
+    regionName: bo.regions?.[0]?.name || primaryRegion,
     regions: bo.regions?.map(r => r.code) ?? [primaryRegion],
     pin: '',
     status: bo.is_active ? 'Aktif' : 'Nonaktif',

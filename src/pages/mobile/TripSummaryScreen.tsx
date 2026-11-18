@@ -4,6 +4,7 @@ import { activeRoutes } from '../data'
 import { unitLabel, useApp } from '../store'
 import { validateTripEndForCurrentLocation } from '../../services/geofence'
 import CancelTripDialog from '../../components/CancelTripDialog'
+import MobileModal from '../../components/MobileModal'
 import TripAuthDialog from '../../components/TripAuthDialog'
 import type { MobileScreen } from '../types'
 
@@ -401,9 +402,11 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
         }}
       />
 
-      {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
+      <MobileModal
+        open={confirmDialog.isOpen}
+        onClose={closeConfirmDialog}
+        panelClassName="max-w-xs rounded-2xl bg-white p-5 shadow-xl"
+      >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">Konfirmasi</h3>
               <button
@@ -434,9 +437,7 @@ export default function TripSummaryScreen({ go }: TripSummaryScreenProps) {
                 {confirmDialog.countdown > 0 ? `Yakin (${confirmDialog.countdown})` : 'Yakin'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </MobileModal>
     </div>
   )
 }

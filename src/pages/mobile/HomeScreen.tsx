@@ -1,4 +1,4 @@
-import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock } from 'lucide-react'
+import { Truck, ChevronRight, ArrowRight, RefreshCw, Lock, CloudOff, AlertTriangle } from 'lucide-react'
 import { useApp } from '../store'
 import { classifyTripSync, getPendingCount, onSyncQueueChange, syncNow, type SyncItem } from '../../services/sync'
 import { prefetchAllCriticalData } from '../../services/prefetch'
@@ -84,8 +84,9 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
   // Status kirim per trip (antrean = sumber kebenaran, bukan `trip.synced`).
   const stateOf = (id: string, synced: boolean | undefined) =>
     classifyTripSync(id, synced, queue).state
-  const queuedCount = recordedTrips.filter(t => stateOf(t.id, t.synced) !== 'synced').length
-  const failedCount = recordedTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
+  const unsyncedTrips = recordedTrips.filter(t => stateOf(t.id, t.synced) !== 'synced')
+  const queuedCount = unsyncedTrips.length
+  const failedCount = unsyncedTrips.filter(t => stateOf(t.id, t.synced) === 'failed').length
   const syncLabel = (() => {
     if (busy) return 'Menyinkronkan…'
     if (syncState && syncState.reachable === false) return 'Offline — server belum terjangkau'
@@ -261,34 +262,47 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
         ))}
       </div>
 
-      {/* Recent Trips */}
+      {/* Trip yang belum terkirim */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-slate-800 text-[15px]">Daftar Trip</h3>
-          <button onClick={() => go('history')} className="text-blue-600 text-[12px] font-bold flex items-center gap-1">
+          <h3 className="font-bold text-slate-800 text-[15px]">Trip belum tersinkron</h3>
+          <button onClick={() => go('sync-trips')} className="text-blue-600 text-[12px] font-bold flex items-center gap-1">
             Lihat Semua <ChevronRight size={14} />
           </button>
         </div>
-        <div className="flex flex-col" style={{ gap: 12 }}>
-          {recordedTrips.slice(0, 3).map(t => (
-            <button
-              key={t.id}
-              onClick={() => { setDetailTripId(t.id); go('history-detail') }}
-              className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md active:scale-[0.98] transition-all text-left"
-            >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${t.load === 'Ada Muatan' ? 'bg-blue-100' : 'bg-slate-100'}`}>
-                <Truck size={20} className={t.load === 'Ada Muatan' ? 'text-blue-500' : 'text-slate-400'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-bold text-slate-800">{t.route}</p>
-                <p className="text-[12px] text-slate-400 mt-0.5 ">{t.time} · {t.vehicle !== '-' ? t.vehicle : t.load}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className={`text-[11px] font-bold px-3 py-1.5 rounded-full ${t.load === 'Ada Muatan' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{t.load}</span>
-              </div>
-            </button>
-          ))}
-        </div>
+        {unsyncedTrips.length === 0 ? (
+          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-6 text-center shadow-sm">
+            <CloudOff size={22} className="mx-auto text-emerald-500" />
+            <p className="mt-2 text-[12px] font-semibold text-slate-600">Semua trip sudah tersinkron</p>
+          </div>
+        ) : (
+          <div className="flex flex-col" style={{ gap: 12 }}>
+            {unsyncedTrips.slice(0, 3).map(t => {
+              const status = stateOf(t.id, t.synced)
+              const failed = status === 'failed'
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => { setDetailTripId(t.id); go('history-detail') }}
+                  className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md active:scale-[0.98] transition-all text-left"
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${failed ? 'bg-red-50' : 'bg-amber-50'}`}>
+                    {failed
+                      ? <AlertTriangle size={20} className="text-red-500" />
+                      : <Truck size={20} className="text-amber-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-bold text-slate-800">{t.route}</p>
+                    <p className="text-[12px] text-slate-400 mt-0.5">{t.time} · {t.vehicle !== '-' ? t.vehicle : t.load}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold ${failed ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                    {failed ? 'GAGAL' : status === 'pending' ? 'MENUNGGU' : 'BELUM ANTRE'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Panduan kalau tombol Mulai Trip terkunci karena masih ada draft */}
