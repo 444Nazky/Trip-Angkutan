@@ -32,6 +32,14 @@ async function officerExtrasBulk(officerIds: string[]) {
 }
 
 function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
+  // Officer lama bisa punya region_id utama tanpa baris officer_regions.
+  // Tanpa fallback ini dashboard menerima `regions: []`, sehingga wilayah
+  // yang masih menempel tampak kosong dan edit berikutnya menghapus aksesnya.
+  const regions = extras.regions.length > 0
+    ? extras.regions
+    : o.regions?.id
+      ? [o.regions]
+      : [];
   return {
     ...o,
     pin_hash: o.pin ?? null,
@@ -39,6 +47,7 @@ function shapeOfficer(o: any, extras: { regions: any[]; dermagas: any[] }) {
     region_name: o.regions?.name,
     region_code: o.regions?.code,
     ...extras,
+    regions,
   };
 }
 
@@ -50,7 +59,7 @@ export async function getOfficers(req: Request): Promise<Response> {
 
     const { data: officers, error } = await db
       .from("officers")
-      .select("id, name, username, region_id, is_active, regions!officers_region_id_fkey(name, code)")
+      .select("id, name, username, region_id, is_active, regions!officers_region_id_fkey(id, name, code)")
       .order("name", { ascending: true });
     if (error) throw error;
 
@@ -131,7 +140,7 @@ export async function myRegionOfficers(req: Request): Promise<Response> {
 
     const { data: officers } = await db
       .from("officers")
-      .select("*, regions!officers_region_id_fkey(name, code)")
+      .select("*, regions!officers_region_id_fkey(id, name, code)")
       .order("name", { ascending: true });
 
     // Extras (regions + dermaga) diambil sekaligus untuk semua officer —
