@@ -2,6 +2,8 @@ import JSZip from 'jszip'
 import { Capacitor } from '@capacitor/core'
 import { dbAll, localDbBackend } from './localDb'
 import { canPickSaveLocation, saveBinaryWithPicker } from './saveFile'
+import { getStoredTariffs } from './masterTariffs'
+import { vehicleTypeKey } from './vehicleTypes'
 
 /**
  * Ekspor data trip perangkat menjadi satu arsip ZIP:
@@ -199,6 +201,10 @@ export async function buildLocalDatabaseExport(
 
   const photos: ExportPhotoFile[] = []
   const exportedTrips: TripRow[] = []
+  // Cache tarif perangkat dipakai sebagai cadangan bila kendaraan lama
+  // tersimpan dengan tariff 0. Ini menjaga arsip tetap membawa nominal yang
+  // benar walau cache master belum terisi saat trip dibuat.
+  const storedTariffs = getStoredTariffs()
 
   const addPhoto = (trip: TripRow, kind: string, value: unknown): string | undefined => {
     if (typeof value !== 'string' || !value.trim()) return undefined
@@ -232,6 +238,19 @@ export async function buildLocalDatabaseExport(
       const photo = addPhoto(trip, `kendaraan-${index + 1}`, row['photoUrl'])
       if (photo) row['photoUrl'] = photo
       else delete row['photoUrl']
+
+      // Hanya kategori Eksternal yang nominalnya berasal dari master per jenis.
+      // Internal selalu 0 dan Lokal memakai tarif flat region, jadi jangan diisi
+      // dari cache muatan/kosong agar tidak salah nominal.
+      const category = String(row['category'] ?? row['kategori'] ?? '').trim().toLowerCase()
+      const currentTariff = Number(row['tariff'] ?? row['tariffAmount'] ?? 0) || 0
+      if (category.startsWith('eksternal') && currentTariff <= 0) {
+        const key = vehicleTypeKey(row['type'] ?? row['vehicleType'])
+        const tariff = storedTariffs.find(t => vehicleTypeKey(t.type) === key)
+        const hasLoad = row['hasLoad'] !== false && row['load'] !== 'empty'
+        const amount = hasLoad ? tariff?.loadedNum : tariff?.emptyNum
+        if (amount && amount > 0) row['tariff'] = Math.round(amount)
+      }
       return row
     })
 

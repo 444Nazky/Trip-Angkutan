@@ -14,6 +14,7 @@ import {
   exportLocalDatabase,
   LOCAL_TRIPS_CACHE_KEY,
 } from './exportDb'
+import { TARIFFS_STORAGE_KEY } from './masterTariffs'
 
 const NOW = Date.parse('2026-11-18T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -54,6 +55,32 @@ describe('buildLocalDatabaseExport', () => {
 
     expect(payload.trips.map(t => t.id)).toEqual(['cache-terkirim'])
     expect(payload.counts.trips).toBe(1)
+  })
+
+  it('mengisi tarif Eksternal yang kosong dari cache tarif perangkat', async () => {
+    localStorage.setItem(TARIFFS_STORAGE_KEY, JSON.stringify([
+      { id: 't-1', type: 'Truk Kecil', loadedNum: 70000, emptyNum: 50000 },
+    ]))
+    await dbPut('trips', {
+      id: 'tarif-lama',
+      synced: true,
+      completedAt: recent,
+      vehicles: [
+        { plate: 'B 1 X', type: 'Truk Kecil', category: 'Eksternal', hasLoad: true, tariff: 0 },
+        { plate: 'B 2 X', type: 'Truk Kecil', category: 'Eksternal', hasLoad: false, tariff: 0 },
+        { plate: 'B 3 X', type: 'Truk Kecil', category: 'Internal', hasLoad: true, tariff: 0 },
+        { plate: 'B 4 X', type: 'Truk Kecil', category: 'Lokal', hasLoad: true, tariff: 0 },
+      ],
+    })
+
+    const { payload } = await buildLocalDatabaseExport(NOW)
+    const trip = payload.trips[0] as Record<string, unknown>
+    const vehicles = trip['vehicles'] as Array<Record<string, unknown>>
+
+    expect(vehicles[0]['tariff']).toBe(70000)
+    expect(vehicles[1]['tariff']).toBe(50000)
+    expect(vehicles[2]['tariff']).toBe(0)
+    expect(vehicles[3]['tariff']).toBe(0)
   })
 
   it('memisahkan foto ke images/ dan mengganti URL foto dengan referensi file', async () => {

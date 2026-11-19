@@ -591,12 +591,12 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
             </button>
           </div>
           <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
-            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Trip Bermuatan</p>
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Ponton dengan Muatan</p>
             <p className="text-2xl font-black text-[var(--admin-text)] mt-2 tabular-nums leading-none">{muatanCount}</p>
             <p className="mt-2 text-[10px] font-bold text-[var(--admin-text-faint)]">{muatanPct.toFixed(0)}% dari total trip</p>
           </div>
           <div className="bg-[var(--admin-surface)] rounded-2xl p-5 border border-[var(--admin-border)] shadow-[var(--admin-shadow-card)] text-center flex flex-col items-center justify-center">
-            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Kapal Kosong</p>
+            <p className="text-[var(--admin-text-faint)] text-[11px] font-semibold uppercase">Ponton tanpa Muatan</p>
             <p className="text-2xl font-black text-[var(--admin-text)] mt-2 tabular-nums leading-none">{tanpaMuatan}</p>
             <p className="mt-2 text-[10px] font-bold text-[var(--admin-text-faint)]">{tanpaMuatanPct.toFixed(0)}% dari total trip</p>
           </div>

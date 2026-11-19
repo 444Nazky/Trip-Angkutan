@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ArchiveRestore, CheckCircle2, FileArchive, Loader2, UploadCloud, X } from 'lucide-react'
 import { api } from '../../../services/api'
 
@@ -14,6 +14,31 @@ interface RestoreResult {
   photos?: number
 }
 
+interface PreviewTrip {
+  clientTripId: string
+  officer: string
+  completedAt: string
+  routeFrom: string
+  routeTo: string
+  statusMuatan: 'muatan' | 'kosong'
+  vehicleCount: number
+  photoCount: number
+  tariffTotal: number
+  exists: boolean
+}
+
+interface PreviewResult {
+  success?: boolean
+  trips?: PreviewTrip[]
+  totals?: {
+    trips?: number
+    vehicles?: number
+    photos?: number
+    tariffTotal?: number
+    existing?: number
+  }
+}
+
 interface RestoreMobileTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
@@ -24,25 +49,43 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatRupiah(amount: number): string {
+  return `Rp ${Math.round(amount).toLocaleString('id-ID')}`
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return value
+  return date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 /**
  * Restore data trip dari arsip ZIP hasil "Ekspor Data Trip" di aplikasi mobile.
  *
- * Yang divalidasi di sini hanya hal yang bisa diperiksa cepat di browser
- * (ekstensi .zip dan ukuran maksimal). Isi arsip — `data_trip.json`, struktur
- * skema, dan file foto — divalidasi ulang sepenuhnya di server; arsip yang
- * rusak ditolak dengan HTTP 400 dan pesannya ditampilkan apa adanya.
+ * Setelah file dipilih, arsip langsung dipratinjau oleh server: seluruh trip
+ * ditampilkan lengkap dengan tarif hasil resolver server, lalu operator bisa
+ * memulihkan satu trip saja atau semuanya. Tidak ada data yang ditulis saat
+ * pratinjau — validasi dan penulisan tetap terjadi di endpoint restore.
  */
 export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState<PreviewResult | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [busyAction, setBusyAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RestoreResult | null>(null)
+
+  const busy = busyAction !== null
 
   const pickFile = (candidate: File | null) => {
     setError(null)
     setResult(null)
+    setPreview(null)
+    setPreviewError(null)
     if (!candidate) { setFile(null); return }
     if (!candidate.name.toLowerCase().endsWith('.zip')) {
       setFile(null)
@@ -57,6 +100,38 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
     setFile(candidate)
   }
 
+  // Pratinjau otomatis setiap kali file berubah (atau setelah restore selesai).
+  useEffect(() => {
+    if (!file) {
+      setPreview(null)
+      setPreviewError(null)
+      setPreviewing(false)
+      return
+    }
+    let alive = true
+    setPreview(null)
+    setPreviewError(null)
+    setPreviewing(true)
+    const form = new FormData()
+    form.append('archive', file)
+    void api.postMultipart<PreviewResult>('/admin/preview-mobile', form)
+      .then(res => {
+        if (!alive) return
+        if (!res.ok) {
+          setPreviewError(res.error?.message ?? 'Gagal membaca arsip')
+          return
+        }
+        setPreview(res.data ?? { trips: [] })
+      })
+      .catch((err: unknown) => {
+        if (alive) setPreviewError(err instanceof Error ? err.message : 'Gagal membaca arsip')
+      })
+      .finally(() => {
+        if (alive) setPreviewing(false)
+      })
+    return () => { alive = false }
+  }, [file, refreshKey])
+
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setDragging(false)
@@ -65,14 +140,14 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
     pickFile(dropped)
   }
 
-  const upload = async () => {
+  const restore = async (clientTripId?: string) => {
     if (!file || busy) return
-    setBusy(true)
+    setBusyAction(clientTripId ?? 'all')
     setError(null)
-    setResult(null)
     try {
       const form = new FormData()
       form.append('archive', file)
+      if (clientTripId) form.append('clientTripIds', clientTripId)
       const res = await api.postMultipart<RestoreResult>('/admin/restore-mobile', form)
       if (!res.ok) {
         const message = res.error?.message ?? 'Restore gagal'
@@ -82,12 +157,21 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
       }
       const data = res.data ?? {}
       setResult(data)
-      setFile(null)
-      showToast(`Restore selesai: ${data.trips ?? 0} trip dipulihkan`, 'success')
+      showToast(
+        clientTripId
+          ? '1 trip berhasil dipulihkan'
+          : `Restore selesai: ${data.trips ?? 0} trip dipulihkan`,
+        'success',
+      )
+      // Status "Sudah ada"/"Baru" dan tarif dihitung ulang dari server.
+      setRefreshKey(key => key + 1)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
+
+  const trips = preview?.trips ?? []
+  const totals = preview?.totals ?? {}
 
   return (
     <div className="space-y-4">
@@ -154,15 +238,98 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => void upload()}
-          disabled={!file || busy}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--admin-accent)] px-4 py-3 text-[13px] font-bold text-[var(--admin-accent-contrast)] transition-colors hover:bg-[var(--admin-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-        >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <ArchiveRestore size={15} />}
-          {busy ? 'Memulihkan…' : 'Mulai Restore'}
-        </button>
+        {previewing && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] px-3 py-2.5 text-[12px] text-[var(--admin-text-muted)]">
+            <Loader2 size={14} className="animate-spin" />
+            Membaca arsip dan menghitung tarif…
+          </div>
+        )}
+
+        {previewError && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] text-red-700">
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <span className="break-words">{previewError}</span>
+          </div>
+        )}
+
+        {preview && (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--admin-border)]">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] px-3 py-3 sm:px-4">
+              <div>
+                <p className="text-[13px] font-bold text-[var(--admin-text)]">Pratinjau isi arsip</p>
+                <p className="mt-0.5 text-[11px] text-[var(--admin-text-muted)]">
+                  {totals.trips ?? trips.length} trip · {totals.vehicles ?? 0} kendaraan · {totals.photos ?? 0} foto
+                  {(totals.existing ?? 0) > 0 ? ` · ${totals.existing} sudah ada` : ''}
+                </p>
+              </div>
+              <div className="text-left sm:text-right">
+                <p className="text-[10px] font-semibold uppercase text-[var(--admin-text-faint)]">Total tarif</p>
+                <p className="text-[15px] font-black tabular-nums text-[var(--admin-text)]">
+                  {formatRupiah(totals.tariffTotal ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            <div className="divide-y divide-[var(--admin-border)]">
+              {trips.map(trip => (
+                <div key={trip.clientTripId} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-[12px] font-bold text-[var(--admin-text)]">{trip.clientTripId}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${
+                        trip.exists
+                          ? 'border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] text-[var(--admin-text-muted)]'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {trip.exists ? 'Sudah ada' : 'Baru'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-[var(--admin-text-muted)]">
+                      {formatDate(trip.completedAt)} · {trip.officer}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[var(--admin-text-muted)]">
+                      {trip.routeFrom} → {trip.routeTo} · {trip.statusMuatan === 'muatan' ? 'Dengan muatan' : 'Tanpa muatan'}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[var(--admin-text-faint)]">
+                      {trip.vehicleCount} kendaraan · {trip.photoCount} foto
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                    <p className="text-[12px] font-bold tabular-nums text-[var(--admin-text)]">
+                      {formatRupiah(trip.tariffTotal)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void restore(trip.clientTripId)}
+                      disabled={busy}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--admin-border-strong)] px-3 py-1.5 text-[11px] font-bold text-[var(--admin-text-soft)] transition-colors hover:bg-[var(--admin-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyAction === trip.clientTripId
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <ArchiveRestore size={12} />}
+                      {busyAction === trip.clientTripId ? 'Memulihkan…' : 'Restore trip ini'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+              <p className="text-[11px] text-[var(--admin-text-muted)]">
+                Pilih satu trip di atas, atau pulihkan seluruh isi arsip sekaligus.
+              </p>
+              <button
+                type="button"
+                onClick={() => void restore()}
+                disabled={busy || trips.length === 0}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--admin-accent)] px-4 py-2.5 text-[12px] font-bold text-[var(--admin-accent-contrast)] transition-colors hover:bg-[var(--admin-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {busyAction === 'all' ? <Loader2 size={14} className="animate-spin" /> : <ArchiveRestore size={14} />}
+                {busyAction === 'all' ? 'Memulihkan semua…' : `Restore Semua (${trips.length})`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] text-red-700">
@@ -193,6 +360,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
           <li><span className="font-mono">data_trip.json</span> di root arsip, berisi array <span className="font-mono">trips</span>.</li>
           <li>Folder <span className="font-mono">images/</span> dengan seluruh foto yang direferensikan JSON.</li>
           <li>Trip yang sudah ada dikenali lewat <span className="font-mono">clientTripId</span>, jadi data tidak dobel.</li>
+          <li>Tarif dihitung ulang oleh server saat pratinjau dan restore, bukan dari angka arsip.</li>
         </ul>
       </div>
     </div>

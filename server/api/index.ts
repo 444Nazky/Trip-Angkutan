@@ -315,6 +315,9 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
   if (a === "admin" && b === "import" && req.method === "POST") return await imp.importData(req);
 
   // ---------------- restore data mobile (arsip ZIP ekspor trip) ----------------
+  if (a === "admin" && b === "preview-mobile" && req.method === "POST") {
+    return await restore.previewMobileData(req);
+  }
   if (a === "admin" && b === "restore-mobile" && req.method === "POST") {
     return await restore.restoreMobileData(req);
   }

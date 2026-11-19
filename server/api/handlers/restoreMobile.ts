@@ -255,6 +255,158 @@ function mimeForPath(path: string): string | null {
   return EXT_MIME[ext] ?? null;
 }
 
+/**
+ * Baca dan validasi struktur arsip tanpa menulis apa pun.
+ * Dipakai bersama oleh pratinjau dan restore supaya keduanya menerima
+ * arsip yang sama persis.
+ */
+type ArchiveRead =
+  | { ok: true; form: FormData; archive: JSZip; trips: RestoreTrip[] }
+  | { ok: false; response: Response };
+
+async function readArchive(req: Request): Promise<ArchiveRead> {
+  const form = await req.formData().catch(() => null);
+  if (!form) return { ok: false, response: json({ error: "Berkas arsip tidak terkirim" }, 400) };
+
+  let file: File | null = null;
+  for (const value of form.values()) {
+    if (value instanceof File) { file = value; break; }
+  }
+  if (!file) return { ok: false, response: json({ error: 'Field "archive" wajib berisi file .zip' }, 400) };
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    return { ok: false, response: json({ error: "Format file harus .zip" }, 400) };
+  }
+  if (file.size > MAX_ARCHIVE_BYTES) {
+    return {
+      ok: false,
+      response: json({ error: `Ukuran arsip maksimal ${MAX_ARCHIVE_BYTES / (1024 * 1024)} MB` }, 400),
+    };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+    return { ok: false, response: json({ error: "File bukan arsip ZIP yang valid" }, 400) };
+  }
+
+  let archive: JSZip;
+  try {
+    archive = await JSZip.loadAsync(bytes);
+  } catch {
+    return { ok: false, response: json({ error: "Arsip ZIP rusak atau tidak bisa dibaca" }, 400) };
+  }
+
+  const entry = archive.file(ARCHIVE_JSON_NAME);
+  if (!entry) {
+    return { ok: false, response: json({ error: `${ARCHIVE_JSON_NAME} tidak ditemukan di dalam arsip` }, 400) };
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await entry.async("string"));
+  } catch {
+    return { ok: false, response: json({ error: `${ARCHIVE_JSON_NAME} bukan JSON yang valid` }, 400) };
+  }
+
+  const parsed = validateExportPayload(raw);
+  if (!parsed.ok) return { ok: false, response: json({ error: parsed.error }, 400) };
+  return { ok: true, form, archive, trips: parsed.trips };
+}
+
+/** Pastikan semua foto yang direferensikan trip terpilih ada dan didukung. */
+function validatePhotoRefs(archive: JSZip, trips: RestoreTrip[]): string | null {
+  for (const ref of collectPhotoRefs(trips)) {
+    const entry = archive.file(ref);
+    if (!entry || entry.dir) return `Foto ${ref} tidak ditemukan di folder images/ arsip`;
+    if (!mimeForPath(ref)) return `Format foto ${ref} tidak didukung (jpg/jpeg/png/webp)`;
+  }
+  return null;
+}
+
+interface PreviewTripRow {
+  clientTripId: string;
+  officer: string;
+  completedAt: string;
+  routeFrom: string;
+  routeTo: string;
+  statusMuatan: "muatan" | "kosong";
+  vehicleCount: number;
+  photoCount: number;
+  tariffTotal: number;
+  exists: boolean;
+}
+
+/**
+ * POST /admin/preview-mobile
+ *
+ * Baca arsip dan kembalikan ringkasan SEMUA trip di dalamnya — termasuk tarif
+ * hasil resolver server — tanpa menulis ke database maupun storage.
+ */
+export async function previewMobileData(req: Request): Promise<Response> {
+  try {
+    const ctx = await requireAdmin(req);
+    if (!ctx) return json({ error: "Admin access required" }, 403);
+
+    const read = await readArchive(req);
+    if (!read.ok) return read.response;
+
+    const photoError = validatePhotoRefs(read.archive, read.trips);
+    if (photoError) return json({ error: photoError }, 400);
+
+    const officerCache = new Map<string, ReturnType<typeof resolveOfficer>>();
+    const resolveOfficerCached = (trip: RestoreTrip) => {
+      const key = trip.officerId ? `id:${trip.officerId}` : `name:${trip.officerName}`;
+      let pending = officerCache.get(key);
+      if (!pending) {
+        pending = resolveOfficer(trip.officerId, trip.officerName);
+        officerCache.set(key, pending);
+      }
+      return pending;
+    };
+
+    const rows: PreviewTripRow[] = await Promise.all(read.trips.map(async (trip) => {
+      const officer = await resolveOfficerCached(trip);
+      let tariffTotal = 0;
+      for (const vehicle of trip.vehicles) {
+        const resolved = await resolveTariff({
+          vehicleType: vehicle.type,
+          hasLoad: vehicle.hasLoad,
+          golongan: vehicle.golongan ? normalizeGolongan(vehicle.golongan) : "",
+          kategori: normalizeCategory(vehicle.category),
+          regionId: officer.regionId,
+        });
+        tariffTotal += restoreVehicleTariff(vehicle.tariffAmount, resolved).amount;
+      }
+      const existing = await findExistingTrip(trip.clientTripId, officer.id);
+      return {
+        clientTripId: trip.clientTripId,
+        officer: officer.name || trip.officerName || "Tanpa petugas",
+        completedAt: trip.completedAt,
+        routeFrom: trip.routeFrom,
+        routeTo: trip.routeTo,
+        statusMuatan: trip.statusMuatan,
+        vehicleCount: trip.vehicles.length,
+        photoCount: collectPhotoRefs([trip]).length,
+        tariffTotal,
+        exists: !!existing,
+      };
+    }));
+
+    return json({
+      success: true,
+      trips: rows,
+      totals: {
+        trips: rows.length,
+        vehicles: rows.reduce((sum, row) => sum + row.vehicleCount, 0),
+        photos: rows.reduce((sum, row) => sum + row.photoCount, 0),
+        tariffTotal: rows.reduce((sum, row) => sum + row.tariffTotal, 0),
+        existing: rows.filter(row => row.exists).length,
+      },
+    });
+  } catch (error) {
+    console.error("[preview-mobile] error:", error);
+    return json({ error: `Gagal membaca arsip: ${errorText(error)}` }, 500);
+  }
+}
+
 async function uploadPhoto(bytes: Uint8Array, mime: string): Promise<string> {
   const ext = Object.entries(EXT_MIME).find(([, type]) => type === mime)?.[0] ?? "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
@@ -465,60 +617,40 @@ export async function restoreMobileData(req: Request): Promise<Response> {
     const ctx = await requireAdmin(req);
     if (!ctx) return json({ error: "Admin access required" }, 403);
 
-    const form = await req.formData().catch(() => null);
-    if (!form) return json({ error: "Berkas arsip tidak terkirim" }, 400);
+    const read = await readArchive(req);
+    if (!read.ok) return read.response;
+    const { form, archive } = read;
 
-    let file: File | null = null;
-    for (const value of form.values()) {
-      if (value instanceof File) { file = value; break; }
+    // Restore selektif: `clientTripIds` boleh berisi satu atau banyak ID.
+    // Tanpa field itu, seluruh trip di arsip dipulihkan (perilaku lama).
+    const requested = [...new Set(
+      form.getAll("clientTripIds").map(value => String(value).trim()).filter(Boolean),
+    )];
+    let trips = read.trips;
+    if (requested.length) {
+      const available = new Set(read.trips.map(trip => trip.clientTripId));
+      const unknown = requested.filter(id => !available.has(id));
+      if (unknown.length) {
+        return json({
+          error: `Trip tidak ditemukan di arsip: ${unknown.slice(0, 3).join(", ")}${unknown.length > 3 ? ", …" : ""}`,
+        }, 400);
+      }
+      const wanted = new Set(requested);
+      trips = read.trips.filter(trip => wanted.has(trip.clientTripId));
     }
-    if (!file) return json({ error: 'Field "archive" wajib berisi file .zip' }, 400);
-    if (!file.name.toLowerCase().endsWith(".zip")) {
-      return json({ error: "Format file harus .zip" }, 400);
-    }
-    if (file.size > MAX_ARCHIVE_BYTES) {
-      return json({ error: `Ukuran arsip maksimal ${MAX_ARCHIVE_BYTES / (1024 * 1024)} MB` }, 400);
-    }
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-      return json({ error: "File bukan arsip ZIP yang valid" }, 400);
-    }
-
-    let archive: JSZip;
-    try {
-      archive = await JSZip.loadAsync(bytes);
-    } catch {
-      return json({ error: "Arsip ZIP rusak atau tidak bisa dibaca" }, 400);
+    if (!trips.length) {
+      return json({ error: "Pilih minimal satu trip untuk dipulihkan" }, 400);
     }
 
-    const entry = archive.file(ARCHIVE_JSON_NAME);
-    if (!entry) {
-      return json({ error: `${ARCHIVE_JSON_NAME} tidak ditemukan di dalam arsip` }, 400);
-    }
-    let raw: unknown;
-    try {
-      raw = JSON.parse(await entry.async("string"));
-    } catch {
-      return json({ error: `${ARCHIVE_JSON_NAME} bukan JSON yang valid` }, 400);
-    }
-
-    const parsed = validateExportPayload(raw);
-    if (!parsed.ok) return json({ error: parsed.error }, 400);
-    const trips = parsed.trips;
-
-    // Semua foto harus ada di dalam arsip SEBELUM ada penulisan ke server.
+    // Foto trip terpilih harus ada SEBELUM ada penulisan ke server. Trip yang
+    // tidak dipilih tidak boleh menggagalkan restore satu trip.
+    const photoError = validatePhotoRefs(archive, trips);
+    if (photoError) return json({ error: photoError }, 400);
     const refs = collectPhotoRefs(trips);
     const photoBytes = new Map<string, { bytes: Uint8Array; mime: string }>();
     for (const ref of refs) {
-      const photoEntry = archive.file(ref);
-      if (!photoEntry || photoEntry.dir) {
-        return json({ error: `Foto ${ref} tidak ditemukan di folder images/ arsip` }, 400);
-      }
-      const mime = mimeForPath(ref);
-      if (!mime) {
-        return json({ error: `Format foto ${ref} tidak didukung (jpg/jpeg/png/webp)` }, 400);
-      }
+      const photoEntry = archive.file(ref)!;
+      const mime = mimeForPath(ref)!;
       const data = await photoEntry.async("uint8array");
       if (data.length > MAX_PHOTO_BYTES) {
         return json({ error: `Ukuran foto ${ref} melebihi 5 MB` }, 400);
