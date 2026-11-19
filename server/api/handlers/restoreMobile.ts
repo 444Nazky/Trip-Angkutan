@@ -20,6 +20,7 @@ import JSZip from "npm:jszip@3.10.2";
 import { db, errorText, generateTripNo, json, requireAdmin } from "../_shared.ts";
 import { hasColumn, normalizeCategory, normalizeGolongan, resolveTariff } from "./tariffRules.ts";
 import { asUuidOrNull, isUuid } from "./trips.ts";
+import { decryptArchivePayload } from "../archiveCrypto.ts";
 
 /** Batas ukuran arsip yang diterima. */
 export const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024;
@@ -342,7 +343,23 @@ async function readArchive(req: Request): Promise<ArchiveRead> {
     return { ok: false, response: json({ error: `${ARCHIVE_JSON_NAME} bukan JSON yang valid` }, 400) };
   }
 
-  const parsed = validateExportPayload(raw);
+  const decrypted = await decryptArchivePayload(raw);
+  if (!decrypted.ok) {
+    return { ok: false, response: json({ error: decrypted.error }, 400) };
+  }
+  // Arsip 1.3.0 selalu terenkripsi. JSON polos hanya diterima bila admin
+  // sengaja menyalakan saklar migrasi untuk menyelamatkan arsip lama; tanpa
+  // itu, menghapus amplop enkripsi tidak bisa dipakai untuk melewati validasi.
+  if (!decrypted.encrypted && Deno.env.get("ALLOW_LEGACY_PLAINTEXT_ARCHIVES") !== "1") {
+    return {
+      ok: false,
+      response: json({
+        error: "Arsip ini belum terenkripsi. Ekspor ulang dari aplikasi versi 1.3.0 atau lebih baru.",
+      }, 400),
+    };
+  }
+
+  const parsed = validateExportPayload(decrypted.payload);
   if (!parsed.ok) return { ok: false, response: json({ error: parsed.error }, 400) };
   return { ok: true, form, archive, trips: parsed.trips };
 }

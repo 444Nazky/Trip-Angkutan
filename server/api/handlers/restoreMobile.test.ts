@@ -9,6 +9,7 @@
  */
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { collectPhotoRefs, restoreVehicleTariff, validateExportPayload } from "./restoreMobile.ts";
+import { decryptArchivePayload, encryptArchivePayload } from "../archiveCrypto.ts";
 
 function trip(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -38,6 +39,18 @@ Deno.test("menerima payload valid dan menormalkan kolom", () => {
     "images/TRP-2026-0001-dokumentasi.jpg",
     "images/TRP-2026-0001-swafoto.jpg",
   ]);
+});
+
+Deno.test("arsip terenkripsi dari mobile bisa dibuka server", async () => {
+  const envelope = await encryptArchivePayload({ trips: [trip({ id: "TRP20261119134826" })] });
+  const opened = await decryptArchivePayload(envelope);
+  assert(opened.ok);
+  if (!opened.ok) return;
+  assertEquals(opened.encrypted, true);
+  const result = validateExportPayload(opened.payload);
+  assert(result.ok);
+  if (!result.ok) return;
+  assertEquals(result.trips[0].tripCode, "TRP20261119134826");
 });
 
 Deno.test("pratinjau menampilkan kode trip, bukan UUID clientTripId", () => {

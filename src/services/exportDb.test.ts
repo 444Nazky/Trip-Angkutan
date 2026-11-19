@@ -15,6 +15,7 @@ import {
   LOCAL_TRIPS_CACHE_KEY,
 } from './exportDb'
 import { TARIFFS_STORAGE_KEY } from './masterTariffs'
+import { ARCHIVE_ENCRYPTION_KIND, decryptArchivePayload } from '../../server/api/archiveCrypto'
 
 const NOW = Date.parse('2026-11-18T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -115,7 +116,7 @@ describe('buildLocalDatabaseExport', () => {
 })
 
 describe('buildTripArchive', () => {
-  it('membuat ZIP berisi data_trip.json + folder images dengan nama sesuai petugas', async () => {
+  it('membuat ZIP berisi data_trip.json terenkripsi + folder images dengan nama sesuai petugas', async () => {
     await dbPut('trips', {
       id: 'arsip-1',
       synced: true,
@@ -131,9 +132,19 @@ describe('buildTripArchive', () => {
     expect(zip.file(ARCHIVE_JSON_NAME)).not.toBeNull()
     expect(zip.file('images/arsip-1-dokumentasi.jpg')).not.toBeNull()
 
-    const json = JSON.parse(await zip.file(ARCHIVE_JSON_NAME)!.async('string'))
+    const envelope = JSON.parse(await zip.file(ARCHIVE_JSON_NAME)!.async('string'))
+    // Isi ZIP tidak boleh lagi membocorkan data trip secara terbaca.
+    expect(envelope.kind).toBe(ARCHIVE_ENCRYPTION_KIND)
+    expect(envelope.trips).toBeUndefined()
+    expect(JSON.stringify(envelope)).not.toContain('arsip-1')
+
+    const decrypted = await decryptArchivePayload(envelope)
+    expect(decrypted.ok).toBe(true)
+    if (!decrypted.ok) return
+    expect(decrypted.encrypted).toBe(true)
+    const json = decrypted.payload as { trips: Array<Record<string, unknown>> }
     expect(json.trips).toHaveLength(1)
-    expect(json.trips[0].photoUrl).toBe('images/arsip-1-dokumentasi.jpg')
+    expect(json.trips[0]['photoUrl']).toBe('images/arsip-1-dokumentasi.jpg')
   })
 })
 

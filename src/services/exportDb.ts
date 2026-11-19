@@ -4,13 +4,17 @@ import { dbAll, localDbBackend } from './localDb'
 import { canPickSaveLocation, saveBinaryWithPicker } from './saveFile'
 import { getStoredTariffs } from './masterTariffs'
 import { vehicleTypeKey } from './vehicleTypes'
+import { encryptArchivePayload } from '../../server/api/archiveCrypto'
 
 /**
  * Ekspor data trip perangkat menjadi satu arsip ZIP:
  *
  *   export_trip_<NAMA_USER>_<TIMESTAMP>.zip
- *     ├── data_trip.json   → seluruh data trip tersinkron + referensi foto
+ *     ├── data_trip.json   → data trip tersinkron, terenkripsi AES-256-GCM
  *     └── images/          → file foto fisik (dokumentasi, swafoto, bukti, kendaraan)
+ *
+ * `data_trip.json` bukan lagi JSON terbaca: isinya amplop terenkripsi dan
+ * terautentikasi, jadi nominal trip tidak bisa diedit langsung di dalam ZIP.
  *
  * Isinya HANYA trip yang sudah benar-benar terkirim dan tersinkron ke server
  * (`synced: true`), bukan antrean yang masih menunggu, draft, atau dokumen
@@ -54,6 +58,7 @@ export interface ExportResult {
   ok: boolean
   filename: string
   size: number
+  encrypted?: boolean
   mode?: 'download' | 'file'
   path?: string
   trips?: number
@@ -279,14 +284,15 @@ export async function buildLocalDatabaseExport(
   return { payload, photos }
 }
 
-/** Buat arsip ZIP berisi `data_trip.json` + folder `images/`. */
+/** Buat arsip ZIP berisi `data_trip.json` terenkripsi + folder `images/`. */
 export async function buildTripArchive(
   now: number = Date.now(),
   officer: ExportOfficerProfile = {},
 ): Promise<{ bytes: Uint8Array; payload: LocalDatabaseExport; filename: string }> {
   const { payload, photos } = await buildLocalDatabaseExport(now, officer)
+  const envelope = await encryptArchivePayload(payload, now)
   const zip = new JSZip()
-  zip.file(ARCHIVE_JSON_NAME, JSON.stringify(payload, null, 2))
+  zip.file(ARCHIVE_JSON_NAME, JSON.stringify(envelope, null, 2))
   for (const photo of photos) zip.file(photo.path, photo.bytes)
   const bytes = await zip.generateAsync({
     type: 'uint8array',
@@ -363,6 +369,7 @@ export async function exportLocalDatabase(officer: ExportOfficerProfile = {}): P
     if (!Capacitor.isNativePlatform()) {
       return {
         ...downloadInBrowser(archiveName, bytes),
+        encrypted: true,
         trips: payload.counts.trips,
         photos: payload.counts.photos,
       }
@@ -391,6 +398,7 @@ export async function exportLocalDatabase(officer: ExportOfficerProfile = {}): P
         ok: true,
         filename: saved.name || archiveName,
         size: saved.bytes,
+        encrypted: true,
         mode: 'file',
         path: saved.uri,
         trips: payload.counts.trips,

@@ -235,8 +235,8 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
       <div>
         <h1 className="text-[20px] font-black text-[var(--admin-text)]">Restore Data Mobile</h1>
         <p className="mt-0.5 text-[12px] text-[var(--admin-text-muted)]">
-          Pulihkan data trip dari arsip <span className="font-semibold">export_trip_*.zip</span> yang dibuat
-          lewat menu Profil → Ekspor Data Trip di aplikasi mobile.
+          Pulihkan data trip dari arsip terenkripsi <span className="font-semibold">export_trip_*.zip</span>
+          yang dibuat lewat menu Profil → Ekspor Data Trip di aplikasi mobile 1.3.0+.
         </p>
       </div>
 
