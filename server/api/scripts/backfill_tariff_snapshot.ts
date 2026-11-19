@@ -15,18 +15,27 @@ interface VehicleRow {
 }
 
 async function main() {
+  // Baris tanpa penanda harga (data lama) DAN baris hasil restore lama yang
+  // tercatat Rp 0. Restore sebelum perbaikan memakai nominal arsip apa adanya;
+  // arsip dari HP bisa berisi tariff 0 saat cache tarif perangkat kosong,
+  // sehingga dashboard menampilkan Rp 0 walau server punya tarif region.
   const { data: vehicles, error } = await db
     .from("vehicles")
     .select("id, vehicle_type, golongan, kategori, has_load, tariff_amount, tarif_source, trip_id")
     .not("trip_id", "is", null)
-    .is("tarif_source", null);
+    .or("tarif_source.is.null,tarif_source.eq.restore");
   if (error) {
     console.error("Gagal membaca tabel vehicles:", error.message);
     Deno.exit(1);
   }
 
-  const rows = (vehicles ?? []) as VehicleRow[];
-  console.log(`Baris kendaraan tanpa tarif_source: ${rows.length}`);
+  const rows = ((vehicles ?? []) as VehicleRow[]).filter((v) => {
+    const source = String(v.tarif_source ?? "").trim();
+    if (!source) return true;
+    // Restore dengan nominal > 0 sudah punya harga dari arsip; jangan diubah.
+    return source === "restore" && (Number(v.tariff_amount ?? 0) || 0) <= 0;
+  });
+  console.log(`Baris kendaraan tanpa harga / restore Rp 0: ${rows.length}`);
   if (!rows.length) {
     console.log("Tidak ada yang perlu dibackfill.");
     return;
@@ -70,13 +79,16 @@ async function main() {
       kategori,
       regionId: regionByTrip.get(String(v.trip_id)) ?? null,
     });
-    if (resolved.source === "tanpa-tarif" || resolved.amount <= 0) {
+    if (resolved.source === "tanpa-tarif") {
       add(String(v.id), 0, "tanpa-tarif");
       stillZero++;
       continue;
     }
-    add(String(v.id), resolved.amount, resolved.source);
-    filled++;
+    // Internal (dan sumber lain yang memang Rp 0) tetap dicatat sumbernya,
+    // bukan ditimpa "tanpa-tarif".
+    add(String(v.id), Math.max(0, resolved.amount), resolved.source);
+    if (resolved.amount > 0) filled++;
+    else stillZero++;
   }
 
   for (const [key, group] of groups) {

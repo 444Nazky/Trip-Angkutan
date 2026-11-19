@@ -8,7 +8,7 @@
  *   deno test --allow-env server/api/handlers/restoreMobile.test.ts
  */
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { collectPhotoRefs, validateExportPayload } from "./restoreMobile.ts";
+import { collectPhotoRefs, restoreVehicleTariff, validateExportPayload } from "./restoreMobile.ts";
 
 function trip(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -38,6 +38,25 @@ Deno.test("menerima payload valid dan menormalkan kolom", () => {
     "images/TRP-2026-0001-dokumentasi.jpg",
     "images/TRP-2026-0001-swafoto.jpg",
   ]);
+});
+
+Deno.test("restore memakai tarif server, bukan Rp 0 dari arsip", () => {
+  // Arsip mobile bisa berisi tariff 0 saat cache master tarif perangkat kosong.
+  // Server yang punya tarif region harus menang.
+  assertEquals(
+    restoreVehicleTariff(0, { amount: 70_000, source: "region-row" }),
+    { amount: 70_000, source: "region-row" },
+  );
+  // Internal memang gratis, tetapi sumbernya tetap dicatat.
+  assertEquals(
+    restoreVehicleTariff(0, { amount: 0, source: "internal" }),
+    { amount: 0, source: "internal" },
+  );
+  // Tanpa sumber harga di server, nominal arsip tetap dipakai.
+  assertEquals(
+    restoreVehicleTariff(55_000, { amount: 0, source: "tanpa-tarif" }),
+    { amount: 55_000, source: "tanpa-tarif" },
+  );
 });
 
 Deno.test("menolak JSON kosong / bukan objek", () => {

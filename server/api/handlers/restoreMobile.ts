@@ -18,7 +18,7 @@
 // dengan urutan terbalik — perilaku yang sama: tidak ada data setengah jadi.
 import JSZip from "npm:jszip@3.10.2";
 import { db, errorText, generateTripNo, json, requireAdmin } from "../_shared.ts";
-import { hasColumn, normalizeCategory, normalizeGolongan } from "./tariffRules.ts";
+import { hasColumn, normalizeCategory, normalizeGolongan, resolveTariff } from "./tariffRules.ts";
 import { asUuidOrNull, isUuid } from "./trips.ts";
 
 /** Batas ukuran arsip yang diterima. */
@@ -74,6 +74,24 @@ export interface RestoreVehicle {
 }
 
 type ParsedPayload = { ok: true; trips: RestoreTrip[] } | { ok: false; error: string };
+
+/**
+ * Nominal kendaraan hasil restore.
+ *
+ * Server adalah sumber harga, sama seperti `/trips/complete`: arsip dari HP
+ * bisa berisi `tariff: 0` bila cache master tarif perangkat belum terisi,
+ * jadi nominal arsip TIDAK boleh dipakai apa adanya saat server punya tarif.
+ * Nominal arsip hanya jadi cadangan kalau server tidak punya sumber harga
+ * sama sekali (kategori/region tidak dikenal).
+ */
+export function restoreVehicleTariff(
+  archivedAmount: number,
+  resolved: { amount: number; source: string },
+): { amount: number; source: string } {
+  const archived = Number.isFinite(archivedAmount) ? Math.max(0, Math.round(archivedAmount)) : 0;
+  if (resolved.source === "tanpa-tarif") return { amount: archived, source: resolved.source };
+  return { amount: Math.max(0, Math.round(resolved.amount)), source: resolved.source };
+}
 
 function text(value: unknown): string {
   return String(value ?? "").trim();
@@ -368,6 +386,7 @@ async function insertVehicles(
   trip: RestoreTrip,
   photoMap: Map<string, string>,
   columns: TripColumns,
+  regionId: string | null,
 ): Promise<string[]> {
   const inserted: string[] = [];
   try {
@@ -375,6 +394,14 @@ async function insertVehicles(
       const vehicleId = crypto.randomUUID();
       const kategori = normalizeCategory(vehicle.category);
       const golongan = vehicle.golongan ? normalizeGolongan(vehicle.golongan) : "";
+      const resolved = await resolveTariff({
+        vehicleType: vehicle.type,
+        hasLoad: vehicle.hasLoad,
+        golongan,
+        kategori,
+        regionId,
+      });
+      const tariff = restoreVehicleTariff(vehicle.tariffAmount, resolved);
       const row: Record<string, unknown> = {
         id: vehicleId,
         no_polisi: vehicle.plate.toUpperCase().slice(0, 60),
@@ -382,14 +409,14 @@ async function insertVehicles(
         golongan: golongan ? vehicle.golongan.slice(0, 20) : null,
         trip_id: tripId,
         has_load: vehicle.hasLoad ? 1 : 0,
-        tariff_amount: Math.max(0, Math.round(vehicle.tariffAmount)),
+        tariff_amount: tariff.amount,
         foto_path: vehicle.photoUrl ? (photoMap.get(vehicle.photoUrl) ?? null) : null,
         foto_captured_at: vehicle.photoCapturedAt,
         latitude: vehicle.latitude,
         longitude: vehicle.longitude,
       };
       if (columns.vehicleKategori) row.kategori = kategori ?? null;
-      if (columns.vehicleTarifSource) row.tarif_source = "restore";
+      if (columns.vehicleTarifSource) row.tarif_source = tariff.source;
 
       const { error } = await db.from("vehicles").insert(row).select("id").single();
       if (error) throw error;
@@ -549,7 +576,7 @@ export async function restoreMobileData(req: Request): Promise<Response> {
             .select("vehicle_id").eq("trip_id", existing.id);
           const oldVehicleIds = (oldLinks ?? []).map((row: any) => String(row.vehicle_id));
 
-          const newVehicleIds = await insertVehicles(existing.id, trip, photoMap, columns);
+          const newVehicleIds = await insertVehicles(existing.id, trip, photoMap, columns, officer.regionId);
           rollbacks.push(async () => {
             await deleteRows("vehicles", newVehicleIds);
             if (before) await db.from("trips").update(before).eq("id", existing.id);
@@ -572,7 +599,7 @@ export async function restoreMobileData(req: Request): Promise<Response> {
           rollbacks.push(async () => {
             await db.from("trips").delete().eq("id", tripId);
           });
-          const newVehicleIds = await insertVehicles(tripId, trip, photoMap, columns);
+          const newVehicleIds = await insertVehicles(tripId, trip, photoMap, columns, officer.regionId);
           conditionallyTrackVehicles(rollbacks, newVehicleIds);
           created += 1;
           vehicleCount += newVehicleIds.length;
