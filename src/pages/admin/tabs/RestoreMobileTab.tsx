@@ -16,6 +16,7 @@ interface RestoreResult {
 
 interface PreviewTrip {
   clientTripId: string
+  tripCode: string
   officer: string
   completedAt: string
   routeFrom: string
@@ -74,7 +75,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
   const [preview, setPreview] = useState<PreviewResult | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [restoredIds, setRestoredIds] = useState<Set<string>>(() => new Set())
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RestoreResult | null>(null)
@@ -86,6 +87,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
     setResult(null)
     setPreview(null)
     setPreviewError(null)
+    setRestoredIds(new Set())
     if (!candidate) { setFile(null); return }
     if (!candidate.name.toLowerCase().endsWith('.zip')) {
       setFile(null)
@@ -100,7 +102,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
     setFile(candidate)
   }
 
-  // Pratinjau otomatis setiap kali file berubah (atau setelah restore selesai).
+  // Pratinjau otomatis setiap kali file berubah.
   useEffect(() => {
     if (!file) {
       setPreview(null)
@@ -130,7 +132,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
         if (alive) setPreviewing(false)
       })
     return () => { alive = false }
-  }, [file, refreshKey])
+  }, [file])
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -142,12 +144,22 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
 
   const restore = async (clientTripId?: string) => {
     if (!file || busy) return
+    // Restore Semua hanya memulihkan trip yang masih ada di daftar. Trip yang
+    // baru saja direstore tidak dikirim ulang, jadi daftar dan hasilnya tetap
+    // sama-sama bersih.
+    const targets = clientTripId
+      ? [clientTripId]
+      : (preview?.trips ?? [])
+          .filter(trip => !restoredIds.has(trip.clientTripId))
+          .map(trip => trip.clientTripId)
+    if (!targets.length) return
+
     setBusyAction(clientTripId ?? 'all')
     setError(null)
     try {
       const form = new FormData()
       form.append('archive', file)
-      if (clientTripId) form.append('clientTripIds', clientTripId)
+      for (const id of targets) form.append('clientTripIds', id)
       const res = await api.postMultipart<RestoreResult>('/admin/restore-mobile', form)
       if (!res.ok) {
         const message = res.error?.message ?? 'Restore gagal'
@@ -157,21 +169,33 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
       }
       const data = res.data ?? {}
       setResult(data)
+      // Trip yang sudah dipulihkan langsung keluar dari daftar agar operator
+      // tidak mengulanginya tanpa sengaja.
+      setRestoredIds(prev => {
+        const next = new Set(prev)
+        for (const id of targets) next.add(id)
+        return next
+      })
       showToast(
         clientTripId
           ? '1 trip berhasil dipulihkan'
           : `Restore selesai: ${data.trips ?? 0} trip dipulihkan`,
         'success',
       )
-      // Status "Sudah ada"/"Baru" dan tarif dihitung ulang dari server.
-      setRefreshKey(key => key + 1)
     } finally {
       setBusyAction(null)
     }
   }
 
-  const trips = preview?.trips ?? []
-  const totals = preview?.totals ?? {}
+  const trips = (preview?.trips ?? []).filter(trip => !restoredIds.has(trip.clientTripId))
+  // Ringkasan mengikuti daftar yang masih tampil, bukan total arsip awal.
+  const totals = {
+    trips: trips.length,
+    vehicles: trips.reduce((sum, trip) => sum + trip.vehicleCount, 0),
+    photos: trips.reduce((sum, trip) => sum + trip.photoCount, 0),
+    tariffTotal: trips.reduce((sum, trip) => sum + trip.tariffTotal, 0),
+    existing: trips.filter(trip => trip.exists).length,
+  }
 
   return (
     <div className="space-y-4">
@@ -270,12 +294,17 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
               </div>
             </div>
 
+            {trips.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[12px] text-[var(--admin-text-muted)]">
+                Semua trip di arsip sudah direstore dan keluar dari daftar.
+              </div>
+            ) : (
             <div className="divide-y divide-[var(--admin-border)]">
               {trips.map(trip => (
                 <div key={trip.clientTripId} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-[12px] font-bold text-[var(--admin-text)]">{trip.clientTripId}</p>
+                      <p className="truncate font-mono text-[12px] font-bold text-[var(--admin-text)]">{trip.tripCode || trip.clientTripId}</p>
                       <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${
                         trip.exists
                           ? 'border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] text-[var(--admin-text-muted)]'
@@ -313,6 +342,7 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
                 </div>
               ))}
             </div>
+            )}
 
             <div className="flex flex-col gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
               <p className="text-[11px] text-[var(--admin-text-muted)]">

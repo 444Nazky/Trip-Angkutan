@@ -40,6 +40,17 @@ Deno.test("menerima payload valid dan menormalkan kolom", () => {
   ]);
 });
 
+Deno.test("pratinjau menampilkan kode trip, bukan UUID clientTripId", () => {
+  const result = validateExportPayload({ trips: [trip({
+    clientTripId: "b0abfa94-355c-4efa-b0e9-df954bc194b6",
+    id: "TRP20261119134826",
+  })] });
+  assert(result.ok);
+  if (!result.ok) return;
+  assertEquals(result.trips[0].clientTripId, "b0abfa94-355c-4efa-b0e9-df954bc194b6");
+  assertEquals(result.trips[0].tripCode, "TRP20261119134826");
+});
+
 Deno.test("restore memakai tarif server, bukan Rp 0 dari arsip", () => {
   // Arsip mobile bisa berisi tariff 0 saat cache master tarif perangkat kosong.
   // Server yang punya tarif region harus menang.

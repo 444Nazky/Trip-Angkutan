@@ -39,6 +39,8 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export interface RestoreTrip {
   clientTripId: string;
+  /** Kode trip yang ditampilkan ke operator (bukan UUID kunci idempoten). */
+  tripCode: string;
   officerId: string | null;
   officerName: string;
   dermagaId: string | null;
@@ -112,6 +114,39 @@ function numberOrNull(value: unknown): number | null {
 function photoRef(value: unknown): string | undefined {
   const ref = text(value);
   return ref || undefined;
+}
+
+/** Kode trip cadangan dari waktu selesai, untuk arsip lama tanpa kode. */
+function tripCodeFromDate(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return `TRP${pick("year")}${pick("month")}${pick("day")}${pick("hour")}${pick("minute")}${pick("second")}`;
+}
+
+/**
+ * Kode trip untuk pratinjau. `clientTripId` adalah UUID internal dan tidak
+ * boleh ditampilkan ke operator; nomor yang dibaca manusia ada di `noTrip`
+ * (jawaban server) atau `id` (kode yang dibuat aplikasi mobile).
+ */
+function archiveTripCode(trip: Record<string, unknown>, clientTripId: string, completedAt: string): string {
+  const explicit = text(trip.noTrip) || text(trip.tripCode) || text(trip.trip_code);
+  if (explicit) return explicit;
+  const archiveId = text(trip.id);
+  if (archiveId && !isUuid(archiveId)) return archiveId;
+  if (!isUuid(clientTripId)) return clientTripId;
+  return tripCodeFromDate(completedAt) || clientTripId;
 }
 
 /**
@@ -211,6 +246,7 @@ export function validateExportPayload(raw: unknown): ParsedPayload {
 
     trips.push({
       clientTripId,
+      tripCode: archiveTripCode(trip, clientTripId, completedAt),
       officerId: asUuidOrNull(trip.officerId),
       officerName: text(trip.officer),
       dermagaId: asUuidOrNull(trip.dermagaId),
@@ -323,6 +359,7 @@ function validatePhotoRefs(archive: JSZip, trips: RestoreTrip[]): string | null 
 
 interface PreviewTripRow {
   clientTripId: string;
+  tripCode: string;
   officer: string;
   completedAt: string;
   routeFrom: string;
@@ -378,6 +415,9 @@ export async function previewMobileData(req: Request): Promise<Response> {
       const existing = await findExistingTrip(trip.clientTripId, officer.id);
       return {
         clientTripId: trip.clientTripId,
+        // Trip yang sudah ada memakai nomor server yang sebenarnya; trip baru
+        // memakai kode dari arsip mobile.
+        tripCode: existing?.no_trip || trip.tripCode,
         officer: officer.name || trip.officerName || "Tanpa petugas",
         completedAt: trip.completedAt,
         routeFrom: trip.routeFrom,
