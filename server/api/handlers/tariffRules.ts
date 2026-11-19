@@ -57,7 +57,7 @@ export interface TariffResult {
 
 // ── Cache master tarif & tarif region (per instance edge function) ────────────
 
-let masterCache: { at: number; rows: MasterTariffRow[] } | null = null;
+let masterCache: { at: number; regionId: string; rows: MasterTariffRow[] } | null = null;
 let regionCache: { at: number; rows: FlatRegionTariff[] } | null = null;
 let overrideCache: { at: number; rows: OverrideTariffRow[] } | null = null;
 
@@ -74,24 +74,40 @@ export function invalidateTariffCache(): void {
   overrideCache = null;
 }
 
-/** Master tarif untuk mobile = baris tarif BADAU (sumber tunggal setelah golongan dihapus). */
-export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]> {
-  if (!force && masterCache && Date.now() - masterCache.at < MASTER_TTL_MS) {
+/**
+ * Master tarif untuk mobile.
+ *
+ * Dulu SELALU membaca baris region BADAU. Di database nyata BADAU tidak
+ * punya baris tarif, jadi endpoint mengembalikan array kosong -> aplikasi
+ * mencatat tariff 0 untuk semua kendaraan. Sekarang baris diambil dari
+ * region petugas (klaim token), dengan BADAU hanya sebagai cadangan bila
+ * pemanggil tidak membawa region.
+ */
+export async function getMasterTariffs(
+  regionId?: string | null,
+  force = false,
+): Promise<MasterTariffRow[]> {
+  let target = String(regionId ?? "").trim();
+  if (target && !force && masterCache && masterCache.regionId === target && Date.now() - masterCache.at < MASTER_TTL_MS) {
     return masterCache.rows;
   }
-  const { data: region } = await db
-    .from("regions")
-    .select("id")
-    .eq("code", "BADAU")
-    .limit(1);
-  const regionId = (region as any[] | null)?.[0]?.id;
-  if (!regionId) return masterCache?.rows ?? [];
+
+  if (!target) {
+    const { data: region } = await db
+      .from("regions")
+      .select("id")
+      .eq("code", "BADAU")
+      .limit(1);
+    target = String((region as any[] | null)?.[0]?.id ?? "");
+  }
+  if (!target) return [];
+
   const { data, error } = await db
     .from("region_tariff_rows")
     .select("id, vehicle_type, muatan_tariff, kosong_tariff, is_active")
-    .eq("region_id", regionId)
+    .eq("region_id", target)
     .eq("is_active", 1);
-  if (error || !data) return masterCache?.rows ?? [];
+  if (error || !data) return [];
   const rows = (data as any[]).map((t) => ({
     id: t.id,
     golongan: "",
@@ -101,7 +117,7 @@ export async function getMasterTariffs(force = false): Promise<MasterTariffRow[]
     description: null,
     is_active: t.is_active ?? 1,
   }));
-  masterCache = { at: Date.now(), rows };
+  masterCache = { at: Date.now(), regionId: target, rows };
   return rows;
 }
 

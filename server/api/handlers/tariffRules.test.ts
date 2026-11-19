@@ -19,7 +19,8 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
   const url = new URL(req.url);
   if (url.pathname === "/tariffs") return Response.json([]);
   if (url.pathname === "/region_tariff_rows") {
-    return Response.json([
+    const wantedRegion = (url.searchParams.get("region_id") ?? "").replace(/^eq\./, "");
+    const rows = [
       {
         region_id: BADAU,
         vehicle_type: "motor",
@@ -45,7 +46,11 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
         kosong_tariff: 25000,
         is_active: 1,
       },
-    ]);
+    ];
+    return Response.json(wantedRegion ? rows.filter((r) => r.region_id === wantedRegion) : rows);
+  }
+  if (url.pathname === "/regions") {
+    return Response.json([{ id: BADAU, code: "BADAU" }]);
   }
   if (url.pathname === "/region_tariffs") {
     return Response.json([
@@ -62,7 +67,7 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1", onListen: () => {} }
 
 Deno.env.set("POSTGREST_URL", `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`);
 
-const { resolveTariff, invalidateTariffCache } = await import("./tariffRules.ts");
+const { resolveTariff, getMasterTariffs, invalidateTariffCache } = await import("./tariffRules.ts");
 
 Deno.test("region dengan baris sendiri memakai harganya", async () => {
   invalidateTariffCache();
@@ -127,6 +132,21 @@ Deno.test("lokal_tariff 0 jatuh ke tarif flat wilayah", async () => {
   });
   assertEquals(res.amount, 9000);
   assertEquals(res.source, "region");
+});
+
+Deno.test("master tarif mobile mengikuti region petugas, bukan BADAU", async () => {
+  invalidateTariffCache();
+  const rows = await getMasterTariffs(BELITUNG);
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].vehicle_type, "motor");
+  assertEquals(rows[0].loaded_tariff, 45000);
+});
+
+Deno.test("master tarif mobile tanpa region memakai BADAU", async () => {
+  invalidateTariffCache();
+  const rows = await getMasterTariffs(null);
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].loaded_tariff, 50000);
 });
 
 Deno.test("cleanup", () => server.shutdown());

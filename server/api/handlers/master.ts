@@ -1,6 +1,6 @@
 // Master data handlers: regions, dermagas, tariffs.
 import { db, json, auth, requireAdmin, dbDetail } from "../_shared.ts";
-import { invalidateTariffCache, getMasterTariffs as getBadauMasterTariffs } from "./tariffRules.ts";
+import { invalidateTariffCache, getMasterTariffs as getRegionMasterTariffs } from "./tariffRules.ts";
 
 /** Id region/dermaga bertipe uuid di database. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -418,13 +418,25 @@ export async function getOfflineMasterPack(req: Request): Promise<Response> {
   }
 }
 
-// Master tariffs for officers (athlete field: petugas HP caching).
-// Sumber: baris tarif BADAU (tarif tiap region dikelola di /region-tariffs).
+// Master tariffs for officers (perangkat petugas menyimpannya untuk form
+// kendaraan). Sumber: baris tarif region petugas, bukan BADAU yang bisa kosong.
 export async function getMasterTariffs(req: Request): Promise<Response> {
   try {
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
-    return json(await getBadauMasterTariffs());
+
+    let regionId = String(ctx.regionId ?? "").trim() || null;
+    // Token lama / login tanpa klaim region: ambil region petugas dari DB.
+    if (!regionId && ctx.officerId && UUID_RE.test(String(ctx.officerId))) {
+      const { data } = await db
+        .from("officers")
+        .select("region_id")
+        .eq("id", String(ctx.officerId))
+        .limit(1);
+      regionId = String((data as any[] | null)?.[0]?.region_id ?? "").trim() || null;
+    }
+
+    return json(await getRegionMasterTariffs(regionId));
   } catch (error) {
     console.error("Get master tariffs error:", error);
     return json({ error: "Failed to fetch tariffs" }, 500);
