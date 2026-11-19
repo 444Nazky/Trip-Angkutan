@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ArchiveRestore, CheckCircle2, FileArchive, Loader2, UploadCloud, X } from 'lucide-react'
+import { AlertCircle, ArchiveRestore, CheckCircle2, FileArchive, Loader2, Search, UploadCloud, X } from 'lucide-react'
 import { api } from '../../../services/api'
 
 /** Batas ukuran arsip — harus sama dengan batas di server. */
@@ -60,6 +60,15 @@ function formatDate(value: string): string {
   return date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** Kunci tanggal lokal (YYYY-MM-DD) agar filter tidak bergeser zona waktu. */
+function localDateKey(value: string): string {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 /**
  * Restore data trip dari arsip ZIP hasil "Ekspor Data Trip" di aplikasi mobile.
  *
@@ -79,6 +88,9 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RestoreResult | null>(null)
+  const [query, setQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const busy = busyAction !== null
 
@@ -88,6 +100,9 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
     setPreview(null)
     setPreviewError(null)
     setRestoredIds(new Set())
+    setQuery('')
+    setDateFrom('')
+    setDateTo('')
     if (!candidate) { setFile(null); return }
     if (!candidate.name.toLowerCase().endsWith('.zip')) {
       setFile(null)
@@ -188,6 +203,24 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
   }
 
   const trips = (preview?.trips ?? []).filter(trip => !restoredIds.has(trip.clientTripId))
+  // Pencarian hanya menyaring tampilan; "Restore Semua" tetap memulihkan
+  // seluruh trip yang belum direstore agar tidak ada data yang terlewat.
+  const keyword = query.trim().toLowerCase()
+  const visibleTrips = trips.filter(trip => {
+    const matchesKeyword = !keyword
+      || trip.tripCode.toLowerCase().includes(keyword)
+      || trip.clientTripId.toLowerCase().includes(keyword)
+    const day = localDateKey(trip.completedAt)
+    const matchesFrom = !dateFrom || (day !== '' && day >= dateFrom)
+    const matchesTo = !dateTo || (day !== '' && day <= dateTo)
+    return matchesKeyword && matchesFrom && matchesTo
+  })
+  const filterActive = Boolean(keyword || dateFrom || dateTo)
+  const resetFilters = () => {
+    setQuery('')
+    setDateFrom('')
+    setDateTo('')
+  }
   // Ringkasan mengikuti daftar yang masih tampil, bukan total arsip awal.
   const totals = {
     trips: trips.length,
@@ -294,13 +327,83 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
               </div>
             </div>
 
+            {trips.length > 0 && (
+              <div className="flex flex-col gap-2 border-b border-[var(--admin-border)] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                <p className="text-[11px] text-[var(--admin-text-muted)]">
+                  {filterActive
+                    ? `${visibleTrips.length} dari ${trips.length} trip cocok`
+                    : `${trips.length} trip siap direstore`}
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-56">
+                    <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--admin-text-faint)]" />
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                      placeholder="Cari kode trip…"
+                      aria-label="Cari kode trip"
+                      className="w-full rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface)] py-1.5 pl-8 pr-8 text-[12px] text-[var(--admin-text)] outline-none transition focus:border-[var(--admin-accent)]"
+                    />
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => setQuery('')}
+                        aria-label="Bersihkan pencarian"
+                        className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="flex flex-1 items-center gap-1.5 text-[10px] font-semibold uppercase text-[var(--admin-text-faint)]">
+                      Dari
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        max={dateTo || undefined}
+                        onChange={e => setDateFrom(e.target.value)}
+                        aria-label="Tanggal mulai"
+                        className="min-w-0 flex-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 py-1.5 text-[11px] text-[var(--admin-text)] outline-none transition focus:border-[var(--admin-accent)]"
+                      />
+                    </label>
+                    <label className="flex flex-1 items-center gap-1.5 text-[10px] font-semibold uppercase text-[var(--admin-text-faint)]">
+                      Sampai
+                      <input
+                        type="date"
+                        value={dateTo}
+                        min={dateFrom || undefined}
+                        onChange={e => setDateTo(e.target.value)}
+                        aria-label="Tanggal akhir"
+                        className="min-w-0 flex-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 py-1.5 text-[11px] text-[var(--admin-text)] outline-none transition focus:border-[var(--admin-accent)]"
+                      />
+                    </label>
+                  </div>
+                  {filterActive && (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] font-bold text-[var(--admin-accent-text)] hover:bg-[var(--admin-surface-hover)]"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {trips.length === 0 ? (
               <div className="px-4 py-8 text-center text-[12px] text-[var(--admin-text-muted)]">
                 Semua trip di arsip sudah direstore dan keluar dari daftar.
               </div>
+            ) : visibleTrips.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[12px] text-[var(--admin-text-muted)]">
+                Tidak ada trip yang cocok dengan pencarian atau filter tanggal.
+              </div>
             ) : (
             <div className="divide-y divide-[var(--admin-border)]">
-              {trips.map(trip => (
+              {visibleTrips.map(trip => (
                 <div key={trip.clientTripId} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -346,7 +449,8 @@ export function RestoreMobileTab({ showToast }: RestoreMobileTabProps) {
 
             <div className="flex flex-col gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-surface-sunken)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
               <p className="text-[11px] text-[var(--admin-text-muted)]">
-                Pilih satu trip di atas, atau pulihkan seluruh isi arsip sekaligus.
+                Pilih satu trip di atas, atau Restore Semua untuk seluruh isi arsip
+                (pencarian dan filter tanggal hanya menyaring tampilan).
               </p>
               <button
                 type="button"
