@@ -39,7 +39,7 @@ afterEach(() => {
 describe('halaman server (mobile)', () => {
   it('menyisakan tombol Simpan & Terapkan dan Tes Koneksi', async () => {
     await act(async () => {
-      root.render(<EndpointScreen go={() => {}} />)
+      root.render(<EndpointScreen />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
@@ -51,7 +51,7 @@ describe('halaman server (mobile)', () => {
 
   it('tidak menampilkan tombol yang mengulang fungsi Simpan & Terapkan', async () => {
     await act(async () => {
-      root.render(<EndpointScreen go={() => {}} />)
+      root.render(<EndpointScreen />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))
@@ -59,11 +59,12 @@ describe('halaman server (mobile)', () => {
 
     expect(container.textContent).not.toContain('Reset ke Default')
     expect(container.textContent).not.toContain('Simpan tanpa tes')
+    expect(container.textContent).not.toContain('Kembali ke Profil')
   })
 
   it('tidak menampilkan input URL manual, tapi punya tombol edit server', async () => {
     await act(async () => {
-      root.render(<EndpointScreen go={() => {}} />)
+      root.render(<EndpointScreen />)
     })
     await act(async () => {
       await new Promise(r => setTimeout(r, 0))

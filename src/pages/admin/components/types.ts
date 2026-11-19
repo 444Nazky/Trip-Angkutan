@@ -8,6 +8,7 @@ export type AdminTab =
   | 'routes'
   | 'region'
   | 'officers'
+  | 'restore'
   | 'endpoint'
   | 'settings'
 

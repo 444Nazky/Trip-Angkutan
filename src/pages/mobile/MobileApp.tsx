@@ -79,7 +79,7 @@ export default function MobileApp() {
     'officer-switch': <OfficerSwitchScreen go={go} />,
     'pin-verify': <PinVerifyScreen go={go} />,
     profile: <ProfileScreen go={go} />,
-    endpoint: <EndpointScreen go={go} />,
+    endpoint: <EndpointScreen />,
     'geofence-config': <GeofenceConfigScreen go={go} />,
   }
 

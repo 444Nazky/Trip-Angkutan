@@ -131,7 +131,7 @@ export default function ActiveLocationScreen({ go }: ActiveLocationScreenProps) 
         onClick={() => go('geofence-config')}
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-[12px] font-bold text-slate-700 active:bg-slate-50"
       >
-        <Settings2 size={14} /> Pengaturan Geofence
+        <Settings2 size={14} /> Daftar Lokasi Aktif
       </button>
     </div>
   )

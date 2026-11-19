@@ -15,6 +15,8 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import android.util.Base64;
+
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
@@ -28,9 +30,12 @@ import java.util.concurrent.Executors;
  * menulis ke URI yang dipilih, tanpa meminta izin penyimpanan luas.
  *
  * Penulisan dilakukan BERTAHAP (begin → append → finish), bukan sekali kirim.
- * Ekspor data trip berisi foto base64 sehingga JSON bisa puluhan MB; mengirim
- * seluruh teks lewat jembatan JS dan menulisnya sekaligus membuat memori habis
- * (aplikasi tertutup) dan menyisakan berkas 0 byte.
+ * Ekspor data trip berisi foto sehingga berkas (JSON atau ZIP) bisa puluhan
+ * MB; mengirim seluruh isinya lewat jembatan JS dan menulisnya sekaligus
+ * membuat memori habis (aplikasi tertutup) dan menyisakan berkas 0 byte.
+ *
+ * `append` menerima teks UTF-8 (bawaan) atau potongan base64 (`base64: true`)
+ * untuk arsip biner seperti ZIP.
  */
 @CapacitorPlugin(name = "SaveFile")
 public class SaveFilePlugin extends Plugin {
@@ -112,10 +117,13 @@ public class SaveFilePlugin extends Plugin {
             call.reject("Belum ada file tujuan", "NOT_STARTED");
             return;
         }
+        boolean isBase64 = Boolean.TRUE.equals(call.getBoolean("base64", false));
 
         io.execute(() -> {
             try {
-                byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+                byte[] bytes = isBase64
+                    ? Base64.decode(data, Base64.DEFAULT)
+                    : data.getBytes(StandardCharsets.UTF_8);
                 pendingOutput.write(bytes);
                 pendingBytes += bytes.length;
                 JSObject ret = new JSObject();

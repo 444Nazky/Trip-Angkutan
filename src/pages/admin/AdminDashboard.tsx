@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X } from 'lucide-react'
+import { Table2, Hash, Users, BarChart2, Settings, LogOut, MapPin, Landmark, Menu, X, ArchiveRestore } from 'lucide-react'
 import { fetchTrips } from '../../services/trips'
 import { ensureAdminSession } from '../../services/auth'
 import { api } from '../../services/api'
@@ -22,6 +22,7 @@ import { ReportsTab } from './tabs/ReportsTab'
 import { CancellationsTab } from './tabs/CancellationsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { EndpointTab } from './tabs/EndpointTab'
+import { RestoreMobileTab } from './tabs/RestoreMobileTab'
 
 
 
@@ -119,6 +120,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'routes', label: 'Master Rute', Icon: MapPin },
     { key: 'region', label: 'Master Dermaga', Icon: Landmark },
     { key: 'officers', label: 'Petugas', Icon: Users },
+    { key: 'restore', label: 'Restore Data Mobile', Icon: ArchiveRestore },
     { key: 'endpoint', label: 'Pengaturan', Icon: Settings },
   ]
 
@@ -286,6 +288,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               onSaveOfficers={setOfficers}
               showToast={showToast}
             />
+          )}
+
+          {tab === 'restore' && (
+            <RestoreMobileTab showToast={showToast} />
           )}
 
           {tab === 'endpoint' && (

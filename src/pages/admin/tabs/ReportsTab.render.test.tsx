@@ -266,7 +266,7 @@ describe('ReportsTab (render harness)', () => {
     expect(container.querySelectorAll('[data-testid="report-empty-trip-row"]').length).toBe(1)
   })
 
-  it('grup Ponton Tanpa Muatan berisi trip kosong dengan foto bukti dan dokumentasi', async () => {
+  it('grup Ponton Tanpa Muatan berisi trip kosong dengan swafoto, bukti, dan dokumentasi', async () => {
     await renderReports()
     await openGolongan('Ponton Tanpa Muatan')
 
@@ -278,11 +278,11 @@ describe('ReportsTab (render harness)', () => {
       .map(img => img.getAttribute('src') ?? '')
     expect(sources.some(s => s.includes('bukti-ponton.jpg'))).toBe(true)
     expect(sources.some(s => s.includes('dokumentasi-ponton.jpg'))).toBe(true)
-    // Grup ini fokus pada bukti + dokumentasi, bukan swafoto.
-    expect(sources.some(s => s.includes('swafoto-ponton.jpg'))).toBe(false)
+    // Swafoto petugas wajib ikut tampil untuk trip ponton kosong.
+    expect(sources.some(s => s.includes('swafoto-ponton.jpg'))).toBe(true)
 
     const body = container.textContent ?? ''
-    expect(body).toContain('2 foto bukti & dokumentasi')
+    expect(body).toContain('3 foto bukti & dokumentasi')
   })
 
   it('menampilkan strip thumbnail seluruh foto (swafoto, bukti trip, kendaraan)', async () => {

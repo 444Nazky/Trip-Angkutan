@@ -243,10 +243,10 @@ export default function GeofenceConfigScreen({ go }: GeofenceConfigScreenProps) 
   return (
     <div className="min-h-full bg-white">
       <div className="flex items-center px-4 py-3 border-b border-slate-200">
-        <button onClick={() => go('profile')} className="w-11 h-11 flex items-center justify-start -ml-2">
+        <button onClick={() => go('location')} className="w-11 h-11 flex items-center justify-start -ml-2">
           <ChevronLeft size={20} className="text-blue-600" />
         </button>
-        <h1 className="flex-1 text-center text-[17px] font-semibold text-slate-900 mr-11">Konfigurasi Geofence</h1>
+        <h1 className="flex-1 text-center text-[17px] font-semibold text-slate-900 mr-11">Daftar Lokasi Aktif</h1>
         <button
           onClick={handleSync}
           disabled={syncing}

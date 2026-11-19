@@ -22,6 +22,7 @@ import * as plt from "./handlers/plates.ts";
 import * as upd from "./handlers/appVersion.ts";
 import * as srvst from "./handlers/serverStats.ts";
 import * as imp from "./handlers/import.ts";
+import * as restore from "./handlers/restoreMobile.ts";
 import * as vts from "./handlers/vehicleTypes.ts";
 import * as setg from "./handlers/settings.ts";
 import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
@@ -312,6 +313,11 @@ async function route(req: Request, url: URL, parts: string[]): Promise<Response>
 
   // ---------------- impor massal (migrasi sekali jalan) ----------------
   if (a === "admin" && b === "import" && req.method === "POST") return await imp.importData(req);
+
+  // ---------------- restore data mobile (arsip ZIP ekspor trip) ----------------
+  if (a === "admin" && b === "restore-mobile" && req.method === "POST") {
+    return await restore.restoreMobileData(req);
+  }
 
   // ---------------- app update (APK penuh) ----------------
   if (a === "app-version" && req.method === "GET") return await upd.getAppVersion(req, url);

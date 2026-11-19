@@ -77,13 +77,14 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
     setExportMessage('')
     setExportFailed(false)
     try {
-      const result = await exportLocalDatabase()
+      const result = await exportLocalDatabase({ id: String(officer.id ?? ''), name: officer.name })
       setExportFailed(!result.ok)
       if (result.ok) {
+        const summary = `${result.trips ?? 0} trip · ${result.photos ?? 0} foto`
         setExportMessage(
           result.mode === 'file'
-            ? `Data trip disimpan: ${result.filename}`
-            : `Data trip diunduh: ${result.filename}`,
+            ? `Arsip disimpan: ${result.filename} (${summary})`
+            : `Arsip diunduh: ${result.filename} (${summary})`,
         )
       } else {
         setExportMessage(result.message ?? 'Gagal mengekspor data trip')
@@ -234,7 +235,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Database size={16} /></span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-slate-800">Ekspor Data Trip</p>
-              <p className="mt-0.5 text-[10px] text-slate-400">Hanya trip tersinkron 40 hari terakhir. Simpan sebagai JSON lewat file manager.</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">Semua trip tersinkron. Simpan sebagai ZIP (data_trip.json + folder images) lewat file manager.</p>
             </div>
             {exporting
               ? <RefreshCw size={15} className="animate-spin text-slate-400" />

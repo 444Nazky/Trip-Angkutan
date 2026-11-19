@@ -157,7 +157,7 @@ function buildDateGroups(trips: ReportTrip[]): DateGroup[] {
       const gols: GolGroup[] = keys.map(key => {
         if (key === PONTON_GROUP) {
           const photos = pontonTrips.reduce((count, t) =>
-            count + (t.proof_photo ? 1 : 0) + (t.foto_kosong_path ? 1 : 0), 0)
+            count + (t.selfie_photo ? 1 : 0) + (t.proof_photo ? 1 : 0) + (t.foto_kosong_path ? 1 : 0), 0)
           return {
             key,
             rows: [],
@@ -419,7 +419,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
   // Hierarki tabel: tanggal → golongan → kendaraan.
   const dateGroups = useMemo(() => buildDateGroups(reportTrips), [reportTrips])
 
-  /** Foto trip tanpa kendaraan. Grup Ponton hanya memuat bukti + dokumentasi. */
+  /** Foto trip tanpa kendaraan: swafoto petugas, bukti, dan dokumentasi. */
   const emptyTripThumbs = (trip: ReportTrip, includeSelfie: boolean) => [
     ...(includeSelfie && trip.selfie_photo ? [{
       id: `selfie-${trip.id}`,
@@ -785,7 +785,7 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                                 type="button"
                                 onClick={e => {
                                   e.stopPropagation()
-                                  setViewingPhotos(gol.pontonTrips.flatMap(t => emptyTripThumbs(t, false)))
+                                  setViewingPhotos(gol.pontonTrips.flatMap(t => emptyTripThumbs(t, true)))
                                 }}
                                 className="inline-flex items-center gap-1 rounded border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 py-0.5 text-[10px] font-bold text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]"
                               >
@@ -818,10 +818,10 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
                   if (!golOpen) continue
 
                   // Grup kondisi ponton tanpa muatan: trip kosong beserta
-                  // foto bukti dan dokumentasinya.
+                  // swafoto petugas, foto bukti, dan dokumentasinya.
                   if (gol.key === PONTON_GROUP) {
                     for (const trip of gol.pontonTrips) {
-                      rows.push(renderEmptyTripRow(trip, `${group.date}-ponton`, false))
+                      rows.push(renderEmptyTripRow(trip, `${group.date}-ponton`, true))
                     }
                     continue
                   }

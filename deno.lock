@@ -5376,6 +5376,7 @@
         "npm:express@^4.19.2",
         "npm:fake-indexeddb@^6.2.5",
         "npm:jsdom@26",
+        "npm:jszip@^3.10.2",
         "npm:lucide-react@^1.47.0",
         "npm:postcss@^8.5.28",
         "npm:react-dom@^19.3.0",
