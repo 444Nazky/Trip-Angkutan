@@ -133,7 +133,25 @@ export async function auth(req: Request): Promise<OfficerClaims | null> {
       : null;
   }
   const token = header.replace(/^Bearer\s+/i, "");
-  return verifyToken(token);
+  const claims = await verifyToken(token);
+  if (!claims) return null;
+
+  // Officer claims are fixed at login time (token TTL is 90 days). Without a
+  // re-check here, deactivation, deletion or a region transfer would not
+  // revoke access. Re-read the mutable officer row on every authenticated
+  // request and use its current region as the authorization scope.
+  if (claims.role === "officer" && claims.officerId) {
+    const { data } = await db
+      .from("officers")
+      .select("id, is_active, region_id")
+      .eq("id", claims.officerId)
+      .limit(1);
+    const row = (data ?? [])[0] as { id?: string; is_active?: number | boolean; region_id?: string } | undefined;
+    if (!row || !row.id || Number(row.is_active) !== 1) return null;
+    return { ...claims, regionId: row.region_id ?? claims.regionId };
+  }
+
+  return claims;
 }
 
 export async function requireAdmin(req: Request): Promise<OfficerClaims | null> {

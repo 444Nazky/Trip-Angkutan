@@ -53,12 +53,18 @@ export default function PinVerifyScreen({ go }: PinVerifyScreenProps) {
 
   const confirm = async () => {
     if (pressedPin.length < 6 || loading) return
+    if (!targetId) {
+      rejectPin('Petugas tujuan tidak ditemukan')
+      return
+    }
     setLoading(true)
     setError(false)
 
     try {
-      // Check if we can do offline login (already has stored credentials)
-      const local = await loginOffline()
+      // Verify the entered PIN for the *target* officer. The no-argument
+      // loginOffline() shortcut only checks for a stored session and must
+      // never be used as a PIN gate (it would accept any six digits).
+      const local = await loginOffline(targetId, pressedPin)
       if (local.success) {
         if (navigator.onLine) {
           void refreshSessionInBackground(targetId, pressedPin)

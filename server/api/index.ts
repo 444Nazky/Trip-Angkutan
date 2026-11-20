@@ -25,7 +25,7 @@ import * as imp from "./handlers/import.ts";
 import * as restore from "./handlers/restoreMobile.ts";
 import * as vts from "./handlers/vehicleTypes.ts";
 import * as setg from "./handlers/settings.ts";
-import { corsHeaders, json, auth, serveStoredFile } from "./_shared.ts";
+import { corsHeaders, json, auth, serveStoredFile, type OfficerClaims } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
   take,
@@ -86,9 +86,13 @@ function cacheRouteFor(parts: string[], method: string): string | null {
  * dipakai bersama. Officer dipisahkan supaya tidak pernah menerima response
  * admin-only. Tanpa token -> scope "anon" (selalu cache miss).
  */
-function cacheScope(role: string | undefined): string {
-  if (role === "admin") return "admin";
-  if (role === "officer") return "officer";
+function cacheScope(ctx: OfficerClaims | null): string {
+  if (ctx?.role === "admin") return "admin";
+  if (ctx?.role === "officer") {
+    // Region-scoped master payloads (e.g. /master/tariffs) must never share a
+    // cache entry between officers of different regions.
+    return `officer:${ctx.regionId ?? ctx.officerId ?? "unknown"}`;
+  }
   return "anon";
 }
 
@@ -677,7 +681,7 @@ async function handleRequestCore(req: Request): Promise<Response> {
     // ---------------- Cache master data ----------------
     const cacheRoute = cacheRouteFor(parts, req.method);
     const ttl = cacheRoute ? ttlFor(cacheRoute) : 0;
-    const scope = cacheScope(ctx?.role);
+    const scope = cacheScope(ctx);
     const key = ttl > 0 ? `${scope}|${cacheKey(cacheRoute!, url)}` : "";
 
     if (ttl > 0) {

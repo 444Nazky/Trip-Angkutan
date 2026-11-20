@@ -185,15 +185,17 @@ describe('unduh APK: hash & versi yang jujur', () => {
     expect(localStorage.getItem('trip.update.currentVersion')).toBe('1.0.8')
   })
 
-  it('server tanpa hash → unduhan diterima (integritas tak dapat diverifikasi)', async () => {
+  it('server tanpa hash → unduhan ditolak (integritas wajib diverifikasi)', async () => {
     h.bytes = new Uint8Array([1, 2, 3])
     h.statSize = h.bytes.length
     const svc = await makeService()
 
     const ok = await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
 
-    expect(ok).toBe(true)
-    expect(svc.state).toBe('ready')
+    expect(ok).toBe(false)
+    expect(svc.state).toBe('error')
+    expect(svc.error?.code).toBe('HASH_MISMATCH')
+    expect(h.deleted.some(p => p.includes('updates/'))).toBe(true)
   })
 })
 
@@ -204,7 +206,7 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     h.bytes = new Uint8Array([1, 2, 3])
     h.statSize = 500 // mis. body JSON 404 yang tersimpan sebagai "APK"
     const svc = await makeService()
-    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
+    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', await sha256(h.bytes))
 
     const ok = await svc.installUpdate()
 
@@ -218,7 +220,7 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     const svc = await makeService()
     h.bytes = new Uint8Array([1, 2, 3])
     h.statSize = h.bytes.length
-    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
+    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', await sha256(h.bytes))
 
     // Pengguna menyelesaikan pemasangan → App.getInfo() mengembalikan versi baru.
     h.version = '1.0.9'
@@ -238,7 +240,7 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     const svc = await makeService()
     h.bytes = apkBytes()
     h.statSize = h.bytes.length
-    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
+    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', await sha256(h.bytes))
 
     const ok = await svc.installUpdate()
 
@@ -252,7 +254,7 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     const svc = await makeService()
     h.bytes = apkBytes()
     h.statSize = h.bytes.length
-    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', null)
+    await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', await sha256(h.bytes))
     const started = await svc.installUpdate()
     expect(started).toBe(true)
     expect(h.opened).toHaveLength(1)

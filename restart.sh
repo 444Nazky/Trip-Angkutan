@@ -180,6 +180,26 @@ resolve_secret() {
 }
 
 resolve_secret "JWT_SECRET" "JWT secret"
+resolve_secret "PUBLISH_SECRET" "APK publish secret"
+
+# PUBLISH_SECRET tidak punya default di source (sengaja). Kalau belum ada,
+# buat nilai acak di sini supaya restart unattended tetap bisa jalan dengan
+# aman. Operator harus menyalin nilai ini ke mesin yang menjalankan
+# scripts/publish-apk.mjs sebagai PUBLISH_SECRET / --secret.
+if ! grep -qE '^PUBLISH_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
+    PUBLISH_BOOTSTRAP_SECRET=""
+    if command -v openssl > /dev/null 2>&1; then
+        PUBLISH_BOOTSTRAP_SECRET="$(openssl rand -hex 32)"
+    else
+        PUBLISH_BOOTSTRAP_SECRET="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    fi
+    if [ -n "$PUBLISH_BOOTSTRAP_SECRET" ]; then
+        set_env_value "$ENV_LOCAL" "PUBLISH_SECRET" "$PUBLISH_BOOTSTRAP_SECRET"
+        ok "PUBLISH_SECRET dibuat acak dan disimpan di .env.local"
+    else
+        warn "Gagal membuat PUBLISH_SECRET acak - isi manual di .env.local."
+    fi
+fi
 
 if ! grep -qE '^JWT_SECRET=.+' "$ENV_LOCAL" 2>/dev/null; then
     warn "JWT_SECRET kosong di .env.local - container API intranet akan exit saat start."
@@ -189,18 +209,18 @@ fi
 
 # ── Kredensial admin dashboard ───────────────────────────────────────────────
 #
-# Dashboard admin pada server intranet dibuka TANPA password (mode
-# ADMIN_AUTH_DISABLED=1). Server ini hanya melayani jaringan lokal kantor,
-# jadi dashboard langsung terbuka begitu dibuka - tidak ada layar login yang
-# bisa tersangkut karena kredensial belum dikonfigurasi.
+# Dashboard admin SELALU memakai password secara default. Mode lama
+# ADMIN_AUTH_DISABLED=1 membuat request tanpa token otomatis menjadi admin,
+# sehingga siapa pun di LAN memperoleh hak admin penuh. Mode itu sekarang
+# hanya bisa dipilih secara eksplisit oleh operator.
 #
-# Password hanya relevan kalau operator sengaja mengaktifkan mode proteksi
-# (ADMIN_AUTH_DISABLED=0). Pada mode itu, password dibuat acak di sini bila
-# belum ada, lalu dicetak di ringkasan akhir.
+# Saat proteksi aktif (default), password bootstrap dibuat acak di sini bila
+# belum ada, lalu dicetak di ringkasan akhir. Simpan password itu di dashboard
+# (atau di localStorage admin) supaya auto-login tetap bekerja.
 
 if ! grep -qE '^ADMIN_AUTH_DISABLED=' "$ENV_LOCAL" 2>/dev/null; then
-    set_env_value "$ENV_LOCAL" "ADMIN_AUTH_DISABLED" "1"
-    ok "ADMIN_AUTH_DISABLED=1 - dashboard admin tanpa password"
+    set_env_value "$ENV_LOCAL" "ADMIN_AUTH_DISABLED" "0"
+    ok "ADMIN_AUTH_DISABLED=0 - dashboard admin dilindungi password"
 fi
 
 ADMIN_BOOTSTRAP_PASSWORD=""

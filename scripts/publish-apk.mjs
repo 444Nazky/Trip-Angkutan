@@ -15,7 +15,8 @@ const ARGUMENTS = {
   '--apk': { required: true, description: 'Lokasi berkas APK' },
   '--version': { required: true, description: 'Versi (format semantik, contoh: 1.0.0)' },
   '--server': { default: process.env.TRIP_API_URL || 'http://192.168.1.123:3000/api', description: 'Alamat endpoint API intranet' },
-  '--secret': { default: process.env.PUBLISH_SECRET || 'trip-angkut-secret', description: 'Secret publikasi' },
+  '--secret': { default: process.env.PUBLISH_SECRET, description: 'Secret publikasi (wajib; tidak ada default bawaan)' },
+  '--token': { default: process.env.ADMIN_TOKEN, description: 'Bearer token admin (wajib saat ADMIN_AUTH_DISABLED=0)' },
   '--force': { flag: true, description: 'Terbitkan ulang walau versinya sudah ada' },
   '--notes': { description: 'Catatan rilis (opsional)' },
   '--force-update': { flag: true, description: 'Tandai sebagai pembaruan wajib' },
@@ -270,6 +271,15 @@ async function main() {
   console.log('─'.repeat(50));
 
   // Validate inputs
+  if (!args.secret) {
+    console.error('PUBLISH_SECRET wajib diisi lewat --secret atau environment PUBLISH_SECRET.');
+    process.exit(1);
+  }
+  if (!args.token) {
+    console.error('Token admin wajib diisi lewat --token atau environment ADMIN_TOKEN (mode ADMIN_AUTH_DISABLED=0).');
+    process.exit(1);
+  }
+
   const apkValidation = validateApkPath(args.apk);
   if (!apkValidation.valid) {
     console.error('Validasi gagal:', apkValidation.error);
@@ -361,6 +371,7 @@ async function main() {
       headers: {
         'Content-Type': 'application/json',
         'X-Publish-Secret': args.secret,
+        'Authorization': `Bearer ${args.token}`,
       },
       body: JSON.stringify(payload),
     });

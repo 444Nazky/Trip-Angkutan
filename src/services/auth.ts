@@ -399,6 +399,7 @@ function setSessionReady(ready: boolean) {
   if (_sessionReady === ready) return
   _sessionReady = ready
   if (ready) {
+    markSessionActive()
     try { window.dispatchEvent(new Event(SESSION_READY_EVENT)) } catch { /* ignore */ }
   }
 }
@@ -483,6 +484,18 @@ export async function refreshBackendSession(officerId?: string): Promise<boolean
 // ponytail: „login diam-diam" — pakai kredensial login terakhir yang tersimpan di
 // localStorage untuk mengambil token baru TANPA meminta petugas mengetik ulang PIN.
 const LOGIN_CRED_KEY = 'trip.auth.lastCredential.v1'
+// Marker untuk membedakan "sesi masih aktif, token perlu di-refresh" dengan
+// "petugas sudah logout". Setelah logout, silentReLogin tidak boleh mengubah
+// keputusan logout itu dengan memakai kredensial yang tertinggal.
+const SESSION_ACTIVE_KEY = 'trip.auth.sessionActive.v1'
+
+function isSessionActive(): boolean {
+  try { return localStorage.getItem(SESSION_ACTIVE_KEY) === '1' } catch { return false }
+}
+
+function markSessionActive(): void {
+  try { localStorage.setItem(SESSION_ACTIVE_KEY, '1') } catch { /* quota */ }
+}
 
 interface LoginCred {
   kind: 'pin' | 'member'
@@ -536,7 +549,12 @@ async function silentReLogin(): Promise<boolean> {
 export async function renewSessionIfNeeded(): Promise<boolean> {
   debugAuth('renewSessionIfNeeded mulai', { hasToken: api.isAuthenticated })
   if (!api.isAuthenticated) {
-    try { await silentReLogin() } catch { /* offline: lanjut dengan rapi */ }
+    // A silent re-login is only valid for an active session that lost its
+    // token. Explicit logout clears this marker, so the next device user is
+    // not silently authenticated as the previous officer.
+    if (isSessionActive()) {
+      try { await silentReLogin() } catch { /* offline: lanjut dengan rapi */ }
+    }
   }
   if (api.isAuthenticated) {
     debugAuth('renewSessionIfNeeded: sudah authenticated')
@@ -552,6 +570,12 @@ export async function renewSessionIfNeeded(): Promise<boolean> {
 export function logout(): void {
   api.setToken(null)
   clearCredentials()
+  // Hapus SEMUA kredensial login: logout lama meninggalkan
+  // trip.auth.lastCredential.v1 sehingga renewSessionIfNeeded bisa diam-diam
+  // memasang token petugas lama tanpa PIN.
+  storeLoginCredential(null)
+  setAdminCredentials(null)
+  try { localStorage.removeItem(SESSION_ACTIVE_KEY) } catch { /* quota */ }
   setSessionReady(false)
 }
 

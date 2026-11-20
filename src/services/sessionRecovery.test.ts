@@ -55,9 +55,10 @@ vi.mock('./offlineDb', () => ({
   verifyPin: async () => false,
 }))
 
-import { renewSessionIfNeeded, isSessionReady, loginWithPin } from './auth'
+import { renewSessionIfNeeded, isSessionReady, loginWithPin, logout } from './auth'
 
 const CRED_KEY = 'trip.auth.lastCredential.v1'
+const SESSION_ACTIVE_KEY = 'trip.auth.sessionActive.v1'
 const OFFICER_KEY = 'trip.auth.officer.v1'
 const DERMAGA_KEY = 'trip.auth.dermaga.v1'
 
@@ -73,6 +74,8 @@ function officer(id: string) {
 
 beforeEach(() => {
   localStorage.clear()
+  // Anggap sesi aktif secara default supaya tes renewal lama tetap relevan.
+  localStorage.setItem(SESSION_ACTIVE_KEY, '1')
   h.token = null
   h.posts.length = 0
   h.respond = {}
@@ -119,6 +122,22 @@ describe('pemulihan sesi (login diam-diam)', () => {
     expect(await renewSessionIfNeeded()).toBe(true)
     expect(h.posts).toEqual([])
     expect(h.token).toBe(fakeJwt('o-1'))
+  })
+
+  it('logout → kredensial dihapus dan tidak ada silent re-login', async () => {
+    localStorage.setItem(CRED_KEY, JSON.stringify({ kind: 'pin', officerId: 'o-1', pin: '123456' }))
+    h.respond['/auth/login'] = { ok: true, data: { token: fakeJwt('o-1'), officer: officer('o-1') } }
+    h.token = fakeJwt('o-1')
+
+    logout()
+
+    expect(localStorage.getItem(CRED_KEY)).toBeNull()
+    expect(localStorage.getItem(SESSION_ACTIVE_KEY)).toBeNull()
+    expect(h.token).toBeNull()
+
+    expect(await renewSessionIfNeeded()).toBe(false)
+    expect(h.posts).toEqual([])
+    expect(h.token).toBeNull()
   })
 })
 

@@ -45,6 +45,7 @@ Deno.env.set("API_DISABLE_EMBEDDED_SERVER", "1");
 //   Pre-flight ini hanya jalan di server intranet (file ini).
 const REQUIRED = [
   "JWT_SECRET",
+  "PUBLISH_SECRET",
 ] as const;
 const missing = REQUIRED.filter((k) => !Deno.env.get(k));
 
@@ -64,24 +65,38 @@ if (missing.length > 0) {
       `[api-intranet] Isi dengan string acak panjang, mis.: openssl rand -hex 32`,
     );
   }
+  if (missing.includes("PUBLISH_SECRET")) {
+    console.error(
+      `[api-intranet] PUBLISH_SECRET tidak boleh kosong: endpoint /publish-version` +
+        ` mendistribusikan APK ke semua perangkat dan tidak boleh memakai secret bawaan.`,
+    );
+  }
   Deno.exit(1);
 }
 
 // ── Mode akses dashboard admin ────────────────────────────────────────────────
 //
-// Dashboard admin pada server intranet TIDAK memakai password.
+// Dashboard admin WAJIB dilindungi password secara default.
 //
-// Server ini hanya melayani jaringan lokal kantor (192.168.1.0/24), dan
-// dashboard sudah sebelumnya terbuka otomatis tanpa interaksi login. Mode ini
-// dipertahankan supaya instalasi baru tidak pernah tersangkut di layar login
-// karena kredensial admin belum dikonfigurasi.
+// Sebelumnya nilai defaultnya "1", yang membuat semua request tanpa header
+// Authorization otomatis menjadi admin (lihat _shared.ts `auth`). Itu berarti
+// siapa pun yang bisa menjangkau port 3000 di LAN mendapat hak admin penuh.
+// Sekarang defaultnya "0": request tanpa token adalah anonim dan handler
+// admin mengembalikan 403.
 //
-// Set ADMIN_AUTH_DISABLED=0 (di .env.local) kalau dashboard memang perlu
-// dilindungi password. Setelah dimatikan, kredensial diambil dari tabel
+// ADMIN_AUTH_DISABLED=1 masih tersedia sebagai mode legacy yang hanya boleh
+// dipilih secara eksplisit oleh operator. Kredensial diambil dari tabel
 // admin_credentials; pakai `node scripts/reset-admin-password.mjs` untuk
-// membuat atau mengganti password-nya.
+// membuat atau mengganti password-nya. restart.sh mengisi ADMIN_PASSWORD
+// otomatis saat bootstrap.
 if (Deno.env.get("ADMIN_AUTH_DISABLED") === undefined) {
-  Deno.env.set("ADMIN_AUTH_DISABLED", "1");
+  Deno.env.set("ADMIN_AUTH_DISABLED", "0");
+}
+if (Deno.env.get("ADMIN_AUTH_DISABLED") === "0" && !Deno.env.get("ADMIN_PASSWORD")) {
+  console.warn(
+    `[api-intranet] ADMIN_PASSWORD belum diisi. Jika tabel admin_credentials ` +
+      `kosong, login admin akan ditolak sampai password bootstrap diisi di .env.local.`,
+  );
 }
 
 // ── Pre-flight: direktori penyimpanan berkas ─────────────────────────────────

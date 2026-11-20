@@ -137,39 +137,35 @@ export async function apkList(_req: Request): Promise<Response> {
 
 // POST /publish-version  (x-publish-secret)
 export async function publishVersion(req: Request): Promise<Response> {
+  // Publishing code is an admin action, not a LAN-presence action. Even when
+  // the legacy ADMIN_AUTH_DISABLED mode is explicitly enabled, a publish must
+  // still carry a verified admin identity.
+  const ctx = await requireAdmin(req);
+  if (!ctx) return json({ error: "UNAUTHORIZED", message: "Unauthorized" }, 401);
+
+  // No source-known default: an unset PUBLISH_SECRET must make publishing
+  // impossible. local_server.ts also checks this at startup.
+  const expected = Deno.env.get("PUBLISH_SECRET");
+  if (!expected || expected === "trip-angkut-secret") {
+    return json({ error: "PUBLISH_SECRET_NOT_CONFIGURED", message: "PUBLISH_SECRET belum dikonfigurasi di server" }, 503);
+  }
   const secret = req.headers.get("x-publish-secret");
-  const expected = Deno.env.get("PUBLISH_SECRET") || "trip-angkut-secret";
   if (secret !== expected) return json({ error: "UNAUTHORIZED", message: "Unauthorized" }, 401);
 
-  const { version, downloadUrl, apkBase64, releaseNotes, isForceUpdate, minVersion, apkVersionName, apkVersionCode } = await req.json().catch(() => ({})) as any;
+  const { version, apkBase64, releaseNotes, isForceUpdate, minVersion, apkVersionName, apkVersionCode } = await req.json().catch(() => ({})) as any;
   if (!version) return json({ error: "MISSING_VERSION", message: "Versi harus diisi" }, 400);
   if (!/^\d+\.\d+\.\d+$/.test(version)) return json({ error: "INVALID_VERSION", message: "Format versi tidak valid" }, 400);
-  if (!downloadUrl && !apkBase64) return json({ error: "MISSING_SOURCE", message: "Harus ada downloadUrl atau apkBase64" }, 400);
-  if (downloadUrl && !/^https?:\/\//i.test(downloadUrl)) {
-    return json({ error: "INVALID_DOWNLOAD_URL", message: "downloadUrl harus absolut (http/https). Untuk berkas lokal, pakai apkBase64." }, 400);
-  }
-  // Berkas APK wajib tinggal di server ini. URL yang menunjuk ke host lain
-  // (server daring atau CDN di luar jaringan kantor) ditolak: begitu perangkat
-  // petugas kehilangan koneksi internet, unduhan update tidak akan pernah
-  // selesai. Cara yang benar adalah mengirim isi APK (apkBase64) supaya
-  // server menyimpannya di penyimpanan lokal.
-  if (downloadUrl) {
-    const target = new URL(downloadUrl);
-    const self = new URL(req.url);
-    if (target.origin !== self.origin) {
-      return json({
-        error: "EXTERNAL_DOWNLOAD_URL",
-        message: "downloadUrl harus menunjuk ke server ini. Untuk berkas APK, kirim apkBase64 supaya disimpan di server lokal.",
-      }, 400);
-    }
+  // The client now refuses an update without a trusted digest, so every
+  // release must include the APK bytes and the server-computed hash. A
+  // downloadUrl-only release would advertise apk_hash = null and be rejected.
+  if (!apkBase64) {
+    return json({ error: "APK_REQUIRED", message: "Kirim apkBase64 agar APK disimpan lokal dan hash dapat dihitung" }, 400);
   }
 
   let apkBytes: Uint8Array | null = null;
-  if (apkBase64 && !downloadUrl) {
-    apkBytes = Uint8Array.from(atob(apkBase64), (c) => c.charCodeAt(0));
-    if (apkBytes.length < 1_000_000) {
-      return json({ error: "APK_TOO_SMALL", message: `Data APK terlalu kecil (${apkBytes.length} byte)` }, 400);
-    }
+  apkBytes = Uint8Array.from(atob(apkBase64), (c) => c.charCodeAt(0));
+  if (apkBytes.length < 1_000_000) {
+    return json({ error: "APK_TOO_SMALL", message: `Data APK terlalu kecil (${apkBytes.length} byte)` }, 400);
   }
 
   let apkSize: number | null = null;
@@ -192,9 +188,7 @@ export async function publishVersion(req: Request): Promise<Response> {
 
   // Yang disimpan ke database selalu path RELATIF. Kalau nanti alamat IP PC
   // kantor berubah, URL yang sudah tersimpan tidak ikut rusak.
-  const download_url = downloadUrl
-    ? new URL(downloadUrl).pathname
-    : storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
+  const download_url = storagePublicUrl(APK_BUCKET, `app-${version}.apk`);
   // upsert onConflict version: publish ulang versi yang sama (mis. build
   // ulang karena aset basi) HARUS menimpa baris lama — sebelumnya insert
   // polos kena unique constraint `app_versions_version_key` dan membalas 500,

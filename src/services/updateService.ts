@@ -719,31 +719,29 @@ class UpdateService {
     expectedHash?: string | null,
   ): Promise<{ ok: true } | { ok: false; message: string }> {
     const expected = String(expectedHash ?? '').trim().toLowerCase()
-    if (!expected) {
-      console.warn(`[Update] Server tidak mengirim hash untuk ${version} — integritas tidak diverifikasi`)
-      return { ok: true }
+    if (!/^[a-f0-9]{64}$/.test(expected)) {
+      return { ok: false, message: `Server tidak mengirim hash SHA-256 yang valid untuk ${version}. Pembaruan ditolak.` }
     }
 
-    // skip hash kalo di web — berkas APK tidak bisa dibaca via FilesystemWeb
+    // Web has no native APK installer; never present an unverified APK there.
     try {
       if (Capacitor.getPlatform() === 'web') {
-        console.warn(`[Update] Skip verifikasi hash di web untuk ${version}`)
-        return { ok: true }
+        return { ok: false, message: `Verifikasi APK tidak tersedia di web untuk ${version}. Pembaruan ditolak.` }
       }
-    } catch { /* Capacitor belum siap */ }
+    } catch {
+      return { ok: false, message: 'Platform tidak dapat ditentukan — pembaruan ditolak.' }
+    }
 
     try {
       const file = await Filesystem.readFile({ path, directory: Directory.Data })
       const raw = typeof file.data === 'string' ? file.data : ''
       const bytes = raw ? base64ToBytes(raw) : null
       if (!bytes) {
-        console.warn('[Update] Isi APK tidak bisa dibaca untuk verifikasi hash — lanjut tanpa verifikasi')
-        return { ok: true }
+        return { ok: false, message: 'Isi APK tidak dapat dibaca untuk verifikasi. Pembaruan ditolak.' }
       }
       const actual = await sha256Hex(bytes)
       if (!actual) {
-        console.warn('[Update] WebCrypto tidak tersedia — hash tidak diverifikasi')
-        return { ok: true }
+        return { ok: false, message: 'WebCrypto tidak tersedia — pembaruan ditolak.' }
       }
       if (actual !== expected) {
         return { ok: false, message: `Hash APK tidak cocok (file rusak/tidak lengkap). Unduh ulang pembaruan ${version}.` }
@@ -752,7 +750,7 @@ class UpdateService {
       return { ok: true }
     } catch (error) {
       console.warn('[Update] Verifikasi hash gagal dijalankan:', error)
-      return { ok: true }
+      return { ok: false, message: 'Verifikasi integritas gagal — pembaruan ditolak.' }
     }
   }
 
