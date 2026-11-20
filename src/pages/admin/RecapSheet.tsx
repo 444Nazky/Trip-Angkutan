@@ -9,6 +9,9 @@ import { downloadXlsx } from '../../services/xlsx'
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+/** Nominal kolom pendapatan: 20000 -> 20.000 (pemisah ribuan Indonesia). */
+const formatRevenue = (amount: number) => Number(amount || 0).toLocaleString('id-ID')
+
 type LoadState = 'loading' | 'ready' | 'offline'
 
 export default function RecapSheet() {
@@ -258,7 +261,7 @@ export default function RecapSheet() {
                       <td className="px-3 py-2 border border-slate-300 text-right tabular-nums">{row.empty}</td>
                       <td className="px-3 py-2 border border-slate-300 text-right tabular-nums">{row.loaded}</td>
                       <td className="px-3 py-2 border border-slate-300 text-right tabular-nums">{row.total}</td>
-                      <td className="px-3 py-2 border border-slate-300 text-right tabular-nums">{row.revenue}</td>
+                      <td className="px-3 py-2 border border-slate-300 text-right tabular-nums">{formatRevenue(row.revenue)}</td>
                     </tr>
                   ))}
                   <tr className="bg-slate-800 text-white font-bold">
@@ -268,7 +271,7 @@ export default function RecapSheet() {
                     <td className="px-3 py-2 border border-slate-600 text-right tabular-nums">{group.empty}</td>
                     <td className="px-3 py-2 border border-slate-600 text-right tabular-nums">{group.loaded}</td>
                     <td className="px-3 py-2 border border-slate-600 text-right tabular-nums">{group.total}</td>
-                    <td className="px-3 py-2 border border-slate-600 text-right tabular-nums">{group.revenue}</td>
+                    <td className="px-3 py-2 border border-slate-600 text-right tabular-nums">{formatRevenue(group.revenue)}</td>
                   </tr>
                 </tbody>
               ))}
@@ -282,7 +285,7 @@ export default function RecapSheet() {
                     <td className="px-3 py-3 border border-slate-600 text-right tabular-nums">{total.empty}</td>
                     <td className="px-3 py-3 border border-slate-600 text-right tabular-nums">{total.loaded}</td>
                     <td className="px-3 py-3 border border-slate-600 text-right tabular-nums">{total.total}</td>
-                    <td className="px-3 py-3 border border-slate-600 text-right tabular-nums">{total.revenue}</td>
+                    <td className="px-3 py-3 border border-slate-600 text-right tabular-nums">{formatRevenue(total.revenue)}</td>
                   </tr>
                 </tfoot>
               )}

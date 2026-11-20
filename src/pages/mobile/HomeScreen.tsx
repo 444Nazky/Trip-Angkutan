@@ -258,7 +258,7 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
                   ? 'text-red-600 border-red-200'
                   : 'text-amber-700 border-amber-200'
           }`}>
-            {busy ? 'Mengirim…' : 'Kirim'}
+            {busy ? 'Menyinkronkan…' : 'Sinkron'}
           </span>
         </button>
       )}
@@ -329,12 +329,12 @@ export default function HomeScreen({ go, onStartTrip }: HomeScreenProps) {
                       onClick={() => { void sendTrip(t) }}
                       disabled={busy || !!sendingId}
                       className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-40"
-                      title="Kirim trip ini ke server"
+                      title="Sinkronkan trip ini ke server"
                     >
                       {sendingId === String(t.id)
                         ? <Loader2 size={11} className="animate-spin" />
                         : <Send size={11} />}
-                      {sendingId === String(t.id) ? 'Kirim…' : 'Kirim'}
+                      {sendingId === String(t.id) ? 'Sinkron…' : 'Sinkron'}
                     </button>
                   </div>
                 </div>

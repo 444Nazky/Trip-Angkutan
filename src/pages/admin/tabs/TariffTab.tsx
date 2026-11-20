@@ -1104,18 +1104,6 @@ export function TariffTab({ serverState, showToast }: TariffTabProps) {
           </div>
         </aside>
       </div>
-
-      {/* Keterangan singkat */}
-      <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500 shadow-sm">
-        <p>
-          Tiap region punya baris tarif sendiri. Sel kosong tampil <b className="text-slate-700">Rp 0</b> — isi untuk menetapkan harga.
-          Lokal 0 memakai tarif wilayah; <b className="text-slate-700">internal</b> selalu Rp 0.
-        </p>
-        <p>
-          Pilih <b className="text-slate-700">Semua Region</b> untuk menulis satu harga ke banyak region.{' '}
-          <Trash2 size={11} className="inline text-red-600" /> menghapus baris pada region itu saja.
-        </p>
-      </div>
     </div>
   )
 }

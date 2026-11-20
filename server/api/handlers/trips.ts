@@ -582,7 +582,7 @@ export async function completeTrip(req: Request): Promise<Response> {
     const photoPaths: string[] = await Promise.all(files.map(f => storePhoto(f)));
 
     const tripId = existingTrip ? existingTrip.id : crypto.randomUUID();
-    const noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
+    let noTrip = existingTrip ? existingTrip.no_trip : generateTripNo();
 
     const tripDoc: Record<string, unknown> = {
       status_muatan: statusMuatan,
@@ -671,15 +671,25 @@ export async function completeTrip(req: Request): Promise<Response> {
       );
     }
 
-    const { error: insErr } = await db.from("trips").insert({
-      id: tripId,
-      no_trip: noTrip,
-      officer_id: officerId,
-      region_id: regionId,
-      dermaga_id: dermagaId || null,
-      ...tripDoc,
-      client_trip_id: clientTripId || null,
-    });
+    // Nomor trip bisa saja sudah dipakai proses lain (mis. server baru restart
+    // pada detik yang sama). Coba beberapa nomor berikutnya sebelum menyerah;
+    // hanya bentrok pada `no_trip` yang diulang, galat lain langsung dilempar.
+    let insErr: unknown = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const inserted = await db.from("trips").insert({
+        id: tripId,
+        no_trip: noTrip,
+        officer_id: officerId,
+        region_id: regionId,
+        dermaga_id: dermagaId || null,
+        ...tripDoc,
+        client_trip_id: clientTripId || null,
+      });
+      insErr = inserted.error;
+      if (!insErr) break;
+      if (pgCode(insErr) !== PG_UNIQUE_VIOLATION || !/no_trip/i.test(errorText(insErr))) break;
+      noTrip = generateTripNo();
+    }
     if (insErr) throw insErr;
 
     // Simpan + hubungkan seluruh kendaraan. Kalau gagal, trip yang barusan

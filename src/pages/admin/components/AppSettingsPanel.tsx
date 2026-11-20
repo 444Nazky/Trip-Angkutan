@@ -104,10 +104,6 @@ export function AppSettingsPanel({ showToast }: SettingsPanelProps) {
           {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
         </button>
       </div>
-
-      <p className="mt-3 text-[11px] text-slate-400">
-        Berlaku saat app dibuka. Offline memakai nilai terakhir.
-      </p>
     </div>
   )
 }

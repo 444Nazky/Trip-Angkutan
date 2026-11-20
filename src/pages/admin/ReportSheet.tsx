@@ -195,7 +195,6 @@ export default function ReportSheet() {
   const [geoRules, setGeoRules] = useState<GeofenceRule[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [lastSync, setLastSync] = useState('')
-  const [tick, setTick] = useState(0)
   const alive = useRef(true)
 
   const load = useCallback(async (f: ReportFilters) => {
@@ -227,12 +226,10 @@ export default function ReportSheet() {
       // Jangan refresh saat tab tidak terlihat: query laporan itu berat (hingga
       // 1.000 trip + kendaraan + tarif) dan membanjiri egress tiap 15 detik.
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-      setTick(t => t + 1)
       void load(filters)
     }, AUTO_REFRESH_MS)
     const onVisible = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-      setTick(t => t + 1)
       void load(filters)
     }
     document.addEventListener('visibilitychange', onVisible)
@@ -502,7 +499,6 @@ export default function ReportSheet() {
             className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 font-bold text-xs hover:bg-white">
             Reset
           </button>
-          <span className="ml-auto text-[11px] text-slate-400 font-semibold self-center">Sinkron ke-{tick + 1}</span>
         </div>
       </header>
 

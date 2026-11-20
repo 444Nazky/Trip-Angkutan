@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { Camera, ChevronRight, ExternalLink, Eye, EyeOff, Table2, Calendar } from 'lucide-react'
 import { fetchTrips, fetchTripReports, fetchReportFilters, fetchTripCancellations, formatReportDateTime, dayKeyWib, vehicleUnitLabel, reportGolongan, tarifSourceLabel, type BackendTrip, type ReportTrip, type ReportFilters, type TripCancellation, type ReportDermagaOption, type ReportRouteOption } from '../../../services/trips'
 import { CurrencyDisplay } from '../components/CurrencyDisplay'
-import { BreakdownSummaryCard } from '../components/BreakdownSummaryCard'
 import { PhotoViewer, resolvePhotoUrl } from '../components/PhotoViewer'
 import { fetchGeofenceRules, type GeofenceRule } from '../../../services/geofences'
 import { ensureAdminSession, SESSION_READY_EVENT } from '../../../services/auth'
@@ -381,20 +380,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
     void loadReports(next)
   }
 
-  const applyDatePreset = (days: number | null) => {
-    if (!days) { clearReportFilters(); return }
-    const today = dayKeyWib(new Date().toISOString())
-    const start = dayKeyWib(new Date(Date.now() - (days - 1) * 86400000).toISOString())
-    const next: ReportFilters = { ...reportFilters, startDate: start, endDate: today }
-    setReportFilters(next)
-    void loadReports(next)
-  }
-
-  const clearReportFilters = () => {
-    setReportFilters({})
-    void loadReports({})
-  }
-
   // Jenis kendaraan: ambil dari master vehicle_types (semua pilihan sah),
   // bukan dari trip yang sudah terkirim. Fallback ke opsi server bila master
   // gagal dimuat.
@@ -534,14 +519,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Sampai</label>
           <input type="date" value={reportFilters.endDate || ''} onChange={e => applyReportFilter({ endDate: e.target.value || undefined })}
             className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm bg-[var(--admin-surface)] text-[var(--admin-text-soft)]" /></div>
-        <div className="flex gap-1.5">
-          {[{ label: 'Hari Ini', days: 1 }, { label: '7 Hari', days: 7 }, { label: '30 Hari', days: 30 }].map(p => (
-            <button key={p.label} onClick={() => applyDatePreset(p.days)}
-              className="px-3 py-1.5 rounded-lg border border-[var(--admin-border)] text-[11px] font-bold text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-hover)]">
-              {p.label}
-            </button>
-          ))}
-        </div>
         <div><label className="text-[11px] font-bold text-[var(--admin-text-muted)] block mb-1.5">Golongan</label>
           <select value={reportFilters.golongan || ''} onChange={e => applyReportFilter({ golongan: e.target.value || undefined })}
             className="border border-[var(--admin-border)] rounded-xl px-3 py-2 text-sm min-w-[140px] bg-[var(--admin-surface)] text-[var(--admin-text-soft)]">
@@ -614,10 +591,6 @@ export function ReportsTab({ onServerTripsChange, revealed, onToggleReveal, base
         <p className="rounded-xl border border-[var(--admin-warning-border)] bg-[var(--admin-warning-soft)] px-4 py-2 text-[11px] font-semibold text-[var(--admin-warning-text)]">
           1000 trip terbaru saja. Persempit rentang tanggal agar angka akurat.
         </p>
-      )}
-
-      {reportState === 'ready' && totalTrip > 0 && (
-        <BreakdownSummaryCard reportTrips={reportTrips} vehicleTypes={vehicleTypeNames} revealed={revealed} onToggleReveal={onToggleReveal} />
       )}
 
       {viewingPhotos && createPortal((

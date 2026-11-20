@@ -62,6 +62,15 @@ Deno.test("errorText membaca pesan dari error PostgREST (objek biasa)", () => {
   assertStringIncludes(errorText({}), "[object Object]");
 });
 
+Deno.test("nomor trip unik untuk beberapa trip yang selesai pada detik yang sama", async () => {
+  // Sinkronisasi massal mengirim beberapa trip berurutan; tanpa ini semuanya
+  // mendapat no_trip identik dan trip kedua dst. ditolak 409.
+  await loadHandler();
+  const { generateTripNo } = await import("../_shared.ts");
+  const numbers = Array.from({ length: 6 }, () => generateTripNo());
+  assertEquals(new Set(numbers).size, numbers.length, `nomor trip duplikat: ${numbers.join(", ")}`);
+});
+
 Deno.test("explainDbError memetakan galat database ke status yang tepat", () => {
   const invalidUuid = explainDbError({ message: "invalid input syntax for type uuid", code: "22P02" });
   assertEquals(invalidUuid?.status, 400);
@@ -147,7 +156,7 @@ const TABLES: Record<string, FakeTable> = {
     rows: [],
   },
   officers: {
-    columns: new Set(["id", "name", "username", "password", "region_id", "created_at"]),
+    columns: new Set(["id", "name", "username", "password", "region_id", "is_active", "created_at"]),
     rows: [],
   },
   tariffs: {
@@ -495,8 +504,8 @@ function requestFor(
 
 function resetTables() {
   for (const t of Object.values(TABLES)) t.rows.length = 0;
-  // Handler memverifikasi officer ada di tabel (penjaga FK).
-  TABLES.officers.rows.push({ id: OFFICER_ID });
+  // Handler memverifikasi officer ada di tabel + aktif (penjaga FK & auth).
+  TABLES.officers.rows.push({ id: OFFICER_ID, is_active: 1 });
 }
 
 Deno.test("petugas tanpa region: trip tetap tersimpan (region_id null)", async () => {

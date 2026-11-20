@@ -158,8 +158,8 @@ describe('TariffTab (accordion per region)', () => {
     const text = container.textContent ?? ''
     expect(text).toContain('45.000')
     expect(text).toContain('40.000')
-    // Badau belum punya baris tarif -> kolom eksternal Rp 0.
-    expect(text).toContain('Rp 0')
+    // Badau belum punya baris tarif -> sel kolom eksternal Rp 0.
+    expect(text).toContain('Rp0')
   })
 
   it('tombol toggle tetap bisa menutup region (collapse)', async () => {

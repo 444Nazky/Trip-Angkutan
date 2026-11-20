@@ -226,7 +226,15 @@ export async function getOfficerRoutesByDermaga(
  * memakai zona Asia/Jakarta supaya sama dengan jam yang tampil di dashboard.
  * Detik disertakan agar dua trip pada menit yang sama tidak bentrok dengan
  * constraint UNIQUE `trips.no_trip`.
+ *
+ * Sinkronisasi beberapa trip sekaligus bisa menyelesaikan lebih dari satu
+ * trip dalam DETIK yang sama. Tanpa urutan tambahan, semuanya mendapat nomor
+ * identik dan trip kedua dst. ditolak 409 "data bentrok". Urutan `-001`,
+ * `-002`, ... membuat nomor tetap unik dalam satu detik.
  */
+let lastTripNoBase = "";
+let tripNoSequence = 0;
+
 export function generateTripNo(): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jakarta",
@@ -240,5 +248,12 @@ export function generateTripNo(): string {
     hourCycle: "h23",
   }).formatToParts(new Date());
   const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
-  return `TRP${pick("year")}${pick("month")}${pick("day")}${pick("hour")}${pick("minute")}${pick("second")}`;
+  const base = `TRP${pick("year")}${pick("month")}${pick("day")}${pick("hour")}${pick("minute")}${pick("second")}`;
+  if (base !== lastTripNoBase) {
+    lastTripNoBase = base;
+    tripNoSequence = 0;
+    return base;
+  }
+  tripNoSequence += 1;
+  return `${base}-${String(tripNoSequence).padStart(3, "0")}`;
 }

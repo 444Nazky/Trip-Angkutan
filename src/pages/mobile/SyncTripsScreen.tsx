@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, CloudOff, Loader2, RefreshCw } from 'lucide-react'
 import { useApp } from '../store'
 import type { MobileScreen } from '../types'
 import {
@@ -74,7 +74,7 @@ export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
         setFailed(true)
         setMessage(`${result.failed} trip masih gagal. Periksa pesan di bawah.`)
       } else {
-        setMessage('Semua trip berhasil dikirim.')
+        setMessage('Semua trip berhasil disinkronkan.')
       }
     } catch {
       setFailed(true)
@@ -92,7 +92,7 @@ export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
     try {
       const result = await syncTripNow(trip)
       if (result.ok) {
-        setMessage('Trip berhasil dikirim.')
+        setMessage('Trip berhasil disinkronkan.')
       } else {
         setFailed(true)
         setMessage(result.error ?? 'Trip belum diterima server.')
@@ -123,7 +123,7 @@ export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
           </button>
           <div className="min-w-0">
             <h2 className="font-black text-slate-900 text-[20px] leading-tight">Trip Belum Terkirim</h2>
-            <p className="mt-0.5 text-[11px] text-slate-500">{rows.length} trip menunggu dikirim.</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{rows.length} trip menunggu sinkron.</p>
           </div>
         </div>
         <button
@@ -132,7 +132,7 @@ export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
           className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-[11px] font-bold text-white disabled:opacity-40"
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          {busy ? 'Mengirim…' : 'Kirim Semua'}
+          {busy ? 'Menyinkronkan…' : 'Sinkron Semua'}
         </button>
       </div>
 
@@ -206,12 +206,12 @@ export default function SyncTripsScreen({ go, onBack }: SyncTripsScreenProps) {
                   onClick={() => void sendTrip(trip)}
                   disabled={busy || !!sendingId}
                   className="inline-flex shrink-0 items-center gap-1 self-center rounded-xl bg-blue-600 px-3 py-2 text-[11px] font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
-                  title="Kirim trip ini saja"
+                  title="Sinkronkan trip ini saja"
                 >
                   {sendingId === String(trip.id)
                     ? <Loader2 size={12} className="animate-spin" />
-                    : <Send size={12} />}
-                  {sendingId === String(trip.id) ? 'Mengirim…' : 'Kirim'}
+                    : <RefreshCw size={12} />}
+                  {sendingId === String(trip.id) ? 'Menyinkronkan…' : 'Sinkron'}
                 </button>
               </div>
             </div>
