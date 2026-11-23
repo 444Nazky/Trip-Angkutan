@@ -22,7 +22,6 @@ public class ApkInstallerPlugin extends Plugin {
     private static final String APK_MIME = "application/vnd.android.package-archive";
 
 
-    @param call
     @PluginMethod
     public void install(PluginCall call) {
         String raw = call.getString("path");
