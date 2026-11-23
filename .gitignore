@@ -87,6 +87,7 @@ android/keystore.properties
 
 # Runtime databases (local/dev only, never commit)
 data/*.db
+data/backups/
 *.db
 
 # Berkas unggahan runtime (foto trip, APK, bundel OTA) - volume docker
