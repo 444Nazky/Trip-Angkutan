@@ -101,6 +101,36 @@ services:
       timeout: 3s
       retries: 30
 
+  # BACKUP DATABASE OTOMATIS.
+  #
+  # Dump gzip dibuat sekali saat container start lalu setiap pukul 02:00
+  # waktu server. Berkas disimpan di host (./data/backups) supaya tetap ada
+  # walau container/volume database dibangun ulang. Backup lebih tua dari
+  # BACKUP_KEEP_DAYS hari dihapus otomatis.
+  #
+  # Restore manual:
+  #   gunzip -c data/backups/trip-YYYYmmdd-HHMMSS.sql.gz \
+  #     | docker exec -i trip-db psql -U trip -d trip
+  db-backup:
+    image: postgres:16-alpine
+    container_name: trip-db-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-trip}
+      PGDATABASE: ${POSTGRES_DB:-trip}
+      BACKUP_DIR: /backups
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+    volumes:
+      - ./data/backups:/backups
+      - ./scripts/backup-container.sh:/usr/local/bin/backup:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup"]
+    networks:
+      - backend
+
   # POSTGREST - menerjemahkan query REST dari server API menjadi SQL.
   #
   # Hanya diakses server API lewat jaringan `backend` (http://rest:3000).

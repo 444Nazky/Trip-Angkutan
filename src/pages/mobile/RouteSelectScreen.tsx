@@ -384,12 +384,18 @@ export default function RouteSelectScreen({ go, selectedDockId }: RouteSelectScr
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wide">Wilayah Aktif</p>
-          <p className="text-white font-bold text-[13px]">{regionDisplayName(officer.region, officer.regionName) || '—'}</p>
+          {/* Dermaga adalah konteks utama petugas di lapangan, jadi tampil
+              sebagai judul besar; region cukup menjadi sub-header. */}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {dockName && <Anchor size={14} className="text-amber-400 shrink-0" />}
+            <p className="text-white font-bold text-[16px] leading-tight truncate">
+              {dockName || regionDisplayName(officer.region, officer.regionName) || '—'}
+            </p>
+          </div>
           {dockName && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <Anchor size={10} className="text-amber-400" />
-              <p className="text-amber-400 text-[10px] font-semibold">{dockName}</p>
-            </div>
+            <p className="text-slate-400 text-[11px] font-medium mt-0.5 truncate">
+              {regionDisplayName(officer.region, officer.regionName) || '—'}
+            </p>
           )}
         </div>
         <Map size={16} className="text-slate-600 shrink-0" />
