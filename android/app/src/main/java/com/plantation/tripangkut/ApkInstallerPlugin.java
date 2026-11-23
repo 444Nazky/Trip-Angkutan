@@ -14,31 +14,15 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
 
-/**
- * Jembatan JS → installer paket Android.
- *
- * Kenapa plugin ini ada: aplikasi memakai "Custom Self-Hosted Update System"
- * (unduh APK → pasang sendiri, tanpa Play Store). Sisi JS dulu memanggil
- * `window.cordova.plugins.fileOpener2`, padahal plugin Cordova itu tidak pernah
- * terpasang di node_modules maupun terdaftar di capacitor.plugins.json — jadi
- * pemanggilannya SELALU gagal dan tombol update berakhir tanpa pemasangan.
- *
- * Berkas APK diunduh ke Filesystem Directory.Data (getFilesDir()). Path itu
- * harus sudah dibuka di res/xml/file_paths.xml (files-path) agar FileProvider
- * boleh membuat content:// URI-nya.
- */
+
 @CapacitorPlugin(name = "ApkInstaller")
 public class ApkInstallerPlugin extends Plugin {
 
     private static final String TAG = "ApkInstaller";
     private static final String APK_MIME = "application/vnd.android.package-archive";
 
-    /**
-     * Buka berkas APK dengan installer paket bawaan Android (ACTION_VIEW).
-     *
-     * @param call { path: string } path absolut berkas APK di perangkat,
-     *             boleh dengan awalan "file://" maupun tanpa.
-     */
+
+    @param call
     @PluginMethod
     public void install(PluginCall call) {
         String raw = call.getString("path");
