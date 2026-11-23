@@ -6,7 +6,7 @@
  * alur pembaruan mati di perangkat: tombol "Cek Update" di halaman Profil
  * selalu dijawab "Sudah Terbaru" tanpa pernah menghubungi server.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const cap = vi.hoisted(() => ({ native: false }))
 
@@ -17,7 +17,16 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
-const { isLocalhostDev, isLocalhost } = await import('./runtimeEnv')
+// Import dinamis (bukan top-level await) karena tsconfig proyek memakai
+// module CommonJS; top-level await ditolak `tsc --noEmit`.
+let isLocalhostDev: typeof import('./runtimeEnv').isLocalhostDev
+let isLocalhost: typeof import('./runtimeEnv').isLocalhost
+
+beforeAll(async () => {
+  const mod = await import('./runtimeEnv')
+  isLocalhostDev = mod.isLocalhostDev
+  isLocalhost = mod.isLocalhost
+})
 
 describe('isLocalhostDev', () => {
   beforeEach(() => {

@@ -177,6 +177,8 @@ export interface TariffRow {
   loadedNum: number
   empty: string
   emptyNum: number
+  /** Tarif kategori Lokal dari server (per jenis, fallback tarif lokal wilayah). */
+  lokalNum?: number
   desc: string
 }
 
@@ -400,14 +402,25 @@ export function golonganFor(vehicleType: string): string {
 }
 
 /**
- * Tarif satu kendaraan sesuai kondisi muatannya.
- * Internal tidak ditagih; selain itu pakai loadedNum / emptyNum master tarif.
+ * Tarif satu kendaraan sesuai kategori & kondisi muatannya.
+ *
+ * Aturannya HARUS sama dengan server (resolveTariff):
+ * - Internal  -> 0 (tidak ditagih)
+ * - Lokal     -> lokalNum (per jenis; server sudah mengisinya dengan tarif
+ *                lokal wilayah bila tarif per jenis belum diisi)
+ * - lainnya   -> loadedNum / emptyNum master tarif
+ *
+ * Dulu semua non-Internal memakai loadedNum/emptyNum. Begitu admin mengisi
+ * tarif Lokal berbeda, angka di HP dan nominal yang disimpan server berbeda —
+ * petugas mengutip satu harga, kantor menagih harga lain.
  * Jenis tanpa tarif master -> 0 (tanpa tarif), bukan angka contoh.
  */
 export function vehicleTariff(vehicleType: string, category: string, load: 'loaded' | 'empty'): number {
-  if (category.trim().toLowerCase() === 'internal') return 0
+  const cat = category.trim().toLowerCase()
+  if (cat === 'internal') return 0
   const t = tariffFor(vehicleType)
   if (!t) return 0
+  if (cat === 'lokal') return t.lokalNum ?? 0
   return load === 'empty' ? t.emptyNum : t.loadedNum
 }
 

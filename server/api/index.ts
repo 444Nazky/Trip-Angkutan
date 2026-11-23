@@ -25,7 +25,7 @@ import * as imp from "./handlers/import.ts";
 import * as restore from "./handlers/restoreMobile.ts";
 import * as vts from "./handlers/vehicleTypes.ts";
 import * as setg from "./handlers/settings.ts";
-import { corsHeaders, json, auth, serveStoredFile, type OfficerClaims } from "./_shared.ts";
+import { assertJwtSecret, corsHeaders, json, auth, serveStoredFile, type OfficerClaims } from "./_shared.ts";
 import { recordRequest } from "./_metrics.ts";
 import {
   take,
@@ -770,5 +770,9 @@ async function handleRequestCore(req: Request): Promise<Response> {
 // menjamin entrypoint adalah "main module", dan kalau salahevaluate backend
 // produksi akan berhenti melayani request.
 if (Deno.env.get("API_DISABLE_EMBEDDED_SERVER") !== "1") {
+  // Entry point standalone (`deno run server/api/index.ts`) juga wajib punya
+  // JWT_SECRET; tanpa guard di sini, secret bawaan repo bisa dipakai memalsukan
+  // token admin.
+  assertJwtSecret();
   Deno.serve(handleRequest);
 }

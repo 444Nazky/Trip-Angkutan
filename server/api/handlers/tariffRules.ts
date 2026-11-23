@@ -27,6 +27,13 @@ export interface MasterTariffRow {
   vehicle_type: string;
   loaded_tariff: number;
   empty_tariff: number;
+  /**
+   * Nominal kategori Lokal untuk jenis ini, SUDAH mengikuti aturan server:
+   * lokal_tariff per jenis bila > 0, selain itu tarif lokal flat wilayah.
+   * Dipakai perangkat supaya harga yang ditampilkan sama dengan yang nanti
+   * disimpan server.
+   */
+  lokal_tariff: number;
   description?: string | null;
   is_active?: number;
 }
@@ -104,19 +111,32 @@ export async function getMasterTariffs(
 
   const { data, error } = await db
     .from("region_tariff_rows")
-    .select("id, vehicle_type, muatan_tariff, kosong_tariff, is_active")
+    .select("id, vehicle_type, lokal_tariff, muatan_tariff, kosong_tariff, is_active")
     .eq("region_id", target)
     .eq("is_active", 1);
   if (error || !data) return [];
-  const rows = (data as any[]).map((t) => ({
-    id: t.id,
-    golongan: "",
-    vehicle_type: String(t.vehicle_type ?? ""),
-    loaded_tariff: Number(t.muatan_tariff ?? 0) || 0,
-    empty_tariff: Number(t.kosong_tariff ?? 0) || 0,
-    description: null,
-    is_active: t.is_active ?? 1,
-  }));
+
+  // Lokal per jenis bisa 0 (belum diisi) -> server jatuh ke tarif lokal flat
+  // wilayah (resolveTariff langkah 3). Selesaikan di sini juga supaya klien
+  // tidak perlu tahu dua sumber itu dan tidak menampilkan harga berbeda.
+  const flats = await getRegionTariffs();
+  const flatLokal = flats.find(
+    (r) => r.region_id === target && r.tariff_type === "lokal" && r.is_active === 1,
+  )?.nominal_tariff ?? 0;
+
+  const rows = (data as any[]).map((t) => {
+    const perType = Number(t.lokal_tariff ?? 0) || 0;
+    return {
+      id: t.id,
+      golongan: "",
+      vehicle_type: String(t.vehicle_type ?? ""),
+      loaded_tariff: Number(t.muatan_tariff ?? 0) || 0,
+      empty_tariff: Number(t.kosong_tariff ?? 0) || 0,
+      lokal_tariff: perType > 0 ? perType : flatLokal,
+      description: null,
+      is_active: t.is_active ?? 1,
+    };
+  });
   masterCache = { at: Date.now(), regionId: target, rows };
   return rows;
 }

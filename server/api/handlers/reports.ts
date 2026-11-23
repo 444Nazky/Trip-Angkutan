@@ -1,5 +1,6 @@
 // Reports handlers (port of backend/src/routes/reports.js) — admin only.
 import { db, json, requireAdmin } from "../_shared.ts";
+import { wibDateRange } from "../_dateRange.ts";
 import {
   resolveTariff,
   hasColumn,
@@ -7,11 +8,12 @@ import {
   type TariffSource,
 } from "./tariffRules.ts";
 
+// Laporan hanya memakai rentang bila KEDUA batas ada (perilaku lama).
+// Perhitungan batasnya ada di _dateRange.ts supaya ikut WIB (+07:00), sama
+// dengan filter pembatalan dan daftar trip.
 function dateRange(url: URL): { start?: string; end?: string } {
-  const startDate = url.searchParams.get("startDate");
-  const endDate = url.searchParams.get("endDate");
-  if (!startDate || !endDate) return {};
-  return { start: `${startDate}T00:00:00`, end: `${endDate}T23:59:59` };
+  const range = wibDateRange(url);
+  return range.start && range.end ? range : {};
 }
 
 // Kategori operasional kendaraan (bukan Golongan master tarif I..V).

@@ -1,5 +1,6 @@
 // Trips handlers (port of backend/src/routes/trips.js), photos on Storage.
 import { db, json, auth, generateTripNo, type OfficerClaims } from "../_shared.ts";
+import { wibDateRange, wibDayRange } from "../_dateRange.ts";
 import { resolveTariff, hasColumn, normalizeCategory, normalizeGolongan } from "./tariffRules.ts";
 
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -942,7 +943,7 @@ export async function getTripCancellations(req: Request, url: URL): Promise<Resp
     const ctx = await auth(req);
     if (!ctx) return json({ error: "Invalid token" }, 401);
 
-    const range = cancelDateRange(url);
+    const range = wibDateRange(url);
     const reason = shortText(url.searchParams.get("reason"));
     const search = shortText(url.searchParams.get("q"));
 
@@ -999,23 +1000,6 @@ export async function getTripCancellations(req: Request, url: URL): Promise<Resp
   }
 }
 
-/**
- * Rentang tanggal dari query string, dalam zona waktu WIB.
- *
- * `cancelled_at` disimpan sebagai timestamptz; batas "hari ini" harus ikut
- * zona WIB, bukan UTC, supaya trip yang dibatalkan jam 23 WIB tidak ikut
- * terhitung di hari berikutnya (atau sebelumnya).
- */
-function cancelDateRange(url: URL): { start?: string; end?: string } {
-  const start = shortText(url.searchParams.get("startDate"));
-  const end = shortText(url.searchParams.get("endDate"));
-  const out: { start?: string; end?: string } = {};
-  // Offset WIB (+07:00) ditulis eksplisit supaya tidak bergantung pada zona
-  // waktu mesin server.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(start)) out.start = `${start}T00:00:00+07:00`;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(end)) out.end = `${end}T23:59:59.999+07:00`;
-  return out;
-}
 
 /**
  * Ringkasan dokumen pembatalan untuk kartu statistik.
@@ -1150,8 +1134,11 @@ export async function getTrips(req: Request, url: URL): Promise<Response> {
       .limit(100);
 
     if (!isAdmin) query = query.eq("region_id", String(ctx.regionId ?? ""));
-    if (date) {
-      query = query.gte("created_at", `${date}T00:00:00`).lte("created_at", `${date}T23:59:59`);
+    // Batas hari harus WIB (+07:00), bukan UTC: trip jam 03:00 WIB tersimpan
+    // sebagai 20:00 UTC hari sebelumnya.
+    const dayRange = date ? wibDayRange(date) : null;
+    if (dayRange) {
+      query = query.gte("created_at", dayRange.start).lte("created_at", dayRange.end);
     }
 
     const { data: trips, error } = await query;

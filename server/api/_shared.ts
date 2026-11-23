@@ -49,12 +49,35 @@ export function dbDetail(error: unknown): string {
   return `${raw.slice(0, 200)}${codeText}`;
 }
 
-// PENTING: pakai `||` bukan `??`. Kalau JWT_SECRET diset ke string KOSONG
-// (mis. baris `JWT_SECRET=` di .env.local), `??` tidak menangkapnya karena
-// "" bukan null/undefined -> kunci HMAC jadi 0 byte -> SubtleCrypto melempar
-// "Key length is zero" -> setiap request auth gagal dengan 500, bukan 401.
-// String kosong diperlakukan sama dengan tidak di-set -> memakai default.
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "trip-angkut-secret-key";
+// JWT_SECRET WAJIB diisi — TIDAK ADA fallback yang tertulis di source.
+//
+// Dulu nilainya `Deno.env.get("JWT_SECRET") || "trip-angkut-secret-key"`.
+// Secret itu terbaca siapa pun yang bisa melihat repo, jadi entry point yang
+// lupa memuat .env (mis. `deno run server/api/index.ts`) menerima token admin
+// palsu tanpa hambatan. Pre-flight di local_server.ts tidak menolong karena
+// index.ts bisa dijalankan langsung. Sekarang guard-nya ada di modul bersama
+// yang diimpor SEMUA entry point, jadi tidak bisa dilewati.
+//
+// String kosong diperlakukan sama dengan tidak di-set: kunci HMAC 0 byte
+// membuat setiap request gagal dengan 500, bukan 401 yang jelas.
+const JWT_SECRET = Deno.env.get("JWT_SECRET") || "";
+
+/**
+ * Pre-flight secret yang dipakai SEMUA entry point.
+ *
+ * Dipanggil saat startup server (index.ts standalone & local_server.ts),
+ * bukan saat modul di-import, supaya unit test handler tidak ikut gagal hanya
+ * karena environment test tidak mengisi JWT_SECRET.
+ */
+export function assertJwtSecret(): void {
+  if (Deno.env.get("JWT_SECRET")) return;
+  console.error(
+    "[api] GAGAL START: JWT_SECRET belum diisi. Tanpa secret ini token admin" +
+      " bisa dipalsukan. Isi JWT_SECRET (mis. `openssl rand -hex 32`) di" +
+      " server/api/.env.local lalu jalankan ulang server.",
+  );
+  throw new Error("JWT_SECRET wajib diisi");
+}
 // Token TTL: 90 hari - cukup untuk sesi aktif, tidak terlalu panjang jika browser compromise
 const OFFICER_TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
 

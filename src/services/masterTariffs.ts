@@ -25,6 +25,8 @@ export interface StoredTariff {
   loadedNum: number
   empty: string
   emptyNum: number
+  /** Nominal kategori Lokal (sudah diresolusi server: per jenis / flat wilayah). */
+  lokalNum: number
   desc: string
 }
 
@@ -34,6 +36,7 @@ interface ServerTariff {
   vehicle_type?: string
   loaded_tariff?: number
   empty_tariff?: number
+  lokal_tariff?: number
   description?: string | null
 }
 
@@ -54,6 +57,7 @@ function toStoredTariff(s: ServerTariff): StoredTariff | null {
     loadedNum,
     empty: fmtRp(emptyNum),
     emptyNum,
+    lokalNum: Number(s.lokal_tariff) || 0,
     desc: String(s.description ?? ''),
   }
 }
@@ -76,6 +80,7 @@ export function getStoredTariffs(): StoredTariff[] {
         loadedNum: Number(r.loadedNum) || 0,
         empty: String(r.empty ?? ''),
         emptyNum: Number(r.emptyNum) || 0,
+        lokalNum: Number(r.lokalNum) || 0,
         desc: String(r.desc ?? ''),
       }))
       .filter(r => r.type)

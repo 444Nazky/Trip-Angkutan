@@ -18,7 +18,8 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "docs:screenshots": "node scripts/capture-screenshots.mjs",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "typecheck": "tsc --noEmit"
   },
   "private": true,
   "dependencies": {

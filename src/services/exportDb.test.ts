@@ -41,7 +41,7 @@ describe('buildLocalDatabaseExport', () => {
 
     expect(payload.kind).toBe('synced-trips')
     expect(payload.officer.name).toBe('Petugas Satu')
-    expect(payload.trips.map(t => t.id).sort()).toEqual(['lama', 'terkirim'])
+    expect(payload.trips.map(t => t['id']).sort()).toEqual(['lama', 'terkirim'])
     expect(payload.counts.trips).toBe(2)
     expect(JSON.stringify(payload)).toContain('terkirim')
   })
@@ -54,7 +54,7 @@ describe('buildLocalDatabaseExport', () => {
 
     const { payload } = await buildLocalDatabaseExport(NOW)
 
-    expect(payload.trips.map(t => t.id)).toEqual(['cache-terkirim'])
+    expect(payload.trips.map(t => t['id'])).toEqual(['cache-terkirim'])
     expect(payload.counts.trips).toBe(1)
   })
 
@@ -108,8 +108,8 @@ describe('buildLocalDatabaseExport', () => {
     ])
     // JSON tidak lagi membawa base64 raksasa — hanya nama file.
     const trip = payload.trips[0] as Record<string, unknown>
-    expect(trip.photoUrl).toBe('images/lengkap-dokumentasi.jpg')
-    expect(trip.selfieUrl).toBe('images/lengkap-swafoto.jpg')
+    expect(trip['photoUrl']).toBe('images/lengkap-dokumentasi.jpg')
+    expect(trip['selfieUrl']).toBe('images/lengkap-swafoto.jpg')
     expect(JSON.stringify(payload)).not.toContain('data:image')
     expect(photos[0].bytes.length).toBeGreaterThan(0)
   })

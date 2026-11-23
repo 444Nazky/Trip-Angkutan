@@ -389,6 +389,24 @@ else
     warn "  Perbaikan manual: docker compose exec db psql -U trip -d trip -c \"NOTIFY pgrst, 'reload schema';\""
 fi
 
+# ── Muat ulang API setelah migrasi ───────────────────────────────────────────
+#
+# Container API dinyalakan SEBELUM migrasi di atas. Saat start, handler tarif
+# menanyakan sekali apakah kolom baru ada (hasColumn) lalu MENGINGAT jawabannya
+# selama proses hidup. Kalau probe itu terjadi sebelum migrasi, jawabannya
+# "tidak ada" dan terus dipakai -> kolom kategori/selfie_path tidak pernah
+# dipakai sampai seseorang me-restart API manual. Deploy terlihat sukses tapi
+# fitur barunya diam.
+#
+# Restart di sini murah (image sudah ada, tanpa build) dan membuat semua probe
+# dijalankan ulang terhadap skema yang sudah final.
+echo "[*] Memuat ulang API agar membaca skema terbaru..."
+if $DOCKER compose -f "$COMPOSE_FILE" restart api-intranet > /dev/null 2>&1; then
+    ok "API dimuat ulang setelah migrasi"
+else
+    warn "Gagal me-restart API - jalankan manual: docker compose restart api-intranet"
+fi
+
 # ── Backfill snapshot harga tarif (sekali jalan, idempoten) ──────────────────
 #
 # ATURAN: perubahan tarif di admin hanya berlaku untuk trip SELANJUTNYA. Trip

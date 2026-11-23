@@ -12,6 +12,21 @@ import {
 import { dbClear, initLocalDb } from './localDb'
 import type { Draft } from '../pages/store'
 
+/**
+ * Stub respons foto.
+ *
+ * `new Response(new Blob(...))` memakai Blob milik Node, sedangkan FormData
+ * di environment jsdom menolak Blob asing ("parameter 2 is not of type
+ * 'Blob'"). Akibatnya sendCancelDocument() gagal sebelum request terkirim
+ * dan test tidak menguji jalur yang sebenarnya. Kembalikan objek yang
+ * `.blob()`-nya menghasilkan Blob milik window (jsdom).
+ */
+function imageResponse(): Response {
+  return {
+    blob: async () => new window.Blob(['x'], { type: 'image/jpeg' }),
+  } as unknown as Response
+}
+
 const draft: Draft = {
   routeCode: 'SJRE-SBDZ',
   condition: 'muatan',
@@ -73,7 +88,7 @@ describe('dokumen pembatalan trip', () => {
     const calls: Array<{ url: string; body: unknown }> = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      if (url.startsWith('data:')) return imageResponse()
       calls.push({ url, body: init?.body })
       return new Response(JSON.stringify({ id: 'c-1' }), { status: 200 })
     }))
@@ -100,7 +115,7 @@ describe('dokumen pembatalan trip', () => {
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      if (url.startsWith('data:')) return imageResponse()
       return new Response(JSON.stringify({ id: 'c-1', noCancel: 'CNL20261102AAAAAA' }), { status: 200 })
     }))
 
@@ -117,7 +132,7 @@ describe('dokumen pembatalan trip', () => {
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('data:')) return new Response(new Blob(['x'], { type: 'image/jpeg' }))
+      if (url.startsWith('data:')) return imageResponse()
       return new Response(JSON.stringify({ error: 'Alasan pembatalan wajib diisi' }), { status: 400 })
     }))
 
