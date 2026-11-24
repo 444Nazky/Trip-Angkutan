@@ -214,7 +214,7 @@ server/
 scripts/                 build helpers, APK publisher, screenshot capture
 docs/                    deployment notes, incident reports, screenshots, media
 android/                 Capacitor Android project
-admin-www/               built admin dashboard served on port 8000
+www/                     build output: mobile app + admin dashboard (www/admin)
 ```
 
 ---
@@ -239,8 +239,9 @@ docker compose build api-intranet web
 docker compose up -d
 ```
 
-The admin dashboard is then served from `admin-www/` on port `8000`, the
-intranet API on `3000`, and the mobile dev server on `5173`.
+The Docker image serves the admin dashboard on port `8000` and the mobile app
+on `5173`; the intranet API listens on `3000`. Both web roots come from the
+same `www/` build, where the admin entry is `www/admin/index.html`.
 
 > On the office network the same services are started and health-checked by
 > `restart-all-ubuntu.sh`; see `docs/DEPLOY-UBUNTU-LOCAL.md` for the rollout

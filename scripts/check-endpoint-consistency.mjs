@@ -23,8 +23,8 @@
  *   3. Endpoint default harus punya host jaringan privat (LAN) — inilah
  *      server kantor.
  *   4. Tidak boleh ada host backend cloud (Supabase/Railway/Cloudflare tunnel/
- *      Vercel/Firebase) yang tertinggal di bundle yang DISERVE (www/ dan
- *      admin-www/). Satu URL lama di bundle cukup untuk mengirim data ke luar
+ *      Vercel/Firebase) yang tertinggal di bundle yang DISERVE (www/).
+ *      Satu URL lama di bundle cukup untuk mengirim data ke luar
  *      jaringan kantor tanpa ada yang sadar.
  *
  * Dijalankan otomatis setelah `ng build` (lihat package.json -> build).
@@ -215,27 +215,8 @@ function main() {
   }
 
   // 4. Tidak boleh ada endpoint cloud yang tertinggal di build yang diserve.
-  for (const dir of [WWW, path.join(ROOT, 'admin-www')]) {
-    for (const hit of findCloudEndpoints(dir)) {
-      fail(`Endpoint cloud ditemukan di build: ${hit}. Semua trafik harus ke server intranet (http://192.168.1.123:3000/api).`)
-    }
-  }
-
-  // Info tambahan: kalau folder admin-www hasil deploy lama masih ada,
-  // bandingkan endpoint-nya supaya deploy basiKetahuan.
-  const adminBundleDir = path.join(ROOT, 'admin-www', 'assets', 'js')
-  if (fs.existsSync(adminBundleDir)) {
-    const adminBundle = fs.readdirSync(adminBundleDir).find(f => /^main-[\w-]+\.js$/.test(f))
-    if (adminBundle) {
-      const adminEnv = readEnvFromBundle(path.join(adminBundleDir, adminBundle))
-      if (adminEnv.apiBaseUrl && env.apiBaseUrl &&
-          adminEnv.apiBaseUrl.replace(/\/+$/, '') !== env.apiBaseUrl.replace(/\/+$/, '')) {
-        notes.push(
-          `admin-www/ masih memakai endpoint LAMA (${adminEnv.apiBaseUrl}) ` +
-          `sedangkan build baru memakai ${env.apiBaseUrl}. Salin ulang www/ ke admin-www/ sebelum deploy.`,
-        )
-      }
-    }
+  for (const hit of findCloudEndpoints(WWW)) {
+    fail(`Endpoint cloud ditemukan di build: ${hit}. Semua trafik harus ke server intranet (http://192.168.1.123:3000/api).`)
   }
 
   for (const n of notes) console.warn(`⚠ ${n}`)

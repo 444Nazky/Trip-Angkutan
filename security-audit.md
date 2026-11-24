@@ -7,7 +7,7 @@ Dokumen ini merangkum hasil audit keamanan source-first yang dijalankan pada
 
 - Profil audit: `standard`, source-first, sandboxed-source-and-local-only.
 - Fokus: `src/`, `server/`, `scripts/`, `android/`, deployment config (`docker-compose.yml`, `nginx.conf`, `Dockerfile*`).
-- Dikeluarkan: `node_modules/`, hasil build (`www/`, `admin-www/`), `graphify-out/`, log, backup, dan file runtime/db.
+- Dikeluarkan: `node_modules/`, hasil build (`www/`), `graphify-out/`, log, backup, dan file runtime/db.
 - Tidak ada endpoint deployed, layanan eksternal, atau identitas produksi yang dihubungi. Tidak ada eksekusi target-controlled code karena kontrol sandbox penuh tidak tersedia.
 - Artefak lengkap: `~/security-audit-skill/trip-angkutan/run-1/` (`REPORT.md`, `FINDINGS-DETAIL.md`, `NEEDS-VALIDATION.md`, `findings.json`, `coverage-ledger.json`).
 - Tidak ada audit/ledger sebelumnya yang ditemukan; tidak ada temuan lama yang diwariskan.

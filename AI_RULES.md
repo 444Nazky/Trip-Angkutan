@@ -9,7 +9,7 @@
 | **8000** | Admin Dashboard | Dashboard admin (auto-login, tanpa input kredensial) |
 | **3000** | API Intranet | Server API lokal di PC kantor (opsional, dual endpoint) |
 
-**PERINGATAN KRITIS**: Port 8000 HARUS serving dari direktori `admin-www/`, BUKAN direktori root www/. Direktori www/ berisi aplikasi mobile, bukan admin dashboard.
+**PERINGATAN KRITIS**: Build admin ada di `www/admin/` dan memakai aset bersama dari root `www/`. Jangan menyalin `www/admin/index.html` menimpa `www/index.html` (itu akan mengganti aplikasi mobile dengan dashboard). Saat menyajikan manual, buka URL `/admin/`.
 
 ### Backend - Dual Endpoint
 - **REST API**: Supabase Edge Functions (kode identik untuk cloud dan intranet)
@@ -47,8 +47,7 @@ Aplikasi-Trip-Main Branch/
 │   └── services/                # API services
 │       ├── trips.ts              # Trip types & functions
 │       └── tariffs.ts           # Tariff types & functions
-├── www/                          # Build output (mobile)
-├── admin-www/                   # Build output (admin) - serve dengan PHP
+├── www/                          # Build output: mobile (root) + admin (www/admin)
 └── supabase/functions/api/       # Backend Edge Functions
     └── handlers/
         └── reports.ts            # Report API handler
@@ -113,22 +112,20 @@ Aplikasi-Trip-Main Branch/
 ### Frontend (Admin Dashboard)
 
 ```bash
-# 1. Build
+# 1. Build (menghasilkan www/ dan www/admin/index.html)
 npm run build
 
-# 2. Setup admin-www (struktur yang BENAR)
-rm -rf admin-www
-mkdir -p admin-www/assets/js admin-www/assets/css admin-www/Assets
-cp www/admin/index.html admin-www/
-cp -r www/assets/* admin-www/assets/
-cp www/3rdpartylicenses.txt admin-www/
-cp www/sw.js admin-www/
+# 2. Serve seluruh www supaya /assets/ dipakai bersama
+php -S 0.0.0.0:8000 -t www
 
-# 3. Pastikan folder Assets ada untuk logo SVG
-cp www/assets/karyamasv.svg admin-www/Assets/
+# 3. Buka dashboard di /admin/, mobile di /
+#    Admin  : http://localhost:8000/admin/
+#    Mobile : http://localhost:8000/
 
-# 4. Serve
-php -S 0.0.0.0:8000 -t admin-www
+# Untuk produksi pakai Docker Compose (image menyalin www/admin ke root
+# port 8000 dan www ke root port 5173):
+docker compose build web
+docker compose up -d web
 ```
 
 ### Backend (Supabase)
@@ -150,13 +147,13 @@ supabase functions deploy api --project-ref bmiruktfruunegtbydyw
 **Penyebab**: Duplikasi kondisi `tab === 'reports'` di `AdminDashboard.tsx`
 **Solusi**: Pastikan hanya satu kondisi per tab, render component yang sesuai
 
-### 3. Admin Dashboard Tidak Auto-Login
-**Penyebab**: HTML yang di-serve adalah versi mobile (port 8000 serving direktori yang salah)
-**Solusi**: Pastikan port 8000 serving dari `admin-www/`, bukan `www/`
+### 3. Admin Dashboard Menampilkan Halaman Login Mobile
+**Penyebab**: URL `/admin/` tidak dipakai sehingga yang dimuat `www/index.html` (mobile)
+**Solusi**: Buka `http://host:8000/admin/`; pada Docker, pastikan image menyalin `www/admin` ke root admin
 
 ### 4. Assets (JS/CSS/Logo) Tidak Terbaca
-**Penyebab**: Struktur direktori admin-www tidak lengkap
-**Solusi**: Copy SEMUA assets dari `www/` ke `admin-www/assets/` termasuk folder Assets/
+**Penyebab**: `www/assets/` tidak ikut tersaji, padahal `www/admin/index.html` merujuk `/assets/...` dari root
+**Solusi**: Sajikan seluruh direktori `www/` (bukan hanya `www/admin/`) dan pastikan `www/assets/` lengkap
 
 ### 5. Perubahan Frontend Tidak Muncul
 **Penyebab**: Browser cache atau file JS tidak ter-update
@@ -222,7 +219,7 @@ graphify update .
 |--------|-----|
 | Halaman blank | Copy assets + restart server |
 | Logo tidak muncul | Path case-sensitive, cek folder Assets |
-| Login page muncul di admin | Pastikan serve dari admin-www |
+| Login page muncul di admin | Pastikan membuka `/admin/` (manual) atau root admin container |
 | Grafik tidak tampil | Cek CSS variables, gunakan hardcoded |
 | TypeScript error | `npx tsc --noEmit --skipLibCheck` |
 | API error | Cek Supabase Edge Functions logs |

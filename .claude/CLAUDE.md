@@ -4,7 +4,7 @@
 
 ### Port Operasional
 - **Port 5173**: Mobile App (aplikasi petugas lapangan)
-- **Port 8000**: Admin Dashboard (HARUS serve dari direktori `admin-www/`)
+- **Port 8000**: Admin Dashboard (build ada di `www/admin/`, aset bersama di `www/`)
 - **Port 3000**: API INTRANET (server lokal di PC kantor, opsional)
 
 ### Backend - FULL INTRANET (tanpa cloud)
@@ -132,11 +132,11 @@ Jangan sampai tertukar:
 ### Frontend
 ```bash
 npm run build
-# Copy ke admin-www dengan struktur BENAR:
-rm -rf admin-www && mkdir -p admin-www/assets/js admin-www/assets/css admin-www/Assets
-cp www/admin/index.html admin-www/
-cp -r www/assets/* admin-www/assets/
-cp www/assets/karyamasv.svg admin-www/Assets/
+# Build menghasilkan www/ (mobile) dan www/admin/index.html (admin).
+# Sajikan seluruh www agar /assets/ dipakai bersama:
+php -S 0.0.0.0:8000 -t www
+# Admin: http://localhost:8000/admin/   Mobile: http://localhost:8000/
+# Produksi: docker compose build web && docker compose up -d web
 ```
 
 ### Backend
@@ -160,8 +160,8 @@ graphify update .  # Setelah modifikasi code
 - [ ] Run `npx tsc --noEmit --skipLibCheck` - tidak ada error
 - [ ] Cek semua CSS variable dalam inline styles
 - [ ] Build: `npm run build`
-- [ ] Setup admin-www dengan struktur BENAR
-- [ ] Serve dari admin-www (BUKAN www)
+- [ ] Pastikan `www/admin/index.html` ada dan `www/assets/` lengkap
+- [ ] Buka dashboard lewat `/admin/` (manual) atau root admin container
 - [ ] Test: Ctrl+Shift+R di browser
 
 ---
@@ -170,8 +170,8 @@ graphify update .  # Setelah modifikasi code
 
 1. **Grafik tidak tampil**: `var(--admin-accent)` tidak terdefinisi -> gunakan `#3B82F6`
 2. **Tab Laporan salah**: Duplikasi kondisi di AdminDashboard.tsx
-3. **Admin tidak auto-login**: Port 8000 serving direktori yang salah
-4. **Assets tidak terbaca**: Struktur admin-www tidak lengkap
+3. **Admin menampilkan halaman mobile**: URL `/admin/` tidak dipakai sehingga termuat `www/index.html`
+4. **Assets tidak terbaca**: `www/assets/` tidak ikut tersaji dari root `www/`
 5. **Server intranet gagal start**: `Could not find a matching package for 'npm:bcryptjs@2.4.3'`
    -> Deno ikut membaca package.json repo. Wajib jalankan dengan `--node-modules-dir=none`
    (sudah dipakai di `Dockerfile.backend`).
