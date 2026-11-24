@@ -36,7 +36,6 @@ vi.mock('./offlineDb', () => ({
   listOfficers: async () => h.saved.flat(),
 }))
 
-vi.mock('./seedData', () => ({ seedRoster: () => [] }))
 
 import { syncOfficersToLocal } from './officers'
 

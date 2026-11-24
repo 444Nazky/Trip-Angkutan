@@ -18,6 +18,7 @@ import { PlatesTab } from './tabs/PlatesTab'
 import { RoutesTab } from './tabs/RoutesTab'
 import { RegionTab } from './tabs/RegionTab'
 import { OfficersTab } from './tabs/OfficersTab'
+import { mergeBackendOfficers } from './components/officerMerge'
 import { ReportsTab } from './tabs/ReportsTab'
 import { CancellationsTab } from './tabs/CancellationsTab'
 import { SettingsTab } from './tabs/SettingsTab'
@@ -56,23 +57,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setTimeout(() => setToast(null), 3000)
   }
 
-  function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
-    return rows.map(b => {
-      const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
-      const regions = (b.regions ?? []).map(r => r.name)
-      const region = regions[0] ?? b.region_code ?? b.region_id ?? '-'
-      return {
-        id: String(b.id), name: b.name,
-        initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-        region,
-        regions,
-        pin: old?.pin ?? '', status: b.is_active ? 'Aktif' : 'Nonaktif',
-        // Dermaga mengikuti server apa adanya: array kosong berarti akses
-        // dicabut, bukan alasan memakai daftar lama.
-        dermagaAccess: b.dermagas ?? [],
-      }
-    })
-  }
 
   useEffect(() => { applyTheme(loadTheme()) }, [])
 

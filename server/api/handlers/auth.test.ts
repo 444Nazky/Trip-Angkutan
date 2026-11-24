@@ -1,14 +1,9 @@
 /**
  * Uji handler login admin.
  *
- * Fokusnya satu: dashboard admin harus selalu bisa dibuka.
- *
- * Dua mode yang diuji:
- *   1. ADMIN_AUTH_DISABLED=1 - mode bawaan server intranet. Dashboard dibuka
- *      tanpa password sama sekali.
- *   2. ADMIN_AUTH_DISABLED tidak aktif - dashboard memakai kredensial dari
- *      tabel admin_credentials, atau dari ADMIN_PASSWORD selama tabel itu
- *      masih kosong.
+ * Dashboard admin memakai kredensial dari tabel admin_credentials, atau dari
+ * ADMIN_PASSWORD selama tabel itu masih kosong. Tidak ada lagi mode tanpa
+ * password: request tanpa token tidak pernah diperlakukan sebagai admin.
  *
  * Jalankan:
  *   deno test --allow-net --allow-env server/api/handlers/auth.test.ts
@@ -105,32 +100,15 @@ function loginRequest(username = "admin", password = ""): Request {
   });
 }
 
-Deno.test("dashboard admin terbuka tanpa password saat ADMIN_AUTH_DISABLED=1", async () => {
+Deno.test("login admin tanpa kredensial ditolak, bukan dibuka otomatis", async () => {
   resetRows(fake.rows);
   try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "1");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
     const { adminLogin } = await loadHandler();
 
     const res = await adminLogin(loginRequest());
-    assertEquals(res.status, 200);
-    const body = await res.json();
-    assertStringIncludes(String(body.token ?? ""), ".");
-    assertEquals(body.admin?.role, "admin");
-  } finally {
-    // Server tiruan dipakai bersama oleh seluruh pengujian.
-  }
-});
-
-Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async () => {
-  resetRows(fake.rows);
-  try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "1");
-    const { adminLogin } = await loadHandler();
-
-    await adminLogin(loginRequest());
-    assertEquals(fake.rows.length, 0);
+    assertEquals(res.status, 503);
   } finally {
     // Server tiruan dipakai bersama oleh seluruh pengujian.
   }
@@ -139,7 +117,6 @@ Deno.test("mode ADMIN_AUTH_DISABLED=1 tidak menyentuh tabel kredensial", async (
 Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel kosong", async () => {
   resetRows(fake.rows);
   try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
     const { adminLogin } = await loadHandler();
@@ -157,7 +134,6 @@ Deno.test("login admin memakai ADMIN_PASSWORD saat mode proteksi aktif dan tabel
 Deno.test("login admin memberi pesan yang bisa ditindaklanjuti saat kredensial belum diatur", async () => {
   resetRows(fake.rows);
   try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
     const { adminLogin } = await loadHandler();
@@ -176,7 +152,6 @@ Deno.test("baris di database mengalahkan ADMIN_PASSWORD", async () => {
   resetRows(fake.rows);
   fake.rows.push({ id: 1, username: "admin", password: hash });
   try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "password-bootstrap");
     const { adminLogin } = await loadHandler();
@@ -198,7 +173,6 @@ Deno.test("baris kredensial ganda dibersihkan saat login", async () => {
   fake.rows.push({ id: 1, username: "admin", password: hash });
   fake.rows.push({ id: 2, username: "admin", password: hash });
   try {
-    Deno.env.set("ADMIN_AUTH_DISABLED", "0");
     Deno.env.set("ADMIN_USERNAME", "admin");
     Deno.env.set("ADMIN_PASSWORD", "");
     const { adminLogin } = await loadHandler();

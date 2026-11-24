@@ -2,7 +2,7 @@
 // di direktori lokal `apks`.
 //
 // Pembaruan aplikasi SELALU lewat paket APK penuh (tanpa OTA).
-import { corsHeaders, db, json, requireAdmin } from "../_shared.ts";
+import { auth, corsHeaders, db, json, requireAdmin } from "../_shared.ts";
 
 const APK_BUCKET = "apks";
 function storagePublicUrl(bucket: string, path: string): string {
@@ -75,6 +75,9 @@ export async function getAppVersion(req: Request, url: URL): Promise<Response> {
 
     const updateAvailable = compareVersionFilter(compareVersionsNoStamp(current), latest.version) === 1;
     const releaseNotes = latest.release_notes || "Update tersedia";
+    // Jangan janjikan unduhan kalau berkas APK-nya tidak ada di penyimpanan:
+    // perangkat akan mengunduh 404 lalu menampilkan "update gagal".
+    const apkAvailable = await db.storage.from(APK_BUCKET).exists(`app-${latest.version}.apk`);
 
     return json({
       latestVersion: latest.version,
@@ -88,7 +91,7 @@ export async function getAppVersion(req: Request, url: URL): Promise<Response> {
       apkHash: latest.apk_hash ?? null,
       minVersion: latest.min_version || null,
       releaseDate: latest.release_date || null,
-      apkAvailable: true,
+      apkAvailable,
     });
   } catch (error) {
     console.error("App version check error:", error);
@@ -237,6 +240,11 @@ export async function appDownload(req: Request, version: string): Promise<Respon
 // POST /report-version (upsert device)
 export async function reportDeviceVersion(req: Request): Promise<Response> {
   try {
+    // Laporan versi mengubah data perangkat; tanpa identitas, siapa pun di
+    // jaringan bisa menulis baris device_versions.
+    const ctx = await auth(req);
+    if (!ctx) return json({ error: "UNAUTHORIZED", message: "Unauthorized" }, 401);
+
     const body = await req.json().catch(() => ({})) as any;
     const deviceId = String(body.deviceId ?? "").trim();
     const version = String(body.version ?? "").trim();

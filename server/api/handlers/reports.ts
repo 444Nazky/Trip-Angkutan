@@ -191,6 +191,14 @@ export async function summary(req: Request, url: URL): Promise<Response> {
 
     const [tripResult, vehicleResult, revenueResult] = await Promise.all([tripQuery, vehicleQuery, revenueQuery]);
 
+    // Jangan pernah menampilkan angka 0 karena query gagal: itu terlihat
+    // seperti "tidak ada data" padahal datanya ada.
+    const queryError = tripResult.error ?? vehicleResult.error ?? revenueResult.error;
+    if (queryError) {
+      console.error("Summary query error:", queryError);
+      return json({ error: "Failed to fetch summary" }, 500);
+    }
+
     return json({
       totalTrips: tripResult.count || 0,
       totalVehicles: vehicleResult.count || 0,
@@ -221,20 +229,30 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     if (dermagaId && !UUID_RE.test(dermagaId)) return json({ error: "dermagaId tidak valid" }, 400);
     if (routeId && !UUID_RE.test(routeId)) return json({ error: "routeId tidak valid" }, 400);
 
-    let query = db
-      .from("trips")
-      .select("*, officers(name), regions(name, code), dermagas(name, code), routes(name, route_from, route_to)")
-      .order("created_at", { ascending: false })
-      .limit(1000);
+    // Laporan tidak boleh terpotong diam-diam di 1.000 trip. Ambil per
+    // halaman sampai habis; urutan created_at + id membuat offset stabil.
+    const PAGE_SIZE = 1000;
+    const fetched: any[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      let page = db
+        .from("trips")
+        .select("*, officers(name), regions(name, code), dermagas(name, code), routes(name, route_from, route_to)")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
-    if (range.start && range.end) query = query.gte("created_at", range.start).lte("created_at", range.end);
-    if (regionId) query = query.eq("region_id", regionId);
-    if (dermagaId) query = query.eq("dermaga_id", dermagaId);
-    if (status) query = query.eq("status_muatan", status);
+      if (range.start && range.end) page = page.gte("created_at", range.start).lte("created_at", range.end);
+      if (regionId) page = page.eq("region_id", regionId);
+      if (dermagaId) page = page.eq("dermaga_id", dermagaId);
+      if (status) page = page.eq("status_muatan", status);
 
-    const { data: fetchedTrips, error } = await query;
-    if (error) throw error;
-    let trips = fetchedTrips ?? [];
+      const { data: rows, error } = await page;
+      if (error) throw error;
+      const batch = rows ?? [];
+      fetched.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+    }
+    let trips = fetched;
 
     // Filter Rute: trip lawas tidak punya route_id (kolom selalu NULL), jadi
     // selain cocok lewat route_id, trip juga cocok lewat identitas rute yang
@@ -263,11 +281,18 @@ export async function tripsReport(req: Request, url: URL): Promise<Response> {
     let vehicles: any[] = [];
 
     if (tripIds.length) {
-      const { data: tvData } = await db
-        .from("trip_vehicles")
-        .select("trip_id, vehicles(*)")
-        .in("trip_id", tripIds);
-      vehicles = (tvData ?? []).map((tv: any) => ({ ...tv.vehicles, trip_id: tv.trip_id }));
+      // URL PostgREST punya batas panjang; 1.000 UUID dalam satu `in()` bisa
+      // ditolak. Kirim per 100 dan JANGAN diamkan galatnya.
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < tripIds.length; i += CHUNK_SIZE) {
+        const chunk = tripIds.slice(i, i + CHUNK_SIZE);
+        const { data: tvData, error: tvError } = await db
+          .from("trip_vehicles")
+          .select("trip_id, vehicles(*)")
+          .in("trip_id", chunk);
+        if (tvError) throw tvError;
+        vehicles.push(...(tvData ?? []).map((tv: any) => ({ ...tv.vehicles, trip_id: tv.trip_id })));
+      }
     }
 
     // Kategori operasional kendaraan (Internal / Eksternal / Lokal).

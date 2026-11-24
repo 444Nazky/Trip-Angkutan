@@ -222,6 +222,10 @@ describe('pasang APK: jangan klaim berhasil kalau tidak jadi terpasang', () => {
     h.statSize = h.bytes.length
     await svc.downloadUpdate('1.0.9', '/api/v1/app-download/1.0.9', await sha256(h.bytes))
 
+    // Endpoint /report-version sekarang butuh sesi; laporan saat startup
+    // tanpa token memang dilewati. Simulasikan petugas yang sudah login.
+    localStorage.setItem('trip.auth.token.v2', 'test-token')
+
     // Pengguna menyelesaikan pemasangan → App.getInfo() mengembalikan versi baru.
     h.version = '1.0.9'
     const version = await svc.refreshInstalledVersion()

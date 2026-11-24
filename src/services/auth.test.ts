@@ -20,7 +20,6 @@ import {
   verifyPin,
 } from './offlineDb'
 import { getStoredOfficer, loginOffline, verifyPinOffline } from './auth'
-import { seedRoster, verifySeedPin } from './seedData'
 import { tryOfflineLogin } from '../pages/LoginPage'
 
 const PIN_A = '987654'
@@ -100,27 +99,6 @@ describe('enkripsi hash PIN', () => {
     const legacyId = 'off-legacy'
     await setPinHash(legacyId, `plain:${PIN_A}`) // migrasi data lama
     expect(await verifyPin(legacyId, PIN_A)).toBe(true)
-  })
-})
-
-// ── 2. Seed data bawaan ──────────────────────────────────────────────────────
-
-describe('seed data bawaan', () => {
-  it('tidak ada roster seed sama sekali (tidak ada data palsu di perangkat)', async () => {
-    // SECURITY + KEBENARAN DATA: roster seed (nama petugas contoh, region
-    // yang sudah dihapus dari database) sudah dihapus. Satu-satunya sumber
-    // petugas adalah server.
-    expect(seedRoster()).toEqual([])
-    const hash = await getPinHash('apapun')
-    expect(hash).toBeNull()
-  })
-
-  it('verifySeedPin selalu false (seed credentials tidak tersedia)', () => {
-    // SECURITY: verifySeedPin selalu return false karena PIN hash dihapus
-    // Offline login memerlukan credentials yang sudah disinkronkan dari server
-    expect(verifySeedPin('petugas-tidak-ada', '999999')).toBe(false)
-    expect(verifySeedPin('petugas-tidak-ada', '')).toBe(false)
-    expect(verifySeedPin('petugas-tidak-ada', '123456')).toBe(false)
   })
 })
 

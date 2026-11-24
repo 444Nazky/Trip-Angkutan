@@ -210,6 +210,33 @@ async function rowExists(table: string, id: string): Promise<boolean> {
 }
 
 /**
+ * Apakah dermaga ini boleh dipakai petugas?
+ *
+ * bodyDermaga datang dari klien, jadi "barisnya ada di tabel" saja tidak
+ * cukup: petugas bisa mengirim UUID dermaga mana pun yang diketahuinya.
+ * Dermaga diterima hanya kalau benar-benar ditugaskan ke petugas
+ * (officer_dermagas) atau berada di region petugas.
+ */
+async function officerMayUseDermaga(officerId: string, dermagaId: string): Promise<boolean> {
+  const { data: assigned, error: assignError } = await db.from("officer_dermagas")
+    .select("dermaga_id")
+    .eq("officer_id", officerId)
+    .eq("dermaga_id", dermagaId)
+    .limit(1);
+  if (!assignError && assigned?.[0]) return true;
+
+  const { data: officerRows } = await db.from("officers")
+    .select("region_id").eq("id", officerId).limit(1);
+  const officerRegion = asUuidOrNull((officerRows ?? [])[0]?.region_id);
+  if (!officerRegion) return false;
+
+  const { data: dockRows, error: dockError } = await db.from("dermagas")
+    .select("region_id").eq("id", dermagaId).limit(1);
+  if (dockError) return false;
+  return asUuidOrNull((dockRows ?? [])[0]?.region_id) === officerRegion;
+}
+
+/**
  * Tentukan region & dermaga untuk trip.
  *
  * ATURAN: nilai yang bermasalah TIDAK BOLEH menggagalkan permintaan.
@@ -226,8 +253,9 @@ async function resolveTripReferences(
   const bodyDermaga = asUuidOrNull(bodyDermagaId);
 
   // Prioritas 1: dermaga yang dipilih petugas (dikirim di form).
+  // Hanya diterima kalau petugas memang berhak atas dermaga itu.
   let dermagaId: string | null = null;
-  if (bodyDermaga && (await rowExists("dermagas", bodyDermaga))) dermagaId = bodyDermaga;
+  if (bodyDermaga && (await officerMayUseDermaga(officerId, bodyDermaga))) dermagaId = bodyDermaga;
 
   // Prioritas 2: dermaga yang ditugaskan ke petugas.
   if (!dermagaId) {
@@ -391,12 +419,34 @@ async function deleteVehicleRows(vehicleIds: string[]): Promise<void> {
  * (gejala "kendaraan menghilang") walau pets sudah diberi tahu gagal kirim.
  * Lebih baik trip tidak ada sama sekali dan petugas mengirim ulang.
  */
-async function rollbackTrip(tripId: string): Promise<void> {
+/** Ambil path objek storage dari URL publik /files/trip-photos/<path>. */
+function photoStoragePath(url: unknown): string | null {
+  const marker = "/files/trip-photos/";
+  const raw = String(url ?? "");
+  const index = raw.indexOf(marker);
+  if (index < 0) return null;
+  const path = raw.slice(index + marker.length).split(/[?#]/)[0];
+  return path ? decodeURIComponent(path) : null;
+}
+
+/** Hapus foto yang tidak lagi dirujuk trip (best-effort, tidak melempar). */
+async function deleteStoredPhotos(urls: Array<unknown>): Promise<void> {
+  const paths = urls.map(photoStoragePath).filter((p): p is string => !!p);
+  if (!paths.length) return;
+  try {
+    await db.storage.from("trip-photos").remove(paths);
+  } catch {
+    // Foto yatim tidak merusak data; jangan gagalkan respons karenanya.
+  }
+}
+
+async function rollbackTrip(tripId: string, photoUrls: Array<unknown> = []): Promise<void> {
   try {
     await db.from("trips").delete().eq("id", tripId);
   } catch {
     // Best-effort.
   }
+  await deleteStoredPhotos(photoUrls);
 }
 
 /**
@@ -488,8 +538,8 @@ export async function completeTrip(req: Request): Promise<Response> {
     // Id officer WAJIB uuid yang benar-benar ada di tabel officers.
     //
     // Dulu: `officer_id: ctx.officerId ?? ""`. Kalau token tanpa id officer
-    // (mis. request tanpa header Authorization saat ADMIN_AUTH_DISABLED=1),
-    // atau id-nya bukan uuid, inserttrip gagal dengan 22P02 -> HTTP 500.
+    // (mis. token admin), atau id-nya bukan uuid, insert trip gagal dengan
+    // 22P02 -> HTTP 500.
     // Sekarang dicegat lebih awal dengan pesan yang bisa ditindaklanjuti.
     const officerId = asUuidOrNull(ctx.officerId);
     if (!officerId) {
@@ -615,8 +665,22 @@ export async function completeTrip(req: Request): Promise<Response> {
     }
 
     if (existingTrip) {
+      // Foto lama trip ini akan diganti; simpan dulu jalurnya supaya bisa
+      // dibersihkan setelah update benar-benar berhasil.
+      const { data: oldPhotoRows } = await db.from("trips")
+        .select("foto_kosong_path, selfie_path, proof_path")
+        .eq("id", tripId)
+        .limit(1);
+      const oldPhotoUrls = oldPhotoRows?.[0]
+        ? [oldPhotoRows[0].foto_kosong_path, oldPhotoRows[0].selfie_path, oldPhotoRows[0].proof_path]
+        : [];
+
       const { error: upErr } = await db.from("trips").update(tripDoc).eq("id", tripId);
-      if (upErr) throw upErr;
+      if (upErr) {
+        // Baris trip tidak berubah -> foto baru ini tidak dirujuk siapa pun.
+        await deleteStoredPhotos(photoPaths);
+        throw upErr;
+      }
 
       // Kendaraan LAMA dibiarkan dulu sampai semua kendaraan BARU berhasil
       // disimpan. Kalau ada yang gagal, mobil baru dihapus dan mobil lama
@@ -666,6 +730,9 @@ export async function completeTrip(req: Request): Promise<Response> {
         );
       }
 
+      // Trip sudah menunjuk ke foto baru; foto lama tidak dipakai lagi.
+      await deleteStoredPhotos(oldPhotoUrls);
+
       return json(
         { id: tripId, noTrip, updated: true, vehicleCount: finalCount, photoCount: files.length },
         200,
@@ -691,7 +758,10 @@ export async function completeTrip(req: Request): Promise<Response> {
       if (pgCode(insErr) !== PG_UNIQUE_VIOLATION || !/no_trip/i.test(errorText(insErr))) break;
       noTrip = generateTripNo();
     }
-    if (insErr) throw insErr;
+    if (insErr) {
+      await deleteStoredPhotos(photoPaths);
+      throw insErr;
+    }
 
     // Simpan + hubungkan seluruh kendaraan. Kalau gagal, trip yang barusan
     // dibuat DIHAPUS supaya dashboard tidak menampilkan trip dengan 0
@@ -707,7 +777,7 @@ export async function completeTrip(req: Request): Promise<Response> {
         regionId,
       );
     } catch (err) {
-      await rollbackTrip(tripId);
+      await rollbackTrip(tripId, photoPaths);
       throw err;
     }
 
@@ -716,7 +786,7 @@ export async function completeTrip(req: Request): Promise<Response> {
     const linkedCount = await countLinkedVehicles(tripId);
     if (linkedCount !== vehicles.length) {
       await deleteVehicleRows(insertedVehicleIds);
-      await rollbackTrip(tripId);
+      await rollbackTrip(tripId, photoPaths);
       console.error(
         `[trips/complete] verifikasi kendaraan gagal untuk trip ${tripId}: terhubung=${linkedCount}, diharapkan=${vehicles.length}`,
       );

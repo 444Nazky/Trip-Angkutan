@@ -5,6 +5,7 @@ import { fetchRegions, type Region } from '../../../services/regions'
 import { fetchRoutes, fetchDermagas } from '../../../services/dermagas'
 import { api, failureReason } from '../../../services/api'
 import type { Officer, BackendOfficerRow, RouteRow, RouteDermaga } from '../components/types'
+import { mergeBackendOfficers } from '../components/officerMerge'
 
 
 
@@ -15,32 +16,6 @@ interface OfficersTabProps {
   showToast: (msg: string, type?: 'success' | 'error') => void
 }
 
-
-
-
-
-function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Officer[] {
-  return rows.map(b => {
-    const old = prev.find(o => String(o.id) === String(b.id)) ?? prev.find(o => o.name === b.name)
-    // Server adalah sumber kebenaran. Dulu hasil kosong dari server dianggap
-    // "belum termuat" lalu diisi ulang dari state lama, sehingga akses yang
-    // sudah dicabut admin tetap tampil menempel di wilayah/dermaga lama.
-    const regions = (b.regions ?? []).map(r => r.name)
-    const region = regions[0] ?? b.region_code ?? b.region_id ?? '-'
-    const dermagaAccess = b.dermagas ?? []
-    return {
-      id: String(b.id),
-      name: b.name,
-      username: b.username || b.name?.toLowerCase().replace(/\s+/g, '') || b.id,
-      initials: b.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-      region,
-      regions,
-      pin: old?.pin ?? '',
-      status: b.is_active ? 'Aktif' : 'Nonaktif',
-      dermagaAccess,
-    }
-  })
-}
 
 
 

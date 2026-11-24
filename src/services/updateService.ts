@@ -60,6 +60,13 @@ async function reportVersionToServer(version: string): Promise<boolean> {
   try {
     const deviceId = await getDeviceId();
     const url = `${api.baseUrl}/report-version`;
+    // Endpoint ini butuh identitas. Startup tanpa sesi (mis. sebelum login)
+    // tidak perlu menembak server hanya untuk menerima 401.
+    const token = api.token;
+    if (!token) {
+      console.warn('[Version] Tidak ada sesi — laporan versi dilewati');
+      return false;
+    }
 
     const response = await CapacitorHttp.request({
       url,
@@ -67,6 +74,7 @@ async function reportVersionToServer(version: string): Promise<boolean> {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       data: {
         deviceId,

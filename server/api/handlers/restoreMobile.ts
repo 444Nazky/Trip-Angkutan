@@ -38,6 +38,14 @@ const EXT_MIME: Record<string, string> = {
 /** Batas ukuran satu foto di dalam arsip (sama dengan unggahan trip biasa). */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
+// Batas keras hasil dekompresi. Arsip 100 MB bisa mengembang jauh lebih
+// besar (zip bomb), jadi jumlah entry dan total ukuran isi dibatasi sebelum
+// foto atau JSON diproses.
+const MAX_ARCHIVE_ENTRIES = 500;
+const MAX_TOTAL_UNCOMPRESSED = 200 * 1024 * 1024;
+const MAX_PHOTO_COUNT = 200;
+const MAX_TOTAL_PHOTO_BYTES = 100 * 1024 * 1024;
+
 export interface RestoreTrip {
   clientTripId: string;
   /** Kode trip yang ditampilkan ke operator (bukan UUID kunci idempoten). */
@@ -332,6 +340,25 @@ async function readArchive(req: Request): Promise<ArchiveRead> {
     return { ok: false, response: json({ error: "Arsip ZIP rusak atau tidak bisa dibaca" }, 400) };
   }
 
+  const entries = Object.values(archive.files);
+  if (entries.length > MAX_ARCHIVE_ENTRIES) {
+    return {
+      ok: false,
+      response: json({ error: `Arsip berisi terlalu banyak berkas (maksimal ${MAX_ARCHIVE_ENTRIES})` }, 400),
+    };
+  }
+  let uncompressedBytes = 0;
+  for (const item of entries) {
+    const size = Number((item as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize);
+    if (Number.isFinite(size) && size > 0) uncompressedBytes += size;
+  }
+  if (uncompressedBytes > MAX_TOTAL_UNCOMPRESSED) {
+    return {
+      ok: false,
+      response: json({ error: "Isi arsip setelah diekstrak terlalu besar" }, 400),
+    };
+  }
+
   const entry = archive.file(ARCHIVE_JSON_NAME);
   if (!entry) {
     return { ok: false, response: json({ error: `${ARCHIVE_JSON_NAME} tidak ditemukan di dalam arsip` }, 400) };
@@ -541,7 +568,11 @@ async function findExistingTrip(clientTripId: string, officerId: string | null):
   let query = db.from("trips")
     .select("id, no_trip, officer_id, created_at")
     .eq("client_trip_id", clientTripId);
+  // `officer_id` NULL adalah nilai yang sah: jangan longgarkan filter saat
+  // officer tidak dikenal, karena itu membuat trip milik petugas lain
+  // dianggap "sudah ada" lalu ditimpa.
   if (officerId) query = query.eq("officer_id", officerId);
+  else query = query.is("officer_id", null);
   const { data, error } = await query.limit(1);
   if (error) throw error;
   const row = data?.[0] as Record<string, unknown> | undefined;
@@ -704,26 +735,42 @@ export async function restoreMobileData(req: Request): Promise<Response> {
     const photoError = validatePhotoRefs(archive, trips);
     if (photoError) return json({ error: photoError }, 400);
     const refs = collectPhotoRefs(trips);
-    const photoBytes = new Map<string, { bytes: Uint8Array; mime: string }>();
-    for (const ref of refs) {
-      const photoEntry = archive.file(ref)!;
-      const mime = mimeForPath(ref)!;
-      const data = await photoEntry.async("uint8array");
-      if (data.length > MAX_PHOTO_BYTES) {
-        return json({ error: `Ukuran foto ${ref} melebihi 5 MB` }, 400);
-      }
-      photoBytes.set(ref, { bytes: data, mime });
+    if (refs.length > MAX_PHOTO_COUNT) {
+      return json({ error: `Jumlah foto dalam arsip terlalu banyak (maksimal ${MAX_PHOTO_COUNT})` }, 400);
     }
 
-    // Unggah foto. Kalau gagal, foto yang sudah terunggah dihapus kembali.
+    // Unggah foto SATU PER SATU: seluruh isi arsip tidak ditahan di memori
+    // sekaligus, dan foto yang sudah terunggah tetap dibersihkan bila foto
+    // berikutnya ditolak.
     const photoMap = new Map<string, string>();
-    const uploadedRefPaths = new Map<string, string>();
-    for (const [ref, data] of photoBytes) {
-      const url = await uploadPhoto(data.bytes, data.mime);
-      photoMap.set(ref, url);
-      uploadedRefPaths.set(ref, url.replace(/^\/files\/trip-photos\//, ""));
+    uploadedPaths = [];
+    let totalPhotoBytes = 0;
+    const failPhotos = async (message: string): Promise<Response> => {
+      for (const path of uploadedPaths) await deleteFile(path);
+      uploadedPaths = [];
+      return json({ error: message }, 400);
+    };
+    try {
+      for (const ref of refs) {
+        const photoEntry = archive.file(ref)!;
+        const mime = mimeForPath(ref)!;
+        const data = await photoEntry.async("uint8array");
+        if (data.length > MAX_PHOTO_BYTES) {
+          return await failPhotos(`Ukuran foto ${ref} melebihi 5 MB`);
+        }
+        totalPhotoBytes += data.length;
+        if (totalPhotoBytes > MAX_TOTAL_PHOTO_BYTES) {
+          return await failPhotos("Total ukuran foto dalam arsip melebihi 100 MB");
+        }
+        const url = await uploadPhoto(data, mime);
+        photoMap.set(ref, url);
+        uploadedPaths.push(url.replace(/^\/files\/trip-photos\//, ""));
+      }
+    } catch (err) {
+      for (const path of uploadedPaths) await deleteFile(path);
+      uploadedPaths = [];
+      throw err;
     }
-    uploadedPaths = [...uploadedRefPaths.values()];
 
     const columns = await tripColumns();
     const rollbacks: Array<() => Promise<void>> = [];

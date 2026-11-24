@@ -22,7 +22,6 @@ import {
   setPinHash,
   verifyPin as verifyStoredPin,
 } from './offlineDb'
-import { findSeedOfficer } from './seedData'
 
 // ─── Debug helpers ───────────────────────────────────────────────────────────────
 
@@ -291,27 +290,10 @@ function findStoredOfficerRecord(identifier: string): OfflineOfficerRecord | nul
   return null
 }
 
-function seedToRecord(identifier: string): OfflineOfficerRecord | null {
-  const s = findSeedOfficer(identifier)
-  if (!s) return null
-  return {
-    id: s.id,
-    username: s.username,
-    name: s.name,
-    region: s.regionCode,
-    regionId: s.regionId,
-    regionName: s.regionName,
-    regionCode: s.regionCode,
-    status: (s.isActive ?? 1) === 1 ? 'Aktif' : 'Nonaktif',
-    dermagaAccess: s.dermagaAccess,
-  }
-}
-
 async function buildOfflineSession(identifier: string): Promise<StoredOfficer | null> {
   let row: OfflineOfficerRecord | null = null
   try { row = await findOfflineOfficer<OfflineOfficerRecord>(identifier) } catch { row = null }
   if (!row) row = findStoredOfficerRecord(identifier)
-  if (!row) row = seedToRecord(identifier)
   if (!row) return null
   if (row.status && /^(nonaktif|non-aktif|inactive)$/i.test(String(row.status))) return null
 
@@ -874,23 +856,24 @@ export interface AdminCredentials {
   password: string
 }
 
+// Password admin HANYA hidup di memori modul. Menyimpannya di localStorage
+// berarti siapa pun yang bisa membaca storage perangkat (atau menjalankan
+// skrip lewat XSS) langsung memegang kredensial admin. Username tetap
+// disimpan supaya form login dapat diisi ulang; password harus diketik lagi
+// setelah halaman dimuat ulang.
+let adminCredentialMemory: AdminCredentials | null = null
+
 export function getAdminCredentials(): AdminCredentials | null {
-  try {
-    const raw = localStorage.getItem(ADMIN_CREDENTIALS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<AdminCredentials>
-      if (parsed?.username && parsed?.password) {
-        return { username: String(parsed.username), password: String(parsed.password) }
-      }
-    }
-  } catch { /* storage tidak tersedia */ }
-  return null
+  return adminCredentialMemory
 }
 
 export function setAdminCredentials(cred: AdminCredentials | null): void {
+  adminCredentialMemory = cred?.username && cred?.password
+    ? { username: cred.username, password: cred.password }
+    : null
   try {
-    if (cred?.username && cred?.password) {
-      localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ username: cred.username, password: cred.password }))
+    if (cred?.username) {
+      localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ username: cred.username }))
     } else {
       localStorage.removeItem(ADMIN_CREDENTIALS_KEY)
     }

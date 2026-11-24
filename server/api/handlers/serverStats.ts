@@ -6,9 +6,7 @@
  * grafik request per menit, dan status tiap komponen server.
  *
  * Akses:
- *   - Wajib punya token admin (sama seperti endpoint master data lain),
- *     KECUALI server dijalankan dengan `ADMIN_AUTH_DISABLED=1` (mode intranet
- *     tanpa auth, untuk mesin yang benar-benar tertutup di LAN).
+ *   - Wajib punya token admin (sama seperti endpoint master data lain).
  *   - Komponen yang dicek: proses API, database lokal, JWT/auth, dan
  *     direktori penyimpanan file. Tidak ada pengecekan ke internet.
  */
@@ -131,11 +129,8 @@ function checkAuth(): Component {
 }
 
 export async function serverStats(req: Request): Promise<Response> {
-  const authDisabled = Deno.env.get("ADMIN_AUTH_DISABLED") === "1";
-  if (!authDisabled) {
-    const ctx = await requireAdmin(req);
-    if (!ctx) return json({ error: "Akses ditolak. Token admin dibutuhkan." }, 401);
-  }
+  const ctx = await requireAdmin(req);
+  if (!ctx) return json({ error: "Akses ditolak. Token admin dibutuhkan." }, 401);
 
   const metrics = snapshot();
   const system = await systemSnapshot();

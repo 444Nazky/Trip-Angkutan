@@ -150,11 +150,7 @@ export async function verifyToken(token: string): Promise<OfficerClaims | null> 
 /** Extract auth context from the request. Returns null when unauthenticated. */
 export async function auth(req: Request): Promise<OfficerClaims | null> {
   const header = req.headers.get("authorization");
-  if (!header) {
-    return Deno.env.get("ADMIN_AUTH_DISABLED") === "1"
-      ? { role: "admin", username: "intranet" }
-      : null;
-  }
+  if (!header) return null;
   const token = header.replace(/^Bearer\s+/i, "");
   const claims = await verifyToken(token);
   if (!claims) return null;

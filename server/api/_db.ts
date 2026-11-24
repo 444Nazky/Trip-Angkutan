@@ -301,6 +301,14 @@ function storageBucket(bucket: string) {
         return { data: null, error: { message: (err as Error).message } };
       }
     },
+    async exists(path: string): Promise<boolean> {
+      try {
+        await Deno.stat(objectPath(bucket, path));
+        return true;
+      } catch {
+        return false;
+      }
+    },
     getPublicUrl(path: string): { data: { publicUrl: string } } {
       const clean = path.replace(/^\/+/, "");
       return { data: { publicUrl: `${FILES_PREFIX}/${bucket}/${clean}` } };
