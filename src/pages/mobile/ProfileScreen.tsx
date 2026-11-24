@@ -191,7 +191,6 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
           <Lock size={12} className="text-slate-500" />
           <span className="text-[11px] text-slate-500">Region Locked</span>
           <span className="ml-auto text-[11px] font-black text-emerald-400 tracking-widest">{regionLabel}</span>
-          <span className="text-[10px] text-slate-600">{officer.lastActive}</span>
         </div>
       </section>
 
@@ -298,7 +297,7 @@ export default function ProfileScreen({ go }: ProfileScreenProps) {
         <ArrowLeftRight size={15} /> Ganti Petugas
       </button>
 
-      <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first · {officer.lastActive}</p>
+      <p className="pb-2 text-center text-[10px] text-slate-400">TripAngkutan · Offline-first</p>
 
     </div>
   )

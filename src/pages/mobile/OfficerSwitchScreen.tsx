@@ -116,8 +116,7 @@ Mode offline. Memakai data terakhir tersimpan.
             />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-900 text-[13px]">{o.name}</p>
-              <p className="text-[11px] text-slate-400">{o.username ? `@${o.username}` : o.device} · {o.trips} trip</p>
-              <p className="text-[10px] text-slate-300">Terakhir aktif: {o.lastActive}</p>
+              <p className="text-[11px] text-slate-400">{o.username ? `@${o.username}` : (o.regionName || o.region)}</p>
             </div>
             <span className={`text-[10px] font-black px-2.5 py-1 rounded-full shrink-0 ${
               o.status === 'Aktif' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'

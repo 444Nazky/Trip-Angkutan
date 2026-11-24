@@ -77,9 +77,5 @@ export interface Officer {
   regions?: string[]
   pin: string
   status: string
-  device: string
-  trips: number
-  lastActive: string
-  joined: string
   dermagaAccess?: DermagaAccess[]
 }

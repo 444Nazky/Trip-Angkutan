@@ -111,10 +111,6 @@ function toMobileOfficer(bo: BackendOfficer) {
     regions: bo.regions?.map(r => r.code) ?? [primaryRegion],
     pin: '',
     status: bo.is_active ? 'Aktif' : 'Nonaktif',
-    device: '-',
-    trips: 0,
-    lastActive: '-',
-    joined: '-',
     dermagaAccess: bo.dermagas || [],
   }
 }

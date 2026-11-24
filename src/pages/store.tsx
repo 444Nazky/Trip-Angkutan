@@ -786,10 +786,6 @@ const EMPTY_OFFICER: Officer = {
   regions: [],
   pin: '',
   status: 'Aktif',
-  device: '-',
-  trips: 0,
-  lastActive: '-',
-  joined: '-',
   dermagaAccess: [],
 }
 
@@ -1123,10 +1119,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           regions: so.regionCode ? [so.regionCode] : [],
           pin: '',
           status: 'Aktif',
-          device: '-',
-          trips: 0,
-          lastActive: '-',
-          joined: '-',
           dermagaAccess: (so as { dermagaAccess?: Officer['dermagaAccess'] }).dermagaAccess ?? [],
         } as Officer
       }
