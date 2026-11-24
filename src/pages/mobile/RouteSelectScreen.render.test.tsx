@@ -27,7 +27,12 @@ vi.mock('../store', () => ({
       mocks.patch(p)
       if (p.routeCode !== undefined) mocks.state.routeCode = p.routeCode
     },
-    officer: { id: 'o1', name: 'Petugas', region: 'Belitung', dermagaAccess: [] },
+    officer: {
+      id: 'o1',
+      name: 'Petugas',
+      region: 'Belitung',
+      dermagaAccess: [{ id: 'd1', name: 'Dermaga Sungai Jawi' }],
+    },
   }),
 }))
 
@@ -84,8 +89,8 @@ afterEach(() => {
   container.remove()
 })
 
-const render = async (go: (screen: string) => void = () => {}) => {
-  await act(async () => { root.render(<RouteSelectScreen go={go} />) })
+const render = async (go: (screen: string) => void = () => {}, dockId?: string) => {
+  await act(async () => { root.render(<RouteSelectScreen go={go} selectedDockId={dockId} />) })
   await act(async () => {})
 }
 
@@ -124,6 +129,20 @@ describe('layar pilih rute', () => {
     expect(container.textContent).toContain('Anda sedang berada di luar area bertugas')
     expect(container.textContent).toContain('Segera kembali ke posisi.')
     expect(mocks.patch).not.toHaveBeenCalled()
+  })
+
+  it('menampilkan dermaga sebagai judul besar dan region sebagai sub-header', async () => {
+    await render(undefined, 'd1')
+    const paragraphs = [...container.querySelectorAll('p')]
+    const dock = paragraphs.find(el => el.textContent?.trim() === 'Dermaga Sungai Jawi')
+    const region = paragraphs.find(el => el.textContent?.trim() === 'Belitung')
+    expect(dock).toBeTruthy()
+    expect(region).toBeTruthy()
+    // Dermaga adalah judul (16px), region hanya keterangan kecil (11px).
+    expect(dock!.className).toContain('text-[16px]')
+    expect(region!.className).toContain('text-[11px]')
+    // Urutan tampil: dermaga dulu, region di bawahnya.
+    expect(dock!.compareDocumentPosition(region!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('trip kosong lanjut ke Ringkasan tanpa membuka kamera', async () => {
