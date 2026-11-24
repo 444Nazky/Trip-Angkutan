@@ -836,7 +836,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [draftLocked, setDraftLocked] = useState(false)
   // Batas umur draft yang berlaku (ms). Diambil dari server supaya owner
   // bisa mengubahnya dari dashboard admin tanpa build baru. Nilai awal
-  // diambil dari cache perangkat (default 15 menit).
+  // diambil dari cache perangkat (default 420 menit).
   const [draftTtlMs, setDraftTtlMs] = useState<number>(
     () => getCachedSettings().draftTtlMinutes * 60_000,
   )
@@ -895,7 +895,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!alive) return
         const data = stored?.draft ?? emptyDraft
         // Draft yang dipulihkan hanya "berhitung" kalau sudah ada minimal 1
-        // kendaraan. Kalau belum, jam 15 menit BELUM mulai: begitu petugas
+        // kendaraan. Kalau belum, jam 420 menit BELUM mulai: begitu petugas
         // menambah kendaraan, timer baru mulai dari saat itu.
         const counted = hasCountedDraft(data)
         const createdAt = counted ? (stored?.createdAt ?? stored?.savedAt ?? 0) : 0

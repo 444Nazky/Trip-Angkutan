@@ -12,8 +12,14 @@
 
 import { api } from './api'
 
-/** Nilai bawaan kalau server belum pernah bisa dihubungi. */
-export const DEFAULT_DRAFT_TTL_MINUTES = 15
+/**
+ * Nilai bawaan kalau server belum pernah bisa dihubungi.
+ *
+ * Disamakan dengan pengaturan yang tersimpan di database (420 menit), bukan
+ * 15 menit, supaya perangkat baru tidak memakai batas draft yang berbeda
+ * dari server sebelum pengaturan pertama berhasil ditarik.
+ */
+export const DEFAULT_DRAFT_TTL_MINUTES = 420
 
 const STORAGE_KEY = 'trip.appSettings.v1'
 

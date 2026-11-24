@@ -205,7 +205,7 @@ describe('persistensi riwayat — foto tidak boleh hilang saat aplikasi dibuka u
   })
 })
 
-describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', () => {
+describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 420 menit', () => {
   // Draft disimpan per petugas (kunci berbeda untuk tiap id petugas).
   const LS_DRAFT = 'trip.draft.v2:anon'
   const makeDraft = (): Draft => ({
@@ -222,7 +222,7 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', (
     startedAt: Date.now(),
   })
 
-  it('draft yang belum 15 menit dipulihkan apa adanya', async () => {
+  it('draft yang belum 420 menit dipulihkan apa adanya', async () => {
     await prepareColdStart()
     const createdAt = Date.now() - 60_000
     await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft: makeDraft() })
@@ -236,9 +236,9 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', (
     expect(seen.draftLocked, 'draft belum kedaluwarsa').toBe(false)
   })
 
-  it('draft yang lewat 15 menit tetap ada tapi isiannya dibekukan (tidak bisa diedit)', async () => {
+  it('draft yang lewat 420 menit tetap ada tapi isiannya dibekukan (tidak bisa diedit)', async () => {
     await prepareColdStart()
-    const createdAt = Date.now() - 20 * 60 * 1000
+    const createdAt = Date.now() - 421 * 60 * 1000
     await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft: makeDraft() })
 
     await mountApp()
@@ -249,9 +249,9 @@ describe('draft trip — dipulihkan setelah aplikasi ditutup, batas 15 menit', (
     expect(await metaGet(LS_DRAFT), 'draft tidak dihapus paksa').toBeTruthy()
   })
 
-  it('draft tanpa kendaraan belum terhitung: tidak terkunci dan jam 15 menit belum mulai', async () => {
+  it('draft tanpa kendaraan belum terhitung: tidak terkunci dan jam 420 menit belum mulai', async () => {
     await prepareColdStart()
-    const createdAt = Date.now() - 20 * 60 * 1000
+    const createdAt = Date.now() - 421 * 60 * 1000
     const draft = { ...makeDraft(), vehicles: [] }
     await metaSet(LS_DRAFT, { createdAt, savedAt: createdAt, draft })
 

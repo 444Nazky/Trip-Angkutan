@@ -67,8 +67,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         region,
         regions,
         pin: old?.pin ?? '', status: b.is_active ? 'Aktif' : 'Nonaktif',
-        device: old?.device ?? '-', trips: old?.trips ?? 0,
-        lastActive: old?.lastActive ?? '-', joined: old?.joined ?? '-',
         // Dermaga mengikuti server apa adanya: array kosong berarti akses
         // dicabut, bukan alasan memakai daftar lama.
         dermagaAccess: b.dermagas ?? [],

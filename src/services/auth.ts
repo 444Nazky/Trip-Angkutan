@@ -863,21 +863,18 @@ export interface AdminSessionResult {
   error?: string
 }
 
-// Kredensial admin. Default tetap dipakai supaya dashboard tetap bisa
-// terbuka di komputer yang belum pernah menyimpan kredensial, TAPI begitu
-// admin mengganti password lewat dashboard, kredensial baru bisa disimpan
-// di sini — tanpa itu, auto-login selalu gagal dan dashboard terlihat
-// "Offline" padahal server sehat.
+// Kredensial admin TIDAK punya nilai bawaan. Password default yang ikut
+// ter-bundle di client pernah membuat siapa pun bisa membuka dashboard
+// dengan kredensial yang sama. Sekarang kredensial hanya disimpan setelah
+// admin benar-benar mengetik username dan password di form login.
 const ADMIN_CREDENTIALS_KEY = 'trip.admin.credentials.v1'
-const DEFAULT_ADMIN_USERNAME = 'admin'
-const DEFAULT_ADMIN_PASSWORD = 'admin123456'
 
 export interface AdminCredentials {
   username: string
   password: string
 }
 
-export function getAdminCredentials(): AdminCredentials {
+export function getAdminCredentials(): AdminCredentials | null {
   try {
     const raw = localStorage.getItem(ADMIN_CREDENTIALS_KEY)
     if (raw) {
@@ -887,7 +884,7 @@ export function getAdminCredentials(): AdminCredentials {
       }
     }
   } catch { /* storage tidak tersedia */ }
-  return { username: DEFAULT_ADMIN_USERNAME, password: DEFAULT_ADMIN_PASSWORD }
+  return null
 }
 
 export function setAdminCredentials(cred: AdminCredentials | null): void {
@@ -902,6 +899,7 @@ export function setAdminCredentials(cred: AdminCredentials | null): void {
 
 async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
   const cred = getAdminCredentials()
+  if (!cred) return { ok: false, error: 'Masukkan username dan password admin.' }
   try {
     const res = await fetch(`${api.baseUrl}/auth/admin-login`, {
       method: 'POST',

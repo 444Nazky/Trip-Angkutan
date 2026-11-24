@@ -37,10 +37,6 @@ function mergeBackendOfficers(rows: BackendOfficerRow[], prev: Officer[]): Offic
       regions,
       pin: old?.pin ?? '',
       status: b.is_active ? 'Aktif' : 'Nonaktif',
-      device: old?.device ?? '-',
-      trips: old?.trips ?? 0,
-      lastActive: old?.lastActive ?? '-',
-      joined: old?.joined ?? '-',
       dermagaAccess,
     }
   })
