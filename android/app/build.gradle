@@ -27,9 +27,10 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.3.0 - arsip ekspor data trip terenkripsi AES-256-GCM.
-        versionCode 41
-        versionName "1.3.1"
+        // Rilis 1.3.2 - harga Lokal mengikuti server, tanggal WIB, dan card
+        // wilayah aktif (dermaga sebagai judul, region sebagai sub-header).
+        versionCode 42
+        versionName "1.3.2"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
