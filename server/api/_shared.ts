@@ -150,7 +150,18 @@ export async function verifyToken(token: string): Promise<OfficerClaims | null> 
 /** Extract auth context from the request. Returns null when unauthenticated. */
 export async function auth(req: Request): Promise<OfficerClaims | null> {
   const header = req.headers.get("authorization");
-  if (!header) return null;
+  if (!header) {
+    // Mode legacy intranet: seluruh endpoint admin dapat diakses tanpa token.
+    // Hanya aktif bila operator secara eksplisit mengisi
+    // ADMIN_AUTH_DISABLED=1; default server tetap menolak request anonim.
+    if (Deno.env.get("ADMIN_AUTH_DISABLED") === "1") {
+      return {
+        role: "admin",
+        username: (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin",
+      };
+    }
+    return null;
+  }
   const token = header.replace(/^Bearer\s+/i, "");
   const claims = await verifyToken(token);
   if (!claims) return null;

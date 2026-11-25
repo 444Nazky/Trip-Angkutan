@@ -917,11 +917,10 @@ export async function ensureAdminSession(): Promise<AdminSessionResult> {
     return { ok: false, authDenied: false, error: probe.error?.message ?? 'Server tidak merespons' }
   }
 
-  if (!api.token) {
-    const minted = await mintAdminToken()
-    if (!minted.ok) return { ok: false, authDenied: true, error: minted.error ?? 'Login admin gagal' }
-  }
-
+  // Coba langsung tanpa token lebih dulu. Pada server intranet dengan
+  // ADMIN_AUTH_DISABLED=1, request anonim sudah dianggap admin sehingga
+  // dashboard langsung terbuka tanpa perlu mencetak token. Pada server yang
+  // dikunci, probe ini 401 lalu alur login normal dijalankan.
   const first = await probeWith()
   if (first) return first
 
