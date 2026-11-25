@@ -27,10 +27,10 @@ android {
         applicationId "com.plantation.tripangkut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Rilis 1.3.2 - harga Lokal mengikuti server, tanggal WIB, dan card
-        // wilayah aktif (dermaga sebagai judul, region sebagai sub-header).
-        versionCode 42
-        versionName "1.3.2"
+        // Rilis 1.3.3 - jalur update 1.3.2 terverifikasi (hash per potongan),
+        // harga Lokal mengikuti server, tanggal WIB, dan card wilayah aktif.
+        versionCode 43
+        versionName "1.3.3"
         project.archivesBaseName = "Aplikasi Trip"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
