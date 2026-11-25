@@ -1,4 +1,5 @@
 import { CapacitorHttp, Capacitor } from '@capacitor/core';
+import { sha256 } from 'js-sha256';
 import { Device } from '@capacitor/device';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { api } from './api';
@@ -173,6 +174,61 @@ function base64ToBytes(base64: string): Uint8Array | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Hash APK per potongan.
+ *
+ * `Filesystem.readFile` mengirim seluruh berkas (16 MB → ±22 MB base64) lewat
+ * bridge WebView dalam satu pesan. Di perangkat Android itu gagal/OOM,
+ * sehingga verifikasi selalu berakhir "Verifikasi integritas gagal".
+ * `readFileInChunks` (Capacitor Filesystem ≥ 7.1) mengirim potongan kecil dan
+ * hash dihitung bertahap, jadi memori tetap rendah.
+ */
+const HASH_CHUNK_SIZE = 512 * 1024
+
+async function sha256FileInChunks(path: string): Promise<string> {
+  const hasher = sha256.create()
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (error?: unknown) => {
+      if (settled) return
+      settled = true
+      if (error) reject(error)
+      else resolve()
+    }
+
+    try {
+      const task = Filesystem.readFileInChunks(
+        { path, directory: Directory.Data, chunkSize: HASH_CHUNK_SIZE },
+        (chunk, error) => {
+          if (error) return finish(error)
+          // Potongan kosong menandai berkas selesai dibaca.
+          if (!chunk || typeof chunk.data !== 'string' || chunk.data.length === 0) return finish()
+          const bytes = base64ToBytes(chunk.data)
+          if (!bytes) return finish(new Error('Potongan APK bukan base64 yang valid'))
+          hasher.update(bytes)
+        },
+      )
+      Promise.resolve(task).catch(finish)
+    } catch (error) {
+      finish(error)
+    }
+  })
+
+  return hasher.hex()
+}
+
+/** Fallback untuk plugin lama yang belum punya readFileInChunks. */
+async function sha256FileAtOnce(path: string): Promise<string> {
+  const file = await Filesystem.readFile({ path, directory: Directory.Data })
+  const raw = typeof file.data === 'string' ? file.data : ''
+  const bytes = raw ? base64ToBytes(raw) : null
+  if (!bytes) throw new Error('Isi APK tidak dapat dibaca')
+  const digest = await sha256Hex(bytes)
+  if (!digest) throw new Error('WebCrypto tidak tersedia')
+  return digest
 }
 
 
@@ -370,8 +426,11 @@ async function downloadApk(version: string, downloadUrl: string): Promise<string
       throw new Error('Download failed - no path returned');
     }
 
+    // `downloadFile` boleh mengembalikan URI absolut (file:///...), sedangkan
+    // `readFile` di bawah memakai Directory.Data + path relatif. Kembalikan
+    // path yang kita berikan sendiri supaya verifikasi membaca berkas yang sama.
     console.log('[Update] APK downloaded to:', result.path);
-    return result.path;
+    return apkPath;
   } catch (error) {
     console.error('[Update] Download failed:', error);
     throw error;
@@ -741,15 +800,16 @@ class UpdateService {
     }
 
     try {
-      const file = await Filesystem.readFile({ path, directory: Directory.Data })
-      const raw = typeof file.data === 'string' ? file.data : ''
-      const bytes = raw ? base64ToBytes(raw) : null
-      if (!bytes) {
-        return { ok: false, message: 'Isi APK tidak dapat dibaca untuk verifikasi. Pembaruan ditolak.' }
-      }
-      const actual = await sha256Hex(bytes)
-      if (!actual) {
-        return { ok: false, message: 'WebCrypto tidak tersedia — pembaruan ditolak.' }
+      const canReadInChunks = typeof Filesystem.readFileInChunks === 'function'
+      let actual: string
+      try {
+        actual = canReadInChunks ? await sha256FileInChunks(path) : await sha256FileAtOnce(path)
+      } catch (error) {
+        if (!canReadInChunks) throw error
+        // Plugin ada tetapi gagal (mis. versi Android lama) — coba sekali lagi
+        // dengan pembacaan penuh; berkas kecil masih aman.
+        console.warn('[Update] Baca per potongan gagal, fallback ke readFile:', error)
+        actual = await sha256FileAtOnce(path)
       }
       if (actual !== expected) {
         return { ok: false, message: `Hash APK tidak cocok (file rusak/tidak lengkap). Unduh ulang pembaruan ${version}.` }
@@ -757,8 +817,9 @@ class UpdateService {
       console.log(`[Update] Hash APK ${version} terverifikasi`)
       return { ok: true }
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
       console.warn('[Update] Verifikasi hash gagal dijalankan:', error)
-      return { ok: false, message: 'Verifikasi integritas gagal — pembaruan ditolak.' }
+      return { ok: false, message: `Verifikasi integritas gagal — pembaruan ditolak. (${detail})` }
     }
   }
 

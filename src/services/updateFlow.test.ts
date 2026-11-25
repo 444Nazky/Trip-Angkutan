@@ -82,6 +82,15 @@ vi.mock('@capacitor/filesystem', () => ({
     async readdir() { return { files: [] } },
     async downloadFile({ path }: { path: string }) { return { path: `file:///data/${path}` } },
     async readFile() { return { data: toBase64(h.bytes) } },
+    // Simulasikan plugin native: kirim potongan base64 lalu potongan kosong
+    // sebagai penanda EOF. Ini memaksa jalur verifikasi hash per-chunk diuji.
+    async readFileInChunks({ chunkSize }: { chunkSize: number }, cb: (chunk: { data: string } | null) => void) {
+      for (let offset = 0; offset < h.bytes.length; offset += chunkSize) {
+        cb({ data: toBase64(h.bytes.subarray(offset, offset + chunkSize)) })
+      }
+      cb({ data: '' })
+      return 'chunk-callback'
+    },
     async stat() { return { size: h.statSize } },
     async deleteFile({ path }: { path: string }) { h.deleted.push(path) },
     async getUri({ path }: { path: string }) { return { uri: `content://fileprovider/data/${path}` } },

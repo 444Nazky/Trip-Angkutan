@@ -43,14 +43,27 @@ async function main() {
   }
 
   const hashed = bcrypt.hashSync(password, 10)
-  const res = await fetch(`${POSTGREST_URL}/admin_credentials`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify({ username, password: hashed }),
+  // Tabel ini tidak punya UNIQUE(username), jadi POST + merge-duplicates hanya
+  // MENAMBAH baris baru. Handler login memakai baris pertama (password lama)
+  // dan membuang baris baru, sehingga password yang baru disetel tidak pernah
+  // berlaku. Kalau sudah ada baris, PATCH semua baris yang ada.
+  const existingRes = await fetch(`${POSTGREST_URL}/admin_credentials?select=id&limit=1`, {
+    headers: { Accept: 'application/json' },
   })
+  const existing = existingRes.ok ? await existingRes.json().catch(() => []) : []
+  const hasRow = Array.isArray(existing) && existing.length > 0
+
+  const res = await fetch(
+    `${POSTGREST_URL}/admin_credentials${hasRow ? '?id=not.is.null' : ''}`,
+    {
+      method: hasRow ? 'PATCH' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ username, password: hashed }),
+    },
+  )
   if (!res.ok) {
     console.error(`Gagal menulis kredensial admin: HTTP ${res.status} ${await res.text()}`)
     process.exit(1)

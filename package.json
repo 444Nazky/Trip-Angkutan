@@ -34,6 +34,7 @@
     "@capacitor/network": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "cordova-plugin-file-opener2": "^4.0.0",
+    "js-sha256": "^0.11.1",
     "jszip": "^3.10.2",
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",
