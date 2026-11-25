@@ -111,6 +111,24 @@ Deno.test("login admin tanpa kredensial ditolak, bukan dibuka otomatis", async (
     assertEquals(res.status, 503);
   } finally {
     // Server tiruan dipakai bersama oleh seluruh pengujian.
+    Deno.env.delete("ADMIN_AUTH_DISABLED");
+  }
+});
+
+Deno.test("mode legacy ADMIN_AUTH_DISABLED=1 membuka sesi tanpa kredensial", async () => {
+  resetRows(fake.rows);
+  try {
+    Deno.env.set("ADMIN_USERNAME", "admin");
+    Deno.env.set("ADMIN_AUTH_DISABLED", "1");
+    const { adminLogin } = await loadHandler();
+
+    const res = await adminLogin(loginRequest("", ""));
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertEquals(body.admin.role, "admin");
+    assertEquals(typeof body.token, "string");
+  } finally {
+    Deno.env.delete("ADMIN_AUTH_DISABLED");
   }
 });
 

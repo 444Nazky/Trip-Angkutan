@@ -98,6 +98,12 @@ if (Deno.env.get("ADMIN_AUTH_DISABLED") === "0" && !Deno.env.get("ADMIN_PASSWORD
       `kosong, login admin akan ditolak sampai password bootstrap diisi di .env.local.`,
   );
 }
+if (Deno.env.get("ADMIN_AUTH_DISABLED") === "1") {
+  console.warn(
+    `[api-intranet] MODE LEGACY: dashboard admin dapat membuka sesi tanpa password. ` +
+      `Aktifkan hanya di jaringan intranet tepercaya; set ADMIN_AUTH_DISABLED=0 untuk mengunci.`,
+  );
+}
 
 // ── Pre-flight: direktori penyimpanan berkas ─────────────────────────────────
 //

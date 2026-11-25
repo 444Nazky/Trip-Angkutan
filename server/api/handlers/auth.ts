@@ -55,6 +55,15 @@ export async function adminLogin(req: Request): Promise<Response> {
     const { username, password } = await req.json().catch(() => ({})) as any;
     const adminUser = (Deno.env.get("ADMIN_USERNAME") ?? "admin").trim() || "admin";
 
+    // Mode legacy yang dipilih eksplisit oleh operator: dashboard intranet
+    // dibuka tanpa form login. Hanya berlaku bila body tidak membawa
+    // kredensial; login manual dengan username/password tetap divalidasi
+    // seperti biasa. Jangan aktifkan di server yang bisa dijangkau publik.
+    if (Deno.env.get("ADMIN_AUTH_DISABLED") === "1" && !username && !password) {
+      const token = await signToken({ role: "admin", username: adminUser }, 24 * 60 * 60);
+      return json({ token, admin: { username: adminUser, role: "admin" } });
+    }
+
     const { data: rows } = await db
       .from("admin_credentials")
       .select("id, username, password")

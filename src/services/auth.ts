@@ -882,19 +882,24 @@ export function setAdminCredentials(cred: AdminCredentials | null): void {
 
 async function mintAdminToken(): Promise<{ ok: boolean; error?: string }> {
   const cred = getAdminCredentials()
-  if (!cred) return { ok: false, error: 'Masukkan username dan password admin.' }
   try {
+    // Tanpa kredensial, tetap coba endpoint sekali. Server intranet dengan
+    // ADMIN_AUTH_DISABLED=1 membalas token langsung (dashboard tanpa login);
+    // server yang dikunci membalas 401/503 dan form login ditampilkan.
     const res = await fetch(`${api.baseUrl}/auth/admin-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: cred.username, password: cred.password }),
+      body: JSON.stringify(cred
+        ? { username: cred.username, password: cred.password }
+        : {}),
     })
     const data = await res.json().catch(() => null)
     if (res.ok && data?.token) {
       api.setToken(String(data.token))
-      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: cred.username, role: 'admin' })) } catch { /* quota */ }
+      try { localStorage.setItem('trip.admin', JSON.stringify(data.admin ?? { username: cred?.username ?? 'admin', role: 'admin' })) } catch { /* quota */ }
       return { ok: true }
     }
+    if (!cred) return { ok: false, error: 'Masukkan username dan password admin.' }
     return { ok: false, error: data?.error ? String(data.error) : `Login admin ditolak (HTTP ${res.status})` }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Server tidak bisa dihubungi' }
